@@ -1,0 +1,10 @@
+# Build artifacts and fetched deps under app/ are ignored by app/.gitignore.
+# This file covers the repo as a whole.
+
+# Load-test output
+load-tests/results/
+
+# Logs and OS / editor cruft
+*.log
+.DS_Store
+Thumbs.db
