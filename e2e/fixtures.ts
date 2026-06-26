@@ -35,9 +35,23 @@ export const test = base.extend<object, { server: { port: number } }>({
       const bin = path.join(appDir, isWin ? 'bin\\demo.exe' : 'bin/demo');
       const port = 8200 + workerInfo.parallelIndex; // bounded by worker count
 
-      const proc: ChildProcess = spawn(bin, [String(port)], { cwd: appDir, stdio: 'ignore' });
+      // Capture output so a startup failure surfaces the server's own error
+      // (e.g. an io_uring/seccomp problem) instead of a bare health timeout.
+      const proc: ChildProcess = spawn(bin, [String(port)], { cwd: appDir });
+      let log = '';
+      proc.stdout?.on('data', (d) => (log += d));
+      proc.stderr?.on('data', (d) => (log += d));
+      let exited = '';
+      proc.on('exit', (code, sig) => (exited = `process exited early (code=${code}, signal=${sig})`));
+
       try {
         await waitForHealth(port);
+      } catch (e) {
+        proc.kill();
+        throw new Error(`${(e as Error).message}\n${exited}\n--- server output ---\n${log || '(none)'}`);
+      }
+
+      try {
         await use({ port });
       } finally {
         proc.kill();

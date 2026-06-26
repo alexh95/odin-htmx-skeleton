@@ -75,6 +75,9 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-jammy
+      # The server uses io_uring (core:nbio); Docker's default seccomp profile
+      # blocks io_uring syscalls, so the server can't start in the container.
+      options: --security-opt seccomp=unconfined
     strategy:
       fail-fast: false
       matrix:
