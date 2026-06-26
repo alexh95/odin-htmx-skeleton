@@ -117,8 +117,12 @@ Cross-package calls are qualified: `repository.repo_list()`, `services.service_p
 (`import "../models"`); `odin-http` lives at `app/odin-http`, so it's `"../odin-http"` from
 `src/` and `"../../odin-http"` from `src/controllers/`.
 
-The store is **lock-free on purpose**: the server runs `thread_count = 1`, so every handler
-is serialised on one nbio thread. Keep it single-threaded, or add a lock — never half-way.
+The server runs **N nbio event-loop threads** (one per core by default; `THREADS` env
+overrides), so handlers run concurrently. The store is therefore guarded by an `sync.RW_Mutex`
+(reads share, writes are exclusive). Because callers read a returned contact *after* the lock
+drops, the repository hands out **temp-arena snapshots** (structs copied, strings cloned), never
+live store pointers — so a concurrent delete/realloc can't pull the rug out. If you touch the
+store, go through a `repo_*` proc; never alias `store.contacts` across the lock boundary.
 
 ## Code aesthetics (Odin)
 
@@ -176,7 +180,7 @@ import http "../../odin-http"   // relative; submodule at app/odin-http ("../odi
 // server (main.odin)
 s: http.Server
 http.server_shutdown_on_interrupt(&s)
-opts := http.Default_Server_Opts; opts.thread_count = 1
+opts := http.Default_Server_Opts; opts.thread_count = os.get_processor_core_count() // THREADS env overrides
 http.listen_and_serve(&s, http.router_handler(&router),
     net.Endpoint{address = net.IP4_Loopback, port = port}, opts)
 

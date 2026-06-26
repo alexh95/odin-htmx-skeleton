@@ -56,6 +56,13 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   install — that was the biggest, most variable cost). `workers` tracks the runner's cores.
 
 ### Performance
+- **Multithreaded server.** The event loop now runs one nbio thread **per core** (was pinned to
+  one); `THREADS` env overrides. The in-memory store, previously lock-free *because* it was
+  single-threaded, is now guarded by an `sync.RW_Mutex` — reads share, writes are exclusive — and
+  the repository hands callers **temp-arena snapshots** (structs copied, strings cloned under the
+  lock) so nothing aliases store memory across a concurrent delete/realloc. Load-tests sweep
+  `THREADS=1` vs `N` against the same binary for the before/after; numbers in
+  [`load-tests/RESULTS.md`](load-tests/RESULTS.md).
 - Static assets now send `Cache-Control: public, max-age=3600` and a strong **ETag** (a content
   hash computed once at startup), with conditional `304 Not Modified` handling — repeat page
   loads reuse cached htmx/CSS/JS instead of re-downloading, and a redeploy changes the hash so
