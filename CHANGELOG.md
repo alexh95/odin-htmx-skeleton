@@ -40,12 +40,8 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   per worker), replacing the single shared server + `workers: 1`. ~2.5× faster locally. On CI
   the engines are **sharded across concurrent runners** (a browser matrix) instead of piling
   workers onto one CPU-bound runner, and each shard runs in **Playwright's official Docker
-  image** so the browsers + OS deps are preinstalled (no per-run install — that was the biggest,
-  most variable cost). `workers` tracks the runner's cores.
-- e2e tooling moved from npm/Node to **Bun** (`bun.lock`, `bun run test`, `bun serve.mjs`; CI
-  uses `oven-sh/setup-bun`). Faster, single-binary, drops the `setup-node` action. Decision and
-  the "use Bun for any JS tooling" policy recorded in
-  [`docs/adr/0001`](docs/adr/0001-bun-for-javascript-tooling.md).
+  image** (which also ships node/npm) so the browsers + OS deps are preinstalled (no per-run
+  install — that was the biggest, most variable cost). `workers` tracks the runner's cores.
 
 ### Performance
 - First page load: `defer` the embedded htmx script so it no longer blocks rendering (the

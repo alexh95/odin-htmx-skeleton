@@ -7,13 +7,12 @@ Chromium against a freshly built server binary and assert on what happens
 
 ## Run
 
-Tooling is **Bun** (not npm) — see [ADR 0001](../docs/adr/0001-bun-for-javascript-tooling.md).
-From this directory:
+From this directory (npm — isolated test-only tooling, never shipped):
 
 ```sh
-bun install
-bunx playwright install --with-deps chromium firefox webkit   # one-time: fetch browsers
-bun run test                       # all three engines; add --project=chromium to narrow
+npm ci
+npx playwright install --with-deps chromium firefox webkit   # one-time: fetch browsers
+npm test                            # all three engines; add -- --project=chromium to narrow
 ```
 
 `global-setup.ts` builds `../app` once (with `-warnings-as-errors`), so a run needs `odin` on
@@ -21,12 +20,12 @@ bun run test                       # all three engines; add --project=chromium t
 parallelIndex`, see `fixtures.ts`) with an **isolated in-memory store** — which is what lets
 the suite run **fully in parallel** across workers and the three browser engines.
 
-- `bun run test:ui` — interactive runner.
-- `bun run test:headed` — watch it drive a real browser.
-- `bun run report` — open the last HTML report.
+- `npm run test:ui` — interactive runner.
+- `npm run test:headed` — watch it drive a real browser.
+- `npm run report` — open the last HTML report.
 
-> Use `bun run test`, **not** `bun test` — the latter is Bun's own test runner; ours shells out
-> to the Playwright CLI.
+On CI the engines are sharded across runners inside Playwright's official Docker image (browsers
++ OS deps + node/npm preinstalled), so there's no browser-install step there.
 
 ## Layout
 

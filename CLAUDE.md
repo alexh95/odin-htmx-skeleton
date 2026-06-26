@@ -11,7 +11,7 @@ It showcases a PrimeVue-style component set, a dashboard, search, and a CRUD dat
 ```
 odin-htmx-demo/
   app/          The application (Odin sources, static assets, run scripts). All real work.
-  e2e/          Playwright browser tests (implemented; Bun). `cd e2e && bun install && bun run test`.
+  e2e/          Playwright browser tests (implemented). `cd e2e && npm ci && npm test`.
   load-tests/   Load/throughput test plan (PLAN.md). Not yet implemented.
   CLAUDE.md TODO.md CHANGELOG.md   ← you are here
 ```
@@ -87,11 +87,9 @@ The **shipped app depends on exactly two things**: **HTMX** (front end) and **od
 - Before reaching for a library, ask whether ~30 lines of Odin or CSS does it. They usually
   do. New runtime dependencies in `app/` need a real justification.
 - Test tooling is exempt: `e2e/` and `load-tests/` may use external tools (Playwright, k6)
-  because they're dev-time and never shipped. Prefer single-binary tools.
-- **For any JS/TS tooling, use Bun** (not npm/pnpm/yarn) — `bun install`, `bun run <script>`;
-  commit `bun.lock`; pin the bun version in CI. Never `bun test` (that's Bun's runner; our
-  scripts call the Playwright CLI). The product stays JS-free regardless. See
-  [ADR 0001](docs/adr/0001-bun-for-javascript-tooling.md).
+  because they're dev-time and never shipped. Prefer single-binary tools. The product itself
+  stays JS-free; `e2e/` uses npm (it runs in Playwright's Docker image on CI, which ships
+  node/npm, so there's nothing extra to install).
 
 ## Architecture — strict layering
 

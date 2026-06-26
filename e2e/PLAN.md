@@ -22,8 +22,8 @@ The three bugs fixed in this round become permanent regression tests:
 HTMX's async swaps, runs headless in CI, and drives Chromium/Firefox/WebKit. The trade-off:
 it's a JS-ecosystem dev dependency, which cuts against the app's zero-dependency stance — but
 it is a *test-time* tool, never shipped, and lives entirely inside `e2e/`. The app itself
-stays dependency-free. The package manager / runtime is **Bun**, not npm — see
-[ADR 0001](../docs/adr/0001-bun-for-javascript-tooling.md).
+stays dependency-free. Managed with npm; on CI it runs in Playwright's official Docker image
+(browsers + OS deps + node/npm preinstalled).
 
 Considered and rejected for now: a pure-Odin HTTP harness. It's great for contract tests
 (and we may add one later) but it can't execute HTMX or assert on rendered DOM, so it
@@ -33,7 +33,7 @@ doesn't replace browser e2e.
 
 ```
 e2e/
-  package.json            # playwright only (Bun-managed; bun.lock)
+  package.json            # playwright only (npm; package-lock.json)
   playwright.config.ts    # 3 engines, fullyParallel, trace on retry
   global-setup.ts         # builds app/bin once with -warnings-as-errors
   fixtures.ts             # worker-scoped server per port + baseURL override
