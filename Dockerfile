@@ -29,11 +29,10 @@ WORKDIR /src/app
 RUN sh prepare.sh \
  && odin build src -out:bin/demo -o:speed -warnings-as-errors
 
-# ---- runtime: binary + static assets, nothing else -----------------------
+# ---- runtime: just the binary (all assets are embedded) ------------------
 FROM debian:bookworm-slim
 WORKDIR /app
 COPY --from=build /src/app/bin/demo /app/demo
-COPY --from=build /src/app/static  /app/static
 
 # Bind 0.0.0.0 so the platform can route in; PORT is the platform's contract.
 ENV PORT=8080 BIND_ALL=1

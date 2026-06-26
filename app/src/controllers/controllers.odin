@@ -317,17 +317,28 @@ health :: proc(req: ^http.Request, res: ^http.Response) {
 
 // ---- static -------------------------------------------------------------
 
-// HTMX is embedded into the binary at compile time (path is relative to this
-// file: src/controllers -> app/static) and served from memory. prepare.*
-// fetches the file before the first build.
+// Every asset is embedded into the binary at compile time (#load; paths are
+// relative to this file: src/controllers -> app/static) and served from memory.
+// The binary is fully self-contained: nothing is read from disk at runtime, so a
+// redeploy is the only way assets change — which matches the deployment model.
+// prepare.* fetches htmx before the first build.
 HTMX_JS :: #load("../../static/htmx.min.js")
+APP_CSS :: #load("../../static/app.css")
+APP_JS :: #load("../../static/app.js")
+FAVICON :: #load("../../static/favicon.svg")
 
-serve_htmx :: proc(req: ^http.Request, res: ^http.Response) {
-	http.respond_file_content(res, "htmx.min.js", HTMX_JS)
-}
-
-// Everything else under /static is read from disk so CSS/JS edits show up on
-// refresh without a recompile.
+// respond_file_content sets the content-type from the name's extension.
 serve_static :: proc(req: ^http.Request, res: ^http.Response) {
-	http.respond_dir(res, "/static/", "static", req.url.path)
+	switch req.url_params[0] {
+	case "htmx.min.js":
+		http.respond_file_content(res, "htmx.min.js", HTMX_JS)
+	case "app.css":
+		http.respond_file_content(res, "app.css", APP_CSS)
+	case "app.js":
+		http.respond_file_content(res, "app.js", APP_JS)
+	case "favicon.svg":
+		http.respond_file_content(res, "favicon.svg", FAVICON)
+	case:
+		http.respond(res, http.Status.Not_Found)
+	}
 }

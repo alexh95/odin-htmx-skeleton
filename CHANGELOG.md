@@ -49,6 +49,10 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   install — that was the biggest, most variable cost). `workers` tracks the runner's cores.
 
 ### Performance
+- All static assets (`app.css`, `app.js`, `favicon.svg`, htmx) are now **embedded into the
+  binary** and served from memory, replacing the disk-served `respond_dir` path. The deployed
+  artifact is a single self-contained file (the Dockerfile no longer ships `static/`), there
+  are no per-request disk reads, and path traversal is structurally impossible.
 - First page load: `defer` the embedded htmx script so it no longer blocks rendering (the
   pre-paint theme script stays synchronous to avoid a flash). htmx still initialises before
   `DOMContentLoaded`; the full e2e suite passes unchanged across all three engines.

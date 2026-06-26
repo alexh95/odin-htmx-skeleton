@@ -82,10 +82,10 @@ in `repository.odin`.
 
 ### Assets
 
-`htmx.min.js` is **embedded** into the binary (`#load`) and served from memory at
-`/static/htmx.min.js` — the backend ships its own copy. Everything else under `/static`
-(the CSS, this script) is **served from disk**, so you can edit `static/app.css` and see the
-change on refresh without recompiling.
+**Every** static asset — `htmx.min.js`, `app.css`, `app.js`, `favicon.svg` — is **embedded**
+into the binary (`#load`) and served from memory under `/static/`. The binary is fully
+self-contained: nothing is read from disk at runtime, so the deployed artifact is a single
+file. Editing CSS/JS means a rebuild (a redeploy is how assets change in production anyway).
 
 ## Dependencies
 

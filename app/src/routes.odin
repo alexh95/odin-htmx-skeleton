@@ -38,7 +38,6 @@ build_router :: proc(r: ^http.Router) {
 	http.route_post(r, "/validate/email", http.handler(controllers.validate_email_field))
 	http.route_post(r, "/forms/submit", http.handler(controllers.forms_submit))
 
-	// assets: embedded htmx first, then anything else from disk
-	http.route_get(r, "/static/htmx.min.js", http.handler(controllers.serve_htmx))
+	// assets: all embedded into the binary, served from memory
 	http.route_get(r, "/static/(.+)", http.handler(controllers.serve_static))
 }
