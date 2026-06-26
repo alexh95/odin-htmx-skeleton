@@ -9,17 +9,32 @@ import http "odin-http"
 
 // ---- entry --------------------------------------------------------------
 //
-// Seed the store, wire the routes, serve. The port can be overridden as the
-// first argument (run scripts pass it through).
+// Seed the store, wire the routes, serve. Port resolves PORT env -> first arg
+// -> default (the platform injects PORT in a container). BIND_ALL switches the
+// listen address from loopback (the safe local default) to 0.0.0.0 so a
+// container host can route traffic in; locally we stay on loopback.
 
 DEFAULT_PORT :: 8080
 
 main :: proc() {
+	env: [64]u8
+
 	port := DEFAULT_PORT
-	if len(os.args) > 1 {
+	if v, _ := os.lookup_env(env[:], "PORT"); v != "" {
+		if p, ok := strconv.parse_int(v); ok {
+			port = p
+		}
+	} else if len(os.args) > 1 {
 		if p, ok := strconv.parse_int(os.args[1]); ok {
 			port = p
 		}
+	}
+
+	address := net.IP4_Loopback
+	host := "localhost"
+	if v, _ := os.lookup_env(env[:], "BIND_ALL"); v != "" {
+		address = net.IP4_Any
+		host = "0.0.0.0"
 	}
 
 	repo_seed()
@@ -38,11 +53,11 @@ main :: proc() {
 	opts.thread_count = 1
 
 	endpoint := net.Endpoint {
-		address = net.IP4_Loopback,
+		address = address,
 		port    = port,
 	}
 
-	fmt.printfln("odin-htmx-demo listening on http://localhost:%d", port)
+	fmt.printfln("odin-htmx-demo listening on http://%s:%d", host, port)
 	if err := http.listen_and_serve(&s, http.router_handler(&router), endpoint, opts); err != nil {
 		fmt.eprintfln("server error: %v", err)
 		os.exit(1)

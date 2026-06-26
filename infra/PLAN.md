@@ -1,6 +1,9 @@
 # Infrastructure — plan
 
-> Status: **plan only**. Nothing here is implemented yet. Implement on explicit request.
+> Status: **code + config implemented.** The deployable change, the odin-http submodule, the
+> `Dockerfile`/`fly.toml`/`.dockerignore`, and the CI/CD workflow are all in the repo. What
+> remains is operator setup on Fly / GitHub / Cloudflare — see **Operator steps** at the
+> bottom. The design rationale below is kept as the reference.
 
 How to host the code, build and test it on every change, and keep a live instance
 permanently reachable — at free or near-zero cost. Where e2e and load-tests run is covered at
@@ -115,10 +118,62 @@ dedicated env is what makes "raise `thread_count`, add the store lock, re-measur
 GitHub (free) · Actions (free tier) · Fly.io free allowance **or** Oracle Always Free ($0) ·
 Cloudflare (free). Realistic total: **$0–5 / month.**
 
-## First steps when implementing
+## What's implemented
 
-1. Make the bind-address / `PORT` change in `app/main.odin`.
-2. Pin odin-http as a submodule.
-3. Add `Dockerfile` + `fly.toml` (or Oracle VM + Caddy).
-4. Add `.github/workflows/ci.yml` (build + e2e) and a deploy job.
-5. Stand up the dedicated load-test environment when load-tests are implemented.
+1. ✅ Bind-address / `PORT` change in `app/main.odin` (`BIND_ALL=1` → `0.0.0.0`).
+2. ✅ odin-http pinned as a submodule (`app/odin-http` @ `112c49b`).
+3. ✅ `Dockerfile` (two-stage, pinned Odin `dev-2026-06`) + `.dockerignore` + `fly.toml`.
+4. ✅ `.github/workflows/ci.yml`: build (`-warnings-as-errors`) + binary smoke test, then a
+   `deploy` job that runs `flyctl deploy --remote-only` on a green push to `master`.
+5. ⏳ Dedicated load-test environment — deferred until load-tests are implemented.
+
+The CI smoke step stands in for e2e until the Playwright suite exists; swap it in then.
+
+## Operator steps
+
+These touch external accounts, not the repo. Run from the repo root with `flyctl` logged in.
+The remote is `git@github.com:alexh95/odin-htmx-skeleton.git`; the default branch is `master`.
+
+**1. Create the Fly app** (once). The name must match `app` in `fly.toml`:
+
+```sh
+fly apps create odin-htmx-skeleton        # or: fly launch --no-deploy --copy-config
+fly deploy                                 # first deploy from your machine, to verify
+```
+
+`fly deploy` builds the `Dockerfile` on Fly's remote builder and boots one always-on
+`shared-cpu-1x` machine. Confirm: `fly open` (the `.fly.dev` URL) and `fly logs` (look for
+`listening on http://0.0.0.0:8080`).
+
+**2. Wire CI/CD deploys.** Two mutually exclusive options — pick one:
+
+- **GitHub Actions (recommended, already in `ci.yml`):** the `deploy` job is dormant until you
+  opt in. Add the token secret and flip the enable variable:
+  ```sh
+  fly tokens create deploy -x 999999h                              # prints a token
+  gh secret set FLY_API_TOKEN --repo alexh95/odin-htmx-skeleton    # paste it
+  gh variable set FLY_DEPLOY --body true --repo alexh95/odin-htmx-skeleton
+  ```
+  After that, every push to `master` builds, smoke-tests, and deploys. (Leave `FLY_DEPLOY`
+  unset and the deploy job stays skipped — CI still gates PRs via the `build` job.)
+- **Fly's GitHub integration (already authorized):** if you'd rather Fly auto-deploy on push
+  from its dashboard, **delete the `deploy` job from `ci.yml`** so the two don't double-deploy.
+  Keep the `build` job as the PR gate.
+
+**3. Put Cloudflare in front** (needs a domain on your Cloudflare account):
+
+```sh
+fly ips allocate-v4 --shared       # or a dedicated v4 if you want; v6 is free
+fly ips allocate-v6
+fly certs add app.example.com      # Fly prints the DNS target + validation record
+```
+
+In Cloudflare DNS, add the records Fly prints (an `AAAA`/`A` to the Fly IPs, or a `CNAME` to
+`odin-htmx-skeleton.fly.dev`). Set SSL/TLS mode to **Full (strict)** so Cloudflare↔Fly stays
+encrypted end-to-end. Proxy (orange cloud) the record to get Cloudflare caching for `/static`
+and DDoS protection; `force_https` in `fly.toml` handles the redirect. Once `fly certs show
+app.example.com` reports the cert issued, the custom domain is live.
+
+**Cost:** one always-on `shared-cpu-1x`/256 MB machine sits in Fly's small-fry allowance;
+Cloudflare DNS/proxy is free. Realistic total **$0–5/mo** (set `min_machines_running = 0` in
+`fly.toml` to scale to zero and trade a brief cold start for $0).

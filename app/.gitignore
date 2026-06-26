@@ -1,5 +1,6 @@
 bin/
-odin-http/
 static/htmx.min.js
 *.exe
 *.pdb
+
+# odin-http is vendored as a pinned git submodule (see .gitmodules), not ignored.

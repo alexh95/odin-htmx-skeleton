@@ -1,16 +1,16 @@
 @echo off
-rem One-time setup: fetch the two things the build needs that aren't in this repo.
-rem   1. odin-http  - the HTTP library, cloned next to the sources.
+rem One-time setup for the two things the build needs that aren't tracked inline.
+rem   1. odin-http  - the HTTP library, vendored as a pinned git submodule.
 rem   2. htmx.min.js - embedded into the binary via #load at compile time.
 rem Idempotent: re-running skips whatever is already in place.
 setlocal
 cd /d "%~dp0"
 
-if exist "odin-http\" (
-  echo [skip] odin-http already cloned.
+if exist "odin-http\server.odin" (
+  echo [skip] odin-http submodule already checked out.
 ) else (
-  echo [get ] cloning odin-http ...
-  git clone --depth 1 https://github.com/laytan/odin-http odin-http
+  echo [get ] initializing odin-http submodule ...
+  git -C "%~dp0.." submodule update --init app/odin-http
   if errorlevel 1 goto :fail
 )
 

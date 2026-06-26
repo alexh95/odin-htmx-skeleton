@@ -58,12 +58,17 @@ environment, an explicit `--no-gpg-sign` on that one commit is acceptable.
 All commands run from `app/`.
 
 ```sh
-prepare.bat   # once: clone odin-http, download htmx.min.js   (./prepare.sh elsewhere)
-run.bat [port]   # build + serve (default 8080)              (./run.sh elsewhere)
+prepare.bat   # once: download htmx.min.js (odin-http is a submodule)   (./prepare.sh elsewhere)
+run.bat [port]   # build + serve (default 8080)                         (./run.sh elsewhere)
 
 odin build . -out:bin/demo.exe      # build only; MUST be warning-free
 ./bin/demo.exe 8080                 # run the built binary on a port
 ```
+
+odin-http is a **pinned git submodule** (`app/odin-http`); after a fresh clone run
+`git submodule update --init` (or `git clone --recurse-submodules`). `prepare.*` only fetches
+htmx now. The server binds loopback by default; set `BIND_ALL=1` (and `PORT`) for containers —
+that's the deploy path (`Dockerfile`, `fly.toml`, `.github/workflows/ci.yml`, `infra/PLAN.md`).
 
 Verify with curl for contracts, and a browser (preview/headless pointed at `localhost`) for
 anything HTMX actually swaps or animates. The in-memory store resets on every process start,

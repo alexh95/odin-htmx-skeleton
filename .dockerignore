@@ -1,0 +1,8 @@
+# The Dockerfile only COPYs app/, so trim what's inside it. Do NOT ignore
+# app/odin-http — the submodule must be in the build context to compile.
+app/bin/
+app/static/htmx.min.js
+**/*.exe
+**/*.pdb
+**/.git
+**/*.log

@@ -12,7 +12,17 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 - Initialized the repository as git and made the first commit.
 - Adopted Conventional Commits; documented the spec and changelog mapping in `CLAUDE.md`.
 - Infrastructure plan ([`infra/PLAN.md`](infra/PLAN.md)): remote hosting, CI/CD, deployment,
-  and where to run e2e / load-tests — free / low-cost. Plan only.
+  and where to run e2e / load-tests — free / low-cost.
+- Deployment: `Dockerfile` (two-stage, pinned Odin `dev-2026-06`, single-binary + static
+  runtime), `fly.toml` (Fly.io, always-on `shared-cpu-1x`), and `.dockerignore`.
+- CI/CD: `.github/workflows/ci.yml` — build with `-warnings-as-errors`, smoke-test the binary
+  (pages, static, JSON API, CRUD), and deploy to Fly.io on green `master`.
+- `app/main.odin` reads `PORT` from the environment and binds `0.0.0.0` when `BIND_ALL` is
+  set, so the binary is container-deployable (local default stays loopback).
+
+### Changed
+- Vendored odin-http as a pinned git submodule (`app/odin-http`, commit `112c49b`) for
+  reproducible CI/CD builds; `prepare.*` stays the local-dev convenience path.
 
 ## [0.2.0] — 2026-06-26
 

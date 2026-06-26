@@ -1,0 +1,3 @@
+[submodule "app/odin-http"]
+	path = app/odin-http
+	url = https://github.com/laytan/odin-http

@@ -1,0 +1,86 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# Same Odin release the Dockerfile pins, so CI builds what production builds.
+env:
+  ODIN_VERSION: dev-2026-06
+
+jobs:
+  build:
+    name: Build + smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive   # odin-http is a pinned submodule
+
+      - name: Cache Odin toolchain
+        id: cache-odin
+        uses: actions/cache@v4
+        with:
+          path: /opt/odin
+          key: odin-${{ env.ODIN_VERSION }}
+
+      - name: Install Odin
+        if: steps.cache-odin.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-linux-amd64-${ODIN_VERSION}.tar.gz" -o /tmp/odin.tar.gz
+          sudo mkdir -p /opt/odin
+          sudo tar -xzf /tmp/odin.tar.gz -C /opt/odin --strip-components=1
+
+      - name: Put Odin and clang on PATH
+        run: |
+          echo "/opt/odin" >> "$GITHUB_PATH"
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends clang
+
+      - name: Prepare deps (htmx)
+        run: cd app && ./prepare.sh
+
+      - name: Build (warnings are errors)
+        run: cd app && odin build . -out:bin/demo -warnings-as-errors
+
+      - name: Smoke test the binary
+        run: |
+          cd app
+          BIND_ALL=1 PORT=8099 ./bin/demo &
+          pid=$!
+          for i in $(seq 1 20); do
+            curl -fsS "http://127.0.0.1:8099/" -o /dev/null && break
+            sleep 0.25
+          done
+          set -e
+          curl -fsS "http://127.0.0.1:8099/"                          -o /dev/null
+          curl -fsS "http://127.0.0.1:8099/static/app.css"            -o /dev/null
+          curl -fsS "http://127.0.0.1:8099/static/htmx.min.js"        -o /dev/null
+          code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8099/api/search?q=a")
+          test "$code" = "200" || { echo "api/search returned $code"; exit 1; }
+          curl -fsS -X POST "http://127.0.0.1:8099/contacts" \
+            --data 'name=CI Smoke&email=ci@example.com&role=0&status=1' -o /dev/null
+          kill "$pid"
+
+  # Deploys the live instance after a green build on master. Dormant until you
+  # opt in: set the FLY_API_TOKEN secret (`fly tokens create deploy`) and the
+  # repo variable FLY_DEPLOY=true (see infra/PLAN.md → Operator steps). Until
+  # then it's skipped, so CI stays green. If you instead let Fly's GitHub
+  # integration auto-deploy, leave FLY_DEPLOY unset and ignore this job.
+  deploy:
+    name: Deploy (Fly.io)
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && vars.FLY_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-master
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

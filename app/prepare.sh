@@ -1,16 +1,16 @@
 #!/usr/bin/env sh
-# One-time setup: fetch the two things the build needs that aren't in this repo.
-#   1. odin-http  - the HTTP library, cloned next to the sources.
+# One-time setup for the two things the build needs that aren't tracked inline.
+#   1. odin-http  - the HTTP library, vendored as a pinned git submodule.
 #   2. htmx.min.js - embedded into the binary via #load at compile time.
 # Idempotent: re-running skips whatever is already in place.
 set -e
 cd "$(dirname "$0")"
 
-if [ -d odin-http ]; then
-  echo "[skip] odin-http already cloned."
+if [ -f odin-http/server.odin ]; then
+  echo "[skip] odin-http submodule already checked out."
 else
-  echo "[get ] cloning odin-http ..."
-  git clone --depth 1 https://github.com/laytan/odin-http odin-http
+  echo "[get ] initializing odin-http submodule ..."
+  git -C .. submodule update --init app/odin-http
 fi
 
 if [ -f static/htmx.min.js ]; then

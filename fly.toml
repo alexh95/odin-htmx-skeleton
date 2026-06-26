@@ -1,0 +1,31 @@
+# Fly.io app config. Rename `app` if you pick a different name at `fly launch`.
+# The server is single-threaded by design (lock-free in-memory store), so one
+# small machine handles it; async IO still serves many concurrent connections.
+
+app            = "odin-htmx-skeleton"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT     = "8080"
+  BIND_ALL = "1"
+
+[http_service]
+  internal_port       = 8080
+  force_https         = true
+  auto_stop_machines  = "stop"
+  auto_start_machines = true
+  # Keep one machine always up so the demo is permanently reachable (no cold
+  # start). Drop to 0 to scale fully to zero and trade latency for cost.
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type       = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = "256mb"
