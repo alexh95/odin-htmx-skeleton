@@ -47,8 +47,26 @@ jobs:
       - name: Check (warnings are errors)
         run: cd app && odin check . -warnings-as-errors
 
-      - name: Build (link)
-        run: cd app && odin build . -out:bin/demo
+      - name: Install lld
+        run: sudo apt-get install -y --no-install-recommends lld
+
+      - name: Link with default linker
+        id: linkdef
+        continue-on-error: true
+        run: cd app && odin build . -out:bin/demo_default
+
+      - name: Link with lld
+        id: linklld
+        continue-on-error: true
+        run: cd app && odin build . -out:bin/demo -linker:lld
+
+      - name: Pick a working artifact
+        run: |
+          cd app
+          if [ -f bin/demo ]; then echo "lld link succeeded"
+          elif [ -f bin/demo_default ]; then cp bin/demo_default bin/demo; echo "default link succeeded"
+          else echo "both links failed"; exit 1
+          fi
 
       - name: Smoke test the binary
         run: |
