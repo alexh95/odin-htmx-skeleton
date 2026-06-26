@@ -1,4 +1,6 @@
-package demo
+package views
+import "../services"
+import "../models"
 
 import "core:fmt"
 import "core:strings"
@@ -19,8 +21,8 @@ section_open :: proc(b: ^strings.Builder, title, desc: string) {
 }
 
 @(private = "file")
-role_options :: proc(b: ^strings.Builder, selected: Role) {
-	names := ROLE_NAMES
+role_options :: proc(b: ^strings.Builder, selected: models.Role) {
+	names := models.ROLE_NAMES
 	for name, r in names {
 		sel := r == selected ? " selected" : ""
 		fmt.sbprintf(b, `<option value="%s"%s>%s</option>`, name, sel, name)
@@ -65,7 +67,7 @@ view_components :: proc() -> string {
 	// Avatars
 	section_open(&b, "Avatars", "Initials with a stable per-identity hue.")
 	w(&b, `<div class="demo row"><div class="avatar-stack">`)
-	demo := []Contact {
+	demo := []models.Contact {
 		{id = 1, name = "Ada Lovelace"},
 		{id = 5, name = "Linus Torvalds"},
 		{id = 9, name = "Grace Hopper"},
@@ -214,7 +216,7 @@ view_forms :: proc() -> string {
 
 // ---- data page shell ----------------------------------------------------
 
-view_data :: proc(p: Page) -> string {
+view_data :: proc(p: services.Page) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	page_head(
 		&b,

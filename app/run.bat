@@ -10,7 +10,7 @@ if not exist "odin-http\" goto :noprep
 if not exist "static\htmx.min.js" goto :noprep
 
 if not exist "bin\" mkdir bin
-odin build . -out:bin\demo.exe
+odin build src -out:bin\demo.exe
 if errorlevel 1 exit /b 1
 
 set "PORT=%~1"

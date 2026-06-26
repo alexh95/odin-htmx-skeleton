@@ -1,11 +1,12 @@
-package demo
+package main
 
 import "core:fmt"
 import "core:net"
 import "core:os"
 import "core:strconv"
 
-import http "odin-http"
+import http "../odin-http"
+import "repository"
 
 // ---- entry --------------------------------------------------------------
 //
@@ -37,7 +38,7 @@ main :: proc() {
 		host = "0.0.0.0"
 	}
 
-	repo_seed()
+	repository.repo_seed()
 
 	router: http.Router
 	http.router_init(&router)

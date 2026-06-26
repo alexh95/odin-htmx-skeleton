@@ -1,4 +1,4 @@
-package demo
+package models
 
 // ---- domain model -------------------------------------------------------
 //

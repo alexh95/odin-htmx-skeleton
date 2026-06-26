@@ -26,7 +26,7 @@ export default function globalSetup(config: FullConfig) {
     console.warn('[global-setup] prepare failed (continuing — deps may already be present)');
   }
 
-  execFileSync('odin', ['build', '.', `-out:${out}`, '-warnings-as-errors'], {
+  execFileSync('odin', ['build', 'src', `-out:${out}`, '-warnings-as-errors'], {
     cwd: appDir,
     stdio: 'inherit',
   });

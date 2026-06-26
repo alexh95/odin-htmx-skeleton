@@ -10,7 +10,7 @@ if [ ! -d odin-http ] || [ ! -f static/htmx.min.js ]; then
 fi
 
 mkdir -p bin
-odin build . -out:bin/demo
+odin build src -out:bin/demo
 
 PORT="${1:-8080}"
 # Open the browser shortly after the server comes up (best effort).

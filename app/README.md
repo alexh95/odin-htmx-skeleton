@@ -53,22 +53,24 @@ curl -X DELETE 'http://localhost:8080/contacts/1'
 
 ## Architecture
 
-The backend is layered, dependencies pointing one direction only:
+The backend is layered, each layer its own Odin **package** under `src/` (a directory is a
+package, so the compiler enforces the boundaries). Dependencies point one direction only:
 
 ```
-routes → controllers → services → repository → models
-                    ↘ views
+src/ (main + routes) → controllers → services → repository → models
+                                   ↘ views ↗
 ```
 
-| File | Layer | Responsibility |
-|------|-------|----------------|
-| `models.odin` | model | Domain types (`Contact`, `Role`, `Status`) |
-| `repository.odin` | repository | In-memory store + CRUD primitives, seeded mock data |
-| `services.odin` | service | Search, sort, paginate, validate — plain values, no HTTP |
-| `controllers.odin` | controller | The only layer that touches `odin-http` |
-| `views*.odin` | view | HTML assembled by procedures (no template engine) |
-| `routes.odin` | — | The route table; embeds `htmx.min.js` via `#load` |
-| `main.odin` | — | Seed, wire, serve |
+| Package | Layer | Responsibility |
+|---------|-------|----------------|
+| `src/models/` | model | Domain types (`Contact`, `Role`, `Status`) |
+| `src/repository/` | repository | In-memory store + CRUD primitives, seeded mock data |
+| `src/services/` | service | Search, sort, paginate, validate — plain values, no HTTP |
+| `src/controllers/` | controller | The only layer that touches `odin-http`; embeds `htmx.min.js` via `#load` |
+| `src/views/` | view | HTML assembled by procedures (no template engine) |
+| `src/` (`main.odin`, `routes.odin`) | entry | Seed, wire the route table, serve |
+
+Build it with `odin build src` (the entry package).
 
 A "component" is just a proc that writes HTML into a `strings.Builder`. Response markup is
 built in odin-http's per-request arena and freed once the response is flushed; stored

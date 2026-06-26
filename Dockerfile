@@ -27,7 +27,7 @@ WORKDIR /src/app
 # Invoke via `sh` (not ./) so the build doesn't depend on the exec bit, which a
 # Windows-origin build context (e.g. local `flyctl deploy`) wouldn't carry.
 RUN sh prepare.sh \
- && odin build . -out:bin/demo -o:speed -warnings-as-errors
+ && odin build src -out:bin/demo -o:speed -warnings-as-errors
 
 # ---- runtime: binary + static assets, nothing else -----------------------
 FROM debian:bookworm-slim

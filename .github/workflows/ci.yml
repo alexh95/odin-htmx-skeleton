@@ -42,7 +42,7 @@ jobs:
         run: cd app && sh prepare.sh
 
       - name: Build (warnings are errors)
-        run: cd app && odin build . -out:bin/demo -warnings-as-errors
+        run: cd app && odin build src -out:bin/demo -warnings-as-errors
 
       - name: Smoke test the binary
         run: |

@@ -33,6 +33,11 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   Graph `og:type`/`og:title`/`og:description` on every page, threaded through `render_page`.
 
 ### Changed
+- Refactored the backend into one Odin **package per layer** under `app/src/`
+  (`models`, `repository`, `services`, `views`, `controllers`, and `src/` = entry `main`+routes),
+  so the layering is compiler-enforced rather than convention. Cross-layer calls are now
+  qualified (`repository.repo_list`, `views.view_dashboard`, …). Build entry is `odin build src`;
+  `htmx.min.js` is `#load`ed from `controllers`. Behaviour unchanged (93/93 e2e green).
 - Vendored odin-http as a pinned git submodule (`app/odin-http`, commit `112c49b`) for
   reproducible CI/CD builds; `prepare.*` stays the local-dev convenience path.
 - e2e now runs **fully in parallel**: each Playwright worker spawns its own server on its own

@@ -1,4 +1,6 @@
-package demo
+package views
+import "../services"
+import "../models"
 
 import "core:fmt"
 import "core:strings"
@@ -12,7 +14,7 @@ import "core:strings"
 // The whole swappable table: header controls, sortable columns, rows, and the
 // pager. Sort and page links carry the current query so state is encoded in
 // the request, not stashed on the client.
-view_contacts_region :: proc(p: Page) -> string {
+view_contacts_region :: proc(p: services.Page) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	w(&b, `<div id="contact-region" class="card table-card">`)
 	fmt.sbprintf(
@@ -47,9 +49,9 @@ view_contacts_region :: proc(p: Page) -> string {
 }
 
 // One column header. Shows the active direction and links to the next state
-// (asc -> desc -> asc) via next_sort.
+// (asc -> desc -> asc) via services.next_sort.
 @(private = "file")
-sort_th :: proc(b: ^strings.Builder, p: Page, column, label: string) {
+sort_th :: proc(b: ^strings.Builder, p: services.Page, column, label: string) {
 	dir := "none"
 	if p.sort == column {
 		dir = "asc"
@@ -61,13 +63,13 @@ sort_th :: proc(b: ^strings.Builder, p: Page, column, label: string) {
 		`<th><button class="sort" data-dir="%s" hx-get="/contacts?q=%s&sort=%s&page=1" hx-target="#contact-region" hx-swap="outerHTML">%s<span class="caret"></span></button></th>`,
 		dir,
 		url_encode(p.q),
-		next_sort(p.sort, column),
+		services.next_sort(p.sort, column),
 		label,
 	)
 }
 
 @(private = "file")
-pager :: proc(b: ^strings.Builder, p: Page) {
+pager :: proc(b: ^strings.Builder, p: services.Page) {
 	if p.total_pages <= 1 {
 		return
 	}
@@ -92,7 +94,7 @@ pager :: proc(b: ^strings.Builder, p: Page) {
 }
 
 @(private = "file")
-page_btn :: proc(b: ^strings.Builder, p: Page, target: int, label: string, disabled: bool) {
+page_btn :: proc(b: ^strings.Builder, p: services.Page, target: int, label: string, disabled: bool) {
 	if disabled {
 		fmt.sbprintf(b, `<button class="page" disabled>%s</button>`, label)
 		return
@@ -109,7 +111,7 @@ page_btn :: proc(b: ^strings.Builder, p: Page, target: int, label: string, disab
 
 // A single contact row. `fresh` adds the entrance highlight used when a row is
 // appended after a create.
-view_contact_row :: proc(b: ^strings.Builder, c: Contact, fresh: bool) {
+view_contact_row :: proc(b: ^strings.Builder, c: models.Contact, fresh: bool) {
 	fmt.sbprintf(b, `<tr id="contact-%d" class="%s">`, c.id, fresh ? "row row-new" : "row")
 
 	w(b, `<td class="c-name">`)
@@ -159,7 +161,7 @@ view_search_results :: proc(q: string) -> string {
 		return "" // empty target collapses the dropdown
 	}
 
-	rows := service_search(trimmed, SEARCH_LIMIT)
+	rows := services.service_search(trimmed, services.SEARCH_LIMIT)
 	if len(rows) == 0 {
 		w(&b, `<div class="search-panel"><p class="search-empty">No matches for “`)
 		esc(&b, trimmed)
@@ -308,7 +310,7 @@ view_field_msg :: proc(ok: bool, message: string) -> string {
 	return strings.to_string(b)
 }
 
-view_form_result :: proc(c: Contact) -> string {
+view_form_result :: proc(c: models.Contact) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	w(&b, `<div class="result-ok">`)
 	icon(&b, "check")
@@ -320,7 +322,7 @@ view_form_result :: proc(c: Contact) -> string {
 	return strings.to_string(b)
 }
 
-view_form_errors :: proc(errs: []Field_Error) -> string {
+view_form_errors :: proc(errs: []services.Field_Error) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	w(&b, `<div class="result-err"><strong>Please fix the following:</strong><ul>`)
 	for e in errs {

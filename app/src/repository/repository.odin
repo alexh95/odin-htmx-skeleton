@@ -1,4 +1,5 @@
-package demo
+package repository
+import "../models"
 
 import "core:strings"
 
@@ -17,18 +18,18 @@ import "core:strings"
 
 @(private = "file")
 Store :: struct {
-	contacts: [dynamic]Contact,
+	contacts: [dynamic]models.Contact,
 	next_id:  int,
 }
 
 @(private = "file")
 store: Store
 
-repo_list :: proc() -> []Contact {
+repo_list :: proc() -> []models.Contact {
 	return store.contacts[:]
 }
 
-repo_get :: proc(id: int) -> (Contact, bool) {
+repo_get :: proc(id: int) -> (models.Contact, bool) {
 	for c in store.contacts {
 		if c.id == id {
 			return c, true
@@ -37,9 +38,9 @@ repo_get :: proc(id: int) -> (Contact, bool) {
 	return {}, false
 }
 
-repo_create :: proc(name, email: string, role: Role, status: Status, score: int) -> Contact {
+repo_create :: proc(name, email: string, role: models.Role, status: models.Status, score: int) -> models.Contact {
 	store.next_id += 1
-	c := Contact {
+	c := models.Contact {
 		id     = store.next_id,
 		name   = strings.clone(name),
 		email  = strings.clone(email),
@@ -51,7 +52,7 @@ repo_create :: proc(name, email: string, role: Role, status: Status, score: int)
 	return c
 }
 
-repo_update :: proc(id: int, name, email: string, role: Role, status: Status) -> (Contact, bool) {
+repo_update :: proc(id: int, name, email: string, role: models.Role, status: models.Status) -> (models.Contact, bool) {
 	for &c in store.contacts {
 		if c.id == id {
 			delete(c.name)
@@ -66,7 +67,7 @@ repo_update :: proc(id: int, name, email: string, role: Role, status: Status) ->
 	return {}, false
 }
 
-repo_set_status :: proc(id: int, status: Status) -> (Contact, bool) {
+repo_set_status :: proc(id: int, status: models.Status) -> (models.Contact, bool) {
 	for &c in store.contacts {
 		if c.id == id {
 			c.status = status
@@ -111,8 +112,8 @@ repo_seed :: proc() {
 			strings.concatenate({first, ".", last, "@example.dev"}, context.temp_allocator),
 			context.temp_allocator,
 		)
-		role := Role((i * 7 + 3) % len(Role))
-		status := Status(i % len(Status))
+		role := models.Role((i * 7 + 3) % len(models.Role))
+		status := models.Status(i % len(models.Status))
 		score := 35 + (i * 53) % 64
 
 		name := strings.concatenate({first, " ", last}, context.temp_allocator)

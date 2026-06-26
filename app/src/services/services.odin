@@ -1,4 +1,6 @@
-package demo
+package services
+import "../repository"
+import "../models"
 
 import "core:slice"
 import "core:strings"
@@ -14,7 +16,7 @@ PAGE_SIZE :: 7
 SEARCH_LIMIT :: 6 // results shown in the nav search dropdown
 
 Page :: struct {
-	rows:        []Contact,
+	rows:        []models.Contact,
 	page:        int,
 	total_pages: int,
 	total:       int,
@@ -33,12 +35,12 @@ contains_ci :: proc(haystack, needle: string) -> bool {
 	return strings.contains(h, n)
 }
 
-contact_matches :: proc(c: Contact, q: string) -> bool {
+contact_matches :: proc(c: models.Contact, q: string) -> bool {
 	if q == "" {
 		return true
 	}
-	role := ROLE_NAMES
-	status := STATUS_NAMES
+	role := models.ROLE_NAMES
+	status := models.STATUS_NAMES
 	return(
 		contains_ci(c.name, q) ||
 		contains_ci(c.email, q) ||
@@ -50,8 +52,8 @@ contact_matches :: proc(c: Contact, q: string) -> bool {
 // A list view: filter by q, sort by a "key" or "key_desc" string, then slice
 // out one page. Everything is built in the request arena.
 service_page :: proc(q, sort: string, page: int) -> Page {
-	filtered := make([dynamic]Contact, context.temp_allocator)
-	for c in repo_list() {
+	filtered := make([dynamic]models.Contact, context.temp_allocator)
+	for c in repository.repo_list() {
 		if contact_matches(c, q) {
 			append(&filtered, c)
 		}
@@ -78,7 +80,7 @@ service_page :: proc(q, sort: string, page: int) -> Page {
 
 // Sort ascending by the chosen key, then reverse for "_desc". Reversing after
 // the fact keeps one comparator per key instead of one per (key, direction).
-sort_contacts :: proc(rows: []Contact, sort: string) {
+sort_contacts :: proc(rows: []models.Contact, sort: string) {
 	key := sort
 	desc := false
 	if strings.has_suffix(sort, "_desc") {
@@ -88,21 +90,21 @@ sort_contacts :: proc(rows: []Contact, sort: string) {
 
 	switch key {
 	case "email":
-		slice.sort_by(rows, proc(a, b: Contact) -> bool { return a.email < b.email })
+		slice.sort_by(rows, proc(a, b: models.Contact) -> bool { return a.email < b.email })
 	case "role":
-		slice.sort_by(rows, proc(a, b: Contact) -> bool {
-			names := ROLE_NAMES
+		slice.sort_by(rows, proc(a, b: models.Contact) -> bool {
+			names := models.ROLE_NAMES
 			return names[a.role] < names[b.role]
 		})
 	case "status":
-		slice.sort_by(rows, proc(a, b: Contact) -> bool {
-			names := STATUS_NAMES
+		slice.sort_by(rows, proc(a, b: models.Contact) -> bool {
+			names := models.STATUS_NAMES
 			return names[a.status] < names[b.status]
 		})
 	case "score":
-		slice.sort_by(rows, proc(a, b: Contact) -> bool { return a.score < b.score })
+		slice.sort_by(rows, proc(a, b: models.Contact) -> bool { return a.score < b.score })
 	case: // "name" and anything unrecognised
-		slice.sort_by(rows, proc(a, b: Contact) -> bool { return a.name < b.name })
+		slice.sort_by(rows, proc(a, b: models.Contact) -> bool { return a.name < b.name })
 	}
 
 	if desc {
@@ -119,12 +121,12 @@ next_sort :: proc(current, column: string) -> string {
 	return column
 }
 
-service_search :: proc(q: string, limit: int) -> []Contact {
-	out := make([dynamic]Contact, context.temp_allocator)
+service_search :: proc(q: string, limit: int) -> []models.Contact {
+	out := make([dynamic]models.Contact, context.temp_allocator)
 	if strings.trim_space(q) == "" {
 		return out[:]
 	}
-	for c in repo_list() {
+	for c in repository.repo_list() {
 		if contact_matches(c, q) {
 			append(&out, c)
 			if len(out) >= limit {

@@ -1,4 +1,6 @@
-package demo
+package views
+import "../repository"
+import "../models"
 
 import "core:fmt"
 import "core:net"
@@ -95,8 +97,8 @@ icon :: proc(b: ^strings.Builder, name: string) {
 
 // ---- small components ---------------------------------------------------
 
-status_badge :: proc(b: ^strings.Builder, s: Status) {
-	names := STATUS_NAMES
+status_badge :: proc(b: ^strings.Builder, s: models.Status) {
+	names := models.STATUS_NAMES
 	cls: string
 	switch s {
 	case .Active:   cls = "ok"
@@ -106,14 +108,14 @@ status_badge :: proc(b: ^strings.Builder, s: Status) {
 	fmt.sbprintf(b, `<span class="badge badge-%s"><i class="dot"></i>%s</span>`, cls, names[s])
 }
 
-role_chip :: proc(b: ^strings.Builder, r: Role) {
-	names := ROLE_NAMES
+role_chip :: proc(b: ^strings.Builder, r: models.Role) {
+	names := models.ROLE_NAMES
 	fmt.sbprintf(b, `<span class="chip chip-r%d">%s</span>`, int(r), names[r])
 }
 
 // Avatar from initials, hue derived from the id so each contact keeps a stable
 // colour across re-renders.
-avatar :: proc(b: ^strings.Builder, c: Contact) {
+avatar :: proc(b: ^strings.Builder, c: models.Contact) {
 	hue := (c.id * 47) % 360
 	init: [2]u8
 	n := 0
@@ -220,7 +222,7 @@ page_head :: proc(b: ^strings.Builder, eyebrow, title, subtitle: string) {
 // ---- dashboard ----------------------------------------------------------
 
 view_dashboard :: proc() -> string {
-	contacts := repo_list()
+	contacts := repository.repo_list()
 	total := len(contacts)
 	active, invited, score_sum := 0, 0, 0
 	for c in contacts {
