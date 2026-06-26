@@ -279,6 +279,14 @@ ui_ping :: proc(req: ^http.Request, res: ^http.Response) {
 	http.respond_html(res, view_ping(token, rps))
 }
 
+// ---- health -------------------------------------------------------------
+
+// Liveness probe for the platform load balancer / health checks. Cheap, no
+// allocations, 200 while the process is up.
+health :: proc(req: ^http.Request, res: ^http.Response) {
+	http.respond_plain(res, "ok")
+}
+
 // ---- static -------------------------------------------------------------
 
 // HTMX is compiled into the binary (see routes.odin) and served from memory.

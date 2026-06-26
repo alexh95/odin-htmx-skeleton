@@ -19,6 +19,7 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   (pages, static, JSON API, CRUD), and deploy to Fly.io on green `master`.
 - `app/main.odin` reads `PORT` from the environment and binds `0.0.0.0` when `BIND_ALL` is
   set, so the binary is container-deployable (local default stays loopback).
+- `GET /healthz` liveness probe (200 `ok`); wired as the Fly.io health check in `fly.toml`.
 
 ### Changed
 - Vendored odin-http as a pinned git submodule (`app/odin-http`, commit `112c49b`) for

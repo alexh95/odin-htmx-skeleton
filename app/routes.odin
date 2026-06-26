@@ -11,6 +11,9 @@ HTMX_JS :: #load("static/htmx.min.js")
 // catch-alls (e.g. the embedded htmx route before the on-disk /static handler)
 // because the router takes the first match in registration order.
 build_router :: proc(r: ^http.Router) {
+	// health (platform liveness probe)
+	http.route_get(r, "/healthz", http.handler(health))
+
 	// pages
 	http.route_get(r, "/", http.handler(page_dashboard))
 	http.route_get(r, "/components", http.handler(page_components))
