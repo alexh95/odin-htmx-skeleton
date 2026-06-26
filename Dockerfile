@@ -24,7 +24,9 @@ ENV PATH="/opt/odin:${PATH}"
 # (already in the build context), so prepare just fetches htmx for #load.
 COPY app /src/app
 WORKDIR /src/app
-RUN ./prepare.sh \
+# Invoke via `sh` (not ./) so the build doesn't depend on the exec bit, which a
+# Windows-origin build context (e.g. local `flyctl deploy`) wouldn't carry.
+RUN sh prepare.sh \
  && odin build . -out:bin/demo -o:speed -warnings-as-errors
 
 # ---- runtime: binary + static assets, nothing else -----------------------
