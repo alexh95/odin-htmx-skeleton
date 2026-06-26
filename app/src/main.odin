@@ -6,6 +6,7 @@ import "core:os"
 import "core:strconv"
 
 import http "../odin-http"
+import "controllers"
 import "repository"
 
 // ---- entry --------------------------------------------------------------
@@ -39,6 +40,7 @@ main :: proc() {
 	}
 
 	repository.repo_seed()
+	controllers.init_etags()
 
 	router: http.Router
 	http.router_init(&router)

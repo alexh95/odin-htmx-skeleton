@@ -1,5 +1,7 @@
 package controllers
 
+import "core:fmt"
+import "core:hash"
 import "core:net"
 import "core:strconv"
 import "core:strings"
@@ -327,18 +329,51 @@ APP_CSS :: #load("../../static/app.css")
 APP_JS :: #load("../../static/app.js")
 FAVICON :: #load("../../static/favicon.svg")
 
-// respond_file_content sets the content-type from the name's extension.
+// Strong ETags (content hashes) computed once at startup. They let the browser
+// cache assets and, after max-age, revalidate with a cheap 304 instead of
+// re-downloading. A redeploy changes the bytes, hence the ETag, so clients pick
+// up new assets without ever serving stale ones.
+@(private = "file")
+etag_htmx, etag_css, etag_js, etag_favicon: string
+
+@(private = "file")
+etag :: proc(blob: []byte) -> string {
+	return fmt.aprintf(`"%08x"`, hash.crc32(blob))
+}
+
+// Computed once at startup (call from main, which has a context for the
+// allocations). The ETags then live for the process lifetime.
+init_etags :: proc() {
+	etag_htmx = etag(HTMX_JS)
+	etag_css = etag(APP_CSS)
+	etag_js = etag(APP_JS)
+	etag_favicon = etag(FAVICON)
+}
+
 serve_static :: proc(req: ^http.Request, res: ^http.Response) {
-	switch req.url_params[0] {
+	name := req.url_params[0]
+	blob: []byte
+	tag: string
+	switch name {
 	case "htmx.min.js":
-		http.respond_file_content(res, "htmx.min.js", HTMX_JS)
+		blob, tag = HTMX_JS, etag_htmx
 	case "app.css":
-		http.respond_file_content(res, "app.css", APP_CSS)
+		blob, tag = APP_CSS, etag_css
 	case "app.js":
-		http.respond_file_content(res, "app.js", APP_JS)
+		blob, tag = APP_JS, etag_js
 	case "favicon.svg":
-		http.respond_file_content(res, "favicon.svg", FAVICON)
+		blob, tag = FAVICON, etag_favicon
 	case:
 		http.respond(res, http.Status.Not_Found)
+		return
 	}
+
+	http.headers_set(&res.headers, "cache-control", "public, max-age=3600")
+	http.headers_set(&res.headers, "etag", tag)
+	if match, ok := http.headers_get(req.headers, "if-none-match"); ok && match == tag {
+		http.respond(res, http.Status.Not_Modified)
+		return
+	}
+	// respond_file_content sets the content-type from the name's extension.
+	http.respond_file_content(res, name, blob)
 }

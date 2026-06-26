@@ -49,6 +49,10 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   install — that was the biggest, most variable cost). `workers` tracks the runner's cores.
 
 ### Performance
+- Static assets now send `Cache-Control: public, max-age=3600` and a strong **ETag** (a content
+  hash computed once at startup), with conditional `304 Not Modified` handling — repeat page
+  loads reuse cached htmx/CSS/JS instead of re-downloading, and a redeploy changes the hash so
+  clients never serve stale assets.
 - All static assets (`app.css`, `app.js`, `favicon.svg`, htmx) are now **embedded into the
   binary** and served from memory, replacing the disk-served `respond_dir` path. The deployed
   artifact is a single self-contained file (the Dockerfile no longer ships `static/`), there

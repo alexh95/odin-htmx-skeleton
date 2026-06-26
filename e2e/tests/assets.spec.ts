@@ -16,10 +16,22 @@ test.describe('assets & API', () => {
     expect((await res.body()).byteLength).toBeGreaterThan(40_000);
   });
 
-  test('app.css is served from disk', async ({ request }) => {
+  test('app.css is served (embedded)', async ({ request }) => {
     const res = await request.get('/static/app.css');
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type'] ?? '').toContain('css');
+  });
+
+  test('static assets are cacheable: ETag + Cache-Control + 304', async ({ request }) => {
+    const res = await request.get('/static/htmx.min.js');
+    expect(res.headers()['cache-control'] ?? '').toContain('max-age');
+    const etag = res.headers()['etag'];
+    expect(etag).toBeTruthy();
+
+    const revalidated = await request.get('/static/htmx.min.js', {
+      headers: { 'If-None-Match': etag },
+    });
+    expect(revalidated.status()).toBe(304);
   });
 
   test('path traversal is blocked', async ({ request }) => {
