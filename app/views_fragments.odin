@@ -131,12 +131,14 @@ view_contact_row :: proc(b: ^strings.Builder, c: Contact, fresh: bool) {
 		c.score,
 	)
 
+	// hx-vals is literal JSON; its braces can't go through fmt (see layout).
 	fmt.sbprintf(
 		b,
-		`<td class="c-actions"><button class="icon-btn" title="Cycle status" hx-post="/contacts/%d" hx-vals='{"action":"cycle"}' hx-target="#contact-%d" hx-swap="outerHTML">`,
-		c.id,
+		`<td class="c-actions"><button class="icon-btn" title="Cycle status" hx-post="/contacts/%d" hx-vals='`,
 		c.id,
 	)
+	w(b, `{"action":"cycle"}`)
+	fmt.sbprintf(b, `' hx-target="#contact-%d" hx-swap="outerHTML">`, c.id)
 	icon(b, "cycle")
 	fmt.sbprintf(
 		b,
@@ -265,12 +267,20 @@ view_toast :: proc(kind, message: string, oob: bool) -> string {
 	case "info":    ic, cls = "bell", "toast-info"
 	case:           ic, cls = "check", "toast-success"
 	}
-	oob_attr := oob ? ` hx-swap-oob="beforeend:#toasts"` : ""
-	fmt.sbprintf(&b, `<div class="toast %s"%s role="status"><span class="toast-icon">`, cls, oob_attr)
+	// For an out-of-band toast, htmx's positional swap (beforeend:#toasts)
+	// appends the OOB element's *children* — so wrap the toast in a throwaway
+	// carrier whose single child is the .toast that lands in #toasts.
+	if oob {
+		w(&b, `<div hx-swap-oob="beforeend:#toasts">`)
+	}
+	fmt.sbprintf(&b, `<div class="toast %s" role="status"><span class="toast-icon">`, cls)
 	icon(&b, ic)
 	w(&b, `</span><p>`)
 	esc(&b, message)
 	w(&b, `</p><button class="toast-x" aria-label="Dismiss" onclick="dismissToast(this)">×</button></div>`)
+	if oob {
+		w(&b, `</div>`)
+	}
 	return strings.to_string(b)
 }
 

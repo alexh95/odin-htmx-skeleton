@@ -143,13 +143,19 @@ NAV := [?]struct {
 // flash of the wrong palette.
 layout :: proc(title, active, content: string) -> string {
 	b := strings.builder_make(context.temp_allocator)
-	fmt.sbprintf(&b, `<!doctype html>
+	// The head carries literal { } (htmx-config JSON, the theme script), and
+	// Odin's fmt treats braces as directives — so write it raw with w() and
+	// splice the only dynamic value, the title, in between. (sbprintf here would
+	// emit %!(MISSING) for every brace.)
+	w(&b, `<!doctype html>
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="htmx-config" content='{"globalViewTransitions":true,"defaultSwapStyle":"innerHTML"}'>
-<title>%s · Odin + HTMX</title>
+<title>`)
+	esc(&b, title)
+	w(&b, ` · Odin + HTMX</title>
 <link rel="stylesheet" href="/static/app.css">
 <script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 <script src="/static/htmx.min.js"></script>
@@ -157,7 +163,7 @@ layout :: proc(title, active, content: string) -> string {
 </head>
 <body>
 <header class="topbar">
-  <a class="brand" href="/"><span class="brand-mark">`, title)
+  <a class="brand" href="/"><span class="brand-mark">`)
 	icon(&b, "bolt")
 	w(&b, `</span><span class="brand-name">odin<b>·</b>htmx</span></a>
   <nav class="nav" aria-label="Primary">`)
