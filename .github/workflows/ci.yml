@@ -14,8 +14,6 @@ jobs:
   build:
     name: Build + smoke
     runs-on: ubuntu-latest
-    permissions:
-      contents: write   # diag step pushes the captured link error to ci-diag
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,33 +38,11 @@ jobs:
           echo "/opt/odin" >> "$GITHUB_PATH"
           sudo apt-get update && sudo apt-get install -y --no-install-recommends clang
 
-      - name: Odin runs
-        run: odin version
-
-      - name: Prepare deps (htmx)
+      - name: Prepare deps (htmx, bin/)
         run: cd app && sh prepare.sh
 
-      - name: Check (warnings are errors)
-        run: cd app && odin check . -warnings-as-errors
-
-      - name: Build (link), capturing output
-        run: |
-          cd app
-          set -o pipefail
-          odin build . -out:bin/demo 2>&1 | tee /tmp/link.log
-
-      - name: Publish link error to ci-diag (on failure)
-        if: failure()
-        run: |
-          cd "$GITHUB_WORKSPACE"
-          git config user.name  "ci-diag[bot]"
-          git config user.email "ci-diag@users.noreply.github.com"
-          mkdir -p infra
-          cp /tmp/link.log infra/ci-link-error.txt 2>/dev/null || echo "no log captured" > infra/ci-link-error.txt
-          git checkout -B ci-diag
-          git add -f infra/ci-link-error.txt
-          git commit -m "ci(diag): capture link error" || true
-          git push -f origin ci-diag
+      - name: Build (warnings are errors)
+        run: cd app && odin build . -out:bin/demo -warnings-as-errors
 
       - name: Smoke test the binary
         run: |

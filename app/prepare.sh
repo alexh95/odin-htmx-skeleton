@@ -6,6 +6,9 @@
 set -e
 cd "$(dirname "$0")"
 
+# odin's -out: writes into bin/ but won't create it; a fresh clone has no bin/.
+mkdir -p bin
+
 if [ -f odin-http/server.odin ]; then
   echo "[skip] odin-http submodule already checked out."
 else

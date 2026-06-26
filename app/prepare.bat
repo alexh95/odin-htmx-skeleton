@@ -6,6 +6,9 @@ rem Idempotent: re-running skips whatever is already in place.
 setlocal
 cd /d "%~dp0"
 
+rem odin's -out: writes into bin\ but won't create it; a fresh clone has no bin\.
+if not exist "bin\" mkdir bin
+
 if exist "odin-http\server.odin" (
   echo [skip] odin-http submodule already checked out.
 ) else (
