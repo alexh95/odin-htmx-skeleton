@@ -57,27 +57,51 @@ query_decode :: proc(s: string) -> string {
 	return ok ? dec : t
 }
 
-render_page :: proc(res: ^http.Response, title, active, content: string) {
-	http.respond_html(res, layout(title, active, content))
+render_page :: proc(res: ^http.Response, title, active, description, content: string) {
+	http.respond_html(res, layout(title, active, description, content))
 }
 
 // ---- pages --------------------------------------------------------------
 
 page_dashboard :: proc(req: ^http.Request, res: ^http.Response) {
-	render_page(res, "Dashboard", "/", view_dashboard())
+	render_page(
+		res,
+		"Dashboard",
+		"/",
+		"A proof-of-concept component kit served from a single Odin binary and wired up with HTMX: dashboard, data table with CRUD, forms with live validation, and a vibrant component gallery.",
+		view_dashboard(),
+	)
 }
 
 page_components :: proc(req: ^http.Request, res: ^http.Response) {
-	render_page(res, "Components", "/components", view_components())
+	render_page(
+		res,
+		"Components",
+		"/components",
+		"A gallery of UI components built with Odin + HTMX — buttons, badges, avatars, progress, tabs, accordions, dialogs, drawers and toasts, each swapped in over a single request.",
+		view_components(),
+	)
 }
 
 page_forms :: proc(req: ^http.Request, res: ^http.Response) {
-	render_page(res, "Forms", "/forms", view_forms())
+	render_page(
+		res,
+		"Forms",
+		"/forms",
+		"Forms with live inline validation powered by HTMX over an Odin backend: email checks as you type, selects, switches, a range slider, and a real submit that creates a contact.",
+		view_forms(),
+	)
 }
 
 page_data :: proc(req: ^http.Request, res: ^http.Response) {
 	p := service_page(query_get(req, "q"), "name", 1)
-	render_page(res, "Data & CRUD", "/data", view_data(p))
+	render_page(
+		res,
+		"Data & CRUD",
+		"/data",
+		"A live contacts table over an in-memory Odin store: filter, sort and paginate, plus create, update and delete — all over HTMX with no full-page reloads.",
+		view_data(p),
+	)
 }
 
 // ---- search -------------------------------------------------------------

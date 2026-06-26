@@ -141,7 +141,7 @@ NAV := [?]struct {
 // The one page shell. `active` is the href of the current page so the nav can
 // mark it. The inline head script sets the theme before first paint to avoid a
 // flash of the wrong palette.
-layout :: proc(title, active, content: string) -> string {
+layout :: proc(title, active, description, content: string) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	// The head carries literal { } (htmx-config JSON, the theme script), and
 	// Odin's fmt treats braces as directives — so write it raw with w() and
@@ -156,6 +156,16 @@ layout :: proc(title, active, content: string) -> string {
 <title>`)
 	esc(&b, title)
 	w(&b, ` · Odin + HTMX</title>
+<meta name="description" content="`)
+	esc(&b, description)
+	w(&b, `">
+<meta property="og:type" content="website">
+<meta property="og:title" content="`)
+	esc(&b, title)
+	w(&b, ` · Odin + HTMX">
+<meta property="og:description" content="`)
+	esc(&b, description)
+	w(&b, `">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <link rel="stylesheet" href="/static/app.css">
 <script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>

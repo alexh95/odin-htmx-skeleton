@@ -29,6 +29,8 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   container.
 - Favicon (`app/static/favicon.svg`, linked from the page head): a fusion mark — htmx's `</>`
   brackets on the project's violet→cyan gradient tile with the app's bolt accent.
+- SEO: a **page-specific `<meta name="description">`** (the item Lighthouse flagged) plus Open
+  Graph `og:type`/`og:title`/`og:description` on every page, threaded through `render_page`.
 
 ### Changed
 - Vendored odin-http as a pinned git submodule (`app/odin-http`, commit `112c49b`) for
