@@ -65,21 +65,20 @@ jobs:
           kill "$pid"
 
   # Browser tests (Playwright), sharded one engine per runner so the three run
-  # concurrently. global-setup builds the app, so each shard needs odin + clang
-  # + bun. Splitting beats more workers on one small (CPU-bound) runner.
+  # concurrently. Runs in Playwright's official image, which bakes in the three
+  # browsers + their OS deps — so there's no per-run browser install (that was the
+  # biggest, most variable cost, ~30-60s for webkit). global-setup still builds the
+  # app, so each shard adds odin + clang + bun. Keep the image tag in step with
+  # @playwright/test in e2e/bun.lock.
   e2e:
-    name: E2E (${{ matrix.tag }})
+    name: E2E (${{ matrix.browser }})
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-jammy
     strategy:
       fail-fast: false
       matrix:
-        # webkit on Linux is far slower (install + execution), so split it across
-        # two runners; chromium/firefox are fast enough as a single shard each.
-        include:
-          - { browser: chromium, shard: '1/1', tag: chromium }
-          - { browser: firefox, shard: '1/1', tag: firefox }
-          - { browser: webkit, shard: '1/2', tag: webkit-1 }
-          - { browser: webkit, shard: '2/2', tag: webkit-2 }
+        browser: [chromium, firefox, webkit]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -96,13 +95,13 @@ jobs:
         if: steps.cache-odin.outputs.cache-hit != 'true'
         run: |
           curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-linux-amd64-${ODIN_VERSION}.tar.gz" -o /tmp/odin.tar.gz
-          sudo mkdir -p /opt/odin
-          sudo tar -xzf /tmp/odin.tar.gz -C /opt/odin --strip-components=1
+          mkdir -p /opt/odin
+          tar -xzf /tmp/odin.tar.gz -C /opt/odin --strip-components=1
 
       - name: Put Odin and clang on PATH
         run: |
           echo "/opt/odin" >> "$GITHUB_PATH"
-          sudo apt-get update && sudo apt-get install -y --no-install-recommends clang
+          apt-get update && apt-get install -y --no-install-recommends clang
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -111,24 +110,15 @@ jobs:
       - name: Install e2e deps
         run: cd e2e && bun install --frozen-lockfile
 
-      - name: Cache Playwright browser
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ hashFiles('e2e/bun.lock') }}
-
-      - name: Install Playwright browser
-        run: cd e2e && bunx playwright install --with-deps ${{ matrix.browser }}
-
       - name: Run e2e
-        run: cd e2e && bun run test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}
+        run: cd e2e && bun run test --project=${{ matrix.browser }}
         env:
           CI: 'true'
 
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report-${{ matrix.tag }}
+          name: playwright-report-${{ matrix.browser }}
           path: e2e/playwright-report/
           retention-days: 7
 
