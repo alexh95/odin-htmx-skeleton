@@ -68,12 +68,18 @@ jobs:
   # concurrently. global-setup builds the app, so each shard needs odin + clang
   # + bun. Splitting beats more workers on one small (CPU-bound) runner.
   e2e:
-    name: E2E (${{ matrix.browser }})
+    name: E2E (${{ matrix.tag }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox, webkit]
+        # webkit on Linux is far slower (install + execution), so split it across
+        # two runners; chromium/firefox are fast enough as a single shard each.
+        include:
+          - { browser: chromium, shard: '1/1', tag: chromium }
+          - { browser: firefox, shard: '1/1', tag: firefox }
+          - { browser: webkit, shard: '1/2', tag: webkit-1 }
+          - { browser: webkit, shard: '2/2', tag: webkit-2 }
     steps:
       - uses: actions/checkout@v4
         with:
@@ -115,14 +121,14 @@ jobs:
         run: cd e2e && bunx playwright install --with-deps ${{ matrix.browser }}
 
       - name: Run e2e
-        run: cd e2e && bun run test --project=${{ matrix.browser }}
+        run: cd e2e && bun run test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}
         env:
           CI: 'true'
 
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report-${{ matrix.browser }}
+          name: playwright-report-${{ matrix.tag }}
           path: e2e/playwright-report/
           retention-days: 7
 
