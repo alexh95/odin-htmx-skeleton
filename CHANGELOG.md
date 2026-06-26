@@ -31,6 +31,13 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   brackets on the project's violet→cyan gradient tile with the app's bolt accent.
 - SEO: a **page-specific `<meta name="description">`** (the item Lighthouse flagged) plus Open
   Graph `og:type`/`og:title`/`og:description` on every page, threaded through `render_page`.
+- Load tests ([`load-tests/`](load-tests/)): **k6** scenarios for every endpoint class —
+  `static`, `pages`, `search`, `api`, `write` (create→delete), and a `mixed` 90/10 read/write
+  blend — sharing one warmup→measured-window shape with per-phase thresholds and a
+  dependency-free JSON/CSV summary. A `run.sh`/`run.bat` driver builds the app `-o:speed`,
+  launches a fresh server per scenario × VU level (clean store), sweeps the VU curve, and
+  stitches `results/summary.md`. `bombardier` baselines run if present. Numbers and the
+  single-thread-ceiling reading land in [`load-tests/RESULTS.md`](load-tests/RESULTS.md).
 
 ### Changed
 - Refactored the backend into one Odin **package per layer** under `app/src/`

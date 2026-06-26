@@ -12,7 +12,7 @@ It showcases a PrimeVue-style component set, a dashboard, search, and a CRUD dat
 odin-htmx-demo/
   app/          The application (Odin sources, static assets, run scripts). All real work.
   e2e/          Playwright browser tests (implemented). `cd e2e && npm ci && npm test`.
-  load-tests/   Load/throughput test plan (PLAN.md). Not yet implemented.
+  load-tests/   k6 throughput/latency tests (implemented). `cd load-tests && ./run.sh --quick`.
   CLAUDE.md TODO.md CHANGELOG.md   ← you are here
 ```
 

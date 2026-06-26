@@ -19,10 +19,15 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
 - [x] Implement the e2e suite per [`e2e/PLAN.md`](e2e/PLAN.md) — Playwright, 31 tests incl. the
       three regressions; wired into CI as a gating job. It surfaced (and we fixed) the `fmt`
       brace bug in the page `<head>` and the OOB-toast wrapper.
-- [ ] Implement the load-tests per [`load-tests/PLAN.md`](load-tests/PLAN.md). Lead with the
-      single-thread ceiling measurement.
-- [ ] **Sync gate:** e2e now exists; once load-tests land, every endpoint must appear in both.
-      The new `/healthz` endpoint needs a load scenario when load-tests are built.
+- [x] Implement the load-tests per [`load-tests/PLAN.md`](load-tests/PLAN.md) — k6 scenarios
+      (static/pages/search/api/write/mixed), a `run.sh`/`run.bat` sweep driver, and
+      `RESULTS.md`. Single-thread baseline captured.
+  - [ ] Headline follow-up: guard the store with a lock, set `thread_count = N`, and re-run
+        the read-heavy scenarios for the before/after scaling curve (`load-tests/PLAN.md` →
+        "What we expect to learn"). This is the one open piece of the load-test plan.
+- [~] **Sync gate:** every endpoint now has both an e2e and a load scenario for its *class*
+      (static, page, search, api, write). `/healthz` is hit by the run driver's readiness
+      probe rather than a dedicated scenario; add one if it ever does real work.
 
 ## Backlog
 

@@ -1,6 +1,10 @@
 # Load tests — plan
 
-> Status: **plan only**. Nothing here is implemented yet. Implement on explicit request.
+> Status: **implemented.** The k6 scenarios, the `run.sh`/`run.bat` driver, and the
+> `RESULTS.md` template are in the repo — see [`README.md`](README.md) to run them and
+> [`RESULTS.md`](RESULTS.md) for the latest numbers. This document is kept as the design
+> rationale. The one piece still open is the headline **thread-count before/after** (it needs a
+> store lock first — see "What we expect to learn").
 
 ## Goal
 
@@ -9,7 +13,8 @@ latency (p50/p90/p95/p99) per endpoint, where latency knees as load climbs, and 
 interesting one — the ceiling imposed by the **single-threaded event loop**.
 
 The server runs `thread_count = 1` on purpose so the in-memory store can stay lock-free (see
-`app/repository.odin`). Load testing is exactly the trigger to revisit that decision: first
+`app/src/repository/repository.odin`). Load testing is exactly the trigger to revisit that
+decision: first
 quantify the single-thread ceiling, then re-run with `thread_count = N` — which only becomes
 correct once the store is guarded. That before/after is a headline result, not a footnote.
 

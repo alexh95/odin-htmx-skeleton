@@ -1,0 +1,4 @@
+# Generated load-test output (raw k6 JSON/CSV, server logs, stitched summary).
+# RESULTS.md is committed by hand with curated headline numbers; this is the
+# noisy per-run scratch.
+results/
