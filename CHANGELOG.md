@@ -43,6 +43,11 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   the "use Bun for any JS tooling" policy recorded in
   [`docs/adr/0001`](docs/adr/0001-bun-for-javascript-tooling.md).
 
+### Performance
+- First page load: `defer` the embedded htmx script so it no longer blocks rendering (the
+  pre-paint theme script stays synchronous to avoid a flash). htmx still initialises before
+  `DOMContentLoaded`; the full e2e suite passes unchanged across all three engines.
+
 ### Fixed
 - Linux/CI build: `prepare.*` now creates `bin/` (odin's `-out:` won't), the shell scripts
   carry the exec bit, and the Dockerfile/CI invoke `prepare` via `sh` — so the build no
