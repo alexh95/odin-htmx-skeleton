@@ -100,8 +100,8 @@ jobs:
       - name: Install e2e deps
         run: cd e2e && bun install --frozen-lockfile
 
-      - name: Install Playwright browser
-        run: cd e2e && bunx playwright install --with-deps chromium
+      - name: Install Playwright browsers
+        run: cd e2e && bunx playwright install --with-deps chromium firefox webkit
 
       - name: Run e2e
         run: cd e2e && bun run test

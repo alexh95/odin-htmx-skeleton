@@ -12,8 +12,8 @@ From this directory:
 
 ```sh
 bun install
-bunx playwright install --with-deps chromium   # one-time: fetch the browser
-bun run test
+bunx playwright install --with-deps chromium firefox webkit   # one-time: fetch browsers
+bun run test                       # all three engines; add --project=chromium to narrow
 ```
 
 `serve.mjs` (Playwright's `webServer`, run with `bun`) prepares deps, builds `../app` with

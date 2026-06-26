@@ -21,8 +21,9 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   set, so the binary is container-deployable (local default stays loopback).
 - `GET /healthz` liveness probe (200 `ok`); wired as the Fly.io health check in `fly.toml`.
 - End-to-end test suite ([`e2e/`](e2e/)): Playwright over a freshly built binary — navigation,
-  search, components, forms, CRUD and assets, including the three regression bugs. Wired into
-  CI as a gating job; deploy now needs both `build` and `e2e`.
+  search, components, forms, CRUD and assets, including the three regression bugs. Runs across
+  all three engines (Chromium, Firefox, WebKit). Wired into CI as a gating job; deploy now needs
+  both `build` and `e2e`.
 - `compose.yaml` for an optional local prod-parity run (`docker compose up --build`) — builds
   the same image Fly deploys. Not required for dev; handy for load-tests against a prod-like
   container.
