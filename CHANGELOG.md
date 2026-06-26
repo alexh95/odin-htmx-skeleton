@@ -20,6 +20,9 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 - `app/main.odin` reads `PORT` from the environment and binds `0.0.0.0` when `BIND_ALL` is
   set, so the binary is container-deployable (local default stays loopback).
 - `GET /healthz` liveness probe (200 `ok`); wired as the Fly.io health check in `fly.toml`.
+- End-to-end test suite ([`e2e/`](e2e/)): Playwright over a freshly built binary — navigation,
+  search, components, forms, CRUD and assets, including the three regression bugs. Wired into
+  CI as a gating job; deploy now needs both `build` and `e2e`.
 
 ### Changed
 - Vendored odin-http as a pinned git submodule (`app/odin-http`, commit `112c49b`) for
@@ -29,6 +32,12 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 - Linux/CI build: `prepare.*` now creates `bin/` (odin's `-out:` won't), the shell scripts
   carry the exec bit, and the Dockerfile/CI invoke `prepare` via `sh` — so the build no
   longer depends on a pre-existing `bin/` or the exec bit surviving a Windows-origin context.
+- Page `<head>` was emitting `%!(MISSING)`: Odin's `fmt` treats `{`/`}` as directives, so the
+  `htmx-config` JSON and the theme pre-paint script were mangled (htmx ran on defaults and
+  threw on `JSON.parse`). The cycle button's `hx-vals` JSON had the same break. Brace-bearing
+  literals now bypass `fmt` (written with `w()`). Caught by the new e2e suite.
+- Out-of-band toasts (form submit, contact create) now keep their `.toast` wrapper — htmx's
+  positional OOB swap appends an element's children, so the toast is wrapped in a carrier.
 
 ## [0.2.0] — 2026-06-26
 

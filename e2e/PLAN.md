@@ -1,6 +1,9 @@
 # End-to-end tests — plan
 
-> Status: **plan only**. Nothing here is implemented yet. Implement on explicit request.
+> Status: **implemented.** The Playwright suite lives alongside this plan (31 tests across the
+> six spec files below); see [`README.md`](README.md) to run it. This document stays as the
+> design rationale. One deviation: a `webServer` launcher (`serve.mjs`) builds + runs the
+> binary, in place of the `fixtures/server.ts` sketched below.
 
 ## Goal
 

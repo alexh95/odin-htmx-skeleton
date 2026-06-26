@@ -11,7 +11,7 @@ It showcases a PrimeVue-style component set, a dashboard, search, and a CRUD dat
 ```
 odin-htmx-demo/
   app/          The application (Odin sources, static assets, run scripts). All real work.
-  e2e/          End-to-end browser test plan (PLAN.md). Not yet implemented.
+  e2e/          Playwright browser tests (implemented). `cd e2e && npm ci && npm test`.
   load-tests/   Load/throughput test plan (PLAN.md). Not yet implemented.
   CLAUDE.md TODO.md CHANGELOG.md   ← you are here
 ```
@@ -132,8 +132,11 @@ oriented: solve the problem simply, once, and let small reusable procs do the wo
 ## Views / HTML conventions
 
 - **Raw string literals** (backticks) for all HTML so attribute quotes stand as-is. Reserve
-  `fmt.sbprintf` for interpolation; remember Odin uses `%` verbs (`%d`, `%s`), and `{`/`}` are
-  literal — do **not** escape braces. `%%` is a literal percent.
+  `fmt.sbprintf` for interpolation: Odin uses `%` verbs (`%d`, `%s`; `%%` is a literal percent).
+  **`fmt` also treats `{` and `}` as directive characters** — a format string containing literal
+  braces (JSON in `htmx-config`, `hx-vals`, an inline `<script>{…}`) emits `%!(MISSING …)` into
+  the output. So never route brace-bearing HTML through `sbprintf`: write it with `w()` and
+  splice the dynamic bits around it. (This silently broke the page `<head>` once — see CHANGELOG.)
 - **`w(b, s)`** writes a string; **`esc(b, s)`** HTML-escapes. Every dynamic value that lands
   in text passes through `esc`; every value in an `href`/query passes through `url_encode`.
   This is the injection boundary — no exceptions.

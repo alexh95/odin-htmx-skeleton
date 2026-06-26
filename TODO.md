@@ -16,13 +16,13 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
         trigger the first deploy (see `infra/PLAN.md` → "Operator steps").
   - [ ] Operator: point a Cloudflare domain at the Fly app (`fly certs add` + DNS).
   - [ ] Stand up the dedicated load-test environment when load-tests are implemented.
-- [ ] Implement the e2e suite per [`e2e/PLAN.md`](e2e/PLAN.md). Fold in the three fixed bugs as
-      regression tests (modal outside-click, form field-persist, slider fill). Swap the CI
-      smoke step for the Playwright run once it exists.
+- [x] Implement the e2e suite per [`e2e/PLAN.md`](e2e/PLAN.md) — Playwright, 31 tests incl. the
+      three regressions; wired into CI as a gating job. It surfaced (and we fixed) the `fmt`
+      brace bug in the page `<head>` and the OOB-toast wrapper.
 - [ ] Implement the load-tests per [`load-tests/PLAN.md`](load-tests/PLAN.md). Lead with the
       single-thread ceiling measurement.
-- [ ] **Sync gate:** once both suites exist, every endpoint must appear in both. Backfill any
-      gaps and keep them paired going forward.
+- [ ] **Sync gate:** e2e now exists; once load-tests land, every endpoint must appear in both.
+      The new `/healthz` endpoint needs a load scenario when load-tests are built.
 
 ## Backlog
 
