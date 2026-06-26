@@ -37,9 +37,10 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   reproducible CI/CD builds; `prepare.*` stays the local-dev convenience path.
 - e2e now runs **fully in parallel**: each Playwright worker spawns its own server on its own
   port with an isolated in-memory store (`global-setup.ts` builds once, `fixtures.ts` spawns
-  per worker), replacing the single shared server + `workers: 1`. ~2.5× faster locally. On CI,
-  `workers` is set explicitly (the default ~half-cores ran near-serial on the runner) and the
-  Playwright browsers are cached between runs.
+  per worker), replacing the single shared server + `workers: 1`. ~2.5× faster locally. On CI
+  the three engines are **sharded across concurrent runners** (a browser matrix) — more workers
+  on one small CPU-bound runner barely helped — with each shard caching only its own browser and
+  `workers` tracking the runner's cores.
 - e2e tooling moved from npm/Node to **Bun** (`bun.lock`, `bun run test`, `bun serve.mjs`; CI
   uses `oven-sh/setup-bun`). Faster, single-binary, drops the `setup-node` action. Decision and
   the "use Bun for any JS tooling" policy recorded in

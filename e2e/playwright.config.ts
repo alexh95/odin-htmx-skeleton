@@ -7,10 +7,9 @@ export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
   // Playwright defaults to ~half the cores; on a small CI runner that's near-
-  // serial. The work is I/O-bound (waiting on HTMX swaps) and each worker has
-  // its own lightweight server, so oversubscribe on CI. Locally, use the
-  // core-based default.
-  workers: process.env.CI ? 4 : undefined,
+  // serial. Use one worker per core there (CI shards the engines across runners,
+  // so each runner handles a single engine). Locally, use the core-based default.
+  workers: process.env.CI ? '100%' : undefined,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : [['list']],
