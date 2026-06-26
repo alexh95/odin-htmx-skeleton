@@ -30,6 +30,10 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ### Changed
 - Vendored odin-http as a pinned git submodule (`app/odin-http`, commit `112c49b`) for
   reproducible CI/CD builds; `prepare.*` stays the local-dev convenience path.
+- e2e tooling moved from npm/Node to **Bun** (`bun.lock`, `bun run test`, `bun serve.mjs`; CI
+  uses `oven-sh/setup-bun`). Faster, single-binary, drops the `setup-node` action. Decision and
+  the "use Bun for any JS tooling" policy recorded in
+  [`docs/adr/0001`](docs/adr/0001-bun-for-javascript-tooling.md).
 
 ### Fixed
 - Linux/CI build: `prepare.*` now creates `bin/` (odin's `-out:` won't), the shell scripts

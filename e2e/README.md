@@ -7,22 +7,26 @@ Chromium against a freshly built server binary and assert on what happens
 
 ## Run
 
+Tooling is **Bun** (not npm) — see [ADR 0001](../docs/adr/0001-bun-for-javascript-tooling.md).
 From this directory:
 
 ```sh
-npm install
-npx playwright install --with-deps chromium   # one-time: fetch the browser
-npm test
+bun install
+bunx playwright install --with-deps chromium   # one-time: fetch the browser
+bun run test
 ```
 
-`serve.mjs` (Playwright's `webServer`) prepares deps, builds `../app` with
-`-warnings-as-errors`, and runs the binary on port 8137 — so a run needs `odin`
-on `PATH`. A fresh process per run means a clean in-memory store; tests run
-serially (`workers: 1`) because that store is shared.
+`serve.mjs` (Playwright's `webServer`, run with `bun`) prepares deps, builds `../app` with
+`-warnings-as-errors`, and runs the binary on port 8137 — so a run needs `odin` on `PATH`. A
+fresh process per run means a clean in-memory store; tests run serially (`workers: 1`) because
+that store is shared.
 
-- `npm run test:ui` — interactive runner.
-- `npm run test:headed` — watch it drive a real browser.
-- `npm run report` — open the last HTML report.
+- `bun run test:ui` — interactive runner.
+- `bun run test:headed` — watch it drive a real browser.
+- `bun run report` — open the last HTML report.
+
+> Use `bun run test`, **not** `bun test` — the latter is Bun's own test runner; ours shells out
+> to the Playwright CLI.
 
 ## Layout
 

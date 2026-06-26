@@ -20,9 +20,10 @@ The three bugs fixed in this round become permanent regression tests:
 
 **Playwright** (recommended). It auto-waits for elements and network to settle, which suits
 HTMX's async swaps, runs headless in CI, and drives Chromium/Firefox/WebKit. The trade-off:
-it's a Node/`npm` dev dependency, which cuts against the app's zero-dependency stance — but
+it's a JS-ecosystem dev dependency, which cuts against the app's zero-dependency stance — but
 it is a *test-time* tool, never shipped, and lives entirely inside `e2e/`. The app itself
-stays dependency-free.
+stays dependency-free. The package manager / runtime is **Bun**, not npm — see
+[ADR 0001](../docs/adr/0001-bun-for-javascript-tooling.md).
 
 Considered and rejected for now: a pure-Odin HTTP harness. It's great for contract tests
 (and we may add one later) but it can't execute HTMX or assert on rendered DOM, so it

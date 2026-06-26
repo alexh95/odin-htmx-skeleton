@@ -19,7 +19,7 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'node serve.mjs',
+    command: 'bun serve.mjs',
     env: { E2E_PORT: String(PORT) },
     url: `http://127.0.0.1:${PORT}/healthz`,
     reuseExistingServer: !process.env.CI,
