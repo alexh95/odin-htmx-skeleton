@@ -78,6 +78,10 @@ jobs:
       # The server uses io_uring (core:nbio); Docker's default seccomp profile
       # blocks io_uring syscalls, so the server can't start in the container.
       options: --security-opt seccomp=unconfined
+    # GitHub mounts HOME=/github/home for container jobs, which Firefox refuses to
+    # launch under (it requires HOME to be owned by the current user). /root is.
+    env:
+      HOME: /root
     strategy:
       fail-fast: false
       matrix:
