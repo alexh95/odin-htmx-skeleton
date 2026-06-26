@@ -23,6 +23,9 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 - End-to-end test suite ([`e2e/`](e2e/)): Playwright over a freshly built binary — navigation,
   search, components, forms, CRUD and assets, including the three regression bugs. Wired into
   CI as a gating job; deploy now needs both `build` and `e2e`.
+- `compose.yaml` for an optional local prod-parity run (`docker compose up --build`) — builds
+  the same image Fly deploys. Not required for dev; handy for load-tests against a prod-like
+  container.
 
 ### Changed
 - Vendored odin-http as a pinned git submodule (`app/odin-http`, commit `112c49b`) for
