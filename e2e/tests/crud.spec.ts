@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures';
 
 test.describe('data table + CRUD', () => {
   test('create, cycle status, then delete a row', async ({ page }) => {
@@ -34,12 +34,14 @@ test.describe('data table + CRUD', () => {
     await page.goto('/data');
     const nameSort = () => page.getByRole('button', { name: 'Name', exact: true });
 
+    // Default sort is name asc; clicking cycles asc -> desc -> asc.
+    // toHaveAttribute auto-waits for each htmx table swap to land (a raw
+    // getAttribute read can race the swap).
+    await expect(nameSort()).toHaveAttribute('data-dir', 'asc');
     await nameSort().click();
-    const first = await nameSort().getAttribute('data-dir');
+    await expect(nameSort()).toHaveAttribute('data-dir', 'desc');
     await nameSort().click();
-    const second = await nameSort().getAttribute('data-dir');
-
-    expect([first, second].sort()).toEqual(['asc', 'desc']);
+    await expect(nameSort()).toHaveAttribute('data-dir', 'asc');
   });
 
   test('pagination swaps the table region', async ({ page }) => {

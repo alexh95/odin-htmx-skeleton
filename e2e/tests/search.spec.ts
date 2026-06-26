@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import type { Page } from '@playwright/test';
 
 // The global active-search lives in the top bar (aria-label "Search contacts")
 // and swaps a results panel into #search-results. Its HTMX trigger is keyup, so

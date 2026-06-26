@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures';
 
 // Contract-level checks for the things curl can see: the asset strategy
 // (embedded htmx vs on-disk CSS), the health probe, and the plain JSON API.

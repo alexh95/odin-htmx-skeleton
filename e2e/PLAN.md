@@ -33,9 +33,10 @@ doesn't replace browser e2e.
 
 ```
 e2e/
-  package.json            # playwright only
-  playwright.config.ts    # baseURL, one worker (in-memory store is shared), trace on fail
-  fixtures/server.ts      # build + spawn app/bin/demo.exe on a test port, await "listening"
+  package.json            # playwright only (Bun-managed; bun.lock)
+  playwright.config.ts    # 3 engines, fullyParallel, trace on retry
+  global-setup.ts         # builds app/bin once with -warnings-as-errors
+  fixtures.ts             # worker-scoped server per port + baseURL override
   tests/
     navigation.spec.ts
     search.spec.ts
@@ -48,15 +49,17 @@ e2e/
 
 ## Server under test
 
-The store is in-memory and resets every time the process starts, so a fresh `bin/demo.exe`
-per run is a clean, deterministic fixture. `fixtures/server.ts`:
-1. `odin build ..\app -out:...` (or assume a prebuilt binary in CI),
-2. spawn it on a dedicated port (e.g. 8099), parse stdout for the `listening` line,
-3. hand `baseURL` to Playwright, tear the process down in global teardown.
+The store is in-memory and resets every time the process starts, so a freshly spawned binary
+is a clean, deterministic fixture. As implemented:
+1. `global-setup.ts` builds the binary once (`-warnings-as-errors`).
+2. A **worker-scoped fixture** (`fixtures.ts`) spawns one server per Playwright worker on its
+   own port (`8200 + parallelIndex`), waits on `GET /healthz`, and kills it at worker end.
+3. It overrides `baseURL` so each worker's `page`/`request` hit that worker's server.
 
-Run serially (`workers: 1`): every test shares one in-memory store, so parallel writes would
-collide. Tests that mutate (CRUD) should create rows with unique names and clean up, or rely
-on a fresh server per file (`fullyParallel: false`, project-level server fixture).
+Because every worker has its **own process and its own store**, the suite runs **fully in
+parallel** (`fullyParallel: true`) across workers and the three engines — no shared-state
+collisions, no need for `workers: 1`. (The first cut did run serially against a single shared
+server; per-worker isolation replaced it. See the parallelisation commit.)
 
 ## Scenarios
 

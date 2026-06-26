@@ -16,10 +16,10 @@ bunx playwright install --with-deps chromium firefox webkit   # one-time: fetch 
 bun run test                       # all three engines; add --project=chromium to narrow
 ```
 
-`serve.mjs` (Playwright's `webServer`, run with `bun`) prepares deps, builds `../app` with
-`-warnings-as-errors`, and runs the binary on port 8137 — so a run needs `odin` on `PATH`. A
-fresh process per run means a clean in-memory store; tests run serially (`workers: 1`) because
-that store is shared.
+`global-setup.ts` builds `../app` once (with `-warnings-as-errors`), so a run needs `odin` on
+`PATH`. Then each Playwright **worker spawns its own server** on its own port (`8200 +
+parallelIndex`, see `fixtures.ts`) with an **isolated in-memory store** — which is what lets
+the suite run **fully in parallel** across workers and the three browser engines.
 
 - `bun run test:ui` — interactive runner.
 - `bun run test:headed` — watch it drive a real browser.
@@ -31,6 +31,8 @@ that store is shared.
 ## Layout
 
 ```
+global-setup.ts        builds the app binary once (-warnings-as-errors)
+fixtures.ts            per-worker server (own port + isolated store) → parallel
 tests/
   navigation.spec.ts   dashboard, routing + aria-current, ping, theme persistence
   search.spec.ts       active search: highlight, navigate, collapse, Escape/outside-click
