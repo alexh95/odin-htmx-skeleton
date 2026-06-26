@@ -156,6 +156,7 @@ layout :: proc(title, active, content: string) -> string {
 <title>`)
 	esc(&b, title)
 	w(&b, ` · Odin + HTMX</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <link rel="stylesheet" href="/static/app.css">
 <script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 <script src="/static/htmx.min.js"></script>

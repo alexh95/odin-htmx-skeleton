@@ -27,6 +27,8 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 - `compose.yaml` for an optional local prod-parity run (`docker compose up --build`) — builds
   the same image Fly deploys. Not required for dev; handy for load-tests against a prod-like
   container.
+- Favicon (`app/static/favicon.svg`, linked from the page head): a fusion mark — htmx's `</>`
+  brackets on the project's violet→cyan gradient tile with the app's bolt accent.
 
 ### Changed
 - Vendored odin-http as a pinned git submodule (`app/odin-http`, commit `112c49b`) for
