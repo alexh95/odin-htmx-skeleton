@@ -24,6 +24,11 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 - Vendored odin-http as a pinned git submodule (`app/odin-http`, commit `112c49b`) for
   reproducible CI/CD builds; `prepare.*` stays the local-dev convenience path.
 
+### Fixed
+- Linux/CI build: `prepare.*` now creates `bin/` (odin's `-out:` won't), the shell scripts
+  carry the exec bit, and the Dockerfile/CI invoke `prepare` via `sh` — so the build no
+  longer depends on a pre-existing `bin/` or the exec bit surviving a Windows-origin context.
+
 ## [0.2.0] — 2026-06-26
 
 ### Added
