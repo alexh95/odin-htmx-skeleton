@@ -1,10 +1,12 @@
 # Load tests — plan
 
-> Status: **implemented.** The k6 scenarios, the `run.sh`/`run.bat` driver, and the
-> `RESULTS.md` template are in the repo — see [`README.md`](README.md) to run them and
-> [`RESULTS.md`](RESULTS.md) for the latest numbers. This document is kept as the design
-> rationale. The one piece still open is the headline **thread-count before/after** (it needs a
-> store lock first — see "What we expect to learn").
+> Status: **implemented, headline result in.** The k6 scenarios, the `run.sh`/`run.bat` driver,
+> and `RESULTS.md` are in the repo — see [`README.md`](README.md) to run them and
+> [`RESULTS.md`](RESULTS.md) for the numbers. The headline **thread-count before/after** is done:
+> the store is now guarded by an `sync.RW_Mutex` and `thread_count` defaults to the core count,
+> and reads scale ~5× (1→8 threads) while the overload failures vanish. This document is kept as
+> the design rationale; the remaining open item is **two-host absolute numbers** (everything so
+> far is co-located or RTT-bound).
 
 ## Goal
 

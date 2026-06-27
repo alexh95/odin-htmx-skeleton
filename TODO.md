@@ -22,9 +22,12 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
 - [x] Implement the load-tests per [`load-tests/PLAN.md`](load-tests/PLAN.md) — k6 scenarios
       (static/pages/search/api/write/mixed), a `run.sh`/`run.bat` sweep driver, and
       `RESULTS.md`. Single-thread baseline captured.
-  - [ ] Headline follow-up: guard the store with a lock, set `thread_count = N`, and re-run
-        the read-heavy scenarios for the before/after scaling curve (`load-tests/PLAN.md` →
-        "What we expect to learn"). This is the one open piece of the load-test plan.
+  - [x] Headline follow-up: guarded the store with an `sync.RW_Mutex` and set `thread_count`
+        to the core count (`THREADS` env overrides). Before/after in `RESULTS.md`: reads scale
+        **~5×** (1→8 threads), writes ~1.8× (exclusive-lock-bound, as predicted), and the
+        500-VU overload failures (13–34%) drop to **0%**. Also ran it against prod (Fly).
+  - [ ] Two-host absolute numbers: generator and target on separate hosts (everything so far is
+        co-located/loopback or RTT-bound prod). Needs the dedicated env below.
 - [~] **Sync gate:** every endpoint now has both an e2e and a load scenario for its *class*
       (static, page, search, api, write). `/healthz` is hit by the run driver's readiness
       probe rather than a dedicated scenario; add one if it ever does real work.

@@ -1,4 +1,6 @@
 # Generated load-test output (raw k6 JSON/CSV, server logs, stitched summary).
 # RESULTS.md is committed by hand with curated headline numbers; this is the
-# noisy per-run scratch.
+# noisy per-run scratch. `results-*` are stashed sweeps (e.g. results-t1 /
+# results-t8 / results-prod from a before/after comparison).
 results/
+results-*/
