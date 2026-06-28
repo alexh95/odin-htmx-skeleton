@@ -228,6 +228,7 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 
 		c: models.Contact
 		ok: bool
+		edit_errs: []services.Field_Error
 		if action == "cycle" {
 			if cur, found := repository.repo_get(ctx.id); found {
 				next := models.Status((int(cur.status) + 1) % len(models.Status))
@@ -236,13 +237,14 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 		} else if name := strings.trim_space(form["name"]); name != "" {
 			// full edit from the detail drawer
 			email := strings.trim_space(form["email"])
-			if len(services.validate_contact(name, email)) == 0 {
+			edit_errs = services.validate_contact(name, email)
+			if len(edit_errs) == 0 {
 				role, _ := models.role_from(form["role"])
 				status, _ := models.status_from(form["status"])
 				score := clamp(to_int(form["score"]), 0, 100)
 				c, ok = repository.repo_update(ctx.id, name, email, role, status, score)
 			} else {
-				c, ok = repository.repo_get(ctx.id) // invalid input (the form guards this) → unchanged
+				c, ok = repository.repo_get(ctx.id) // invalid (the form guards this, but be graceful)
 			}
 		} else {
 			c, ok = repository.repo_get(ctx.id)
@@ -261,6 +263,9 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 			strings.write_string(&b, "<template>")
 			views.view_contact_row(&b, c, false, true)
 			strings.write_string(&b, "</template>")
+			if len(edit_errs) > 0 {
+				strings.write_string(&b, views.view_toast("error", edit_errs[0].msg, true))
+			}
 			http.respond_html(res, strings.to_string(b))
 		} else {
 			b := strings.builder_make(context.temp_allocator)

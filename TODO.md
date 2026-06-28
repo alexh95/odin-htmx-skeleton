@@ -29,6 +29,12 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
           each a one-click jump). Read-only for now. e2e + `detail.js` load scenario added.
     - [x] Inline edit + actions in the detail drawer (edit fields, cycle, delete — all swapped in
           place; edits OOB-refresh the table row; `repo_update` persists score). e2e + load at par.
+          Phase-D review fix: an invalid drawer edit now surfaces an OOB error toast instead of
+          silently reverting.
+      - Known limitation: an in-drawer edit/cycle OOB-refreshes the row *in place*, so a
+        filtered/sorted table can briefly show a row that no longer matches until the next
+        interaction. A deeper fix would thread the table's q/status/sort into the drawer and
+        re-render the whole region; acceptable for the POC.
     - [~] Richer table.
       - [x] Saved/quick **status filters** (chips: All/Active/Invited/Disabled; compose with search +
             sort + paginate via a threaded `status` arg).
