@@ -9,6 +9,11 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **Overview → tool wiring** (Phase D increment 4, product cohesion). The dashboard stat cards are
+  now links into the data view: *Active*/*Invited* → the table filtered to that status, *Avg.
+  engagement* → sorted by score, *Total* → the full table. `page_data` now honours a `sort` query.
+  Ties the four pages into one console (the overview drives the working tool) rather than four
+  separate demos. e2e covers the drill-through.
 - **Status quick-filters on the data table** (Phase D increment 3). A row of filter chips (All /
   Active / Invited / Disabled) above the table; the active one is marked, and the filter threads
   through the request like search/sort/page (`service_page` gains a `status` arg; every region link

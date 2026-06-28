@@ -375,10 +375,10 @@ view_dashboard :: proc() -> string {
 	)
 
 	w(&b, `<section class="stat-grid">`)
-	stat_card(&b, "users", "Total contacts", total, "+4 this week", []int{6, 9, 7, 11, 10, 14, 13, 18})
-	stat_card(&b, "check", "Active", active, "82% of base", []int{10, 11, 9, 12, 13, 12, 15, 16})
-	stat_card(&b, "bell", "Invited", invited, "pending", []int{3, 4, 2, 5, 4, 6, 5, 4})
-	stat_card(&b, "bolt", "Avg. engagement", avg, "score / 100", []int{40, 52, 48, 60, 58, 66, 70, 74})
+	stat_card(&b, "users", "Total contacts", total, "+4 this week", []int{6, 9, 7, 11, 10, 14, 13, 18}, "/data")
+	stat_card(&b, "check", "Active", active, "82% of base", []int{10, 11, 9, 12, 13, 12, 15, 16}, "/data?status=Active")
+	stat_card(&b, "bell", "Invited", invited, "pending", []int{3, 4, 2, 5, 4, 6, 5, 4}, "/data?status=Invited")
+	stat_card(&b, "bolt", "Avg. engagement", avg, "score / 100", []int{40, 52, 48, 60, 58, 66, 70, 74}, "/data?sort=score_desc")
 	w(&b, `</section>`)
 
 	w(&b, `<section class="split">
@@ -404,8 +404,14 @@ view_dashboard :: proc() -> string {
 }
 
 @(private = "file")
-stat_card :: proc(b: ^strings.Builder, ic, label: string, value: int, delta: string, spark: []int) {
-	w(b, `<article class="stat">`)
+// `href` (optional) makes the card a link into the data view — the overview
+// drills into the working tool, tying the console's pages together.
+stat_card :: proc(b: ^strings.Builder, ic, label: string, value: int, delta: string, spark: []int, href := "") {
+	if href != "" {
+		fmt.sbprintf(b, `<a class="stat stat-link" href="%s">`, href)
+	} else {
+		w(b, `<article class="stat">`)
+	}
 	w(b, `<div class="stat-top"><span class="stat-icon">`)
 	icon(b, ic)
 	fmt.sbprintf(b, `</span><span class="stat-label">%s</span></div>`, label)
@@ -414,7 +420,7 @@ stat_card :: proc(b: ^strings.Builder, ic, label: string, value: int, delta: str
 	icon(b, "arrow")
 	fmt.sbprintf(b, `%s</span>`, delta)
 	sparkline(b, spark)
-	w(b, `</div></article>`)
+	w(b, href != "" ? `</div></a>` : `</div></article>`)
 }
 
 // Inline sparkline. Points are scaled into a fixed 100x32 viewBox; the area

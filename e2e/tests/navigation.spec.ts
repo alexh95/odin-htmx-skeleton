@@ -30,6 +30,14 @@ test.describe('navigation', () => {
     await expect(page.locator('#ping-slot .ping-ok')).toContainText('200 OK');
   });
 
+  test('dashboard stat card drills into the filtered data view', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.stat-link', { hasText: 'Active' }).click();
+    await expect(page).toHaveURL(/\/data\?status=Active/);
+    const badges = page.locator('#contact-tbody tr td .badge');
+    await expect(badges.first()).toContainText('Active');
+  });
+
   test('theme picker switches scheme and persists across reload', async ({ page }) => {
     await page.goto('/');
     const html = page.locator('html');

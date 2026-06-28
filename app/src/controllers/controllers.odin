@@ -100,7 +100,11 @@ page_forms :: proc(req: ^http.Request, res: ^http.Response) {
 }
 
 page_data :: proc(req: ^http.Request, res: ^http.Response) {
-	p := services.service_page(query_get(req, "q"), query_get(req, "status"), "name", 1)
+	sort := query_get(req, "sort")
+	if sort == "" {
+		sort = "name"
+	}
+	p := services.service_page(query_get(req, "q"), query_get(req, "status"), sort, 1)
 	render_page(
 		res,
 		"Data & CRUD",

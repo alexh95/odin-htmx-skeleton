@@ -33,7 +33,8 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
       - [x] Saved/quick **status filters** (chips: All/Active/Invited/Disabled; compose with search +
             sort + paginate via a threaded `status` arg).
       - [ ] Bulk actions (select rows → set status / delete) — deferred.
-    - [ ] Coherent product frame: a named console + IA, not four separate pages.
+    - [~] Coherent product frame. Done: dashboard stat cards drill into the filtered/sorted data
+          view (overview → tool). Further (deferred): a named console identity + deeper nav IA.
   - [ ] **Phase E — parity + polish sweep.** e2e + load cover everything new; CHANGELOG/docs current.
 - [~] **Set up infrastructure** per [`infra/PLAN.md`](infra/PLAN.md). Code + config landed;
       what's left are operator actions on Fly/GitHub/Cloudflare (no repo changes).
