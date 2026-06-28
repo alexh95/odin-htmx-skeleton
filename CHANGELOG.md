@@ -138,6 +138,11 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   `DOMContentLoaded`; the full e2e suite passes unchanged across all three engines.
 
 ### Fixed
+- Range slider fill was missing under Terminal, Brutalist, Editorial and Arcade — each style's
+  `input` rule tied the range track on specificity and (being later) clobbered the fill layer (the
+  same issue the skeuo style hit). Each now restores the fill on its
+  `[data-style] input[type="range"]` rule, matched to the style (phosphor glow, flat accent, a
+  refined gradient, neon). Completes the style library.
 - Range slider fill lagged behind the thumb: the shared `input` rule transitioned `background`,
   which animated the `background-size` that paints the fill. The range track now opts out
   (`transition: none`), so the fill tracks the thumb instantly while the thumb keeps its own

@@ -894,6 +894,10 @@ tr.htmx-swapping { animation: row-out 220ms var(--ease) forwards; }
   box-shadow: 0 0 12px -2px var(--violet);
 }
 [data-style="terminal"] .badge { border: 1px solid currentColor; background: transparent; }
+[data-style="terminal"] input[type="range"] {
+  background: linear-gradient(90deg, var(--violet), var(--cyan)) no-repeat, #000;
+  background-size: var(--fill, 50%) 100%, 100% 100%;
+}
 [data-style="terminal"] input[type="range"]::-webkit-slider-thumb {
   background: var(--violet); border: none; border-radius: 2px; box-shadow: 0 0 8px var(--violet);
 }
@@ -973,6 +977,11 @@ tr.htmx-swapping { animation: row-out 220ms var(--ease) forwards; }
   border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line);
 }
 [data-style="brutal"] .badge { border: 2px solid currentColor; border-radius: 0; }
+[data-style="brutal"] input[type="range"] {
+  background: linear-gradient(90deg, var(--violet), var(--violet)) no-repeat, var(--surface-2);
+  background-size: var(--fill, 50%) 100%, 100% 100%;
+  border-radius: 0;
+}
 [data-style="brutal"] input[type="range"]::-webkit-slider-thumb {
   background: var(--violet); border: 2px solid var(--line); border-radius: 0; box-shadow: none;
 }
@@ -1042,6 +1051,10 @@ tr.htmx-swapping { animation: row-out 220ms var(--ease) forwards; }
 }
 [data-style="editorial"] .brand-mark { background: var(--violet); color: var(--on-accent); box-shadow: none; }
 [data-style="editorial"] .badge { font-weight: 600; }
+[data-style="editorial"] input[type="range"] {
+  background: linear-gradient(90deg, var(--violet), var(--cyan)) no-repeat, var(--surface-2);
+  background-size: var(--fill, 50%) 100%, 100% 100%;
+}
 
 /* =====================================================================
    STYLE: Arcade (video-game) — chunky neon HUD. Glowing panels + buttons,
@@ -1125,6 +1138,11 @@ tr.htmx-swapping { animation: row-out 220ms var(--ease) forwards; }
 }
 [data-style="arcade"] .brand-mark { background: var(--grad); color: var(--on-accent); box-shadow: 0 0 18px -4px var(--violet); }
 [data-style="arcade"] .badge { box-shadow: 0 0 10px -3px currentColor; }
+[data-style="arcade"] input[type="range"] {
+  background: linear-gradient(90deg, var(--violet), var(--cyan)) no-repeat, color-mix(in oklab, var(--bg) 70%, black);
+  background-size: var(--fill, 50%) 100%, 100% 100%;
+  box-shadow: 0 0 10px -3px color-mix(in oklab, var(--violet) 50%, transparent);
+}
 [data-style="arcade"] input[type="range"]::-webkit-slider-thumb {
   background: var(--violet); border: 2px solid #fff; box-shadow: 0 0 12px var(--violet);
 }
