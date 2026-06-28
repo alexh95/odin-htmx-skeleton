@@ -89,7 +89,7 @@ contacts live on the heap so they survive between requests.
 
 The server runs **one event-loop thread per core** (`thread_count = os.get_processor_core_count()`,
 overridable with `THREADS`), so handlers execute concurrently. The store is therefore guarded
-by an `sync.RW_Mutex` — see the concurrency note in `repository/repo_sqlite.odin`.
+by an `sync.RW_Mutex` — see the concurrency note in `repository/repo.odin`.
 
 The store is **SQLite** (the amalgamation, compiled by `prepare` and statically linked). The
 seven `repo_*` procedures are the only code that touches storage; `DB_PATH` selects the

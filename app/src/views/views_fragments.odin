@@ -191,22 +191,22 @@ view_contact_row :: proc(b: ^strings.Builder, c: models.Contact, fresh: bool, oo
 // returns the backdrop + aside (loaded into #overlay on open); the `_frag` variant
 // returns just the aside, for in-place swaps (edit toggle / save / cycle) that target
 // `.drawer-detail` so the backdrop doesn't re-animate.
-view_contact_detail :: proc(c: models.Contact, activity: []services.Activity, related: []models.Contact) -> string {
+view_contact_detail :: proc(c: models.Contact, timeline: []models.Interaction, related: []models.Contact) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	w(&b, `<div class="backdrop" hx-get="/ui/clear" hx-target="#overlay" hx-swap="innerHTML swap:240ms">`)
-	detail_aside(&b, c, activity, related, false, false)
+	detail_aside(&b, c, timeline, related, false, false)
 	w(&b, `</div>`)
 	return strings.to_string(b)
 }
 
-view_contact_detail_frag :: proc(c: models.Contact, activity: []services.Activity, related: []models.Contact, editing: bool) -> string {
+view_contact_detail_frag :: proc(c: models.Contact, timeline: []models.Interaction, related: []models.Contact, editing: bool) -> string {
 	b := strings.builder_make(context.temp_allocator)
-	detail_aside(&b, c, activity, related, editing, true)
+	detail_aside(&b, c, timeline, related, editing, true)
 	return strings.to_string(b)
 }
 
 @(private = "file")
-detail_aside :: proc(b: ^strings.Builder, c: models.Contact, activity: []services.Activity, related: []models.Contact, editing, static_anim: bool) {
+detail_aside :: proc(b: ^strings.Builder, c: models.Contact, timeline: []models.Interaction, related: []models.Contact, editing, static_anim: bool) {
 	// drawer-static skips the slide-in so in-place swaps don't re-animate.
 	fmt.sbprintf(
 		b,
@@ -224,13 +224,13 @@ detail_aside :: proc(b: ^strings.Builder, c: models.Contact, activity: []service
 	if editing {
 		detail_edit_form(b, c)
 	} else {
-		detail_view_body(b, c, activity, related)
+		detail_view_body(b, c, timeline, related)
 	}
 	w(b, `</aside>`)
 }
 
 @(private = "file")
-detail_view_body :: proc(b: ^strings.Builder, c: models.Contact, activity: []services.Activity, related: []models.Contact) {
+detail_view_body :: proc(b: ^strings.Builder, c: models.Contact, timeline: []models.Interaction, related: []models.Contact) {
 	rn := models.ROLE_NAMES
 	w(b, `<div class="detail-body"><div class="detail-actions">`)
 	fmt.sbprintf(b, `<button class="btn btn-outline btn-sm" hx-get="/contacts/%d?edit=1&frag=1" hx-target="closest .drawer-detail" hx-swap="outerHTML">`, c.id)
@@ -247,17 +247,27 @@ detail_view_body :: proc(b: ^strings.Builder, c: models.Contact, activity: []ser
 	role_chip(b, c.role)
 	status_badge(b, c.status)
 	fmt.sbprintf(b, `<span class="detail-score"><small class="muted">Engagement</small><div class="meter"><i style="width:%d%%"></i></div><strong>%d / 100</strong></span><span class="detail-rid">#%d</span>`, c.score, c.score, c.id)
-	w(b, `</div><section class="detail-section"><h3>Activity</h3><ol class="timeline">`)
-	for a in activity {
-		w(b, `<li><span class="tl-dot">`)
-		icon(b, a.icon)
-		w(b, `</span><div class="tl-body"><strong>`)
-		esc(b, a.label)
-		w(b, `</strong><small>`)
-		esc(b, a.ago)
-		w(b, `</small></div></li>`)
+	w(b, `</div><section class="detail-section"><h3>Activity</h3>`)
+	if len(timeline) == 0 {
+		w(b, `<p class="muted detail-empty">No interactions yet.</p>`)
+	} else {
+		w(b, `<ol class="timeline">`)
+		for it in timeline {
+			w(b, `<li><span class="tl-dot">`)
+			icon(b, interaction_icon(it.kind))
+			w(b, `</span><div class="tl-body"><strong>`)
+			interaction_label(b, it)
+			w(b, `</strong><small>`)
+			if it.note != "" {
+				esc(b, it.note)
+				w(b, ` · `)
+			}
+			esc(b, services.time_ago(it.at))
+			w(b, `</small></div></li>`)
+		}
+		w(b, `</ol>`)
 	}
-	w(b, `</ol></section>`)
+	w(b, `</section>`)
 	if len(related) > 0 {
 		fmt.sbprintf(b, `<section class="detail-section"><h3>Also in %s</h3><div class="related-list">`, rn[c.role])
 		for r in related {
@@ -272,6 +282,46 @@ detail_view_body :: proc(b: ^strings.Builder, c: models.Contact, activity: []ser
 		w(b, `</div></section>`)
 	}
 	w(b, `</div>`)
+}
+
+// One timeline entry's headline, with the other contact as a one-click jump:
+// "Reviewed <Grace Hopper>" (outgoing) or "<Grace Hopper> reviewed you" (incoming).
+@(private = "file")
+interaction_label :: proc(b: ^strings.Builder, it: models.Interaction) {
+	names := models.EVENT_KIND_NAMES
+	verb := names[it.kind]
+	if it.outgoing {
+		esc(b, verb)
+		w(b, ` `)
+		who_link(b, it.other_id, it.other_name)
+	} else {
+		who_link(b, it.other_id, it.other_name)
+		w(b, ` `)
+		esc(b, strings.to_lower(verb, context.temp_allocator))
+		w(b, ` you`)
+	}
+}
+
+@(private = "file")
+who_link :: proc(b: ^strings.Builder, id: int, name: string) {
+	fmt.sbprintf(b, `<button class="tl-who" type="button" hx-get="/contacts/%d" hx-target="#overlay" hx-swap="innerHTML">`, id)
+	esc(b, name)
+	w(b, `</button>`)
+}
+
+@(private = "file")
+interaction_icon :: proc(kind: models.Event_Kind) -> string {
+	switch kind {
+	case .Introduced:
+		return "users"
+	case .Mentioned:
+		return "bell"
+	case .Reviewed:
+		return "check"
+	case .Messaged:
+		return "bolt"
+	}
+	return "bolt"
 }
 
 @(private = "file")

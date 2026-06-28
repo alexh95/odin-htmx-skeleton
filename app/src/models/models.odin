@@ -44,6 +44,50 @@ STATUS_NAMES :: [Status]string {
 	.Disabled = "Disabled",
 }
 
+// ---- events: interactions between two contacts --------------------------
+//
+// The second entity, related to the first. An event records that one contact did
+// something involving another (both FKs into `contacts`, ON DELETE CASCADE), so
+// deleting a contact removes the interactions it took part in. This is the real
+// data behind the detail drawer's activity timeline.
+
+Event_Kind :: enum {
+	Introduced,
+	Mentioned,
+	Reviewed,
+	Messaged,
+}
+
+EVENT_KIND_NAMES :: [Event_Kind]string {
+	.Introduced = "Introduced",
+	.Mentioned  = "Mentioned",
+	.Reviewed   = "Reviewed",
+	.Messaged   = "Messaged",
+}
+
+// A row in the events table: actor did `kind` involving target, at a unix time.
+Event :: struct {
+	id:        int,
+	actor_id:  int,
+	target_id: int,
+	kind:      Event_Kind,
+	at:        i64, // unix seconds
+	note:      string,
+}
+
+// A contact-centric view of an event (the result of the timeline join): the OTHER
+// party resolved to its id+name, and the direction relative to the contact whose
+// timeline this is. `outgoing` = this contact was the actor.
+Interaction :: struct {
+	id:         int,
+	kind:       Event_Kind,
+	at:         i64,
+	note:       string,
+	other_id:   int,
+	other_name: string,
+	outgoing:   bool,
+}
+
 // Parse a label back to its enum value. Used when decoding form submissions;
 // an unknown string falls back to the zero value so a hand-crafted POST can't
 // crash a handler.

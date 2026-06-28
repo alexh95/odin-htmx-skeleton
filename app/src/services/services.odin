@@ -5,6 +5,7 @@ import "../models"
 import "core:fmt"
 import "core:slice"
 import "core:strings"
+import "core:time"
 
 // ---- services -----------------------------------------------------------
 //
@@ -145,46 +146,32 @@ service_search :: proc(q: string, limit: int) -> []models.Contact {
 	return out[:]
 }
 
-// ---- detail view: activity trail + related ------------------------------
+// ---- detail view: interaction timeline + related ------------------------
 //
-// The contact detail drills past the table row. There's no persisted event log
-// (the store is a POC — see docs/DATA.md), so the activity trail is *derived*
-// deterministically from the contact: plausible, stable across reloads, and free
-// of store changes. Related = others sharing the role, the only relationship the
-// single-entity domain affords.
+// The contact detail drills past the table row. The activity feed is now real:
+// the contact's `events` timeline — interactions with other contacts, joined to
+// resolve the other party (see repository/events.odin). Related = others sharing
+// the role, a second, simpler relationship.
 
-Activity :: struct {
-	icon:  string,
-	label: string,
-	ago:   string, // `when` is an Odin keyword
+service_timeline :: proc(c: models.Contact) -> []models.Interaction {
+	return repository.event_timeline(c.id)
 }
 
-@(private = "file")
-rel_days :: proc(n: int) -> string {
+// Relative-time label from a unix timestamp, for the timeline.
+time_ago :: proc(at: i64) -> string {
+	d := int((time.time_to_unix(time.now()) - at) / 86400)
 	switch {
-	case n <= 0:
+	case d <= 0:
 		return "today"
-	case n == 1:
+	case d == 1:
 		return "yesterday"
-	case n < 14:
-		return fmt.tprintf("%d days ago", n)
-	case n < 60:
-		return fmt.tprintf("%d weeks ago", n / 7)
+	case d < 14:
+		return fmt.tprintf("%d days ago", d)
+	case d < 60:
+		return fmt.tprintf("%d weeks ago", d / 7)
 	case:
-		return fmt.tprintf("%d months ago", n / 30)
+		return fmt.tprintf("%d months ago", d / 30)
 	}
-}
-
-service_activity :: proc(c: models.Contact) -> []Activity {
-	rn := models.ROLE_NAMES
-	sn := models.STATUS_NAMES
-	out := make([dynamic]Activity, context.temp_allocator)
-	append(&out, Activity{"bolt", "Last active session", rel_days(c.id % 6)})
-	append(&out, Activity{"check", fmt.tprintf("Engagement updated to %d", c.score), rel_days(7 + c.score % 20)})
-	append(&out, Activity{"cycle", fmt.tprintf("Status set to %s", sn[c.status]), rel_days(30 + c.id % 25)})
-	append(&out, Activity{"users", fmt.tprintf("Assigned to the %s team", rn[c.role]), rel_days(60 + (c.id * 3) % 40)})
-	append(&out, Activity{"plus", "Joined the workspace", rel_days(120 + (c.id * 7) % 240)})
-	return out[:]
 }
 
 service_related :: proc(c: models.Contact, limit: int) -> []models.Contact {

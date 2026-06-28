@@ -153,6 +153,53 @@ together saturate the machine, so its high-VU numbers dip.
 grew; eight threads keep climbing to ~50 VUs and hold a 4–5× plateau with p99 in low single-digit
 ms where the single thread was already at 10–25 ms.
 
+## SQLite data layer — re-measure (2026-06-29)
+
+The store is now **SQLite** (amalgamation, `:memory:` for these runs unless noted), replacing the
+in-memory slice. Same machine (Ryzen 5800X, 8C/16T), same co-located k6, but a **shorter 10s/3s
+window** and `THREADS=1` vs the **core count (16)**. The new `detail` scenario exercises the
+multi-table **events JOIN** (the contact timeline).
+
+> **Caveat — run-to-run variance.** Store-*independent* `static` came out ~20% lower than the
+> 06-27 run (10s vs 20s window, machine state), so the absolute old-vs-new deltas aren't clean
+> SQLite overhead. Trust the **in-session** comparisons below (T1↔T16, and `:memory:`↔file, run
+> back-to-back under identical conditions), not the cross-day absolutes.
+
+**Reads still scale with threads — but less than the in-memory store did**, and that's the v1
+single-connection lock. RPS at 200 VUs, `THREADS=1 → 16`:
+
+| scenario | RPS 1T | RPS 16T | × (SQLite) | × before (in-mem, 1→8T) |
+|---|---:|---:|---:|---:|
+| mixed  | 5 246  | 21 843 | **4.2** | 5.7 |
+| search | 7 712  | 27 490 | **3.6** | 5.3 |
+| api    | 6 603  | 23 254 | **3.5** | 5.0 |
+| list   | 7 578  | 24 205 | **3.2** | — (new) |
+| pages  | 6 374  | 19 869 | **3.1** | 4.7 |
+| write  | 11 765 | 23 757 | **2.0** | 2.0 |
+| detail | 8 073  | 15 360 | **1.9** | — (new, JOIN) |
+| static | 8 322  | 14 167 | **1.7** | 2.9 (wire-bound) |
+
+Even with **twice the threads** (16 vs 8), SQLite reads scale **~3–4×** where the in-memory store
+hit **~5×**. The reason is exactly the documented v1 trade-off: one shared connection forces an
+**exclusive** lock on *every* op (the in-memory store used a *shared* read lock, so reads ran truly
+in parallel). Only the DB section is serialised — body parse, HTML render and response still
+parallelise — so throughput climbs until that critical section dominates. It dominates soonest for
+**`detail`** (the events JOIN does the most work under the lock → **1.9×**, the worst-scaling read).
+That is the concrete, measured trigger for the deferred optimisation: **per-thread WAL connections**,
+which let readers run concurrently again.
+
+**Persistence has a write cost; reads don't.** Same multi-thread server, `write` scenario, 200 VUs:
+
+| backend | RPS | p99 ms | fail% |
+|---|---:|---:|---:|
+| `:memory:` | 23 757 | 20.1 | 0.0 |
+| file (WAL, `synchronous=NORMAL`) | 8 865 | 41.6 | 0.0 |
+
+A real file DB costs **~2.7×** on writes — WAL append + the periodic fsync — exactly what `DATA.md`
+predicted. Reads are unaffected (the working set is page-cached), so a persistent deploy keeps the
+read profile above and pays only on the write path. **0% errors** throughout, `:memory:` and file
+alike.
+
 ## Prod — live Fly deployment
 
 Modest sweep (1 / 10 / 50 VUs, 10s) from the workstation against
@@ -250,3 +297,10 @@ behind your own NAT.
 - **Write-path scaling** is lock-bound by design. If writes ever became hot, the next step would be
   a sharded or finer-grained store — but for a read-heavy app the single exclusive writer is the
   right simplicity/perf trade, now quantified.
+- **Per-thread WAL connections (SQLite).** The re-measure above quantifies the v1 cost: one shared
+  connection forces an exclusive lock on reads too, so they scale ~3–4× instead of ~5× (worst for
+  the `detail` JOIN at 1.9×). Moving to one WAL connection per nbio thread should restore concurrent
+  reads — the load-test-justified next optimisation (`docs/DATA_IMPL.md` §4). Re-run this section
+  after.
+- **File-DB read profile.** These runs measured the file backend only on the write path; a full
+  file-DB sweep (cold vs warm page cache) would confirm reads match `:memory:` as expected.

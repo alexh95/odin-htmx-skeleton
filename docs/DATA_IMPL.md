@@ -1,7 +1,7 @@
 # Implementing the data layer in Odin (SQLite)
 
 > **Status: implemented.** This was the plan; it now ships. The store is SQLite, bound as the
-> amalgamation in `src/sqlite/` and implemented in `src/repository/repo_sqlite.odin`, selected by
+> amalgamation in `src/sqlite/` and implemented across `src/repository/` (`repo.odin` + `contacts.odin` + `events.odin`), selected by
 > `DB_PATH` (`:memory:` default for tests/dev, a file in prod). The notes below describe the
 > shipped design; a few specifics differ from the original draft and are flagged inline.
 
@@ -11,7 +11,7 @@ the repository.
 
 ## 0. The contract to preserve
 
-`src/repository/repo_sqlite.odin` is the only file that touches storage. The rest of the app speaks
+The `src/repository/` package is the only code that touches storage. The rest of the app speaks
 in `models.Contact` and calls exactly these procedures:
 
 ```odin

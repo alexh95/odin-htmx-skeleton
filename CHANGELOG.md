@@ -9,6 +9,26 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **Events — a second table, related to contacts.** `events(actor_id, target_id → contacts,
+  ON DELETE CASCADE, kind, at, note)` (`migrations/0002_events.sql`) records interactions *between*
+  two contacts. The detail drawer's activity feed is now **real data**: `event_timeline` JOINs the
+  events back to contacts to resolve the other party, rendered as a one-click jump (replacing the
+  deterministic-fake `service_activity`). Deleting a contact cascades its interactions. New domain
+  types (`models.Event`/`Event_Kind`/`Interaction`), seeded deterministically. End-to-end at par:
+  model + repository + service + view + e2e + load. New e2e: the FK cascade (delete a contact → its
+  interactions vanish); the detail `load` scenario now exercises the JOIN. **42 e2e total.**
+
+### Changed
+- **Repository split into common + per-entity files.** `repo_sqlite.odin` → `repo.odin` (the shared
+  connection/lock, migration runner, and `exec`/`prep`/`bind_text`/`clone_col`/`scalar_int` helpers)
+  + `contacts.odin` (the seven `repo_*`) + `events.odin` (`event_timeline`). Adding a table is now a
+  new file + a migration, no churn to the plumbing. Added `repo_close` (finalises statements,
+  checkpoints the WAL) wired via `defer` in main.
+- **Load tests re-measured for SQLite** ([`load-tests/RESULTS.md`](load-tests/RESULTS.md)). Reads
+  still scale with threads but ~3–4× (vs the in-memory store's ~5×) — the v1 single shared connection
+  forces an *exclusive* lock on reads too; the new `detail` events-JOIN scales worst (1.9×), the
+  measured trigger for per-thread WAL connections. A file DB costs ~2.7× on writes (WAL + fsync) and
+  nothing on reads. 0% errors throughout.
 - **Persistent SQLite data layer** — replaces the in-memory POC store. The seven `repo_*`
   procedures are reimplemented over SQLite (`src/repository/repo_sqlite.odin`) behind a ~15-decl
   amalgamation binding (`src/sqlite/`); **services, views, controllers, e2e and load suites are

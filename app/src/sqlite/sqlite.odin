@@ -49,9 +49,11 @@ foreign lib {
 	prepare_v2 :: proc(db: DB, sql: cstring, nByte: c.int, ppStmt: ^Stmt, pzTail: ^cstring) -> c.int ---
 	bind_text :: proc(stmt: Stmt, idx: c.int, text: [^]u8, nByte: c.int, destructor: rawptr) -> c.int ---
 	bind_int :: proc(stmt: Stmt, idx: c.int, val: c.int) -> c.int ---
+	bind_int64 :: proc(stmt: Stmt, idx: c.int, val: i64) -> c.int ---
 	step :: proc(stmt: Stmt) -> c.int ---
 	reset :: proc(stmt: Stmt) -> c.int ---
 	column_int :: proc(stmt: Stmt, col: c.int) -> c.int ---
+	column_int64 :: proc(stmt: Stmt, col: c.int) -> i64 ---
 	column_text :: proc(stmt: Stmt, col: c.int) -> cstring --- // NUL-terminated
 	finalize :: proc(stmt: Stmt) -> c.int ---
 	last_insert_rowid :: proc(db: DB) -> i64 ---

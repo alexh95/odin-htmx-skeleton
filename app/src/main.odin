@@ -48,6 +48,7 @@ main :: proc() {
 		db_path = ":memory:"
 	}
 	repository.repo_open(db_path)
+	defer repository.repo_close() // runs after the server loop returns (clean shutdown)
 	repository.repo_seed()
 	controllers.init_etags()
 

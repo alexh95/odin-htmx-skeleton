@@ -655,6 +655,11 @@ fieldset { border: none; padding: 0; margin: 0; display: flex; flex-direction: c
 .tl-dot .icon { width: 15px; height: 15px; }
 .tl-body { display: flex; flex-direction: column; line-height: 1.3; }
 .tl-body small { color: var(--faint); font-size: .76rem; }
+/* the other contact in an interaction headline — a one-click jump to their drawer */
+.tl-who { font: inherit; font-weight: 600; color: var(--violet); background: none; border: 0;
+  padding: 0; cursor: pointer; border-radius: 4px; }
+.tl-who:hover { text-decoration: underline; }
+.detail-empty { padding: 2px 0 4px; font-size: .82rem; }
 
 .related-list { display: flex; flex-direction: column; gap: 6px; }
 .related-item { display: flex; align-items: center; gap: 11px; width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: border-color var(--fast), transform var(--fast); }

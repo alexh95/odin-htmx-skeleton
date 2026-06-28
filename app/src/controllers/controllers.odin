@@ -164,13 +164,13 @@ contact_detail :: proc(req: ^http.Request, res: ^http.Response) {
 		http.respond(res, http.Status.Not_Found)
 		return
 	}
-	act := services.service_activity(c)
+	tl := services.service_timeline(c)
 	rel := services.service_related(c, 4)
 	// frag=1 → just the <aside> (in-place swap of an open drawer); edit=1 → edit form.
 	if query_get(req, "frag") == "1" {
-		http.respond_html(res, views.view_contact_detail_frag(c, act, rel, query_get(req, "edit") == "1"))
+		http.respond_html(res, views.view_contact_detail_frag(c, tl, rel, query_get(req, "edit") == "1"))
 	} else {
-		http.respond_html(res, views.view_contact_detail(c, act, rel))
+		http.respond_html(res, views.view_contact_detail(c, tl, rel))
 	}
 }
 
@@ -259,7 +259,7 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 			// it. The <tr> is wrapped in a <template> so it survives parsing in the
 			// drawer (non-table) swap context — htmx's pattern for table-internal OOB.
 			b := strings.builder_make(context.temp_allocator)
-			strings.write_string(&b, views.view_contact_detail_frag(c, services.service_activity(c), services.service_related(c, 4), false))
+			strings.write_string(&b, views.view_contact_detail_frag(c, services.service_timeline(c), services.service_related(c, 4), false))
 			strings.write_string(&b, "<template>")
 			views.view_contact_row(&b, c, false, true)
 			strings.write_string(&b, "</template>")

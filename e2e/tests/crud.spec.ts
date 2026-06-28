@@ -91,7 +91,9 @@ test.describe('data table + CRUD', () => {
     await expect(drawer).toBeVisible();
     await expect(drawer.locator('.detail-id h2')).toHaveText(name!.trim());
     await expect(drawer.getByRole('heading', { name: 'Activity' })).toBeVisible();
-    await expect(drawer.locator('.timeline li')).toHaveCount(5);
+    // the activity feed is real events now: ≥1 interaction, each linking the other contact
+    await expect(drawer.locator('.timeline li').first()).toBeVisible();
+    await expect(drawer.locator('.timeline .tl-who').first()).toBeVisible();
 
     // a related contact drills into its own detail
     const related = drawer.locator('.related-item').first();
