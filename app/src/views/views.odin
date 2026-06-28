@@ -193,6 +193,39 @@ theme_picker :: proc(b: ^strings.Builder) {
 	w(b, `</div></details>`)
 }
 
+// The /components showroom: every style and scheme laid out at once, each swatch
+// a one-click jump to that exact style + scheme. The components below it re-skin
+// live (same data-style/data-scheme on <html>; setTheme applies + persists).
+view_showroom :: proc(b: ^strings.Builder) {
+	fmt.sbprintf(
+		b,
+		`<section class="block"><div class="block-head"><h2>Style showroom</h2><p class="muted">Flip the whole interface — every component below re-skins live. %d styles, %d schemes; click any swatch.</p></div><div class="showroom-grid">`,
+		len(STYLES),
+		len(SCHEMES),
+	)
+	for s in STYLES {
+		fmt.sbprintf(b, `<div class="showroom-row"><span class="showroom-name">%s</span><div class="showroom-swatches">`, s.label)
+		for sc in SCHEMES {
+			if sc.style != s.id {continue}
+			fmt.sbprintf(
+				b,
+				`<button class="swatch" type="button" style="--sw:%s" title="%s · %s" aria-label="%s %s" data-sw-style="%s" data-sw-scheme="%s" onclick="setTheme('%s','%s')"></button>`,
+				sc.swatch,
+				s.label,
+				sc.label,
+				s.label,
+				sc.label,
+				s.id,
+				sc.id,
+				s.id,
+				sc.id,
+			)
+		}
+		w(b, `</div></div>`)
+	}
+	w(b, `</div></section>`)
+}
+
 // ---- small components ---------------------------------------------------
 
 status_badge :: proc(b: ^strings.Builder, s: models.Status) {

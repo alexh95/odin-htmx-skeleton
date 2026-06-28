@@ -9,6 +9,11 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **`/components` style showroom.** The components page opens with a catalog of all **6 styles ×
+  23 schemes** — each style labelled with its scheme swatches; click any swatch to jump straight to
+  that exact `style + scheme` (`setTheme` applies + persists) and the whole page re-skins live, the
+  components below acting as the live preview. The active swatch is marked. No new server surface
+  (client-side, like the picker), so load-tests stay at par; e2e covers the jump + persistence.
 - **Arcade (video-game) style** (Phase C, 5/5 — the style library is complete). A chunky neon HUD:
   glowing panels and buttons, heavy uppercase type, vibrant gradients. Three schemes — **Arcade**
   (dark magenta/cyan), **Synthwave** (dark pink→orange sunset), and **Pop** (a clean candy-bright

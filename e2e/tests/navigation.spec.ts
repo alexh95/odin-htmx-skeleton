@@ -70,4 +70,17 @@ test.describe('navigation', () => {
     await expect(html).toHaveAttribute('data-style', 'skeuo');
     await expect(html).toHaveAttribute('data-scheme', 'graphite');
   });
+
+  test('components showroom swatch jumps to a style + scheme', async ({ page }) => {
+    await page.goto('/components');
+    const html = page.locator('html');
+    const swatch = page.locator('.showroom-swatches .swatch[data-sw-style="terminal"][data-sw-scheme="green"]');
+    await swatch.click();
+    await expect(html).toHaveAttribute('data-style', 'terminal');
+    await expect(html).toHaveAttribute('data-scheme', 'green');
+    await expect(swatch).toHaveAttribute('aria-pressed', 'true');
+    await page.reload();
+    await expect(html).toHaveAttribute('data-style', 'terminal');
+    await expect(html).toHaveAttribute('data-scheme', 'green');
+  });
 });

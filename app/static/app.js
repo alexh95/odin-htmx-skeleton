@@ -26,6 +26,14 @@ function pickScheme(name) {
   document.documentElement.dataset.scheme = name;
   persistPref();
 }
+// Set both axes at once — the /components showroom swatches jump straight to a
+// given style + scheme.
+function setTheme(style, scheme) {
+  var r = document.documentElement;
+  r.dataset.style = style;
+  r.dataset.scheme = scheme;
+  persistPref();
+}
 function markPicker() {
   var r = document.documentElement;
   document.querySelectorAll("[data-pick-style]").forEach(function (b) {
@@ -33,6 +41,9 @@ function markPicker() {
   });
   document.querySelectorAll("[data-pick-scheme]").forEach(function (b) {
     b.setAttribute("aria-pressed", String(b.dataset.pickScheme === r.dataset.scheme));
+  });
+  document.querySelectorAll(".showroom-swatches .swatch[data-sw-style]").forEach(function (b) {
+    b.setAttribute("aria-pressed", String(b.dataset.swStyle === r.dataset.style && b.dataset.swScheme === r.dataset.scheme));
   });
 }
 

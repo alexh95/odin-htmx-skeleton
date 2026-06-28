@@ -19,7 +19,9 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
         Editorial/Paper, Arcade (video-game) — each a pure `[data-style]` block with multiple
         schemes, every style incl. a light option. Plus cache-busting (`?v=hash`) so style edits
         show without a hard refresh. Library: 6 styles, 23 schemes.
-    - [ ] Turn `/components` into the live style/scheme showroom (deferred from Phase C).
+    - [x] Turned `/components` into a live style/scheme **showroom**: a catalog of all 6 styles ×
+          23 schemes at the top of the page; click any swatch to jump to that exact style+scheme and
+          the whole page (components below) re-skins live. e2e covers it; no new server surface.
   - [ ] **Phase D — flagship app.** Evolve the sampler into one cohesive internal admin console:
         record **detail** view, richer fields/related data, activity trail, bulk actions, saved
         filters, inline edit. Each new endpoint gets e2e **and** load scenarios in the same change.

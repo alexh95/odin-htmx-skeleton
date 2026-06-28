@@ -330,6 +330,13 @@ a { color: inherit; text-decoration: none; }
 .swatch:focus-visible { outline: none; box-shadow: var(--ring); }
 .swatch[aria-pressed="true"] { border-color: var(--text); box-shadow: var(--ring); }
 
+/* ---- /components style showroom --------------------------------------- */
+.showroom-grid { display: grid; gap: 12px; }
+.showroom-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.showroom-name { flex: none; width: 96px; font-weight: 600; font-size: .9rem; color: var(--text); }
+.showroom-swatches { display: flex; flex-wrap: wrap; gap: 9px; }
+.showroom-swatches .swatch { width: 30px; height: 30px; }
+
 /* ---- layout / cards --------------------------------------------------- */
 
 .container { max-width: var(--maxw); margin: 0 auto; padding: clamp(20px, 4vw, 40px); }

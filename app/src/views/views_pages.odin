@@ -40,6 +40,8 @@ view_components :: proc() -> string {
 		"The everyday controls — buttons, badges, overlays, tabs — each styled once and reused everywhere.",
 	)
 
+	view_showroom(&b)
+
 	// Buttons
 	section_open(&b, "Buttons", "Variants and states, all one .btn with a modifier.")
 	w(&b, `<div class="demo row">
