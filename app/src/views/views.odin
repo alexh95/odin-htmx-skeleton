@@ -116,7 +116,7 @@ Scheme_Opt :: struct {
 }
 
 @(private = "file")
-STYLES := []Style_Opt{{"modern", "Modern"}}
+STYLES := []Style_Opt{{"modern", "Modern"}, {"skeuo", "Skeuo"}}
 
 @(private = "file")
 SCHEMES := []Scheme_Opt {
@@ -127,6 +127,9 @@ SCHEMES := []Scheme_Opt {
 	{"modern", "ember", "Ember", "#fb923c"},
 	{"modern", "sandstone", "Sandstone", "#d2622f"},
 	{"modern", "ocean", "Ocean", "#38bdf8"},
+	{"skeuo", "aqua", "Aqua", "#3b82f6"},
+	{"skeuo", "graphite", "Graphite", "#8b95a3"},
+	{"skeuo", "brass", "Brass", "#d8a64a"},
 }
 
 theme_picker :: proc(b: ^strings.Builder) {

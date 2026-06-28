@@ -662,3 +662,134 @@ tr.htmx-swapping { animation: row-out 220ms var(--ease) forwards; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* =====================================================================
+   STYLE: Skeuomorphic — tactile depth from gradients + layered shadows,
+   no image assets. Panels are raised, fields recessed, buttons press. The
+   bevel kit (--hi highlight, --lo recess, --gloss sheen) is tuned per scheme.
+   ===================================================================== */
+
+[data-style="skeuo"] {
+  --radius: 13px; --radius-sm: 9px; --radius-lg: 20px;
+  --hi: rgba(255, 255, 255, .75);
+  --lo: rgba(12, 20, 34, .28);
+  --gloss: rgba(255, 255, 255, .5);
+
+  /* default palette = Aqua (light, lickable blue) */
+  --violet: #3b82f6; --indigo: #2563eb; --cyan: #38bdf8; --on-accent: #fff;
+  --grad: linear-gradient(180deg, color-mix(in oklab, var(--violet) 82%, white), var(--violet));
+  --bg: #d6dce6; --surface: #eef1f6; --surface-2: #e2e7ef; --elevated: #f7f9fc;
+  --line: #c3cbd8; --line-2: #abb5c4;
+  --text: #1e2733; --muted: #586575; --faint: #8794a5;
+  --shadow: 0 2px 4px rgba(20, 30, 50, .14), 0 12px 26px -12px rgba(20, 30, 50, .4);
+  --shadow-lg: 0 4px 10px rgba(20, 30, 50, .16), 0 26px 54px -20px rgba(20, 30, 50, .5);
+}
+
+[data-style="skeuo"][data-scheme="graphite"] {
+  --hi: rgba(255, 255, 255, .14); --lo: rgba(0, 0, 0, .5); --gloss: rgba(255, 255, 255, .12);
+  --violet: #5b8cff; --indigo: #3b82f6; --cyan: #38bdf8; --on-accent: #fff;
+  --grad: linear-gradient(180deg, color-mix(in oklab, var(--violet) 72%, white 12%), var(--violet));
+  --bg: #23272e; --surface: #3a3f49; --surface-2: #2f343d; --elevated: #454b56;
+  --line: #1b1f25; --line-2: #14171c;
+  --text: #eef1f6; --muted: #aeb7c3; --faint: #7d8794;
+  --shadow: 0 2px 4px rgba(0, 0, 0, .4), 0 14px 30px -14px rgba(0, 0, 0, .7);
+  --shadow-lg: 0 4px 10px rgba(0, 0, 0, .45), 0 28px 60px -22px rgba(0, 0, 0, .8);
+}
+
+[data-style="skeuo"][data-scheme="brass"] {
+  --hi: rgba(255, 240, 214, .2); --lo: rgba(0, 0, 0, .5); --gloss: rgba(255, 240, 214, .22);
+  --violet: #d8a64a; --indigo: #b8860b; --cyan: #e9c46a; --on-accent: #29200d;
+  --grad: linear-gradient(180deg, color-mix(in oklab, var(--violet) 78%, white 14%), var(--violet));
+  --bg: #251c14; --surface: #3a2c20; --surface-2: #31251b; --elevated: #483626;
+  --line: #1b140d; --line-2: #120c08;
+  --text: #f6ecdb; --muted: #cbb799; --faint: #9b876a;
+  --shadow: 0 2px 4px rgba(0, 0, 0, .4), 0 14px 30px -14px rgba(0, 0, 0, .65);
+  --shadow-lg: 0 4px 10px rgba(0, 0, 0, .45), 0 28px 60px -22px rgba(0, 0, 0, .75);
+}
+
+:root[data-style="skeuo"] .picker-schemes[data-for="skeuo"] { display: flex; }
+
+[data-style="skeuo"] body {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--surface-2) 80%, var(--bg)), var(--bg) 72%);
+  background-attachment: fixed;
+}
+
+/* raised panels */
+[data-style="skeuo"] .card,
+[data-style="skeuo"] .stat-card,
+[data-style="skeuo"] .panel,
+[data-style="skeuo"] .picker-panel {
+  background: linear-gradient(180deg, var(--elevated), var(--surface));
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 var(--hi), var(--shadow);
+}
+
+/* tactile buttons */
+[data-style="skeuo"] .btn {
+  border: 1px solid var(--line-2);
+  background:
+    linear-gradient(180deg, var(--gloss), rgba(255, 255, 255, 0) 46%),
+    linear-gradient(180deg, var(--surface), var(--surface-2));
+  box-shadow: inset 0 1px 0 var(--hi), 0 1px 0 var(--line-2), 0 4px 9px -3px var(--lo);
+  text-shadow: 0 1px 0 var(--hi);
+  transition: filter var(--fast), box-shadow var(--fast), transform var(--fast);
+}
+[data-style="skeuo"] .btn:hover { transform: none; filter: brightness(1.04); }
+[data-style="skeuo"] .btn:active { transform: translateY(1px); box-shadow: inset 0 2px 6px var(--lo); filter: brightness(.98); }
+[data-style="skeuo"] .btn-primary {
+  border-color: color-mix(in oklab, var(--violet) 55%, black);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .4), rgba(255, 255, 255, 0) 46%), var(--grad);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 1px 0 color-mix(in oklab, var(--violet) 45%, black), 0 8px 18px -7px var(--violet);
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, .22);
+}
+[data-style="skeuo"] .btn-danger {
+  border-color: color-mix(in oklab, var(--red) 55%, black);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .4), rgba(255, 255, 255, 0) 46%), linear-gradient(180deg, color-mix(in oklab, var(--red) 80%, white), var(--red));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), 0 8px 18px -7px var(--red);
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, .22);
+}
+[data-style="skeuo"] .btn-accent {
+  border-color: color-mix(in oklab, var(--cyan) 55%, black);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .4), rgba(255, 255, 255, 0) 46%), linear-gradient(180deg, color-mix(in oklab, var(--cyan) 82%, white), var(--green));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 8px 18px -7px var(--cyan);
+}
+[data-style="skeuo"] .btn-outline { background: linear-gradient(180deg, var(--surface), var(--surface-2)); }
+
+/* recessed fields */
+[data-style="skeuo"] input,
+[data-style="skeuo"] select,
+[data-style="skeuo"] textarea {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--surface-2) 78%, var(--lo)), var(--surface-2));
+  border: 1px solid var(--line-2);
+  box-shadow: inset 0 2px 5px var(--lo), inset 0 -1px 0 var(--hi);
+}
+[data-style="skeuo"] input:focus,
+[data-style="skeuo"] select:focus,
+[data-style="skeuo"] textarea:focus { box-shadow: inset 0 2px 5px var(--lo), var(--ring); border-color: var(--violet); }
+
+/* chrome: icon buttons, picker trigger, topbar, nav, brand */
+[data-style="skeuo"] .icon-btn,
+[data-style="skeuo"] .picker > summary {
+  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  border: 1px solid var(--line-2);
+  box-shadow: inset 0 1px 0 var(--hi), 0 3px 7px -3px var(--lo);
+}
+[data-style="skeuo"] .icon-btn:active { box-shadow: inset 0 2px 5px var(--lo); transform: translateY(1px); }
+[data-style="skeuo"] .topbar {
+  background: linear-gradient(180deg, var(--elevated), var(--surface));
+  border-bottom: 1px solid var(--line-2);
+  box-shadow: inset 0 1px 0 var(--hi), 0 4px 12px -6px var(--lo);
+}
+[data-style="skeuo"] .nav-link[aria-current="page"] { background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: inset 0 2px 5px var(--lo); }
+[data-style="skeuo"] .brand-mark {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .4), rgba(255, 255, 255, 0) 46%), var(--grad);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 4px 10px -4px var(--violet);
+}
+[data-style="skeuo"] .badge { box-shadow: inset 0 1px 0 var(--hi), 0 1px 2px var(--lo); }
+
+/* recessed range groove + domed thumb */
+[data-style="skeuo"] input[type="range"] { box-shadow: inset 0 2px 4px var(--lo); }
+[data-style="skeuo"] input[type="range"]::-webkit-slider-thumb {
+  background: linear-gradient(180deg, #fff, #d8dee8); border: 1px solid var(--line-2);
+  box-shadow: inset 0 1px 0 #fff, 0 2px 5px var(--lo);
+}

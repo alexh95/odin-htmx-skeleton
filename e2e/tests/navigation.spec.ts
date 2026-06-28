@@ -49,4 +49,25 @@ test.describe('navigation', () => {
     await expect(html).toHaveAttribute('data-scheme', 'daylight');
     await expect(html).toHaveAttribute('data-style', 'modern');
   });
+
+  test('theme picker switches style and reveals that style\'s schemes', async ({ page }) => {
+    await page.goto('/');
+    const html = page.locator('html');
+    await page.locator('.picker > summary').click();
+
+    // Switch to a different style; the scheme falls back to that style's first.
+    await page.locator('.chip[data-pick-style="skeuo"]').click();
+    await expect(html).toHaveAttribute('data-style', 'skeuo');
+    await expect(html).toHaveAttribute('data-scheme', 'aqua');
+
+    // Its swatch row is now revealed and selectable; modern's is hidden.
+    await expect(page.locator('.picker-schemes[data-for="skeuo"]')).toBeVisible();
+    await expect(page.locator('.picker-schemes[data-for="modern"]')).toBeHidden();
+    await page.locator('.swatch[data-pick-scheme="graphite"]').click();
+    await expect(html).toHaveAttribute('data-scheme', 'graphite');
+
+    await page.reload();
+    await expect(html).toHaveAttribute('data-style', 'skeuo');
+    await expect(html).toHaveAttribute('data-scheme', 'graphite');
+  });
 });

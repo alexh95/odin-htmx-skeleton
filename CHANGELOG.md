@@ -9,6 +9,14 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **Skeuomorphic style** (Phase C, first of five). A tactile treatment built entirely from layered
+  gradients + bevel shadows — **no image assets**: raised panels with an inset top highlight,
+  recessed (inset-shadow) form fields, glossy buttons that physically press on `:active`, a domed
+  range thumb in a recessed groove. A per-style **bevel kit** (`--hi`/`--lo`/`--gloss`) drives it,
+  tuned by three schemes: **Aqua** (light, lickable blue), **Graphite** (dark brushed metal), and
+  **Brass** (warm wood + brass). Adding it took only a `[data-style="skeuo"]` block + scheme
+  palettes + the picker entries — the component HTML is untouched. e2e now also covers switching the
+  *style* axis and revealing that style's schemes. Remaining: Terminal, Brutalist, Editorial, Video-game.
 - **Theme picker — two axes, `data-style` × `data-scheme`** (Phase B of the style library). The
   page shell carries `data-style` (the treatment) and `data-scheme` (the palette) on `<html>`,
   rendered server-side as `modern`/`midnight` (works with no JS) and restored from `localStorage`
