@@ -133,7 +133,14 @@ SCHEMES := []Scheme_Opt {
 	{"terminal", "green", "Green", "#2bff66"},
 	{"terminal", "amber", "Amber", "#ffb000"},
 	{"terminal", "ibm", "IBM", "#8ab4ff"},
+	{"terminal", "paper", "Paper", "#1f7a3d"},
 }
+
+// Cache-busting token for the static CSS/JS, set once at startup by
+// controllers.init_etags (a content hash). Appended as ?v=… to the asset URLs so
+// a redeploy is picked up immediately instead of waiting out Cache-Control max-age
+// (the reason a plain reload kept showing the old stylesheet).
+ASSET_VERSION := "dev"
 
 theme_picker :: proc(b: ^strings.Builder) {
 	w(
@@ -244,10 +251,14 @@ layout :: proc(title, active, description, content: string) -> string {
 	esc(&b, description)
 	w(&b, `">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/app.css?v=`)
+	w(&b, ASSET_VERSION)
+	w(&b, `">
 <script>try{var d=document.documentElement,s=localStorage.getItem('style'),c=localStorage.getItem('scheme');if(s)d.dataset.style=s;if(c)d.dataset.scheme=c;}catch(e){}</script>
 <script src="/static/htmx.min.js" defer></script>
-<script src="/static/app.js" defer></script>
+<script src="/static/app.js?v=`)
+	w(&b, ASSET_VERSION)
+	w(&b, `" defer></script>
 </head>
 <body>
 <header class="topbar">
