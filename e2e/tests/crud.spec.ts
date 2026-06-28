@@ -82,4 +82,38 @@ test.describe('data table + CRUD', () => {
     await page.locator('.detail-close').click();
     await expect(page.locator('.drawer-detail')).toHaveCount(0);
   });
+
+  test('detail drawer: edit updates the record and the row behind it', async ({ page }) => {
+    await page.goto('/data');
+    const rowId = await page.locator('#contact-tbody tr').first().getAttribute('id');
+    await page.locator('.c-open').first().click();
+    await page.waitForSelector('.drawer-detail');
+
+    await page.locator('.drawer-detail').getByRole('button', { name: 'Edit' }).click();
+    await page.waitForSelector('.detail-edit');
+    const newName = `Edited ${Date.now()}`;
+    await page.locator('.detail-edit input[name="name"]').fill(newName);
+    await page.locator('.detail-edit').getByRole('button', { name: 'Save' }).click();
+
+    // drawer returns to the view with the new name…
+    await expect(page.locator('.drawer-detail .detail-id h2')).toHaveText(newName);
+    // …and the table row behind it was refreshed out-of-band.
+    await expect(page.locator(`#${rowId} .c-name-text strong`)).toHaveText(newName);
+  });
+
+  test('detail drawer: cycle status from the drawer, then delete', async ({ page }) => {
+    page.on('dialog', (d) => d.accept());
+    await page.goto('/data');
+    const rowId = await page.locator('#contact-tbody tr').first().getAttribute('id');
+    await page.locator('.c-open').first().click();
+    await page.waitForSelector('.drawer-detail');
+
+    const before = await page.locator('.drawer-detail .badge').first().textContent();
+    await page.locator('.drawer-detail').getByRole('button', { name: 'Cycle' }).click();
+    await expect(page.locator('.drawer-detail .badge').first()).not.toHaveText(before!);
+
+    await page.locator('.drawer-detail').getByRole('button', { name: 'Delete' }).click();
+    await expect(page.locator('.drawer-detail')).toHaveCount(0); // drawer closed
+    await expect(page.locator(`#${rowId}`)).toHaveCount(0); // row removed
+  });
 });

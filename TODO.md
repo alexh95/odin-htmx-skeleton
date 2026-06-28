@@ -27,7 +27,8 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
     - [x] **Contact detail drilldown** — click a row's name → `GET /contacts/:id` opens a drawer
           with the full record, a derived **activity trail**, and **related** contacts (same role,
           each a one-click jump). Read-only for now. e2e + `detail.js` load scenario added.
-    - [ ] Inline edit + actions in the detail drawer (edit fields, cycle/delete from the drawer).
+    - [x] Inline edit + actions in the detail drawer (edit fields, cycle, delete — all swapped in
+          place; edits OOB-refresh the table row; `repo_update` persists score). e2e + load at par.
     - [ ] Richer table: more columns, bulk actions (select rows → act), saved filters.
     - [ ] Coherent product frame: a named console + IA, not four separate pages.
   - [ ] **Phase E — parity + polish sweep.** e2e + load cover everything new; CHANGELOG/docs current.

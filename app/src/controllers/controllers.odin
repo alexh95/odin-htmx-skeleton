@@ -160,8 +160,14 @@ contact_detail :: proc(req: ^http.Request, res: ^http.Response) {
 		http.respond(res, http.Status.Not_Found)
 		return
 	}
-	html := views.view_contact_detail(c, services.service_activity(c), services.service_related(c, 4))
-	http.respond_html(res, html)
+	act := services.service_activity(c)
+	rel := services.service_related(c, 4)
+	// frag=1 → just the <aside> (in-place swap of an open drawer); edit=1 → edit form.
+	if query_get(req, "frag") == "1" {
+		http.respond_html(res, views.view_contact_detail_frag(c, act, rel, query_get(req, "edit") == "1"))
+	} else {
+		http.respond_html(res, views.view_contact_detail(c, act, rel))
+	}
 }
 
 // user_data passed through http.body. Allocated in the request arena so it
@@ -212,6 +218,9 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 
 		form, _ := http.body_url_encoded(body)
 		action := form["action"]
+		// view=detail → respond with the re-rendered detail drawer (the action came
+		// from the drawer); otherwise the table row.
+		is_detail := form["view"] == "detail"
 
 		c: models.Contact
 		ok: bool
@@ -219,6 +228,17 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 			if cur, found := repository.repo_get(ctx.id); found {
 				next := models.Status((int(cur.status) + 1) % len(models.Status))
 				c, ok = repository.repo_set_status(ctx.id, next)
+			}
+		} else if name := strings.trim_space(form["name"]); name != "" {
+			// full edit from the detail drawer
+			email := strings.trim_space(form["email"])
+			if len(services.validate_contact(name, email)) == 0 {
+				role, _ := models.role_from(form["role"])
+				status, _ := models.status_from(form["status"])
+				score := clamp(to_int(form["score"]), 0, 100)
+				c, ok = repository.repo_update(ctx.id, name, email, role, status, score)
+			} else {
+				c, ok = repository.repo_get(ctx.id) // invalid input (the form guards this) → unchanged
 			}
 		} else {
 			c, ok = repository.repo_get(ctx.id)
@@ -228,9 +248,21 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 			http.respond(res, http.Status.Not_Found)
 			return
 		}
-		b := strings.builder_make(context.temp_allocator)
-		views.view_contact_row(&b, c, false)
-		http.respond_html(res, strings.to_string(b))
+		if is_detail {
+			// the re-rendered drawer, plus an OOB swap to refresh the table row behind
+			// it. The <tr> is wrapped in a <template> so it survives parsing in the
+			// drawer (non-table) swap context — htmx's pattern for table-internal OOB.
+			b := strings.builder_make(context.temp_allocator)
+			strings.write_string(&b, views.view_contact_detail_frag(c, services.service_activity(c), services.service_related(c, 4), false))
+			strings.write_string(&b, "<template>")
+			views.view_contact_row(&b, c, false, true)
+			strings.write_string(&b, "</template>")
+			http.respond_html(res, strings.to_string(b))
+		} else {
+			b := strings.builder_make(context.temp_allocator)
+			views.view_contact_row(&b, c, false)
+			http.respond_html(res, strings.to_string(b))
+		}
 	})
 }
 
@@ -240,8 +272,14 @@ contacts_delete :: proc(req: ^http.Request, res: ^http.Response) {
 		http.respond(res, http.Status.Not_Found)
 		return
 	}
-	// Empty body: the outerHTML swap replaces the row with nothing.
-	http.respond_html(res, "")
+	// From the table row: empty body, the outerHTML swap removes the row. From the
+	// detail drawer: the empty primary body closes the overlay, and an OOB swap
+	// removes the now-stale table row behind it.
+	if query_get(req, "from") == "drawer" {
+		http.respond_html(res, fmt.tprintf(`<tr id="contact-%d" hx-swap-oob="delete"></tr>`, id))
+	} else {
+		http.respond_html(res, "")
+	}
 }
 
 // ---- forms --------------------------------------------------------------

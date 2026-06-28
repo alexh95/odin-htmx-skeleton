@@ -81,7 +81,7 @@ repo_create :: proc(name, email: string, role: models.Role, status: models.Statu
 	return snapshot(c)
 }
 
-repo_update :: proc(id: int, name, email: string, role: models.Role, status: models.Status) -> (models.Contact, bool) {
+repo_update :: proc(id: int, name, email: string, role: models.Role, status: models.Status, score: int) -> (models.Contact, bool) {
 	sync.rw_mutex_lock(&store.lock)
 	defer sync.rw_mutex_unlock(&store.lock)
 	for &c in store.contacts {
@@ -92,6 +92,7 @@ repo_update :: proc(id: int, name, email: string, role: models.Role, status: mod
 			c.email = strings.clone(email)
 			c.role = role
 			c.status = status
+			c.score = score
 			return snapshot(c), true
 		}
 	}

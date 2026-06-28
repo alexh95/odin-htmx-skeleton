@@ -111,8 +111,16 @@ page_btn :: proc(b: ^strings.Builder, p: services.Page, target: int, label: stri
 
 // A single contact row. `fresh` adds the entrance highlight used when a row is
 // appended after a create.
-view_contact_row :: proc(b: ^strings.Builder, c: models.Contact, fresh: bool) {
-	fmt.sbprintf(b, `<tr id="contact-%d" class="%s">`, c.id, fresh ? "row row-new" : "row")
+// `oob` marks the row for an out-of-band swap — used to refresh the table row
+// behind the detail drawer after an edit/cycle there.
+view_contact_row :: proc(b: ^strings.Builder, c: models.Contact, fresh: bool, oob := false) {
+	fmt.sbprintf(
+		b,
+		`<tr id="contact-%d" class="%s"%s>`,
+		c.id,
+		fresh ? "row row-new" : "row",
+		oob ? ` hx-swap-oob="true"` : "",
+	)
 
 	fmt.sbprintf(
 		b,
@@ -156,62 +164,115 @@ view_contact_row :: proc(b: ^strings.Builder, c: models.Contact, fresh: bool) {
 	w(b, `</button></td></tr>`)
 }
 
-// The contact detail drawer — the drilldown past the table row. Loads into
-// #overlay like the other overlays; read-only record + a derived activity trail
-// + related contacts (each a one-click jump to its own detail).
+// The contact detail drawer — the drilldown past the table row. `view_contact_detail`
+// returns the backdrop + aside (loaded into #overlay on open); the `_frag` variant
+// returns just the aside, for in-place swaps (edit toggle / save / cycle) that target
+// `.drawer-detail` so the backdrop doesn't re-animate.
 view_contact_detail :: proc(c: models.Contact, activity: []services.Activity, related: []models.Contact) -> string {
 	b := strings.builder_make(context.temp_allocator)
-	rn := models.ROLE_NAMES
-	w(&b, `<div class="backdrop" hx-get="/ui/clear" hx-target="#overlay" hx-swap="innerHTML swap:240ms">
-  <aside class="drawer drawer-detail" role="dialog" aria-modal="true" aria-label="Contact detail" onclick="event.stopPropagation()">
-    <header class="drawer-head detail-head">`)
-	avatar(&b, c)
-	w(&b, `<div class="detail-id"><h2>`)
-	esc(&b, c.name)
-	w(&b, `</h2><p class="muted">`)
-	esc(&b, c.email)
-	w(&b, `</p></div>
-      <button class="icon-btn detail-close" aria-label="Close" hx-get="/ui/clear" hx-target="#overlay" hx-swap="innerHTML swap:240ms">`)
-	icon(&b, "plus")
-	w(&b, `</button></header>
-    <div class="detail-body">
-      <div class="detail-meta">`)
-	role_chip(&b, c.role)
-	status_badge(&b, c.status)
-	fmt.sbprintf(
-		&b,
-		`<span class="detail-score"><small class="muted">Engagement</small><div class="meter"><i style="width:%d%%"></i></div><strong>%d / 100</strong></span><span class="detail-rid">#%d</span>`,
-		c.score,
-		c.score,
-		c.id,
-	)
-	w(&b, `</div>
-      <section class="detail-section"><h3>Activity</h3><ol class="timeline">`)
-	for a in activity {
-		w(&b, `<li><span class="tl-dot">`)
-		icon(&b, a.icon)
-		w(&b, `</span><div class="tl-body"><strong>`)
-		esc(&b, a.label)
-		w(&b, `</strong><small>`)
-		esc(&b, a.ago)
-		w(&b, `</small></div></li>`)
-	}
-	w(&b, `</ol></section>`)
-	if len(related) > 0 {
-		fmt.sbprintf(&b, `<section class="detail-section"><h3>Also in %s</h3><div class="related-list">`, rn[c.role])
-		for r in related {
-			fmt.sbprintf(&b, `<button class="related-item" type="button" hx-get="/contacts/%d" hx-target="#overlay" hx-swap="innerHTML">`, r.id)
-			avatar(&b, r)
-			w(&b, `<span class="related-name"><strong>`)
-			esc(&b, r.name)
-			w(&b, `</strong><small>`)
-			esc(&b, r.email)
-			w(&b, `</small></span></button>`)
-		}
-		w(&b, `</div></section>`)
-	}
-	w(&b, `</div></aside></div>`)
+	w(&b, `<div class="backdrop" hx-get="/ui/clear" hx-target="#overlay" hx-swap="innerHTML swap:240ms">`)
+	detail_aside(&b, c, activity, related, false, false)
+	w(&b, `</div>`)
 	return strings.to_string(b)
+}
+
+view_contact_detail_frag :: proc(c: models.Contact, activity: []services.Activity, related: []models.Contact, editing: bool) -> string {
+	b := strings.builder_make(context.temp_allocator)
+	detail_aside(&b, c, activity, related, editing, true)
+	return strings.to_string(b)
+}
+
+@(private = "file")
+detail_aside :: proc(b: ^strings.Builder, c: models.Contact, activity: []services.Activity, related: []models.Contact, editing, static_anim: bool) {
+	// drawer-static skips the slide-in so in-place swaps don't re-animate.
+	fmt.sbprintf(
+		b,
+		`<aside class="drawer drawer-detail%s" role="dialog" aria-modal="true" aria-label="Contact detail" onclick="event.stopPropagation()"><header class="drawer-head detail-head">`,
+		static_anim ? " drawer-static" : "",
+	)
+	avatar(b, c)
+	w(b, `<div class="detail-id"><h2>`)
+	esc(b, c.name)
+	w(b, `</h2><p class="muted">`)
+	esc(b, c.email)
+	w(b, `</p></div><button class="icon-btn detail-close" aria-label="Close" hx-get="/ui/clear" hx-target="#overlay" hx-swap="innerHTML swap:240ms">`)
+	icon(b, "plus")
+	w(b, `</button></header>`)
+	if editing {
+		detail_edit_form(b, c)
+	} else {
+		detail_view_body(b, c, activity, related)
+	}
+	w(b, `</aside>`)
+}
+
+@(private = "file")
+detail_view_body :: proc(b: ^strings.Builder, c: models.Contact, activity: []services.Activity, related: []models.Contact) {
+	rn := models.ROLE_NAMES
+	w(b, `<div class="detail-body"><div class="detail-actions">`)
+	fmt.sbprintf(b, `<button class="btn btn-outline btn-sm" hx-get="/contacts/%d?edit=1&frag=1" hx-target="closest .drawer-detail" hx-swap="outerHTML">`, c.id)
+	icon(b, "edit")
+	w(b, `<span>Edit</span></button>`)
+	fmt.sbprintf(b, `<button class="btn btn-ghost btn-sm" hx-post="/contacts/%d" hx-vals='`, c.id)
+	w(b, `{"action":"cycle","view":"detail","frag":"1"}`)
+	w(b, `' hx-target="closest .drawer-detail" hx-swap="outerHTML">`)
+	icon(b, "cycle")
+	w(b, `<span>Cycle</span></button>`)
+	fmt.sbprintf(b, `<button class="btn btn-ghost btn-sm danger" hx-delete="/contacts/%d?from=drawer" hx-target="#overlay" hx-swap="innerHTML swap:240ms" hx-confirm="Delete this contact?">`, c.id)
+	icon(b, "trash")
+	w(b, `<span>Delete</span></button></div><div class="detail-meta">`)
+	role_chip(b, c.role)
+	status_badge(b, c.status)
+	fmt.sbprintf(b, `<span class="detail-score"><small class="muted">Engagement</small><div class="meter"><i style="width:%d%%"></i></div><strong>%d / 100</strong></span><span class="detail-rid">#%d</span>`, c.score, c.score, c.id)
+	w(b, `</div><section class="detail-section"><h3>Activity</h3><ol class="timeline">`)
+	for a in activity {
+		w(b, `<li><span class="tl-dot">`)
+		icon(b, a.icon)
+		w(b, `</span><div class="tl-body"><strong>`)
+		esc(b, a.label)
+		w(b, `</strong><small>`)
+		esc(b, a.ago)
+		w(b, `</small></div></li>`)
+	}
+	w(b, `</ol></section>`)
+	if len(related) > 0 {
+		fmt.sbprintf(b, `<section class="detail-section"><h3>Also in %s</h3><div class="related-list">`, rn[c.role])
+		for r in related {
+			fmt.sbprintf(b, `<button class="related-item" type="button" hx-get="/contacts/%d" hx-target="#overlay" hx-swap="innerHTML">`, r.id)
+			avatar(b, r)
+			w(b, `<span class="related-name"><strong>`)
+			esc(b, r.name)
+			w(b, `</strong><small>`)
+			esc(b, r.email)
+			w(b, `</small></span></button>`)
+		}
+		w(b, `</div></section>`)
+	}
+	w(b, `</div>`)
+}
+
+@(private = "file")
+detail_edit_form :: proc(b: ^strings.Builder, c: models.Contact) {
+	rn := models.ROLE_NAMES
+	sn := models.STATUS_NAMES
+	fmt.sbprintf(b, `<form class="detail-body detail-edit" hx-post="/contacts/%d" hx-target="closest .drawer-detail" hx-swap="outerHTML"><input type="hidden" name="view" value="detail"><input type="hidden" name="frag" value="1"><label class="field"><span>Name</span><input name="name" value="`, c.id)
+	esc(b, c.name)
+	w(b, `" required></label><label class="field"><span>Email</span><input name="email" type="email" value="`)
+	esc(b, c.email)
+	w(b, `" required></label><label class="field"><span>Role</span><select name="role">`)
+	for name, r in rn {
+		fmt.sbprintf(b, `<option%s>%s</option>`, r == c.role ? " selected" : "", name)
+	}
+	w(b, `</select></label><label class="field"><span>Status</span><select name="status">`)
+	for name, st in sn {
+		fmt.sbprintf(b, `<option%s>%s</option>`, st == c.status ? " selected" : "", name)
+	}
+	w(b, `</select></label>`)
+	fmt.sbprintf(b, `<label class="field"><span>Engagement <b>%d</b></span><input name="score" type="range" min="0" max="100" value="%d" oninput="this.previousElementSibling.querySelector('b').textContent=this.value"></label>`, c.score, c.score)
+	w(b, `<div class="detail-actions"><button class="btn btn-primary btn-sm" type="submit">`)
+	icon(b, "check")
+	w(b, `<span>Save</span></button>`)
+	fmt.sbprintf(b, `<button class="btn btn-ghost btn-sm" type="button" hx-get="/contacts/%d?frag=1" hx-target="closest .drawer-detail" hx-swap="outerHTML">Cancel</button></div></form>`, c.id)
 }
 
 // ---- search dropdown ----------------------------------------------------
