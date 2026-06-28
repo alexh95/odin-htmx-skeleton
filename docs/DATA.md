@@ -26,6 +26,10 @@ Don't add a database to look serious. The POC store is the *correct* choice when
 That describes this showcase exactly. The honesty rule (PHILOSOPHY → "the 90%") is to *call it a
 POC*, not to pretend it's durable.
 
+> The concrete, step-by-step **implementation plan** — bindings, schema, the seven `repo_*` as SQL,
+> concurrency, migrations, build/ops — lives in [`DATA_IMPL.md`](DATA_IMPL.md). This file is the
+> *why/when*; that one is the *how*.
+
 ## The recommended next step: SQLite
 
 When you need persistence, the answer that keeps the philosophy intact is **SQLite**:

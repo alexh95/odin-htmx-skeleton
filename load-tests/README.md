@@ -48,6 +48,7 @@ itself is scratch.
 |---|---|---|
 | `static.js` | `GET /static/{app.css,htmx.min.js}` | Embedded bytes from memory — the ceiling. |
 | `pages.js`  | `GET /` and `/data` | Full-page HTML built by Odin (the view layer). |
+| `list.js`   | `GET /contacts?status=&sort=` | The table region fragment — quick-filter + sort + paginate. |
 | `search.js` | `GET /search?q=` | HTMX live-search fragment (filter + row render). |
 | `api.js`    | `GET /api/search?q=` | Same filter via `json.marshal` (no HTML). |
 | `detail.js` | `GET /contacts/:id` | Detail drilldown — get + derived activity trail + related scan. |

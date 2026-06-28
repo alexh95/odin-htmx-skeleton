@@ -41,7 +41,11 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
       - [ ] Bulk actions (select rows → set status / delete) — deferred.
     - [~] Coherent product frame. Done: dashboard stat cards drill into the filtered/sorted data
           view (overview → tool). Further (deferred): a named console identity + deeper nav IA.
-  - [ ] **Phase E — parity + polish sweep.** e2e + load cover everything new; CHANGELOG/docs current.
+  - [~] **Phase E — parity + polish sweep.** Parity closed: Phase D endpoints all have e2e + load
+        (detail.js, the create→edit→delete write path, the new **list.js** for `GET /contacts`
+        filter/sort); CHANGELOG/docs current; the Phase D review fix landed. Also wrote the
+        **Odin data-layer implementation plan** ([`docs/DATA_IMPL.md`](docs/DATA_IMPL.md)).
+        Remaining: a Phase E code-review pass + push.
 - [~] **Set up infrastructure** per [`infra/PLAN.md`](infra/PLAN.md). Code + config landed;
       what's left are operator actions on Fly/GitHub/Cloudflare (no repo changes).
   - [x] Prereq code change: `app/main.odin` reads `PORT` and binds `0.0.0.0` on `BIND_ALL`

@@ -16,7 +16,7 @@ odin-htmx-demo/
   app/          The application (Odin sources, static assets, run scripts). All real work.
   e2e/          Playwright browser tests (implemented). `cd e2e && npm ci && npm test`.
   load-tests/   k6 throughput/latency tests (implemented). `cd load-tests && ./run.sh --quick`.
-  docs/         PHILOSOPHY.md (root), USE_CASES.md, DATA.md — vision, fit, data direction.
+  docs/         PHILOSOPHY.md (root), USE_CASES.md, DATA.md + DATA_IMPL.md — vision, fit, data.
   CLAUDE.md TODO.md CHANGELOG.md   ← you are here
 ```
 

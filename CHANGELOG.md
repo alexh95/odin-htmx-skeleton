@@ -9,6 +9,14 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **Data-layer implementation plan** ([`docs/DATA_IMPL.md`](docs/DATA_IMPL.md), docs only) — a
+  concrete "how" for replacing the in-memory POC with **SQLite** in Odin: the binding choice
+  (vendor vs amalgamation), schema + boot-time migrations, the seven `repo_*` as prepared SQL, the
+  allocator discipline (clone column text into the temp arena — the same guarantee `snapshot()`
+  gives today), how WAL maps onto the server's reader/writer model, build/deploy/ops, and the
+  rollout. Complements `DATA.md` (the why/when).
+- **`list` load scenario** (`GET /contacts?status=&sort=`) — the filtered/sorted table-region
+  fragment, closing the last load-parity gap from Phase D; wired into the run driver (~38k req/s).
 - **Overview → tool wiring** (Phase D increment 4, product cohesion). The dashboard stat cards are
   now links into the data view: *Active*/*Invited* → the table filtered to that status, *Avg.
   engagement* → sorted by score, *Total* → the full table. `page_data` now honours a `sort` query.
