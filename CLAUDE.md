@@ -5,14 +5,18 @@ and gotchas that aren't obvious from the source and that are expensive to redisc
 
 ## What this is
 
-A proof-of-concept web app: an **Odin** backend rendering HTML, **HTMX** on the front end.
-It showcases a PrimeVue-style component set, a dashboard, search, and a CRUD data table.
+A web app showcasing an **Odin** backend rendering HTML with **HTMX** on the front end — evolving
+into a flagship internal admin console with a multi-style theme library. **Read
+[`PHILOSOPHY.md`](PHILOSOPHY.md) first** — it's the why, and changes must stay in line with it.
+[`docs/USE_CASES.md`](docs/USE_CASES.md) says what the stack is for (and the flagship direction);
+[`docs/DATA.md`](docs/DATA.md) is the path past the in-memory POC.
 
 ```
 odin-htmx-demo/
   app/          The application (Odin sources, static assets, run scripts). All real work.
   e2e/          Playwright browser tests (implemented). `cd e2e && npm ci && npm test`.
   load-tests/   k6 throughput/latency tests (implemented). `cd load-tests && ./run.sh --quick`.
+  docs/         PHILOSOPHY.md (root), USE_CASES.md, DATA.md — vision, fit, data direction.
   CLAUDE.md TODO.md CHANGELOG.md   ← you are here
 ```
 

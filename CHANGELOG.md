@@ -9,6 +9,11 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **Vision + direction docs.** [`PHILOSOPHY.md`](PHILOSOPHY.md) (server-rendered HTML, browser as
+  runtime, JS only where the browser can't, the Odin↔HTMX shared worldview, the honest 90/10),
+  [`docs/USE_CASES.md`](docs/USE_CASES.md) (the sweet spot + the decision to evolve the sampler into
+  one flagship internal admin console), and [`docs/DATA.md`](docs/DATA.md) (the repository seam, and
+  SQLite→Postgres as the path past the in-memory POC). Wired into `CLAUDE.md`; phased plan in `TODO.md`.
 - Initialized the repository as git and made the first commit.
 - Adopted Conventional Commits; documented the spec and changelog mapping in `CLAUDE.md`.
 - Infrastructure plan ([`infra/PLAN.md`](infra/PLAN.md)): remote hosting, CI/CD, deployment,

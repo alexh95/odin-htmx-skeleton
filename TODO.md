@@ -5,6 +5,23 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
 
 ## Now / next
 
+- [~] **Vision + flagship + style library** (this initiative). Anchored by
+      [`PHILOSOPHY.md`](PHILOSOPHY.md), [`docs/USE_CASES.md`](docs/USE_CASES.md),
+      [`docs/DATA.md`](docs/DATA.md). Keep app/e2e/load-tests **at par** at every phase.
+  - [x] **Phase A — direction docs.** PHILOSOPHY (vision), USE_CASES (sweet spot + flagship
+        direction), DATA (datasource future-proofing). Wired into README/CLAUDE.
+  - [ ] **Phase B — theming foundation.** Two orthogonal axes `data-style` × `data-scheme` on
+        `:root`; token contract; extend the pre-paint script + persistence; a header switcher
+        (style × scheme). Refactor the current look into the **Modern** style as the reference.
+        e2e: switcher tests (applies + persists). Client-side, so no new load surface (note it).
+  - [ ] **Phase C — the styles** (each with multiple color schemes): **Skeuomorphic** (centerpiece,
+        CSS-gradient/shadow depth, zero image assets, reduced-motion-aware), **Terminal/CRT**,
+        **Brutalist**, **Editorial/Paper**, **Video-game**. The `/components` page becomes the
+        live style/scheme showroom.
+  - [ ] **Phase D — flagship app.** Evolve the sampler into one cohesive internal admin console:
+        record **detail** view, richer fields/related data, activity trail, bulk actions, saved
+        filters, inline edit. Each new endpoint gets e2e **and** load scenarios in the same change.
+  - [ ] **Phase E — parity + polish sweep.** e2e + load cover everything new; CHANGELOG/docs current.
 - [~] **Set up infrastructure** per [`infra/PLAN.md`](infra/PLAN.md). Code + config landed;
       what's left are operator actions on Fly/GitHub/Cloudflare (no repo changes).
   - [x] Prereq code change: `app/main.odin` reads `PORT` and binds `0.0.0.0` on `BIND_ALL`
