@@ -9,10 +9,14 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **Brutalist style** (Phase C, 3/5). Raw and loud: zero radius, thick borders, flat fills, and
+  hard offset shadows that shift on press; heavy uppercase type; inverted nav block. Ships **dark
+  *and* light** — **Paper** (light, cobalt/red), **Ink** (dark, white-on-black), and **Acid** (a
+  loud acid-yellow with black + magenta).
 - **Terminal / CRT style** (Phase C, 2/5). Monospace throughout, phosphor text with a soft glow,
   boxy thin-bordered panels, solid-fill uppercase buttons, and faint CRT scanlines (a single fixed
-  gradient — cheap). Three schemes: **Green** (classic phosphor), **Amber**, and **IBM** (cool
-  blue/white). Again just a `[data-style="terminal"]` block + scheme palettes + picker entries.
+  gradient — cheap). Four schemes: **Green** (classic phosphor), **Amber**, **IBM** (cool
+  blue/white), and **Paper** (a light teletype printout — every style now ships a light scheme).
 - **Skeuomorphic style** (Phase C, first of five). A tactile treatment built entirely from layered
   gradients + bevel shadows — **no image assets**: raised panels with an inset top highlight,
   recessed (inset-shadow) form fields, glossy buttons that physically press on `:active`, a domed
@@ -92,6 +96,11 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   install — that was the biggest, most variable cost). `workers` tracks the runner's cores.
 
 ### Performance
+- **Cache-busting for CSS/JS.** Asset URLs in the page `<head>` now carry a `?v=<content-hash>`
+  (computed once at startup, exposed as `views.ASSET_VERSION`). Since the HTML is dynamic and never
+  cached, a changed stylesheet yields a new URL clients fetch immediately — no more serving the old
+  `app.css` until `max-age` expires (the cause of needing a hard refresh after deploys). Verified on
+  both deployments.
 - **Moved the Fly deployment from `iad` (US-East) to `fra` (Frankfurt)** so it serves the
   primary (European) audience from nearby. Latency is RTT-bound, not compute-bound (the server
   answers `/healthz` in sub-ms), so over IPv4 a full page load dropped from ~850 ms to **~160 ms**.

@@ -116,7 +116,12 @@ Scheme_Opt :: struct {
 }
 
 @(private = "file")
-STYLES := []Style_Opt{{"modern", "Modern"}, {"skeuo", "Skeuo"}, {"terminal", "Terminal"}}
+STYLES := []Style_Opt {
+	{"modern", "Modern"},
+	{"skeuo", "Skeuo"},
+	{"terminal", "Terminal"},
+	{"brutal", "Brutalist"},
+}
 
 @(private = "file")
 SCHEMES := []Scheme_Opt {
@@ -134,6 +139,9 @@ SCHEMES := []Scheme_Opt {
 	{"terminal", "amber", "Amber", "#ffb000"},
 	{"terminal", "ibm", "IBM", "#8ab4ff"},
 	{"terminal", "paper", "Paper", "#1f7a3d"},
+	{"brutal", "paper", "Paper", "#2b46ff"},
+	{"brutal", "ink", "Ink", "#111111"},
+	{"brutal", "acid", "Acid", "#e6ff36"},
 }
 
 // Cache-busting token for the static CSS/JS, set once at startup by

@@ -897,3 +897,82 @@ tr.htmx-swapping { animation: row-out 220ms var(--ease) forwards; }
 [data-style="terminal"] input[type="range"]::-webkit-slider-thumb {
   background: var(--violet); border: none; border-radius: 2px; box-shadow: 0 0 8px var(--violet);
 }
+
+/* =====================================================================
+   STYLE: Brutalist — raw and loud. Zero radius, thick borders, flat fills,
+   hard offset shadows that shift on press, heavy uppercase type.
+   ===================================================================== */
+
+[data-style="brutal"] {
+  --font: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+  --radius: 0; --radius-sm: 0; --radius-lg: 0;
+
+  /* Paper (light) — default */
+  --violet: #2b46ff; --indigo: #2b46ff; --cyan: #ff3b3b; --on-accent: #fff;
+  --grad: var(--violet);
+  --bg: #f4f4ef; --surface: #ffffff; --surface-2: #f0f0ea; --elevated: #ffffff;
+  --line: #0a0a0a; --line-2: #0a0a0a;
+  --text: #0a0a0a; --muted: #41413c; --faint: #6f6f68;
+  --shadow: 5px 5px 0 var(--line); --shadow-lg: 9px 9px 0 var(--line);
+  --ring: 0 0 0 3px var(--violet);
+}
+
+[data-style="brutal"][data-scheme="ink"] {
+  --violet: #5170ff; --indigo: #5170ff; --cyan: #ff5c5c; --on-accent: #06070f;
+  --bg: #0c0c0c; --surface: #161616; --surface-2: #101010; --elevated: #1a1a1a;
+  --line: #fafafa; --line-2: #fafafa;
+  --text: #fafafa; --muted: #b4b4b4; --faint: #808080;
+}
+
+[data-style="brutal"][data-scheme="acid"] {
+  --violet: #0a0a0a; --indigo: #0a0a0a; --cyan: #ff2bd6; --on-accent: #e8ff3a;
+  --bg: #e6ff36; --surface: #f6ffc2; --surface-2: #ddf52e; --elevated: #f6ffc2;
+  --line: #0a0a0a; --line-2: #0a0a0a;
+  --text: #0a0a0a; --muted: #33380a; --faint: #5c6216;
+}
+
+:root[data-style="brutal"] .picker-schemes[data-for="brutal"] { display: flex; }
+
+[data-style="brutal"] body { background: var(--bg); }
+[data-style="brutal"] h1, [data-style="brutal"] h2, [data-style="brutal"] .stat-value { letter-spacing: -.02em; }
+
+[data-style="brutal"] .card, [data-style="brutal"] .stat-card,
+[data-style="brutal"] .panel, [data-style="brutal"] .picker-panel {
+  background: var(--surface); border: 3px solid var(--line); border-radius: 0; box-shadow: var(--shadow);
+}
+
+[data-style="brutal"] .btn {
+  background: var(--surface); color: var(--text);
+  border: 2px solid var(--line); border-radius: 0;
+  font-weight: 800; text-transform: uppercase; letter-spacing: .02em;
+  box-shadow: 3px 3px 0 var(--line);
+  transition: transform var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+[data-style="brutal"] .btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--line); }
+[data-style="brutal"] .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--line); }
+[data-style="brutal"] .btn-primary { background: var(--violet); color: var(--on-accent); border-color: var(--line); }
+[data-style="brutal"] .btn-danger { background: var(--cyan); color: #fff; border-color: var(--line); }
+
+[data-style="brutal"] input, [data-style="brutal"] select, [data-style="brutal"] textarea {
+  background: var(--surface); color: var(--text);
+  border: 2px solid var(--line); border-radius: 0; box-shadow: none;
+}
+[data-style="brutal"] input:focus, [data-style="brutal"] select:focus, [data-style="brutal"] textarea:focus {
+  border-color: var(--line); box-shadow: 4px 4px 0 var(--violet);
+}
+
+[data-style="brutal"] .icon-btn, [data-style="brutal"] .picker > summary {
+  background: var(--surface); border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line);
+}
+[data-style="brutal"] .icon-btn:active, [data-style="brutal"] .picker[open] > summary { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--line); }
+
+[data-style="brutal"] .topbar { background: var(--surface); border-bottom: 3px solid var(--line); }
+[data-style="brutal"] .nav-link[aria-current="page"] { background: var(--text); color: var(--bg); border-radius: 0; }
+[data-style="brutal"] .brand-mark {
+  background: var(--violet); color: var(--on-accent);
+  border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line);
+}
+[data-style="brutal"] .badge { border: 2px solid currentColor; border-radius: 0; }
+[data-style="brutal"] input[type="range"]::-webkit-slider-thumb {
+  background: var(--violet); border: 2px solid var(--line); border-radius: 0; box-shadow: none;
+}
