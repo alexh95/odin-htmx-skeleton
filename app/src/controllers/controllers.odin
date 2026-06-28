@@ -100,7 +100,7 @@ page_forms :: proc(req: ^http.Request, res: ^http.Response) {
 }
 
 page_data :: proc(req: ^http.Request, res: ^http.Response) {
-	p := services.service_page(query_get(req, "q"), "name", 1)
+	p := services.service_page(query_get(req, "q"), query_get(req, "status"), "name", 1)
 	render_page(
 		res,
 		"Data & CRUD",
@@ -147,7 +147,7 @@ frag_contacts :: proc(req: ^http.Request, res: ^http.Response) {
 	if sort == "" {
 		sort = "name"
 	}
-	p := services.service_page(query_get(req, "q"), sort, query_int(req, "page", 1))
+	p := services.service_page(query_get(req, "q"), query_get(req, "status"), sort, query_int(req, "page", 1))
 	http.respond_html(res, views.view_contacts_region(p))
 }
 

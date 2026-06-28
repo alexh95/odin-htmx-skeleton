@@ -9,6 +9,11 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **Status quick-filters on the data table** (Phase D increment 3). A row of filter chips (All /
+  Active / Invited / Disabled) above the table; the active one is marked, and the filter threads
+  through the request like search/sort/page (`service_page` gains a `status` arg; every region link
+  carries `&status=`), so filtering composes with text search and survives sort/paginate. e2e covers
+  it; no new endpoint (a query param on the existing `/contacts` region).
 - **Contact detail drilldown** (Phase D, flagship app — first increment). Clicking a row's name
   (`GET /contacts/:id`) opens a drawer with the full record (role, status, an engagement meter,
   id), a **derived activity trail** (a plausible, deterministic timeline — there's no persisted

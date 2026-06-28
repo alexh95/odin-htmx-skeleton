@@ -59,6 +59,18 @@ test.describe('data table + CRUD', () => {
     await expect(page.locator('#contact-tbody tr')).not.toHaveCount(0);
   });
 
+  test('status quick-filter shows only matching contacts', async ({ page }) => {
+    await page.goto('/data');
+    await page.locator('.table-filters').getByRole('button', { name: 'Active', exact: true }).click();
+    const badges = page.locator('#contact-tbody tr td .badge');
+    await expect(badges.first()).toBeVisible();
+    const n = await badges.count();
+    for (let i = 0; i < n; i++) await expect(badges.nth(i)).toContainText('Active');
+    // 'All' restores the full list
+    await page.locator('.table-filters').getByRole('button', { name: 'All', exact: true }).click();
+    await expect(page.locator('#contact-tbody tr')).not.toHaveCount(0);
+  });
+
   test('clicking a contact opens the detail drawer with activity + related', async ({ page }) => {
     await page.goto('/data');
     const name = await page.locator('.c-open .c-name-text strong').first().textContent();

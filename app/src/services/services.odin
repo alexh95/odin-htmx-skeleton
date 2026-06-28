@@ -22,6 +22,7 @@ Page :: struct {
 	total_pages: int,
 	total:       int,
 	q:           string,
+	status:      string, // active quick-filter ("" / "all" = no filter, else a status name)
 	sort:        string,
 }
 
@@ -52,12 +53,17 @@ contact_matches :: proc(c: models.Contact, q: string) -> bool {
 
 // A list view: filter by q, sort by a "key" or "key_desc" string, then slice
 // out one page. Everything is built in the request arena.
-service_page :: proc(q, sort: string, page: int) -> Page {
+service_page :: proc(q, status, sort: string, page: int) -> Page {
+	sn := models.STATUS_NAMES
 	filtered := make([dynamic]models.Contact, context.temp_allocator)
 	for c in repository.repo_list() {
-		if contact_matches(c, q) {
-			append(&filtered, c)
+		if !contact_matches(c, q) {
+			continue
 		}
+		if status != "" && status != "all" && sn[c.status] != status {
+			continue
+		}
+		append(&filtered, c)
 	}
 
 	sort_contacts(filtered[:], sort)
@@ -75,6 +81,7 @@ service_page :: proc(q, sort: string, page: int) -> Page {
 		total_pages = total_pages,
 		total = total,
 		q = q,
+		status = status,
 		sort = sort,
 	}
 }

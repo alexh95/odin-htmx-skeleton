@@ -16,10 +16,14 @@ import "core:strings"
 // the request, not stashed on the client.
 view_contacts_region :: proc(p: services.Page) -> string {
 	b := strings.builder_make(context.temp_allocator)
-	w(&b, `<div id="contact-region" class="card table-card">`)
+	w(&b, `<div id="contact-region" class="card table-card"><div class="table-meta"><div class="table-filters">`)
+	filter_chip(&b, p, "all", "All")
+	for name in models.STATUS_NAMES {
+		filter_chip(&b, p, name, name)
+	}
 	fmt.sbprintf(
 		&b,
-		`<div class="table-meta"><span class="muted">%d %s</span></div>`,
+		`</div><span class="muted">%d %s</span></div>`,
 		p.total,
 		p.total == 1 ? "contact" : "contacts",
 	)
@@ -50,6 +54,22 @@ view_contacts_region :: proc(p: services.Page) -> string {
 
 // One column header. Shows the active direction and links to the next state
 // (asc -> desc -> asc) via services.next_sort.
+// A status quick-filter chip. "all" clears the filter; the active chip is marked.
+@(private = "file")
+filter_chip :: proc(b: ^strings.Builder, p: services.Page, value, label: string) {
+	active := value == "all" ? (p.status == "" || p.status == "all") : (p.status == value)
+	q := value == "all" ? "" : value
+	fmt.sbprintf(
+		b,
+		`<button class="chip-filter%s" hx-get="/contacts?q=%s&status=%s&sort=%s&page=1" hx-target="#contact-region" hx-swap="outerHTML">%s</button>`,
+		active ? " is-active" : "",
+		url_encode(p.q),
+		url_encode(q),
+		p.sort,
+		label,
+	)
+}
+
 @(private = "file")
 sort_th :: proc(b: ^strings.Builder, p: services.Page, column, label: string) {
 	dir := "none"
@@ -60,9 +80,10 @@ sort_th :: proc(b: ^strings.Builder, p: services.Page, column, label: string) {
 	}
 	fmt.sbprintf(
 		b,
-		`<th><button class="sort" data-dir="%s" hx-get="/contacts?q=%s&sort=%s&page=1" hx-target="#contact-region" hx-swap="outerHTML">%s<span class="caret"></span></button></th>`,
+		`<th><button class="sort" data-dir="%s" hx-get="/contacts?q=%s&status=%s&sort=%s&page=1" hx-target="#contact-region" hx-swap="outerHTML">%s<span class="caret"></span></button></th>`,
 		dir,
 		url_encode(p.q),
+		url_encode(p.status),
 		services.next_sort(p.sort, column),
 		label,
 	)
@@ -82,8 +103,9 @@ pager :: proc(b: ^strings.Builder, p: services.Page) {
 		}
 		fmt.sbprintf(
 			b,
-			`<button class="page" hx-get="/contacts?q=%s&sort=%s&page=%d" hx-target="#contact-region" hx-swap="outerHTML">%d</button>`,
+			`<button class="page" hx-get="/contacts?q=%s&status=%s&sort=%s&page=%d" hx-target="#contact-region" hx-swap="outerHTML">%d</button>`,
 			url_encode(p.q),
+			url_encode(p.status),
 			p.sort,
 			n,
 			n,
@@ -101,8 +123,9 @@ page_btn :: proc(b: ^strings.Builder, p: services.Page, target: int, label: stri
 	}
 	fmt.sbprintf(
 		b,
-		`<button class="page" hx-get="/contacts?q=%s&sort=%s&page=%d" hx-target="#contact-region" hx-swap="outerHTML">%s</button>`,
+		`<button class="page" hx-get="/contacts?q=%s&status=%s&sort=%s&page=%d" hx-target="#contact-region" hx-swap="outerHTML">%s</button>`,
 		url_encode(p.q),
+		url_encode(p.status),
 		p.sort,
 		target,
 		label,

@@ -561,7 +561,11 @@ fieldset { border: none; padding: 0; margin: 0; display: flex; flex-direction: c
 @media (max-width: 620px) { .add-form { grid-template-columns: 1fr; right: auto; } }
 
 .table-card { padding: 14px; overflow: visible; }
-.table-meta { padding: 4px 8px 12px; }
+.table-meta { padding: 4px 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.table-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-filter { border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); border-radius: 999px; padding: 5px 13px; font-size: .84rem; font-weight: 600; cursor: pointer; transition: color var(--fast) var(--ease), border-color var(--fast), background var(--fast); }
+.chip-filter:hover { color: var(--text); border-color: var(--line-2); }
+.chip-filter.is-active { color: var(--on-accent); background: var(--grad); border-color: transparent; }
 .table-scroll { overflow-x: auto; }
 .table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .table thead th { text-align: left; padding: 0 6px 10px; border-bottom: 1px solid var(--line); }

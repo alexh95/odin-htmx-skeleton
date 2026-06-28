@@ -29,7 +29,10 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
           each a one-click jump). Read-only for now. e2e + `detail.js` load scenario added.
     - [x] Inline edit + actions in the detail drawer (edit fields, cycle, delete — all swapped in
           place; edits OOB-refresh the table row; `repo_update` persists score). e2e + load at par.
-    - [ ] Richer table: more columns, bulk actions (select rows → act), saved filters.
+    - [~] Richer table.
+      - [x] Saved/quick **status filters** (chips: All/Active/Invited/Disabled; compose with search +
+            sort + paginate via a threaded `status` arg).
+      - [ ] Bulk actions (select rows → set status / delete) — deferred.
     - [ ] Coherent product frame: a named console + IA, not four separate pages.
   - [ ] **Phase E — parity + polish sweep.** e2e + load cover everything new; CHANGELOG/docs current.
 - [~] **Set up infrastructure** per [`infra/PLAN.md`](infra/PLAN.md). Code + config landed;
