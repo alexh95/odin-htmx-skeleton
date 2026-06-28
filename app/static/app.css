@@ -799,3 +799,89 @@ tr.htmx-swapping { animation: row-out 220ms var(--ease) forwards; }
   background: linear-gradient(180deg, #fff, #d8dee8); border: 1px solid var(--line-2);
   box-shadow: inset 0 1px 0 #fff, 0 2px 5px var(--lo);
 }
+
+/* =====================================================================
+   STYLE: Terminal / CRT — monospace, phosphor glow, boxy, faint scanlines.
+   ===================================================================== */
+
+[data-style="terminal"] {
+  --font: var(--mono);
+  --radius: 3px; --radius-sm: 2px; --radius-lg: 4px;
+  --glow: 0 0 6px;
+
+  /* green phosphor (default) */
+  --violet: #2bff66; --indigo: #16d652; --cyan: #7dffa6; --on-accent: #021b09;
+  --grad: linear-gradient(135deg, var(--violet), var(--cyan));
+  --bg: #020705; --surface: #07120c; --surface-2: #0a1810; --elevated: #0b1c12;
+  --line: #173425; --line-2: #265640;
+  --text: #54f08a; --muted: #2c9658; --faint: #1d6a3e;
+  --ok: #2bff66; --warn: #ffd23b; --bad: #ff5f56;
+  --shadow: 0 14px 34px -18px #000; --shadow-lg: 0 22px 54px -22px #000;
+}
+
+[data-style="terminal"][data-scheme="amber"] {
+  --violet: #ffb000; --indigo: #e09400; --cyan: #ffd166; --on-accent: #201400;
+  --bg: #0a0600; --surface: #150d02; --surface-2: #1b1204; --elevated: #1f1505;
+  --line: #3a2a0c; --line-2: #5a4416;
+  --text: #ffc54d; --muted: #a8791f; --faint: #7a5713;
+}
+
+[data-style="terminal"][data-scheme="ibm"] {
+  --violet: #8ab4ff; --indigo: #5b8cff; --cyan: #b9d4ff; --on-accent: #03122e;
+  --bg: #04070f; --surface: #0a1020; --surface-2: #0e1628; --elevated: #111b30;
+  --line: #1d2b48; --line-2: #2c426c;
+  --text: #cdd9f5; --muted: #7e8fb8; --faint: #56668c;
+}
+
+:root[data-style="terminal"] .picker-schemes[data-for="terminal"] { display: flex; }
+
+[data-style="terminal"] body {
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .22) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 80% at 50% 0%, color-mix(in oklab, var(--violet) 8%, transparent), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+  letter-spacing: .01em;
+}
+[data-style="terminal"] h1, [data-style="terminal"] h2, [data-style="terminal"] h3,
+[data-style="terminal"] .brand-name, [data-style="terminal"] .stat-value {
+  text-shadow: var(--glow) color-mix(in oklab, var(--violet) 70%, transparent);
+}
+[data-style="terminal"] .card, [data-style="terminal"] .stat-card,
+[data-style="terminal"] .panel, [data-style="terminal"] .picker-panel {
+  background: var(--surface); border: 1px solid var(--line-2);
+  box-shadow: inset 0 0 0 1px var(--line), 0 0 26px -12px color-mix(in oklab, var(--violet) 35%, transparent);
+}
+[data-style="terminal"] .btn {
+  background: transparent; border: 1px solid var(--line-2); color: var(--text);
+  text-transform: uppercase; letter-spacing: .06em; font-size: .82rem;
+}
+[data-style="terminal"] .btn:hover {
+  transform: none; border-color: var(--violet);
+  background: color-mix(in oklab, var(--violet) 14%, transparent);
+  box-shadow: 0 0 12px -2px color-mix(in oklab, var(--violet) 55%, transparent);
+}
+[data-style="terminal"] .btn-primary {
+  background: var(--violet); color: var(--on-accent); border-color: var(--violet);
+  box-shadow: 0 0 16px -3px var(--violet); text-shadow: none;
+}
+[data-style="terminal"] .btn-primary:hover { background: var(--violet); filter: brightness(1.1); }
+[data-style="terminal"] input, [data-style="terminal"] select, [data-style="terminal"] textarea {
+  background: #000; border: 1px solid var(--line-2); color: var(--text); caret-color: var(--violet);
+}
+[data-style="terminal"] input:focus, [data-style="terminal"] select:focus, [data-style="terminal"] textarea:focus {
+  border-color: var(--violet); box-shadow: 0 0 0 1px var(--violet);
+}
+[data-style="terminal"] .topbar { background: color-mix(in oklab, var(--bg) 88%, black); border-bottom: 1px solid var(--line-2); }
+[data-style="terminal"] .nav-link[aria-current="page"] {
+  background: transparent; color: var(--violet);
+  box-shadow: inset 0 -2px 0 var(--violet); text-shadow: var(--glow) var(--violet);
+}
+[data-style="terminal"] .brand-mark {
+  background: transparent; border: 1px solid var(--violet); color: var(--violet);
+  box-shadow: 0 0 12px -2px var(--violet);
+}
+[data-style="terminal"] .badge { border: 1px solid currentColor; background: transparent; }
+[data-style="terminal"] input[type="range"]::-webkit-slider-thumb {
+  background: var(--violet); border: none; border-radius: 2px; box-shadow: 0 0 8px var(--violet);
+}

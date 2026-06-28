@@ -9,6 +9,10 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **Terminal / CRT style** (Phase C, 2/5). Monospace throughout, phosphor text with a soft glow,
+  boxy thin-bordered panels, solid-fill uppercase buttons, and faint CRT scanlines (a single fixed
+  gradient — cheap). Three schemes: **Green** (classic phosphor), **Amber**, and **IBM** (cool
+  blue/white). Again just a `[data-style="terminal"]` block + scheme palettes + picker entries.
 - **Skeuomorphic style** (Phase C, first of five). A tactile treatment built entirely from layered
   gradients + bevel shadows — **no image assets**: raised panels with an inset top highlight,
   recessed (inset-shadow) form fields, glossy buttons that physically press on `:active`, a domed
