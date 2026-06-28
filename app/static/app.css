@@ -808,6 +808,7 @@ tr.htmx-swapping { animation: row-out 220ms var(--ease) forwards; }
   --font: var(--mono);
   --radius: 3px; --radius-sm: 2px; --radius-lg: 4px;
   --glow: 0 0 6px;
+  --scan: rgba(0, 0, 0, .22);
 
   /* green phosphor (default) */
   --violet: #2bff66; --indigo: #16d652; --cyan: #7dffa6; --on-accent: #021b09;
@@ -833,11 +834,22 @@ tr.htmx-swapping { animation: row-out 220ms var(--ease) forwards; }
   --text: #cdd9f5; --muted: #7e8fb8; --faint: #56668c;
 }
 
+/* Paper — a light teletype/printout: dark ink on warm stock, no glow, faint lines */
+[data-style="terminal"][data-scheme="paper"] {
+  --violet: #1f7a3d; --indigo: #15602f; --cyan: #2f9d55; --on-accent: #f3f0e4;
+  --grad: linear-gradient(135deg, var(--violet), var(--indigo));
+  --bg: #e9e5d4; --surface: #f3f0e3; --surface-2: #e3dfcd; --elevated: #f7f4ea;
+  --line: #cbc5af; --line-2: #b4ad93;
+  --text: #1d2a20; --muted: #4c5d50; --faint: #7c8a7e;
+  --ok: #1f7a3d; --warn: #9a6a12; --bad: #b33;
+  --glow: 0 0 0; --scan: rgba(60, 50, 30, .05);
+}
+
 :root[data-style="terminal"] .picker-schemes[data-for="terminal"] { display: flex; }
 
 [data-style="terminal"] body {
   background:
-    repeating-linear-gradient(0deg, rgba(0, 0, 0, .22) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(0deg, var(--scan) 0 1px, transparent 1px 3px),
     radial-gradient(120% 80% at 50% 0%, color-mix(in oklab, var(--violet) 8%, transparent), transparent 60%),
     var(--bg);
   background-attachment: fixed;
