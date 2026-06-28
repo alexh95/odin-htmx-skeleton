@@ -38,7 +38,7 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-[ -n "$SCENARIOS" ] || SCENARIOS="static pages search api write mixed"
+[ -n "$SCENARIOS" ] || SCENARIOS="static pages search api detail write mixed"
 
 # ---- locate k6 ----------------------------------------------------------
 K6="${K6:-}"

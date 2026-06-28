@@ -114,11 +114,15 @@ page_btn :: proc(b: ^strings.Builder, p: services.Page, target: int, label: stri
 view_contact_row :: proc(b: ^strings.Builder, c: models.Contact, fresh: bool) {
 	fmt.sbprintf(b, `<tr id="contact-%d" class="%s">`, c.id, fresh ? "row row-new" : "row")
 
-	w(b, `<td class="c-name">`)
+	fmt.sbprintf(
+		b,
+		`<td class="c-name"><button class="c-open" type="button" hx-get="/contacts/%d" hx-target="#overlay" hx-swap="innerHTML" title="View contact">`,
+		c.id,
+	)
 	avatar(b, c)
 	w(b, `<span class="c-name-text"><strong>`)
 	esc(b, c.name)
-	fmt.sbprintf(b, `</strong><small>#%d</small></span></td>`, c.id)
+	fmt.sbprintf(b, `</strong><small>#%d</small></span></button></td>`, c.id)
 
 	w(b, `<td class="c-email">`)
 	esc(b, c.email)
@@ -150,6 +154,64 @@ view_contact_row :: proc(b: ^strings.Builder, c: models.Contact, fresh: bool) {
 	)
 	icon(b, "trash")
 	w(b, `</button></td></tr>`)
+}
+
+// The contact detail drawer — the drilldown past the table row. Loads into
+// #overlay like the other overlays; read-only record + a derived activity trail
+// + related contacts (each a one-click jump to its own detail).
+view_contact_detail :: proc(c: models.Contact, activity: []services.Activity, related: []models.Contact) -> string {
+	b := strings.builder_make(context.temp_allocator)
+	rn := models.ROLE_NAMES
+	w(&b, `<div class="backdrop" hx-get="/ui/clear" hx-target="#overlay" hx-swap="innerHTML swap:240ms">
+  <aside class="drawer drawer-detail" role="dialog" aria-modal="true" aria-label="Contact detail" onclick="event.stopPropagation()">
+    <header class="drawer-head detail-head">`)
+	avatar(&b, c)
+	w(&b, `<div class="detail-id"><h2>`)
+	esc(&b, c.name)
+	w(&b, `</h2><p class="muted">`)
+	esc(&b, c.email)
+	w(&b, `</p></div>
+      <button class="icon-btn detail-close" aria-label="Close" hx-get="/ui/clear" hx-target="#overlay" hx-swap="innerHTML swap:240ms">`)
+	icon(&b, "plus")
+	w(&b, `</button></header>
+    <div class="detail-body">
+      <div class="detail-meta">`)
+	role_chip(&b, c.role)
+	status_badge(&b, c.status)
+	fmt.sbprintf(
+		&b,
+		`<span class="detail-score"><small class="muted">Engagement</small><div class="meter"><i style="width:%d%%"></i></div><strong>%d / 100</strong></span><span class="detail-rid">#%d</span>`,
+		c.score,
+		c.score,
+		c.id,
+	)
+	w(&b, `</div>
+      <section class="detail-section"><h3>Activity</h3><ol class="timeline">`)
+	for a in activity {
+		w(&b, `<li><span class="tl-dot">`)
+		icon(&b, a.icon)
+		w(&b, `</span><div class="tl-body"><strong>`)
+		esc(&b, a.label)
+		w(&b, `</strong><small>`)
+		esc(&b, a.ago)
+		w(&b, `</small></div></li>`)
+	}
+	w(&b, `</ol></section>`)
+	if len(related) > 0 {
+		fmt.sbprintf(&b, `<section class="detail-section"><h3>Also in %s</h3><div class="related-list">`, rn[c.role])
+		for r in related {
+			fmt.sbprintf(&b, `<button class="related-item" type="button" hx-get="/contacts/%d" hx-target="#overlay" hx-swap="innerHTML">`, r.id)
+			avatar(&b, r)
+			w(&b, `<span class="related-name"><strong>`)
+			esc(&b, r.name)
+			w(&b, `</strong><small>`)
+			esc(&b, r.email)
+			w(&b, `</small></span></button>`)
+		}
+		w(&b, `</div></section>`)
+	}
+	w(&b, `</div></aside></div>`)
+	return strings.to_string(b)
 }
 
 // ---- search dropdown ----------------------------------------------------

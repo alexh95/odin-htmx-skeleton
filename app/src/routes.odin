@@ -20,8 +20,9 @@ build_router :: proc(r: ^http.Router) {
 	http.route_get(r, "/search", http.handler(controllers.frag_search))
 	http.route_get(r, "/api/search", http.handler(controllers.api_search))
 
-	// contacts: list fragment + CRUD over POST / DELETE
+	// contacts: list fragment, detail drilldown, + CRUD over POST / DELETE
 	http.route_get(r, "/contacts", http.handler(controllers.frag_contacts))
+	http.route_get(r, "/contacts/(%d+)", http.handler(controllers.contact_detail))
 	http.route_post(r, "/contacts", http.handler(controllers.contacts_create))
 	http.route_post(r, "/contacts/(%d+)", http.handler(controllers.contacts_update))
 	http.route_delete(r, "/contacts/(%d+)", http.handler(controllers.contacts_delete))

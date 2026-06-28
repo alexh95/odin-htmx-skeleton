@@ -50,6 +50,7 @@ itself is scratch.
 | `pages.js`  | `GET /` and `/data` | Full-page HTML built by Odin (the view layer). |
 | `search.js` | `GET /search?q=` | HTMX live-search fragment (filter + row render). |
 | `api.js`    | `GET /api/search?q=` | Same filter via `json.marshal` (no HTML). |
+| `detail.js` | `GET /contacts/:id` | Detail drilldown — get + derived activity trail + related scan. |
 | `write.js`  | `POST /contacts` + `DELETE` | The mutating path; create→delete keeps the store steady. |
 | `mixed.js`  | ~90% read / ~10% write | A realistic blend; bounded by the pure scenarios. |
 

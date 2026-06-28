@@ -58,4 +58,28 @@ test.describe('data table + CRUD', () => {
     await expect(page.locator('#contact-tbody tr', { hasText: 'Grace' })).toBeVisible();
     await expect(page.locator('#contact-tbody tr')).not.toHaveCount(0);
   });
+
+  test('clicking a contact opens the detail drawer with activity + related', async ({ page }) => {
+    await page.goto('/data');
+    const name = await page.locator('.c-open .c-name-text strong').first().textContent();
+    await page.locator('.c-open').first().click();
+
+    const drawer = page.locator('.drawer-detail');
+    await expect(drawer).toBeVisible();
+    await expect(drawer.locator('.detail-id h2')).toHaveText(name!.trim());
+    await expect(drawer.getByRole('heading', { name: 'Activity' })).toBeVisible();
+    await expect(drawer.locator('.timeline li')).toHaveCount(5);
+
+    // a related contact drills into its own detail
+    const related = drawer.locator('.related-item').first();
+    if (await related.count()) {
+      const relName = await related.locator('strong').textContent();
+      await related.click();
+      await expect(page.locator('.drawer-detail .detail-id h2')).toHaveText(relName!.trim());
+    }
+
+    // close empties the overlay
+    await page.locator('.detail-close').click();
+    await expect(page.locator('.drawer-detail')).toHaveCount(0);
+  });
 });

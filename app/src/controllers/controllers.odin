@@ -151,6 +151,19 @@ frag_contacts :: proc(req: ^http.Request, res: ^http.Response) {
 	http.respond_html(res, views.view_contacts_region(p))
 }
 
+// Drilldown: the full contact record + a derived activity trail + related
+// contacts, rendered as a drawer into #overlay.
+contact_detail :: proc(req: ^http.Request, res: ^http.Response) {
+	id := to_int(req.url_params[0])
+	c, ok := repository.repo_get(id)
+	if !ok {
+		http.respond(res, http.Status.Not_Found)
+		return
+	}
+	html := views.view_contact_detail(c, services.service_activity(c), services.service_related(c, 4))
+	http.respond_html(res, html)
+}
+
 // user_data passed through http.body. Allocated in the request arena so it
 // survives until the (possibly deferred) body callback runs.
 @(private = "file")

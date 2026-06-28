@@ -22,9 +22,14 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
     - [x] Turned `/components` into a live style/scheme **showroom**: a catalog of all 6 styles ×
           23 schemes at the top of the page; click any swatch to jump to that exact style+scheme and
           the whole page (components below) re-skins live. e2e covers it; no new server surface.
-  - [ ] **Phase D — flagship app.** Evolve the sampler into one cohesive internal admin console:
-        record **detail** view, richer fields/related data, activity trail, bulk actions, saved
-        filters, inline edit. Each new endpoint gets e2e **and** load scenarios in the same change.
+  - [~] **Phase D — flagship app.** Evolve the sampler into one cohesive internal admin console.
+        Each new endpoint gets e2e **and** load scenarios in the same change.
+    - [x] **Contact detail drilldown** — click a row's name → `GET /contacts/:id` opens a drawer
+          with the full record, a derived **activity trail**, and **related** contacts (same role,
+          each a one-click jump). Read-only for now. e2e + `detail.js` load scenario added.
+    - [ ] Inline edit + actions in the detail drawer (edit fields, cycle/delete from the drawer).
+    - [ ] Richer table: more columns, bulk actions (select rows → act), saved filters.
+    - [ ] Coherent product frame: a named console + IA, not four separate pages.
   - [ ] **Phase E — parity + polish sweep.** e2e + load cover everything new; CHANGELOG/docs current.
 - [~] **Set up infrastructure** per [`infra/PLAN.md`](infra/PLAN.md). Code + config landed;
       what's left are operator actions on Fly/GitHub/Cloudflare (no repo changes).

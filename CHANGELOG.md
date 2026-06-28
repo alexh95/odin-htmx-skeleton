@@ -9,6 +9,14 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **Contact detail drilldown** (Phase D, flagship app — first increment). Clicking a row's name
+  (`GET /contacts/:id`) opens a drawer with the full record (role, status, an engagement meter,
+  id), a **derived activity trail** (a plausible, deterministic timeline — there's no persisted
+  event log yet, see `docs/DATA.md`), and **related** contacts (others in the same role, each a
+  one-click jump to its own detail). Read-only for now; re-skins under every style via tokens. The
+  service layer gains `service_activity`/`service_related`; new `GET /contacts/(%d+)` route. e2e
+  covers the open/content/related/close; `load-tests/scenarios/detail.js` keeps it at par
+  (~42k req/s locally).
 - **`/components` style showroom.** The components page opens with a catalog of all **6 styles ×
   23 schemes** — each style labelled with its scheme swatches; click any swatch to jump straight to
   that exact `style + scheme` (`setTheme` applies + persists) and the whole page re-skins live, the

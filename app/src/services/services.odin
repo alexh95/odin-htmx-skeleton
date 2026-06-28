@@ -2,6 +2,7 @@ package services
 import "../repository"
 import "../models"
 
+import "core:fmt"
 import "core:slice"
 import "core:strings"
 
@@ -129,6 +130,64 @@ service_search :: proc(q: string, limit: int) -> []models.Contact {
 	for c in repository.repo_list() {
 		if contact_matches(c, q) {
 			append(&out, c)
+			if len(out) >= limit {
+				break
+			}
+		}
+	}
+	return out[:]
+}
+
+// ---- detail view: activity trail + related ------------------------------
+//
+// The contact detail drills past the table row. There's no persisted event log
+// (the store is a POC — see docs/DATA.md), so the activity trail is *derived*
+// deterministically from the contact: plausible, stable across reloads, and free
+// of store changes. Related = others sharing the role, the only relationship the
+// single-entity domain affords.
+
+Activity :: struct {
+	icon:  string,
+	label: string,
+	ago:   string, // `when` is an Odin keyword
+}
+
+@(private = "file")
+rel_days :: proc(n: int) -> string {
+	switch {
+	case n <= 0:
+		return "today"
+	case n == 1:
+		return "yesterday"
+	case n < 14:
+		return fmt.tprintf("%d days ago", n)
+	case n < 60:
+		return fmt.tprintf("%d weeks ago", n / 7)
+	case:
+		return fmt.tprintf("%d months ago", n / 30)
+	}
+}
+
+service_activity :: proc(c: models.Contact) -> []Activity {
+	rn := models.ROLE_NAMES
+	sn := models.STATUS_NAMES
+	out := make([dynamic]Activity, context.temp_allocator)
+	append(&out, Activity{"bolt", "Last active session", rel_days(c.id % 6)})
+	append(&out, Activity{"check", fmt.tprintf("Engagement updated to %d", c.score), rel_days(7 + c.score % 20)})
+	append(&out, Activity{"cycle", fmt.tprintf("Status set to %s", sn[c.status]), rel_days(30 + c.id % 25)})
+	append(&out, Activity{"users", fmt.tprintf("Assigned to the %s team", rn[c.role]), rel_days(60 + (c.id * 3) % 40)})
+	append(&out, Activity{"plus", "Joined the workspace", rel_days(120 + (c.id * 7) % 240)})
+	return out[:]
+}
+
+service_related :: proc(c: models.Contact, limit: int) -> []models.Contact {
+	out := make([dynamic]models.Contact, context.temp_allocator)
+	for other in repository.repo_list() {
+		if other.id == c.id {
+			continue
+		}
+		if other.role == c.role {
+			append(&out, other)
 			if len(out) >= limit {
 				break
 			}
