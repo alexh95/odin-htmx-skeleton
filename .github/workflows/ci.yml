@@ -27,16 +27,20 @@ jobs:
           - os: ubuntu-latest
             odin_asset: odin-linux-amd64-dev-2026-06.tar.gz
             odin_dir: /opt/odin
+            exe: ''
           - os: macos-latest
             # arm64 build. This release tagged the macOS-arm64 asset as
             # `...-dev-06` (truncated), unlike the linux `...-dev-2026-06`.
             odin_asset: odin-macos-arm64-dev-06.tar.gz
             odin_dir: /opt/odin
+            exe: ''
           - os: windows-latest
             # The Windows asset carries no arch in its name and unpacks to a
             # top-level dist/ (odin.exe + LLVM-C.dll live there together).
             odin_asset: odin-windows-dev-2026-06.zip
             odin_dir: C:\odin
+            # Odin won't infer the extension on Windows; -out: needs it spelled out.
+            exe: '.exe'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -103,7 +107,7 @@ jobs:
 
       - name: Build (warnings are errors)
         shell: bash
-        run: cd app && odin build src -out:bin/demo -warnings-as-errors
+        run: cd app && odin build src -out:bin/demo${{ matrix.exe }} -warnings-as-errors
 
       # One smoke script for all three: shell bash everywhere (git-bash is on the
       # Windows runner, and MSYS resolves ./bin/demo to demo.exe). DB_PATH=:memory:
@@ -115,7 +119,7 @@ jobs:
           DB_PATH: ':memory:'
         run: |
           cd app
-          BIND_ALL=1 PORT=8099 ./bin/demo &
+          BIND_ALL=1 PORT=8099 ./bin/demo${{ matrix.exe }} &
           pid=$!
           for i in $(seq 1 20); do
             curl -fsS "http://127.0.0.1:8099/" -o /dev/null && break
