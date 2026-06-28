@@ -1,13 +1,18 @@
 # Data — past the in-memory POC
 
-Forward-looking (docs only). The current store is an **in-memory POC**: a `[dynamic]Contact` behind
+> **Update:** the SQLite step described here now ships (see
+> [`DATA_IMPL.md`](DATA_IMPL.md) and `src/repository/repo_sqlite.odin`). `DB_PATH=:memory:` keeps
+> the old POC behaviour (in-RAM, seeded on boot, gone on exit — now a real in-RAM SQLite rather than
+> a hand-rolled slice); a file path persists. The *when-is-each-right* reasoning below still stands.
+
+Originally forward-looking. The starting point was an **in-memory POC**: a `[dynamic]Contact` behind
 an `RW_Mutex`, seeded on boot, gone on exit. This documents how to make it real *when it makes
 sense* — and when it honestly doesn't need to.
 
 ## The seam already exists
 
 The whole point of the layered design is that the datasource is swappable without touching anything
-above it. **`src/repository/repository.odin` is the only code that touches storage.** Everything
+above it. **`src/repository/repo_sqlite.odin` is the only code that touches storage.** Everything
 else speaks in `models.Contact` and calls `repo_list / repo_get / repo_create / repo_update /
 repo_delete`. Swapping backends = reimplementing those procedures. Services, views, controllers,
 and the entire HTTP surface stay byte-for-byte identical.
@@ -39,8 +44,10 @@ When you need persistence, the answer that keeps the philosophy intact is **SQLi
 - Fast enough by a wide margin for the sweet-spot apps in [`USE_CASES.md`](USE_CASES.md) — an admin
   console's read/write rates are nowhere near SQLite's ceiling.
 - One C dependency, which is in keeping with the line we hold (it's the most-deployed database on
-  earth, not a framework). In Odin: the `vendor:sqlite3` bindings, or link the SQLite *amalgamation*
-  (a single `.c` file) directly — verify against your Odin version.
+  earth, not a framework). In Odin: bind the SQLite **amalgamation** (a single `.c` file) directly.
+  (There is no `vendor:sqlite3` collection — the request to add one,
+  [odin-lang/Odin #3736](https://github.com/odin-lang/Odin/issues/3736), was closed *won't
+  implement*.)
 
 Concretely, `repo_*` becomes thin SQL:
 

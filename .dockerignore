@@ -2,6 +2,10 @@
 # app/odin-http — the submodule must be in the build context to compile.
 app/bin/
 app/static/htmx.min.js
+# prepare.sh re-fetches + compiles SQLite in the image; don't ship a local
+# (possibly Windows .lib) vendor dir or a local DB into the build context.
+app/vendor/
+app/data.db*
 **/*.exe
 **/*.pdb
 **/.git

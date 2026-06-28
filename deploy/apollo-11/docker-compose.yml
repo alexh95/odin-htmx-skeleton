@@ -24,15 +24,23 @@ services:
     environment:
       - PORT=8080
       - BIND_ALL=1
+      # SQLite persists to the mounted volume below; survives redeploys/restarts.
+      # Unset (or :memory:) for an ephemeral, freshly-seeded store instead.
+      - DB_PATH=/data/data.db
       # THREADS defaults to the core count (4 on apollo-11). Set THREADS=1 to
       # reproduce the single-thread baseline for an on-server before/after.
       # - THREADS=4
+    volumes:
+      - odin-htmx-data:/data   # the SQLite DB (data.db + -wal/-shm); compose creates it
     networks:
       - npm
     expose:
       - "8080"        # reachable as odin-htmx:8080 by nginx-proxy-manager
     ports:
       - "8090:8080"   # direct LAN access (http://<server-lan-ip>:8090) for load tests
+
+volumes:
+  odin-htmx-data:    # named volume → persistent DB independent of the container
 
 networks:
   npm:

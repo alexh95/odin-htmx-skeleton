@@ -48,6 +48,24 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
         Phase E review pass swept the whole Phase D+E surface and caught a reflected
         HTML-injection via the `sort` query param (unescaped reflection into the table's `hx-get`
         attributes) — fixed by `url_encode`ing `sort` everywhere, pinned by an e2e regression test.
+- [~] **Data layer — persistent SQLite** (replaces the in-memory POC).
+  - [x] Implemented per [`docs/DATA_IMPL.md`](docs/DATA_IMPL.md): amalgamation binding
+        (`src/sqlite/`), the seven `repo_*` over SQLite (`src/repository/repo_sqlite.odin`),
+        `prepare.*` fetch+compile (pinned + SHA-256), `DB_PATH` (`:memory:` default / file persists),
+        WAL + migrations + `schema_version`. Contract unchanged; **41 e2e** (one new: survives a
+        restart) + load suites pass untouched. apollo-11 persists to a named volume; Fly stays
+        `:memory:` pending a volume (documented in `fly.toml`).
+  - [ ] **Clean up the repository Odin code.** Tidy `repo_sqlite.odin` now that the shape is proven
+        — group the lock/exec/prepare/scan helpers, revisit error handling (today fatal-on-startup,
+        best-effort per request), consider a `repo_close` for symmetry, and trim any rough edges from
+        the first pass.
+  - [ ] **Minimal multi-table case with relationships** — add a second entity (e.g. **events**
+        between contacts: `events(id, contact_id → contacts.id, kind, at, note)`) to exercise FKs,
+        a join, and a second `repo_*` surface end-to-end (model + service + view + e2e + load, at
+        par). Likely refactor: split the repository into a **common** part (connection lifecycle,
+        `exec`/`prep`/`scalar` helpers, migration runner, the temp-arena scan discipline) and a
+        **per-table** part (one file per entity holding its statements + `repo_*`). Keep the seam
+        thin — a `Repo`/connection handle threaded in, not a heavy ORM. Design notes to write first.
 - [~] **Set up infrastructure** per [`infra/PLAN.md`](infra/PLAN.md). Code + config landed;
       what's left are operator actions on Fly/GitHub/Cloudflare (no repo changes).
   - [x] Prereq code change: `app/main.odin` reads `PORT` and binds `0.0.0.0` on `BIND_ALL`

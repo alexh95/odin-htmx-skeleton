@@ -4,10 +4,15 @@
 set -e
 cd "$(dirname "$0")"
 
-if [ ! -d odin-http ] || [ ! -f static/htmx.min.js ]; then
+if [ ! -d odin-http ] || [ ! -f static/htmx.min.js ] || [ ! -f vendor/sqlite/sqlite3.a ]; then
   echo "Dependencies are missing. Run ./prepare.sh first."
   exit 1
 fi
+
+# Local dev persists to ./data.db by default (gitignored); export DB_PATH=:memory:
+# for an ephemeral, freshly-seeded store.
+: "${DB_PATH:=data.db}"
+export DB_PATH
 
 mkdir -p bin
 odin build src -out:bin/demo

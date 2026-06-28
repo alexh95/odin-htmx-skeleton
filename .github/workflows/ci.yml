@@ -180,7 +180,9 @@ jobs:
       - name: Put Odin and clang on PATH
         run: |
           echo "/opt/odin" >> "$GITHUB_PATH"
-          apt-get update && apt-get install -y --no-install-recommends clang
+          # clang links Odin and compiles the SQLite amalgamation (prepare.sh);
+          # unzip + binutils(ar) extract and archive it. global-setup runs prepare.
+          apt-get update && apt-get install -y --no-install-recommends clang binutils unzip
 
       - name: Install e2e deps
         run: cd e2e && npm ci

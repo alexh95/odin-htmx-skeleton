@@ -12,10 +12,14 @@ odin-htmx-demo/
 
 ## Quick start
 
+Needs the Odin compiler **and a C toolchain** (MSVC Build Tools on Windows, `clang` on Linux,
+Xcode CLT on macOS) — `prepare` compiles the SQLite amalgamation. See
+[app/README.md](app/README.md) → *Run it* for the per-OS setup.
+
 ```sh
 cd app
-prepare.bat        # once: clones odin-http, downloads htmx.min.js   (./prepare.sh on Linux/macOS)
-run.bat            # builds and serves http://localhost:8080         (./run.sh elsewhere)
+prepare.bat        # once: clones odin-http, fetches htmx + SQLite    (./prepare.sh on Linux/macOS)
+run.bat            # builds and serves http://localhost:8080          (./run.sh elsewhere)
 ```
 
 See [app/README.md](app/README.md) for the full tour — pages, architecture, endpoints, and

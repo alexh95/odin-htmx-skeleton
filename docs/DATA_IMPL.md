@@ -1,13 +1,17 @@
 # Implementing the data layer in Odin (SQLite)
 
-Forward-looking, **docs only** — nothing here is built. This is the concrete "how" that
-[`DATA.md`](DATA.md) (the "why/when") points to: a step-by-step plan to replace the in-memory POC
-store with a persistent **SQLite** layer in Odin, without changing a single line above the
-repository.
+> **Status: implemented.** This was the plan; it now ships. The store is SQLite, bound as the
+> amalgamation in `src/sqlite/` and implemented in `src/repository/repo_sqlite.odin`, selected by
+> `DB_PATH` (`:memory:` default for tests/dev, a file in prod). The notes below describe the
+> shipped design; a few specifics differ from the original draft and are flagged inline.
+
+This is the concrete "how" that [`DATA.md`](DATA.md) (the "why/when") points to: replacing the
+in-memory POC store with a persistent **SQLite** layer in Odin, without changing a single line above
+the repository.
 
 ## 0. The contract to preserve
 
-`src/repository/repository.odin` is the only file that touches storage. The rest of the app speaks
+`src/repository/repo_sqlite.odin` is the only file that touches storage. The rest of the app speaks
 in `models.Contact` and calls exactly these procedures:
 
 ```odin
@@ -33,16 +37,31 @@ load-tests do not change. Two invariants must hold exactly as today:
 ## 1. The dependency
 
 SQLite is a single C library — in keeping with the "two-dependency" line (it's the most-deployed
-database on earth, not a framework). Two ways to bind it in Odin, verify against your version:
+database on earth, not a framework). **Bind the amalgamation directly.**
 
-- **`vendor:sqlite3`** — Odin ships bindings in the `vendor` collection. `import sqlite "vendor:sqlite3"`.
-  You still need libsqlite3 available to link (system package, or build the amalgamation).
-- **Amalgamation** — drop `sqlite3.c` + `sqlite3.h` in `app/`, compile it, and `foreign import` the
-  handful of symbols you use. Fully self-contained, no system dependency — closest to the
-  single-binary ethos. ~15 `foreign` declarations cover everything below.
+> **There is no `vendor:sqlite3` collection in Odin.** The request to add one
+> ([odin-lang/Odin #3736](https://github.com/odin-lang/Odin/issues/3736)) was closed *won't
+> implement*. An earlier draft of this doc listed `import "vendor:sqlite3"` as an option — that was
+> wrong; disregard it.
 
-Pin whichever you choose (a checked-in `sqlite3.c`, or a documented system version) for reproducible
-CI/Docker builds, exactly as `odin-http` and htmx are pinned.
+The amalgamation is SQLite's official single-file distribution (`sqlite3.c` + `sqlite3.h`). We
+follow the **htmx precedent, not the odin-http submodule one**: `prepare.sh`/`prepare.bat` fetch a
+**pinned** `sqlite-amalgamation-XXXXXXX.zip` from sqlite.org, **verify its SHA-256**, unzip into a
+gitignored `app/vendor/sqlite/`, and **compile it once** into a static lib so `odin build` just
+links it:
+
+- Windows: `cl /c /O2 /MT sqlite3.c && lib /OUT:sqlite3.lib sqlite3.obj`
+- Linux/macOS: `clang -O2 -c sqlite3.c -o sqlite3.o && ar rcs sqlite3.a sqlite3.o`
+
+> The Windows compile uses **`/MT`** (static CRT), not `/MD`: Odin links the CRT statically on
+> Windows, and `/MD`'s dynamic-import (`__imp_*`) symbols don't resolve against Odin's `libucrt.lib`.
+
+No git submodule (the amalgamation has no canonical git repo; its canonical form is the versioned
+zip), and neither the source nor the built lib is committed. The version and its SHA-256 are pinned
+together at the top of `prepare.*` — the same reproducibility discipline as `ODIN_VERSION` and
+`htmx@2`. ~15 `foreign` decls (`app/src/sqlite/sqlite.odin`) cover everything below, with a per-OS
+link block pointing at `app/vendor/sqlite/`: `sqlite3.lib` on Windows; `sqlite3.a` +
+`system:pthread` + `system:dl` on Linux/macOS. A C toolchain is now a hard build requirement.
 
 ## 2. Schema + migrations (keep it boring)
 
@@ -92,9 +111,17 @@ exclusive writes). SQLite gives you the same model at the storage layer; pick on
   reader connections run concurrently while one writer proceeds; `busy_timeout` absorbs the brief
   writer lock. Drop the `RW_Mutex` — SQLite is the concurrency authority now. Compile SQLite in
   **serialized** or **multi-thread** mode and don't share one connection's statements across threads.
-- **Simplest: a single shared connection behind the existing `RW_Mutex`.** Keep the lock exactly as
-  is; every `repo_*` takes it (shared for reads, exclusive for writes) around a single connection.
-  Correct and trivial, but serializes reads — fine until the load tests say otherwise.
+- **Shipped (v1): a single shared connection behind the existing `RW_Mutex`.** Keep the lock, but
+  every `repo_*` takes it **exclusively** — including reads. A single connection's prepared
+  statements are shared mutable state (bound params + cursor), so two threads stepping them under a
+  *shared* read lock would corrupt each other; correctness requires serializing. (So this v1 doesn't
+  actually get parallel reads — that's the point of the *Recommended* option above, deferred until
+  the load tests demand it. The `RW_Mutex` type is kept precisely so reads can drop back to the
+  shared lock once per-thread WAL connections land.) Correct and trivial; serializes all DB access.
+
+> The original draft of this section said the simple option takes the lock "shared for reads,
+> exclusive for writes." That's subtly wrong for *one* connection with shared statements — corrected
+> above. The shared-reads model is right for the per-thread-connection design, not this one.
 
 Either way the load-test before/after (`load-tests/RESULTS.md`) is the arbiter: implement the simple
 one, measure, then move to per-thread connections if reads don't scale.
@@ -157,12 +184,17 @@ next optimization once the dataset outgrows "fits in a slice." Keep it behind th
 
 ## 7. Build, deploy, ops
 
-- **Build**: `odin build src` plus linking sqlite (the binding's link directive, or compile
-  `sqlite3.c` in the same invocation). The Dockerfile gains one `apt-get install libsqlite3-dev` (or
-  nothing, if you vendor the amalgamation).
-- **Deploy**: the binary now needs a writable path for `data.db` — a Fly volume, or `/mnt/...` on
-  apollo-11. One line in `fly.toml` (`[mounts]`) and the compose (`volumes:`). Back up = copy the
-  file (or `VACUUM INTO`).
+- **Build**: `prepare.*` fetches + compiles the amalgamation into `app/vendor/sqlite/`; `odin build
+  src` then links it via the `foreign import` block. Because we vendor the amalgamation, the build
+  needs a **C toolchain** (not `libsqlite3-dev`): the Dockerfile and CI gain `clang binutils unzip`
+  (Windows uses MSVC `cl`/`lib` + PowerShell `Expand-Archive`). The runtime image carries nothing —
+  sqlite is statically linked into the binary.
+- **Deploy**: the binary needs a writable path for `data.db` *only when `DB_PATH` points at a file*.
+  apollo-11 mounts a named docker volume at `/data` and sets `DB_PATH=/data/data.db` (durable across
+  redeploys). On Fly, leaving `DB_PATH` unset keeps `:memory:` (the live demo reseeds each deploy);
+  to persist, `fly volumes create`, add `[mounts]` + `DB_PATH` to `fly.toml` (operator step — a
+  `[mounts]` referencing a missing volume fails the deploy). Back up = copy the file (or `VACUUM
+  INTO`).
 - **The store no longer resets per process** — so e2e/load, which rely on a clean fixture, should
   point at an ephemeral DB (`:memory:` or a temp file deleted per run). Wire this via the existing
   `PORT`/env pattern: `DB_PATH=:memory:` for tests, a real path in prod. `repo_seed` still runs at

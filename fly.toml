@@ -13,6 +13,15 @@ primary_region = "fra"
 [env]
   PORT     = "8080"
   BIND_ALL = "1"
+  # DB_PATH is unset → SQLite ":memory:" (the demo reseeds on each deploy). To
+  # persist, create a volume and uncomment both this and the [mounts] block below:
+  #   fly volumes create odin_data --size 1 --region fra
+  # (A [mounts] referencing a missing volume fails the deploy, so do it together.)
+  # DB_PATH = "/data/data.db"
+
+# [mounts]
+#   source      = "odin_data"
+#   destination = "/data"
 
 [http_service]
   internal_port       = 8080

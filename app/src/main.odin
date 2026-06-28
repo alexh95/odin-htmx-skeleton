@@ -39,6 +39,15 @@ main :: proc() {
 		host = "0.0.0.0"
 	}
 
+	// DB_PATH selects the SQLite backend: unset/":memory:" is the test/dev
+	// default (a real in-RAM SQLite, seeded fresh per boot, gone on exit — the
+	// isolation the e2e/load suites rely on); a real file path persists (prod sets
+	// it to a mounted volume). repo_open must run before repo_seed.
+	db_path := os.get_env("DB_PATH", context.allocator)
+	if db_path == "" {
+		db_path = ":memory:"
+	}
+	repository.repo_open(db_path)
 	repository.repo_seed()
 	controllers.init_etags()
 

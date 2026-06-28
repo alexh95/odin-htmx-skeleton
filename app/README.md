@@ -11,12 +11,21 @@ binary and served from memory.
 
 ## Run it
 
-You need the [Odin compiler](https://odin-lang.org) on your `PATH`. On Windows that means
-the MSVC toolchain is available (the same environment you build Odin in).
+You need the [Odin compiler](https://odin-lang.org) on your `PATH` **and a C toolchain** —
+`prepare` now compiles the SQLite amalgamation into a static lib, so a C compiler is a hard
+requirement (it's also what Odin's linker uses):
+
+- **Windows** — MSVC **Build Tools** (not full Visual Studio):
+  `winget install --id Microsoft.VisualStudio.2022.BuildTools -e`, then pick the *Desktop
+  development with C++* workload (MSVC v143 + Windows 11 SDK). Run `prepare.bat`/`run.bat`
+  from an *“x64 Native Tools Command Prompt for VS 2022”* (or after `vcvars64.bat`) so
+  `cl.exe`/`link.exe` and `INCLUDE`/`LIB` are set.
+- **Linux** — `sudo apt-get install -y clang` (clang/gcc + binutils + unzip).
+- **macOS** — `xcode-select --install` (clang, ld, ar, the SDK).
 
 ```sh
 # Windows
-prepare.bat        # one-time: clones odin-http, downloads htmx.min.js
+prepare.bat        # one-time: clones odin-http, downloads htmx.min.js, fetches + compiles SQLite
 run.bat            # builds and serves on http://localhost:8080
 
 # Linux / macOS
@@ -26,7 +35,9 @@ run.bat            # builds and serves on http://localhost:8080
 
 Pass a port to override the default: `run.bat 9000` / `./run.sh 9000`.
 
-`prepare` is idempotent — run it once; after that just `run`.
+`prepare` is idempotent — run it once; after that just `run`. The store is SQLite: `run`
+defaults `DB_PATH` to a local `data.db` (so your data persists); set `DB_PATH=:memory:` for
+an ephemeral, freshly-seeded store.
 
 ## What's inside
 
@@ -35,7 +46,7 @@ Pass a port to override the default: `run.bat 9000` / `./run.sh 9000`.
 | Dashboard | `/` | Stat cards, sparklines, links, a live "ping server" fragment |
 | Components | `/components` | Buttons, badges, avatars, progress, tabs, accordion, modal, drawer, toasts |
 | Forms | `/forms` | Inputs, select, range, switch, radios + inline HTMX validation |
-| Data & CRUD | `/data` | Sortable, paginated table over an in-memory store; create / update / delete |
+| Data & CRUD | `/data` | Sortable, paginated table over a SQLite store; create / update / delete |
 
 Search lives in the top bar (debounced HTMX active-search) and is also exposed as a plain
 JSON endpoint that has nothing to do with HTMX:
@@ -64,7 +75,7 @@ src/ (main + routes) → controllers → services → repository → models
 | Package | Layer | Responsibility |
 |---------|-------|----------------|
 | `src/models/` | model | Domain types (`Contact`, `Role`, `Status`) |
-| `src/repository/` | repository | In-memory store + CRUD primitives, seeded mock data |
+| `src/repository/` | repository | SQLite store + CRUD primitives, seeded on first boot (binds `src/sqlite/`) |
 | `src/services/` | service | Search, sort, paginate, validate — plain values, no HTTP |
 | `src/controllers/` | controller | The only layer that touches `odin-http`; embeds `htmx.min.js` via `#load` |
 | `src/views/` | view | HTML assembled by procedures (no template engine) |
@@ -76,9 +87,14 @@ A "component" is just a proc that writes HTML into a `strings.Builder`. Response
 built in odin-http's per-request arena and freed once the response is flushed; stored
 contacts live on the heap so they survive between requests.
 
-The server runs a single event-loop thread (`thread_count = 1`), so the in-memory store
-needs no lock — every handler is serialised onto one thread. That's deliberate, and noted
-in `repository.odin`.
+The server runs **one event-loop thread per core** (`thread_count = os.get_processor_core_count()`,
+overridable with `THREADS`), so handlers execute concurrently. The store is therefore guarded
+by an `sync.RW_Mutex` — see the concurrency note in `repository/repo_sqlite.odin`.
+
+The store is **SQLite** (the amalgamation, compiled by `prepare` and statically linked). The
+seven `repo_*` procedures are the only code that touches storage; `DB_PATH` selects the
+backend (`:memory:` for an ephemeral seeded DB, or a file path to persist). See
+[`docs/DATA.md`](../docs/DATA.md) and [`docs/DATA_IMPL.md`](../docs/DATA_IMPL.md).
 
 ### Assets
 
@@ -94,10 +110,15 @@ file. Editing CSS/JS means a rebuild (a redeploy is how assets change in product
   Cloned by `prepare`. It stands in for the HTTP module Odin's core library is expected to
   grow; the server path uses `core:nbio` and needs no OpenSSL.
 - [HTMX](https://htmx.org) — the only front-end library.
+- [SQLite](https://sqlite.org) — the store, bound as the amalgamation. `prepare` fetches a
+  pinned, SHA-256-verified `sqlite-amalgamation-*.zip` and compiles it to a static lib (the
+  htmx precedent — fetched, not committed; no git submodule). Needs a C toolchain.
 
-No package manager is involved — `prepare` is one `git clone` and one file download.
+No package manager is involved — `prepare` is one `git clone` plus two pinned, checksummed
+downloads (htmx, the SQLite amalgamation).
 
 ## Notes / non-goals
 
 - Plain HTTP on localhost; no TLS. This is a proof of concept, not a production server.
-- The dataset is seeded in memory at boot and resets when the process exits.
+- With `DB_PATH=:memory:` the dataset is seeded at boot and resets when the process exits;
+  point `DB_PATH` at a file to persist it across restarts.

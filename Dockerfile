@@ -9,9 +9,11 @@ FROM debian:bookworm-slim AS build
 # Pin the toolchain so image builds are reproducible. Bump deliberately.
 ARG ODIN_VERSION=dev-2026-06
 
-# clang is only the linker driver; the Odin release statically bundles LLVM.
+# clang is the linker driver and also compiles the SQLite amalgamation (prepare.sh);
+# unzip extracts it and binutils (ar) archives it into sqlite3.a. The Odin release
+# statically bundles LLVM.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends clang git curl ca-certificates tar \
+ && apt-get install -y --no-install-recommends clang binutils unzip git curl ca-certificates tar \
  && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-linux-amd64-${ODIN_VERSION}.tar.gz" -o /tmp/odin.tar.gz \

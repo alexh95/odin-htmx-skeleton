@@ -9,6 +9,26 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **Persistent SQLite data layer** — replaces the in-memory POC store. The seven `repo_*`
+  procedures are reimplemented over SQLite (`src/repository/repo_sqlite.odin`) behind a ~15-decl
+  amalgamation binding (`src/sqlite/`); **services, views, controllers, e2e and load suites are
+  unchanged** (the whole point of the repository seam). Backend selected by **`DB_PATH`**:
+  `:memory:` (default — a real in-RAM SQLite, seeded fresh per boot, gone on exit; what the e2e/load
+  suites get, identical isolation to before) or a file path that **persists**. WAL +
+  `busy_timeout`/`foreign_keys`/`synchronous=NORMAL`; plain-SQL migrations (`migrations/0001_init.sql`,
+  `#load`ed) behind a `schema_version` table; `repo_seed` seeds only an empty store; statements
+  prepared once. Concurrency v1: one shared connection under the existing `sync.RW_Mutex` taken
+  **exclusively** for every op (a single connection's prepared statements can't be shared across
+  concurrent readers — parallel reads return with per-thread WAL connections, deferred to load-test
+  evidence). One new e2e test: **data survives a process restart** (41 e2e total). See
+  [`docs/DATA_IMPL.md`](docs/DATA_IMPL.md).
+- **`prepare.*` fetches + compiles the SQLite amalgamation** (the htmx precedent, not a submodule):
+  a pinned, **SHA-256-verified** `sqlite-amalgamation-3530300.zip` (SQLite 3.53.3) → unzipped into a
+  gitignored `app/vendor/sqlite/` → compiled to a static lib (`sqlite3.lib` via `cl /MT` on Windows,
+  `sqlite3.a` via `clang`+`ar` on unix), idempotently. A **C toolchain is now a hard requirement**;
+  `prepare` checks for it and prints a per-OS install hint. The Dockerfile and CI gain
+  `clang binutils unzip`. apollo-11 mounts a named volume at `/data` (`DB_PATH=/data/data.db`) for a
+  durable live demo; Fly stays `:memory:` until a volume is provisioned (documented in `fly.toml`).
 - **Data-layer implementation plan** ([`docs/DATA_IMPL.md`](docs/DATA_IMPL.md), docs only) — a
   concrete "how" for replacing the in-memory POC with **SQLite** in Odin: the binding choice
   (vendor vs amalgamation), schema + boot-time migrations, the seven `repo_*` as prepared SQL, the

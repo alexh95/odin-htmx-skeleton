@@ -3,4 +3,13 @@ static/htmx.min.js
 *.exe
 *.pdb
 
+# SQLite amalgamation: fetched + compiled by prepare.* into here (like htmx.min.js),
+# pinned by version+SHA-256 in the script. Source and built lib are never committed.
+vendor/sqlite/
+
+# Runtime SQLite DB (only when DB_PATH points at a file; :memory: writes nothing).
+data.db
+data.db-wal
+data.db-shm
+
 # odin-http is vendored as a pinned git submodule (see .gitmodules), not ignored.
