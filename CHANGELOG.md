@@ -9,6 +9,12 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **Arcade (video-game) style** (Phase C, 5/5 — the style library is complete). A chunky neon HUD:
+  glowing panels and buttons, heavy uppercase type, vibrant gradients. Three schemes — **Arcade**
+  (dark magenta/cyan), **Synthwave** (dark pink→orange sunset), and **Pop** (a clean candy-bright
+  light variant). Final library: **6 styles, 23 schemes** (Modern 7, Skeuomorphic 3, Terminal 4,
+  Brutalist 3, Editorial 3, Arcade 3), each with at least one light scheme, every one a pure
+  `[data-style]` block over untouched component HTML.
 - **Editorial / Paper style** (Phase C, 4/5). Serif throughout, warm and print-like: hairline
   rules, a single restrained accent, small-caps eyebrows, a ruled page header, title-case buttons
   (not shouty). Three schemes — **Manuscript** (light, ink on warm white, claret accent), **Sepia**

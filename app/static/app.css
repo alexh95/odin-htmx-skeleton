@@ -1042,3 +1042,89 @@ tr.htmx-swapping { animation: row-out 220ms var(--ease) forwards; }
 }
 [data-style="editorial"] .brand-mark { background: var(--violet); color: var(--on-accent); box-shadow: none; }
 [data-style="editorial"] .badge { font-weight: 600; }
+
+/* =====================================================================
+   STYLE: Arcade (video-game) — chunky neon HUD. Glowing panels + buttons,
+   heavy uppercase type, vibrant gradients. The dark schemes glow; Pop is a
+   clean candy-bright light variant.
+   ===================================================================== */
+
+[data-style="arcade"] {
+  --radius: 10px; --radius-sm: 7px; --radius-lg: 16px;
+  --neon: 0 0 12px;
+
+  /* Arcade (dark) — magenta + cyan on deep space */
+  --violet: #ff3df0; --indigo: #b14dff; --cyan: #25f4ee; --on-accent: #11021a;
+  --grad: linear-gradient(135deg, var(--violet), var(--cyan));
+  --bg: #0a0418; --surface: #160a2e; --surface-2: #1e0f3d; --elevated: #241248;
+  --line: #3a1d6b; --line-2: #5a2da3;
+  --text: #f4e9ff; --muted: #b69adb; --faint: #8366b0;
+  --ok: #2bff9e; --warn: #ffd23b; --bad: #ff4d6d;
+  --shadow: 0 18px 44px -18px #000, 0 0 30px -10px color-mix(in oklab, var(--violet) 40%, transparent);
+  --shadow-lg: 0 26px 60px -22px #000, 0 0 40px -10px color-mix(in oklab, var(--violet) 45%, transparent);
+}
+
+[data-style="arcade"][data-scheme="synthwave"] {
+  --violet: #ff2d95; --indigo: #b14dff; --cyan: #ff9e3d; --on-accent: #1a0316;
+  --grad: linear-gradient(135deg, var(--violet), var(--cyan));
+  --bg: #14071f; --surface: #1f0c33; --surface-2: #2a1145; --elevated: #321452;
+  --line: #45206e; --line-2: #6a2fa3;
+  --text: #ffe9f7; --muted: #d39fce; --faint: #a06f9a;
+}
+
+[data-style="arcade"][data-scheme="pop"] {
+  --violet: #ff3b6b; --indigo: #3b82f6; --cyan: #ffd23b; --on-accent: #fff;
+  --grad: linear-gradient(135deg, var(--violet), var(--indigo));
+  --bg: #fff4f7; --surface: #ffffff; --surface-2: #fff0f4; --elevated: #ffffff;
+  --line: #ffd0dd; --line-2: #ff9fb8;
+  --text: #1a1626; --muted: #6a5f72; --faint: #9a8fa2;
+  --neon: 0 0 0;
+  --shadow: 0 14px 30px -16px rgba(255, 59, 107, .35);
+  --shadow-lg: 0 24px 50px -22px rgba(255, 59, 107, .4);
+}
+
+:root[data-style="arcade"] .picker-schemes[data-for="arcade"] { display: flex; }
+
+[data-style="arcade"] h1, [data-style="arcade"] h2,
+[data-style="arcade"] .stat-value, [data-style="arcade"] .brand-name {
+  text-transform: uppercase; letter-spacing: .04em; font-weight: 800;
+  text-shadow: var(--neon) color-mix(in oklab, var(--violet) 60%, transparent);
+}
+[data-style="arcade"] .card, [data-style="arcade"] .stat-card,
+[data-style="arcade"] .panel, [data-style="arcade"] .picker-panel {
+  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  border: 1px solid var(--line-2);
+  box-shadow: var(--shadow), inset 0 1px 0 color-mix(in oklab, var(--violet) 22%, transparent);
+}
+[data-style="arcade"] .btn {
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--line-2);
+  font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+}
+[data-style="arcade"] .btn:hover {
+  transform: translateY(-1px); border-color: var(--violet);
+  box-shadow: var(--neon) color-mix(in oklab, var(--violet) 55%, transparent);
+}
+[data-style="arcade"] .btn-primary {
+  border-color: transparent; color: var(--on-accent); background: var(--grad);
+  box-shadow: 0 0 20px -4px var(--violet), 0 8px 20px -8px var(--cyan);
+}
+[data-style="arcade"] .btn-primary:hover { filter: brightness(1.08); box-shadow: 0 0 28px -2px var(--violet), 0 10px 24px -8px var(--cyan); }
+[data-style="arcade"] input, [data-style="arcade"] select, [data-style="arcade"] textarea {
+  background: color-mix(in oklab, var(--bg) 70%, black); border: 1px solid var(--line-2);
+}
+[data-style="arcade"] input:focus, [data-style="arcade"] select:focus, [data-style="arcade"] textarea:focus {
+  border-color: var(--violet); box-shadow: 0 0 0 3px color-mix(in oklab, var(--violet) 28%, transparent), 0 0 16px -4px var(--violet);
+}
+[data-style="arcade"] .topbar {
+  background: color-mix(in oklab, var(--bg) 82%, black); border-bottom: 1px solid var(--line-2);
+  box-shadow: 0 0 24px -8px color-mix(in oklab, var(--violet) 50%, transparent);
+}
+[data-style="arcade"] .nav-link[aria-current="page"] {
+  background: color-mix(in oklab, var(--violet) 16%, transparent); color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--violet), 0 0 14px -4px var(--violet);
+}
+[data-style="arcade"] .brand-mark { background: var(--grad); color: var(--on-accent); box-shadow: 0 0 18px -4px var(--violet); }
+[data-style="arcade"] .badge { box-shadow: 0 0 10px -3px currentColor; }
+[data-style="arcade"] input[type="range"]::-webkit-slider-thumb {
+  background: var(--violet); border: 2px solid #fff; box-shadow: 0 0 12px var(--violet);
+}

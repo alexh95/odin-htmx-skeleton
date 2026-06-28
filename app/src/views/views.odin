@@ -122,6 +122,7 @@ STYLES := []Style_Opt {
 	{"terminal", "Terminal"},
 	{"brutal", "Brutalist"},
 	{"editorial", "Editorial"},
+	{"arcade", "Arcade"},
 }
 
 @(private = "file")
@@ -146,6 +147,9 @@ SCHEMES := []Scheme_Opt {
 	{"editorial", "manuscript", "Manuscript", "#8a2f3a"},
 	{"editorial", "sepia", "Sepia", "#9a5a2e"},
 	{"editorial", "night", "Night", "#d99a5a"},
+	{"arcade", "arcade", "Arcade", "#ff3df0"},
+	{"arcade", "synthwave", "Synthwave", "#ff2d95"},
+	{"arcade", "pop", "Pop", "#ff3b6b"},
 }
 
 // Cache-busting token for the static CSS/JS, set once at startup by
