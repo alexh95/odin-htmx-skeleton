@@ -67,8 +67,10 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 - **Moved the Fly deployment from `iad` (US-East) to `fra` (Frankfurt)** so it serves the
   primary (European) audience from nearby. Latency is RTT-bound, not compute-bound (the server
   answers `/healthz` in sub-ms), so over IPv4 a full page load dropped from ~850 ms to **~160 ms**.
-  (Note: Fly's *IPv6* anycast still mis-routes some EU ISPs to a far edge — see `TODO.md`; fronting
-  with Cloudflare is the durable fix.)
+  Fly's *IPv6* anycast additionally mis-routed some EU ISPs to a far edge (~785 ms over v6);
+  fronting the origin with a **proxied Cloudflare record** (Full-strict, cert validated via DNS-01)
+  fixed it — page TTFB is now **~105 ms on both v4 and v6** from a nearby Cloudflare edge, with
+  `/static` edge-cached.
 - **Multithreaded server.** The event loop now runs one nbio thread **per core** (was pinned to
   one); `THREADS` env overrides. The in-memory store, previously lock-free *because* it was
   single-threaded, is now guarded by an `sync.RW_Mutex` — reads share, writes are exclusive — and
