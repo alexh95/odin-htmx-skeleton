@@ -12,8 +12,31 @@ env:
 
 jobs:
   build:
-    name: Build + smoke
-    runs-on: ubuntu-latest
+    name: Build + smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # WSL/Docker only cover Linux. This matrix also guards Windows (our primary
+    # dev platform) and macOS (Apple Silicon = arm64-darwin — the one target we
+    # can't test locally, and it exercises odin-http's kqueue path under
+    # core:nbio). Odin's release asset names are irregular across platforms, so
+    # each leg downloads its own verified asset rather than a templated name.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            odin_asset: odin-linux-amd64-dev-2026-06.tar.gz
+            odin_dir: /opt/odin
+          - os: macos-latest
+            # arm64 build. This release tagged the macOS-arm64 asset as
+            # `...-dev-06` (truncated), unlike the linux `...-dev-2026-06`.
+            odin_asset: odin-macos-arm64-dev-06.tar.gz
+            odin_dir: /opt/odin
+          - os: windows-latest
+            # The Windows asset carries no arch in its name and unpacks to a
+            # top-level dist/ (odin.exe + LLVM-C.dll live there together).
+            odin_asset: odin-windows-dev-2026-06.zip
+            odin_dir: C:\odin
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,28 +46,73 @@ jobs:
         id: cache-odin
         uses: actions/cache@v4
         with:
-          path: /opt/odin
-          key: odin-${{ env.ODIN_VERSION }}
+          path: ${{ matrix.odin_dir }}
+          # runner.os in the key so the three OSes don't share one cache entry.
+          key: odin-${{ env.ODIN_VERSION }}-${{ runner.os }}
 
-      - name: Install Odin
-        if: steps.cache-odin.outputs.cache-hit != 'true'
+      # Linux + macOS share the tar.gz path; only the asset name differs (matrix).
+      # The ubuntu leg is unchanged from before (same URL shape, same install).
+      - name: Install Odin (Linux/macOS)
+        if: runner.os != 'Windows' && steps.cache-odin.outputs.cache-hit != 'true'
         run: |
-          curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-linux-amd64-${ODIN_VERSION}.tar.gz" -o /tmp/odin.tar.gz
+          curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/${{ matrix.odin_asset }}" -o /tmp/odin.tar.gz
           sudo mkdir -p /opt/odin
           sudo tar -xzf /tmp/odin.tar.gz -C /opt/odin --strip-components=1
 
-      - name: Put Odin and clang on PATH
+      - name: Install Odin (Windows)
+        if: runner.os == 'Windows' && steps.cache-odin.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $url = "https://github.com/odin-lang/Odin/releases/download/$env:ODIN_VERSION/${{ matrix.odin_asset }}"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\odin.zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP\odin.zip" -DestinationPath C:\odin -Force
+
+      # Odin links the final binary through the platform C toolchain (clang/ld on
+      # unix, MSVC link.exe on Windows), so each leg makes one available + puts
+      # odin on PATH.
+      - name: Odin on PATH + clang (Linux)
+        if: runner.os == 'Linux'
         run: |
           echo "/opt/odin" >> "$GITHUB_PATH"
           sudo apt-get update && sudo apt-get install -y --no-install-recommends clang
 
-      - name: Prepare deps (htmx, bin/)
+      - name: Odin on PATH + verify clang (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "/opt/odin" >> "$GITHUB_PATH"
+          xcode-select -p        # Command Line Tools ship clang/ar — confirm present
+          clang --version
+
+      - name: Set up MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1.13.0
+
+      - name: Odin on PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo 'C:\odin\dist' >> "$GITHUB_PATH"   # odin.exe + LLVM-C.dll live in dist/
+
+      - name: Prepare deps (htmx, bin/) — Unix
+        if: runner.os != 'Windows'
         run: cd app && sh prepare.sh
 
+      - name: Prepare deps (htmx, bin/) — Windows
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: cd app && prepare.bat
+
       - name: Build (warnings are errors)
+        shell: bash
         run: cd app && odin build src -out:bin/demo -warnings-as-errors
 
+      # One smoke script for all three: shell bash everywhere (git-bash is on the
+      # Windows runner, and MSYS resolves ./bin/demo to demo.exe). DB_PATH=:memory:
+      # keeps it forward-compatible with the planned SQLite layer (no CI volume);
+      # it's a harmless no-op against the current in-memory store.
       - name: Smoke test the binary
+        shell: bash
+        env:
+          DB_PATH: ':memory:'
         run: |
           cd app
           BIND_ALL=1 PORT=8099 ./bin/demo &
