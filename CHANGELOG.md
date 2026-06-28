@@ -31,6 +31,14 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   brackets on the project's violet→cyan gradient tile with the app's bolt accent.
 - SEO: a **page-specific `<meta name="description">`** (the item Lighthouse flagged) plus Open
   Graph `og:type`/`og:title`/`og:description` on every page, threaded through `render_page`.
+- Two-host deploy ([`deploy/apollo-11/`](deploy/apollo-11/)): a sudo-free `deploy.sh` (+ compose,
+  README) that builds the self-contained image **on** a home Docker box from source tarred over
+  SSH, joins it to the existing nginx-proxy-manager `npm` network for a subdomain, and publishes a
+  host port for proxy-free load testing. IP/hostname/domain are parameterized. Required
+  `seccomp=unconfined` so odin-http's io_uring isn't blocked by Docker's default profile (Fly
+  dodged this via Firecracker). Yielded the two-host numbers in
+  [`load-tests/RESULTS.md`](load-tests/RESULTS.md): byte-heavy endpoints saturate the 1 GbE wire
+  (~912 Mbit vs 2.4 GB/s loopback), and NPM+TLS on the shared box costs ~12×.
 - Load tests ([`load-tests/`](load-tests/)): **k6** scenarios for every endpoint class —
   `static`, `pages`, `search`, `api`, `write` (create→delete), and a `mixed` 90/10 read/write
   blend — sharing one warmup→measured-window shape with per-phase thresholds and a

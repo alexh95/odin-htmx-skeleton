@@ -186,11 +186,67 @@ threading comparison.
 > The point of this pass is a sanity check that the deployed build behaves and to size what the
 > free tier sustains, not to compare against the 16-thread workstation.
 
+## Two-host: apollo-11 home server (real network)
+
+The clean version of the experiment: **generator and target on separate machines.** k6 on the
+workstation (5800X) → 1 GbE LAN → **apollo-11** (Intel i3-7100, 2C/4T, 4 nbio threads, Docker).
+Deployed via [`../deploy/apollo-11`](../deploy/apollo-11). Now the generator can't steal cores from
+the target, and there's a real wire in between — so for the first time the numbers aren't
+loopback-fictional. **0% errors everywhere.**
+
+### Direct (`http://<server-lan-ip>:8090`, no proxy)
+
+| scenario | RPS @1 | @10 | @50 | @100 | @200 | p99 @100 | bound by |
+|---|---:|---:|---:|---:|---:|---:|---|
+| write  | 1 845 | 19 783 | 38 553 | 45 307 | 45 496 | 11.6 ms | CPU (i3, 4 threads) |
+| search | 1 867 | 17 442 | 27 468 | 27 646 | 27 959 | 9.8 ms | CPU |
+| api    | 1 796 | 16 315 | 21 987 | 22 445 | 22 548 | 9.3 ms | CPU |
+| pages  | 1 577 |  7 166 |  7 091 |  7 075 |  7 072 | 34.6 ms | **1 GbE wire** |
+| static | 1 170 |  2 296 |  2 295 |  2 261 |  2 266 | 106 ms | **1 GbE wire** |
+| mixed  | 1 362 |  5 949 |  6 801 |  6 424 |  5 662 | 32.4 ms | mix |
+
+Two regimes, and they're the whole point of going two-host:
+
+- **Byte-heavy endpoints hit the wire, not the server.** `static` and `pages` flatline at
+  **~114 MB/s ≈ 912 Mbit/s** — a saturated gigabit link — from 10 VUs up. On loopback `static` did
+  **2.4 GB/s**; over real Ethernet it's **114 MB/s**. That ~21× gap is the single clearest lesson
+  here: **loopback byte-throughput is fiction.** The bottleneck moved out of the CPU and onto the NIC.
+- **Small-response endpoints are CPU-bound on the i3** and scale fine: `search` ~27k, `api` ~22k,
+  `write` ~45k RPS, p99 in single-digit ms, 0 errors — a modest 4-thread box comfortably handles
+  tens of thousands of req/s when the payload is small.
+- **At 1 VU everything is ~1.2–1.9k RPS**: one connection is RTT-bound by the ~0.5 ms LAN round
+  trip (≈1/0.0005 = 2000/s ceiling). Concurrency amortizes it; that's why 10 VUs jumps ~10×.
+
+### Through the reverse proxy (NPM + TLS subdomain)
+
+Same suite through nginx-proxy-manager with a Let's Encrypt cert (Cloudflare DNS-only, so this is
+NPM, not Cloudflare's edge). Everything collapses to a **~1–1.4k RPS** ceiling regardless of
+endpoint — the convergence that means *the path*, not the app, is the limit. Attribution (api @ 50
+VUs, RPS / p95):
+
+| path | RPS | p95 | vs direct |
+|---|---:|---:|---:|
+| direct app `:8090` | 21 987 | 3.3 ms | 1× |
+| NPM + TLS, **no** hairpin (k6 `hosts` → LAN IP) | 1 888 | 42 ms | **~12× slower** |
+| subdomain (NAT hairpin + NPM + TLS) | 707 | 87 ms | ~31× slower |
+
+So the dominant cost is **NPM's TLS termination + proxying on the shared 2-core i3** — which is
+simultaneously running the app container, Vaultwarden, the game server, etc., so TLS workers and the
+app's threads fight for four hardware threads. The **NAT-loopback hairpin** (an artifact of load-
+testing the *public* hostname from *inside* the LAN — the router has to bounce every connection)
+adds a further ~2.7×. Neither reflects a real external client, and neither is the Odin server's
+limit: the app itself does 22k RPS on this box. Takeaways: terminate TLS on hardware that isn't also
+the workload, give nginx upstream keepalive, and don't benchmark your own public hostname from
+behind your own NAT.
+
 ## Open / follow-ups
 
-- **Two-host absolute numbers.** Everything here is co-located (local) or RTT-bound (prod). The
-  real ceiling needs generator and target on separate hosts over a real link — a dedicated Fly
-  machine or the Oracle Always-Free VM, generator elsewhere (`PLAN.md`, [`../infra/PLAN.md`](../infra/PLAN.md)).
+- **Two-host done** (above). A further refinement would be a generator *outside* the LAN to measure
+  the true external path (real RTT + uplink + optionally Cloudflare's proxy), rather than the NAT-
+  hairpin artifact seen from inside.
+- **Reverse-proxy tuning.** The ~12× NPM+TLS hit is partly a constrained-shared-box result; worth
+  checking nginx `keepalive` to the upstream and whether HTTP/2 / session resumption help before
+  taking it as the proxy's true cost.
 - **Write-path scaling** is lock-bound by design. If writes ever became hot, the next step would be
   a sharded or finer-grained store — but for a read-heavy app the single exclusive writer is the
   right simplicity/perf trade, now quantified.

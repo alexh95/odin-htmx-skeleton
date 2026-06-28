@@ -26,8 +26,11 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
         to the core count (`THREADS` env overrides). Before/after in `RESULTS.md`: reads scale
         **~5×** (1→8 threads), writes ~1.8× (exclusive-lock-bound, as predicted), and the
         500-VU overload failures (13–34%) drop to **0%**. Also ran it against prod (Fly).
-  - [ ] Two-host absolute numbers: generator and target on separate hosts (everything so far is
-        co-located/loopback or RTT-bound prod). Needs the dedicated env below.
+  - [x] Two-host absolute numbers: deployed to the apollo-11 home server
+        ([`deploy/apollo-11`](deploy/apollo-11)), k6 on the workstation over a 1 GbE LAN. Found the
+        wire ceiling (static/pages saturate ~912 Mbit vs 2.4 GB/s loopback) and the reverse-proxy
+        cost (~12× for NPM+TLS on the shared box). Surfaced the io_uring-vs-Docker-seccomp gotcha.
+        Results in `RESULTS.md`. (Further: a generator *outside* the LAN for the true external path.)
 - [~] **Sync gate:** every endpoint now has both an e2e and a load scenario for its *class*
       (static, page, search, api, write). `/healthz` is hit by the run driver's readiness
       probe rather than a dedicated scenario; add one if it ever does real work.

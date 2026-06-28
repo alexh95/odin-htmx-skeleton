@@ -1,0 +1,39 @@
+# odin-htmx on the apollo-11 home server.
+#
+# Built ON the server from ./src (synced by deploy.sh). The repo Dockerfile is
+# self-contained: it fetches a pinned Odin + htmx and produces a single static
+# binary, so the server needs nothing but Docker.
+#
+# Joins the shared `npm` network so nginx-proxy-manager can route a subdomain to
+# it by container name (odin-htmx:8080), and also publishes 8090 on the host for
+# direct, proxy-free load testing over the LAN.
+services:
+  odin-htmx:
+    build:
+      context: ./src
+    image: odin-htmx:local
+    container_name: odin-htmx
+    restart: unless-stopped
+    # odin-http's nbio uses io_uring on Linux, and Docker's default seccomp
+    # profile blocks the io_uring_* syscalls — without this the server aborts at
+    # startup (acquire_thread_event_loop assertion). Same fix as CI. For a
+    # tighter setup, swap this for a custom profile that allowlists io_uring
+    # setup/enter/register instead of disabling seccomp wholesale.
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      - PORT=8080
+      - BIND_ALL=1
+      # THREADS defaults to the core count (4 on apollo-11). Set THREADS=1 to
+      # reproduce the single-thread baseline for an on-server before/after.
+      # - THREADS=4
+    networks:
+      - npm
+    expose:
+      - "8080"        # reachable as odin-htmx:8080 by nginx-proxy-manager
+    ports:
+      - "8090:8080"   # direct LAN access (http://<server-lan-ip>:8090) for load tests
+
+networks:
+  npm:
+    external: true
