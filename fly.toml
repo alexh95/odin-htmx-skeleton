@@ -1,9 +1,11 @@
 # Fly.io app config. Rename `app` if you pick a different name at `fly launch`.
-# The server is single-threaded by design (lock-free in-memory store), so one
-# small machine handles it; async IO still serves many concurrent connections.
+# One small machine handles this comfortably: the server runs one nbio thread per
+# core (RW_Mutex-guarded store) and async IO serves many concurrent connections.
+# Region is near the primary audience — latency is dominated by RTT, not compute
+# (see load-tests/RESULTS.md), so serve from close by.
 
 app            = "odin-htmx-skeleton"
-primary_region = "iad"
+primary_region = "fra"
 
 [build]
   dockerfile = "Dockerfile"

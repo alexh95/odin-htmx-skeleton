@@ -14,7 +14,12 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
         smoke, deploy-on-`master`).
   - [ ] Operator: create the Fly app + set the `FLY_API_TOKEN` GitHub secret, then push to
         trigger the first deploy (see `infra/PLAN.md` → "Operator steps").
-  - [ ] Operator: point a Cloudflare domain at the Fly app (`fly certs add` + DNS).
+  - [ ] Operator: point a Cloudflare domain at the Fly app (`fly certs add` + DNS). **This also
+        fixes a latency bug:** Fly's IPv6 anycast mis-routes at least one EU ISP to the `jnb`
+        (Johannesburg) edge (~785 ms TTFB), while IPv4 routes to `ams` (~160 ms). Fronting the Fly
+        origin with a *proxied* (orange-cloud) Cloudflare record bypasses Fly's anycast entirely —
+        clients hit Cloudflare's edge (~25 ms here) and CF reaches the origin over good transit —
+        and caches `/static` for free. Region was moved `iad`→`fra` so the origin is nearby.
   - [ ] Stand up the dedicated load-test environment when load-tests are implemented.
 - [x] Implement the e2e suite per [`e2e/PLAN.md`](e2e/PLAN.md) — Playwright, 31 tests incl. the
       three regressions; wired into CI as a gating job. It surfaced (and we fixed) the `fmt`
