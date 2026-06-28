@@ -65,7 +65,7 @@ filter_chip :: proc(b: ^strings.Builder, p: services.Page, value, label: string)
 		active ? " is-active" : "",
 		url_encode(p.q),
 		url_encode(q),
-		p.sort,
+		url_encode(p.sort),
 		label,
 	)
 }
@@ -106,7 +106,7 @@ pager :: proc(b: ^strings.Builder, p: services.Page) {
 			`<button class="page" hx-get="/contacts?q=%s&status=%s&sort=%s&page=%d" hx-target="#contact-region" hx-swap="outerHTML">%d</button>`,
 			url_encode(p.q),
 			url_encode(p.status),
-			p.sort,
+			url_encode(p.sort),
 			n,
 			n,
 		)
@@ -126,7 +126,7 @@ page_btn :: proc(b: ^strings.Builder, p: services.Page, target: int, label: stri
 		`<button class="page" hx-get="/contacts?q=%s&status=%s&sort=%s&page=%d" hx-target="#contact-region" hx-swap="outerHTML">%s</button>`,
 		url_encode(p.q),
 		url_encode(p.status),
-		p.sort,
+		url_encode(p.sort),
 		target,
 		label,
 	)

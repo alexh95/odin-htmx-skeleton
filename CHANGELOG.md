@@ -175,6 +175,13 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   `DOMContentLoaded`; the full e2e suite passes unchanged across all three engines.
 
 ### Fixed
+- **Reflected HTML-injection via the `sort` query param** (security). The data table reflected
+  `sort` into its `hx-get="…"` attributes (filter chips + pager) **without** the `url_encode` its
+  sibling params (`q`, `status`) already used, so a crafted value — e.g.
+  `/data?sort="><img src=x onerror=…>` — could break out of the attribute on a directly-navigable,
+  `text/html` GET endpoint. `sort` is now `url_encode`d at every reflection site (legit values like
+  `score_desc` are unreserved and round-trip unchanged; `sort_th` was already safe, emitting only
+  derived column literals). Pinned by an e2e regression test.
 - Range slider fill was missing under Terminal, Brutalist, Editorial and Arcade — each style's
   `input` rule tied the range track on specificity and (being later) clobbered the fill layer (the
   same issue the skeuo style hit). Each now restores the fill on its

@@ -44,6 +44,17 @@ test.describe('data table + CRUD', () => {
     await expect(nameSort()).toHaveAttribute('data-dir', 'asc');
   });
 
+  // Regression: the `sort` query param is reflected into the table's hx-get
+  // attributes (filter chips + pager). It must be url-encoded like q/status, or
+  // a crafted value breaks out of the attribute (reflected HTML injection).
+  test('a crafted sort param cannot inject markup', async ({ page }) => {
+    const marker = 'xss-probe-img';
+    await page.goto(`/data?sort=${encodeURIComponent(`"><img id=${marker} src=x>`)}`);
+    // The page must render normally and the payload must not become a real element.
+    await expect(page.locator('#contact-region')).toBeVisible();
+    await expect(page.locator(`#${marker}`)).toHaveCount(0);
+  });
+
   test('pagination swaps the table region', async ({ page }) => {
     await page.goto('/data');
     const pager = page.locator('.pager');
