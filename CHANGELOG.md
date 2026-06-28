@@ -127,6 +127,16 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   single-thread-ceiling reading land in [`load-tests/RESULTS.md`](load-tests/RESULTS.md).
 
 ### Changed
+- **CI builds on all three platforms now**, not just Linux. The `build` job is a matrix over
+  `ubuntu-latest`, `macos-latest` (Apple Silicon / arm64-darwin — exercises odin-http's **kqueue**
+  path under `core:nbio`) and `windows-latest` (the primary dev platform — **IOCP** path). The
+  ubuntu leg is unchanged; e2e and deploy are untouched. Each leg downloads its own **verified**
+  Odin release asset (the names are irregular: the macOS-arm64 asset is tagged `…-dev-06`, the
+  Windows asset carries no arch and unpacks to `dist/`), with `runner.os` in the cache key. C
+  toolchain per OS so Odin can link — apt `clang` (Linux), Xcode CLT (macOS),
+  `ilammy/msvc-dev-cmd` before the build (Windows); the build `-out` carries a per-OS extension
+  (`.exe` on Windows). One shared bash smoke script boots the binary and hits the same endpoints on
+  every OS, with `DB_PATH=:memory:` set for forward-compat with the planned SQLite layer.
 - Refactored the backend into one Odin **package per layer** under `app/src/`
   (`models`, `repository`, `services`, `views`, `controllers`, and `src/` = entry `main`+routes),
   so the layering is compiler-enforced rather than convention. Cross-layer calls are now
