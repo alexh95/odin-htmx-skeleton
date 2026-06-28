@@ -9,6 +9,10 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **Editorial / Paper style** (Phase C, 4/5). Serif throughout, warm and print-like: hairline
+  rules, a single restrained accent, small-caps eyebrows, a ruled page header, title-case buttons
+  (not shouty). Three schemes — **Manuscript** (light, ink on warm white, claret accent), **Sepia**
+  (aged warm paper), and **Night** (a dark reading mode, cream on warm brown with gold).
 - **Brutalist style** (Phase C, 3/5). Raw and loud: zero radius, thick borders, flat fills, and
   hard offset shadows that shift on press; heavy uppercase type; inverted nav block. Ships **dark
   *and* light** — **Paper** (light, cobalt/red), **Ink** (dark, white-on-black), and **Acid** (a

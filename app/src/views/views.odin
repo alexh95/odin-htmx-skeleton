@@ -121,6 +121,7 @@ STYLES := []Style_Opt {
 	{"skeuo", "Skeuo"},
 	{"terminal", "Terminal"},
 	{"brutal", "Brutalist"},
+	{"editorial", "Editorial"},
 }
 
 @(private = "file")
@@ -142,6 +143,9 @@ SCHEMES := []Scheme_Opt {
 	{"brutal", "paper", "Paper", "#2b46ff"},
 	{"brutal", "ink", "Ink", "#111111"},
 	{"brutal", "acid", "Acid", "#e6ff36"},
+	{"editorial", "manuscript", "Manuscript", "#8a2f3a"},
+	{"editorial", "sepia", "Sepia", "#9a5a2e"},
+	{"editorial", "night", "Night", "#d99a5a"},
 }
 
 // Cache-busting token for the static CSS/JS, set once at startup by

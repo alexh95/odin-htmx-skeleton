@@ -976,3 +976,69 @@ tr.htmx-swapping { animation: row-out 220ms var(--ease) forwards; }
 [data-style="brutal"] input[type="range"]::-webkit-slider-thumb {
   background: var(--violet); border: 2px solid var(--line); border-radius: 0; box-shadow: none;
 }
+
+/* =====================================================================
+   STYLE: Editorial / Paper — serif, warm, print-like. Hairline rules, a
+   single refined accent, generous type. Reads like a well-set document.
+   ===================================================================== */
+
+[data-style="editorial"] {
+  --font: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, Cambria, "Times New Roman", serif;
+  --radius: 4px; --radius-sm: 3px; --radius-lg: 6px;
+
+  /* Manuscript (light) — default: ink on warm white, claret accent */
+  --violet: #8a2f3a; --indigo: #6e2530; --cyan: #b06a3a; --on-accent: #fdf8f2;
+  --grad: var(--violet);
+  --bg: #faf7f0; --surface: #fffdf8; --surface-2: #f3eee3; --elevated: #fffdf8;
+  --line: #e4ddcf; --line-2: #d3c9b5;
+  --text: #211c15; --muted: #5a5142; --faint: #8a8170;
+  --shadow: 0 12px 30px -18px rgba(40, 30, 15, .3); --shadow-lg: 0 24px 50px -24px rgba(40, 30, 15, .35);
+}
+
+[data-style="editorial"][data-scheme="sepia"] {
+  --violet: #9a5a2e; --indigo: #7d4520; --cyan: #b07a3a; --on-accent: #fbf3e4;
+  --bg: #efe4cf; --surface: #f6eeda; --surface-2: #e8dabd; --elevated: #f6eeda;
+  --line: #d9c8a7; --line-2: #c5ae87;
+  --text: #3a2f22; --muted: #6e5d46; --faint: #94816a;
+}
+
+[data-style="editorial"][data-scheme="night"] {
+  --violet: #d99a5a; --indigo: #c98a45; --cyan: #e0b87a; --on-accent: #1a130a;
+  --bg: #181410; --surface: #211b15; --surface-2: #1b1610; --elevated: #261f18;
+  --line: #352c22; --line-2: #463a2d;
+  --text: #ece3d3; --muted: #b0a48f; --faint: #80755f;
+}
+
+:root[data-style="editorial"] .picker-schemes[data-for="editorial"] { display: flex; }
+
+[data-style="editorial"] body { background: var(--bg); }
+[data-style="editorial"] h1, [data-style="editorial"] h2, [data-style="editorial"] h3 { font-weight: 600; letter-spacing: -.01em; }
+[data-style="editorial"] .eyebrow { font-variant: small-caps; letter-spacing: .1em; }
+[data-style="editorial"] .page-head { border-bottom: 1px solid var(--line); padding-bottom: 18px; }
+
+[data-style="editorial"] .card, [data-style="editorial"] .stat-card,
+[data-style="editorial"] .panel, [data-style="editorial"] .picker-panel {
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow);
+}
+
+[data-style="editorial"] .btn {
+  background: var(--surface); color: var(--text); border: 1px solid var(--line-2); font-weight: 600;
+}
+[data-style="editorial"] .btn:hover { transform: none; border-color: var(--violet); color: var(--violet); }
+[data-style="editorial"] .btn-primary { background: var(--violet); color: var(--on-accent); border-color: var(--violet); box-shadow: none; }
+[data-style="editorial"] .btn-primary:hover { background: var(--indigo); color: var(--on-accent); }
+
+[data-style="editorial"] input, [data-style="editorial"] select, [data-style="editorial"] textarea {
+  background: var(--surface); border: 1px solid var(--line-2); box-shadow: none;
+}
+[data-style="editorial"] input:focus, [data-style="editorial"] select:focus, [data-style="editorial"] textarea:focus {
+  border-color: var(--violet); box-shadow: 0 0 0 3px color-mix(in oklab, var(--violet) 18%, transparent);
+}
+
+[data-style="editorial"] .topbar { background: var(--surface); border-bottom: 1px solid var(--line); }
+[data-style="editorial"] .brand-name { font-weight: 700; }
+[data-style="editorial"] .nav-link[aria-current="page"] {
+  background: transparent; color: var(--violet); box-shadow: inset 0 -2px 0 var(--violet);
+}
+[data-style="editorial"] .brand-mark { background: var(--violet); color: var(--on-accent); box-shadow: none; }
+[data-style="editorial"] .badge { font-weight: 600; }
