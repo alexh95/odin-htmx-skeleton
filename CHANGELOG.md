@@ -15,8 +15,11 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   by the pre-paint script (no flash). A stateless topbar picker (a `<details>` popover) applies and
   persists the choice via tiny vanilla JS — no server endpoint, so load-tests stay at par. The CSS
   splits the old single dark/light theme into the `[data-style][data-scheme]` token contract;
-  **Modern** ships four schemes (Midnight, Daylight, Nebula, Aurora). e2e covers switch + persist.
-  Phase C layers in the additional styles (Skeuomorphic, Terminal, Brutalist, Editorial, Video-game).
+  **Modern** ships **seven schemes** — Midnight, Daylight, Nebula, Aurora, plus warm **Ember**
+  (dusk) and **Sandstone** (warm light) and cool **Ocean**. A new `--on-accent` token keeps text
+  readable on light-accent gradients (so buttons aren't white-on-bright). e2e covers switch +
+  persist. Phase C layers in the additional styles (Skeuomorphic, Terminal, Brutalist, Editorial,
+  Video-game).
 - **Vision + direction docs.** [`PHILOSOPHY.md`](PHILOSOPHY.md) (server-rendered HTML, browser as
   runtime, JS only where the browser can't, the Odin↔HTMX shared worldview, the honest 90/10),
   [`docs/USE_CASES.md`](docs/USE_CASES.md) (the sweet spot + the decision to evolve the sampler into
@@ -104,6 +107,13 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   `DOMContentLoaded`; the full e2e suite passes unchanged across all three engines.
 
 ### Fixed
+- Range slider fill lagged behind the thumb: the shared `input` rule transitioned `background`,
+  which animated the `background-size` that paints the fill. The range track now opts out
+  (`transition: none`), so the fill tracks the thumb instantly while the thumb keeps its own
+  transform transition.
+- Low-contrast schemes: the green scheme (Aurora) was washed out and white button text was hard to
+  read on bright accents. Aurora is rebuilt around a vivid emerald with lifted muted text, and the
+  new `--on-accent` token flips button/badge text dark on light-accent schemes.
 - Linux/CI build: `prepare.*` now creates `bin/` (odin's `-out:` won't), the shell scripts
   carry the exec bit, and the Dockerfile/CI invoke `prepare` via `sh` — so the build no
   longer depends on a pre-existing `bin/` or the exec bit surviving a Windows-origin context.

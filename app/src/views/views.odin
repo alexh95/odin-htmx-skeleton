@@ -124,6 +124,9 @@ SCHEMES := []Scheme_Opt {
 	{"modern", "daylight", "Daylight", "#5b8cff"},
 	{"modern", "nebula", "Nebula", "#f472d0"},
 	{"modern", "aurora", "Aurora", "#34d399"},
+	{"modern", "ember", "Ember", "#fb923c"},
+	{"modern", "sandstone", "Sandstone", "#d2622f"},
+	{"modern", "ocean", "Ocean", "#38bdf8"},
 }
 
 theme_picker :: proc(b: ^strings.Builder) {
