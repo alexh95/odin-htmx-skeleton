@@ -10,10 +10,11 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
       [`docs/DATA.md`](docs/DATA.md). Keep app/e2e/load-tests **at par** at every phase.
   - [x] **Phase A — direction docs.** PHILOSOPHY (vision), USE_CASES (sweet spot + flagship
         direction), DATA (datasource future-proofing). Wired into README/CLAUDE.
-  - [ ] **Phase B — theming foundation.** Two orthogonal axes `data-style` × `data-scheme` on
-        `:root`; token contract; extend the pre-paint script + persistence; a header switcher
-        (style × scheme). Refactor the current look into the **Modern** style as the reference.
-        e2e: switcher tests (applies + persists). Client-side, so no new load surface (note it).
+  - [x] **Phase B — theming foundation.** `data-style` × `data-scheme` on `<html>` (SSR default
+        `modern`/`midnight`, restored pre-paint from localStorage); token contract; stateless
+        `<details>` picker in the topbar (vanilla JS apply/persist, no endpoint → load par).
+        **Modern** is the reference style with four schemes (Midnight/Daylight/Nebula/Aurora).
+        e2e: picker switch + persist. Build clean, 32/32 e2e.
   - [ ] **Phase C — the styles** (each with multiple color schemes): **Skeuomorphic** (centerpiece,
         CSS-gradient/shadow depth, zero image assets, reduced-motion-aware), **Terminal/CRT**,
         **Brutalist**, **Editorial/Paper**, **Video-game**. The `/components` page becomes the

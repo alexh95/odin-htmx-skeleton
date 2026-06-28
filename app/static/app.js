@@ -1,12 +1,39 @@
 // The only client-side script. HTMX drives every interaction; this file just
-// covers the few things the server can't: persisting the theme, retiring
-// toasts, and a couple of presentation flourishes. No dependencies.
+// covers the few things the server can't: the theme picker, retiring toasts,
+// and a couple of presentation flourishes. No dependencies.
 
-function toggleTheme() {
-  var root = document.documentElement;
-  var next = root.dataset.theme === "light" ? "dark" : "light";
-  root.dataset.theme = next;
-  try { localStorage.setItem("theme", next); } catch (e) {}
+// Theme picker — two axes on <html>: data-style (treatment) and data-scheme
+// (palette). Pure presentation; persisted so the head pre-paint script can
+// restore the choice before first paint. No server round-trip.
+function persistPref() {
+  var r = document.documentElement;
+  try {
+    localStorage.setItem("style", r.dataset.style || "");
+    localStorage.setItem("scheme", r.dataset.scheme || "");
+  } catch (e) {}
+  markPicker();
+}
+function pickStyle(name) {
+  var r = document.documentElement;
+  r.dataset.style = name;
+  // Keep the scheme valid for the new style; fall back to its first swatch.
+  var swatches = document.querySelectorAll('.picker-schemes[data-for="' + name + '"] [data-pick-scheme]');
+  var ids = Array.prototype.map.call(swatches, function (b) { return b.dataset.pickScheme; });
+  if (ids.indexOf(r.dataset.scheme) < 0 && swatches[0]) r.dataset.scheme = swatches[0].dataset.pickScheme;
+  persistPref();
+}
+function pickScheme(name) {
+  document.documentElement.dataset.scheme = name;
+  persistPref();
+}
+function markPicker() {
+  var r = document.documentElement;
+  document.querySelectorAll("[data-pick-style]").forEach(function (b) {
+    b.setAttribute("aria-pressed", String(b.dataset.pickStyle === r.dataset.style));
+  });
+  document.querySelectorAll("[data-pick-scheme]").forEach(function (b) {
+    b.setAttribute("aria-pressed", String(b.dataset.pickScheme === r.dataset.scheme));
+  });
 }
 
 // Tabs: the panel content is swapped in by HTMX; we only move the selected
@@ -87,6 +114,8 @@ document.addEventListener("click", function (e) {
   var search = document.querySelector(".search");
   var box = document.getElementById("search-results");
   if (search && box && !search.contains(e.target)) box.innerHTML = "";
+  var picker = document.querySelector(".picker[open]");
+  if (picker && !picker.contains(e.target)) picker.removeAttribute("open");
 });
 
 document.addEventListener("keydown", function (e) {
@@ -100,3 +129,4 @@ document.addEventListener("keydown", function (e) {
 watchToasts();
 countUp();
 initRanges();
+markPicker();

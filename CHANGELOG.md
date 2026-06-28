@@ -9,6 +9,14 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **Theme picker — two axes, `data-style` × `data-scheme`** (Phase B of the style library). The
+  page shell carries `data-style` (the treatment) and `data-scheme` (the palette) on `<html>`,
+  rendered server-side as `modern`/`midnight` (works with no JS) and restored from `localStorage`
+  by the pre-paint script (no flash). A stateless topbar picker (a `<details>` popover) applies and
+  persists the choice via tiny vanilla JS — no server endpoint, so load-tests stay at par. The CSS
+  splits the old single dark/light theme into the `[data-style][data-scheme]` token contract;
+  **Modern** ships four schemes (Midnight, Daylight, Nebula, Aurora). e2e covers switch + persist.
+  Phase C layers in the additional styles (Skeuomorphic, Terminal, Brutalist, Editorial, Video-game).
 - **Vision + direction docs.** [`PHILOSOPHY.md`](PHILOSOPHY.md) (server-rendered HTML, browser as
   runtime, JS only where the browser can't, the Odin↔HTMX shared worldview, the honest 90/10),
   [`docs/USE_CASES.md`](docs/USE_CASES.md) (the sweet spot + the decision to evolve the sampler into

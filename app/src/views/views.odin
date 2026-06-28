@@ -91,8 +91,74 @@ icon :: proc(b: ^strings.Builder, name: string) {
 	case "check":   w(b, `<path d="M20 6 9 17l-5-5"/>`)
 	case "arrow":   w(b, `<path d="M12 19V5M5 12l7-7 7 7"/>`)
 	case "users":   w(b, `<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/>`)
+	case "palette": w(b, `<path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.6-.4-1.1a1.6 1.6 0 0 1 1.6-1.6h2c3 0 5.6-2.5 5.6-5.5C22 6 17.5 2 12 2Z"/><circle cx="6.5" cy="11.5" r="1" fill="currentColor" stroke="none"/><circle cx="9.5" cy="7.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="7.5" r="1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="11.5" r="1" fill="currentColor" stroke="none"/>`)
 	}
 	w(b, `</svg>`)
+}
+
+// ---- theme picker -------------------------------------------------------
+//
+// Two orthogonal axes carried as data-attributes on <html>: `data-style` (the
+// treatment — Modern, …) and `data-scheme` (the palette within a style). Pure
+// presentation: the picker is static HTML, app.js applies + persists the choice
+// (localStorage), and the head pre-paint script restores it before first paint.
+// No server endpoint, so it adds no surface to load-test. Phase C appends styles
+// and schemes to these tables and one CSS line per style to reveal its swatches.
+
+@(private = "file")
+Style_Opt :: struct {
+	id, label: string,
+}
+
+@(private = "file")
+Scheme_Opt :: struct {
+	style, id, label, swatch: string,
+}
+
+@(private = "file")
+STYLES := []Style_Opt{{"modern", "Modern"}}
+
+@(private = "file")
+SCHEMES := []Scheme_Opt {
+	{"modern", "midnight", "Midnight", "#7c5cff"},
+	{"modern", "daylight", "Daylight", "#5b8cff"},
+	{"modern", "nebula", "Nebula", "#f472d0"},
+	{"modern", "aurora", "Aurora", "#34d399"},
+}
+
+theme_picker :: proc(b: ^strings.Builder) {
+	w(
+		b,
+		`<details class="picker"><summary class="icon-btn" aria-label="Theme and style" title="Theme & style">`,
+	)
+	icon(b, "palette")
+	w(b, `</summary><div class="picker-panel"><p class="picker-head">Style</p><div class="picker-styles">`)
+	for s in STYLES {
+		fmt.sbprintf(
+			b,
+			`<button class="chip" type="button" data-pick-style="%s" aria-pressed="false" onclick="pickStyle('%s')">%s</button>`,
+			s.id,
+			s.id,
+			s.label,
+		)
+	}
+	w(b, `</div><p class="picker-head">Scheme</p>`)
+	for s in STYLES {
+		fmt.sbprintf(b, `<div class="picker-schemes" data-for="%s">`, s.id)
+		for sc in SCHEMES {
+			if sc.style != s.id {continue}
+			fmt.sbprintf(
+				b,
+				`<button class="swatch" type="button" data-pick-scheme="%s" aria-pressed="false" title="%s" style="--sw:%s" onclick="pickScheme('%s')"></button>`,
+				sc.id,
+				sc.label,
+				sc.swatch,
+				sc.id,
+			)
+		}
+		w(b, `</div>`)
+	}
+	w(b, `</div></details>`)
 }
 
 // ---- small components ---------------------------------------------------
@@ -150,7 +216,7 @@ layout :: proc(title, active, description, content: string) -> string {
 	// splice the only dynamic value, the title, in between. (sbprintf here would
 	// emit %!(MISSING) for every brace.)
 	w(&b, `<!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-style="modern" data-scheme="midnight">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -170,7 +236,7 @@ layout :: proc(title, active, description, content: string) -> string {
 	w(&b, `">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <link rel="stylesheet" href="/static/app.css">
-<script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
+<script>try{var d=document.documentElement,s=localStorage.getItem('style'),c=localStorage.getItem('scheme');if(s)d.dataset.style=s;if(c)d.dataset.scheme=c;}catch(e){}</script>
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/app.js" defer></script>
 </head>
@@ -193,10 +259,9 @@ layout :: proc(title, active, description, content: string) -> string {
        hx-get="/search" hx-trigger="keyup changed delay:250ms, search, focus" hx-target="#search-results" hx-swap="innerHTML">
     <div id="search-results" class="search-results" tabindex="-1"></div>
   </form>
-  <button class="icon-btn theme-toggle" type="button" aria-label="Toggle colour theme" onclick="toggleTheme()">`)
-	icon(&b, "sun")
-	icon(&b, "moon")
-	w(&b, `</button>
+  `)
+	theme_picker(&b)
+	w(&b, `
 </header>
 <main class="container">`)
 	w(&b, content)

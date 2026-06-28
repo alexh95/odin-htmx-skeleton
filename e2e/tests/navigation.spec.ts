@@ -30,13 +30,23 @@ test.describe('navigation', () => {
     await expect(page.locator('#ping-slot .ping-ok')).toContainText('200 OK');
   });
 
-  test('theme toggle flips data-theme and persists across reload', async ({ page }) => {
+  test('theme picker switches scheme and persists across reload', async ({ page }) => {
     await page.goto('/');
     const html = page.locator('html');
-    await expect(html).toHaveAttribute('data-theme', 'dark');
-    await page.locator('.theme-toggle').click();
-    await expect(html).toHaveAttribute('data-theme', 'light');
+    // SSR default is Modern · Midnight.
+    await expect(html).toHaveAttribute('data-style', 'modern');
+    await expect(html).toHaveAttribute('data-scheme', 'midnight');
+
+    // Open the picker and choose the Daylight scheme.
+    await page.locator('.picker > summary').click();
+    await page.locator('.swatch[data-pick-scheme="daylight"]').click();
+    await expect(html).toHaveAttribute('data-scheme', 'daylight');
+    // Active swatch is marked.
+    await expect(page.locator('.swatch[data-pick-scheme="daylight"]')).toHaveAttribute('aria-pressed', 'true');
+
+    // Persists across reload (restored by the pre-paint script, no flash).
     await page.reload();
-    await expect(html).toHaveAttribute('data-theme', 'light');
+    await expect(html).toHaveAttribute('data-scheme', 'daylight');
+    await expect(html).toHaveAttribute('data-style', 'modern');
   });
 });

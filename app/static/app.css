@@ -50,7 +50,13 @@
   --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", Menlo, monospace;
 }
 
-:root[data-theme="light"] {
+/* ---- styles × schemes ------------------------------------------------
+   :root above is the Modern · Midnight default (and the no-JS fallback). Each
+   scheme overrides the palette for one [data-style][data-scheme] pair; --grad
+   and --ring are derived from the accent trio, so re-tinting is just three vars.
+   Phase C adds other styles as [data-style="x"] blocks (palette + structure). */
+
+[data-style="modern"][data-scheme="daylight"] {
   --bg:      #f4f6fd;
   --surface: #ffffff;
   --surface-2: #f7f8fe;
@@ -64,6 +70,40 @@
 
   --shadow:   0 18px 40px -26px rgba(40, 50, 90, .35);
   --shadow-lg: 0 30px 70px -34px rgba(40, 50, 90, .4);
+}
+
+[data-style="modern"][data-scheme="nebula"] {
+  --violet: #c45cff;
+  --indigo: #9a5cff;
+  --cyan:   #f472d0;
+
+  --bg:      #120a1e;
+  --surface: #1b1233;
+  --surface-2: #241845;
+  --elevated: #2a1c52cc;
+  --line:    #33255e;
+  --line-2:  #42306f;
+
+  --text:    #f3eefb;
+  --muted:   #b9a8d6;
+  --faint:   #8574a6;
+}
+
+[data-style="modern"][data-scheme="aurora"] {
+  --violet: #22d3ee;
+  --indigo: #2dd4bf;
+  --cyan:   #a3e635;
+
+  --bg:      #07140f;
+  --surface: #0e201a;
+  --surface-2: #133026;
+  --elevated: #14352acc;
+  --line:    #1d4536;
+  --line-2:  #266048;
+
+  --text:    #eafaf3;
+  --muted:   #9ec9b8;
+  --faint:   #6f9a89;
 }
 
 /* ---- base ------------------------------------------------------------- */
@@ -196,13 +236,41 @@ a { color: inherit; text-decoration: none; }
 .icon-btn:focus-visible { outline: none; box-shadow: var(--ring); }
 .icon-btn.danger:hover { color: var(--red); border-color: color-mix(in oklab, var(--red) 50%, var(--line)); }
 
-/* theme toggle swaps which icon shows */
-.theme-toggle .icon { position: absolute; transition: opacity var(--med), transform var(--med) var(--spring); }
-.theme-toggle { position: relative; overflow: hidden; }
-:root[data-theme="dark"] .theme-toggle .icon:nth-child(1) { opacity: 0; transform: rotate(-90deg) scale(.5); }
-:root[data-theme="dark"] .theme-toggle .icon:nth-child(2) { opacity: 1; }
-:root[data-theme="light"] .theme-toggle .icon:nth-child(1) { opacity: 1; }
-:root[data-theme="light"] .theme-toggle .icon:nth-child(2) { opacity: 0; transform: rotate(90deg) scale(.5); }
+/* ---- theme picker (style × scheme) ------------------------------------ */
+.picker { position: relative; flex: none; }
+.picker > summary { list-style: none; }
+.picker > summary::-webkit-details-marker { display: none; }
+.picker > summary::marker { content: ""; }
+.picker[open] > summary { color: var(--text); border-color: var(--line-2); }
+.picker-panel {
+  position: absolute; right: 0; top: calc(100% + 10px); z-index: 50;
+  width: 224px; padding: 14px; display: grid; gap: 9px;
+  background: var(--elevated); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow-lg);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  animation: pop var(--fast) var(--spring);
+}
+@keyframes pop { from { opacity: 0; transform: translateY(-6px) scale(.97); } }
+.picker-head { margin: 0; font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .09em; color: var(--faint); }
+.picker-styles { display: flex; flex-wrap: wrap; gap: 6px; }
+.picker-styles .chip {
+  border: 1px solid var(--line); background: var(--surface); color: var(--text);
+  border-radius: 999px; padding: 5px 12px; font-size: .85rem; cursor: pointer;
+  transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease), transform var(--fast) var(--ease);
+}
+.picker-styles .chip:hover { transform: translateY(-1px); border-color: var(--line-2); }
+.picker-styles .chip[aria-pressed="true"] { border-color: transparent; background: var(--grad); color: #fff; }
+.picker-schemes { display: none; flex-wrap: wrap; gap: 9px; }
+/* one line per style — reveals that style's swatch row when it's active */
+:root[data-style="modern"] .picker-schemes[data-for="modern"] { display: flex; }
+.swatch {
+  width: 26px; height: 26px; padding: 0; border-radius: 50%; cursor: pointer;
+  background: var(--sw); border: 2px solid var(--line-2);
+  transition: transform var(--fast) var(--spring), box-shadow var(--fast) var(--ease);
+}
+.swatch:hover { transform: scale(1.12); }
+.swatch:focus-visible { outline: none; box-shadow: var(--ring); }
+.swatch[aria-pressed="true"] { border-color: var(--text); box-shadow: var(--ring); }
 
 /* ---- layout / cards --------------------------------------------------- */
 
