@@ -15,10 +15,11 @@ npx playwright install --with-deps chromium firefox webkit   # one-time: fetch b
 npm test                            # all three engines; add -- --project=chromium to narrow
 ```
 
-`global-setup.ts` builds `../app` once (with `-warnings-as-errors`), so a run needs `odin` on
-`PATH`. Then each Playwright **worker spawns its own server** on its own port (`8200 +
-parallelIndex`, see `fixtures.ts`) with an **isolated in-memory store** — which is what lets
-the suite run **fully in parallel** across workers and the three browser engines.
+`global-setup.ts` runs `prepare` + builds `../app` once (with `-warnings-as-errors`), so a run
+needs `odin` **and a C toolchain** on `PATH` (prepare compiles SQLite). Then each Playwright
+**worker spawns its own server** on its own port (`8200 + parallelIndex`, see `fixtures.ts`) with
+an **isolated `:memory:` SQLite store** — which is what lets the suite run **fully in parallel**
+across workers and the three browser engines.
 
 - `npm run test:ui` — interactive runner.
 - `npm run test:headed` — watch it drive a real browser.
@@ -30,20 +31,23 @@ On CI the engines are sharded across runners inside Playwright's official Docker
 ## Layout
 
 ```
-global-setup.ts        builds the app binary once (-warnings-as-errors)
-fixtures.ts            per-worker server (own port + isolated store) → parallel
+global-setup.ts        runs prepare + builds the app binary once (-warnings-as-errors)
+fixtures.ts            per-worker server (own port + isolated :memory: store) → parallel
+helpers/server.ts      spawn/get/post/del/health for specs that manage their own server
 tests/
-  navigation.spec.ts   dashboard, routing + aria-current, ping, theme persistence
+  navigation.spec.ts   dashboard + stat-card drill-through, routing + aria-current, ping, theme + showroom
   search.spec.ts       active search: highlight, navigate, collapse, Escape/outside-click
   components.spec.ts    tabs, accordion, toasts, modal (regression), drawer
   forms.spec.ts        email validation, field-persist (regression), slider --fill (regression), submit+reset
-  crud.spec.ts         create / cycle / delete, 404, sort, pagination, filter
+  crud.spec.ts         create/cycle/delete, 404, sort (+ injection regression), pagination, filters, detail drawer
   assets.spec.ts       embedded htmx, on-disk css, path-traversal 404, health, JSON API
+  events.spec.ts       events between contacts: deleting a contact cascades its interactions (FK)
+  persistence.spec.ts  data survives a process restart (a file-backed DB)
 ```
 
-The three regression tests pin the bugs fixed earlier: the modal keeps its
-field on a backdrop click, `/forms` doesn't wipe name/email on validation, and
-range sliders paint `--fill` to match the thumb.
+The regression tests pin bugs fixed earlier: the modal keeps its field on a
+backdrop click, `/forms` doesn't wipe name/email on validation, range sliders
+paint `--fill` to match the thumb, and a crafted `sort` param can't inject markup.
 
 ## Parity with load-tests
 

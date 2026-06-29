@@ -92,7 +92,7 @@ using a `FLY_API_TOKEN` repo secret. Optionally tag-based releases later.
 ## Where e2e runs
 
 - **Per PR / push, in CI**: the Actions runner builds the binary, launches it on a local port
-  (fresh in-memory store = clean fixture), and runs Playwright against `localhost`. Free,
+  (fresh `:memory:` SQLite store = clean fixture), and runs Playwright against `localhost`. Free,
   ephemeral, gates merges. This is the primary home for e2e.
 - **Optional synthetic smoke**: a scheduled job runs a thin subset against the deployed URL to
   catch environment/deploy breakage (not full coverage).

@@ -1,13 +1,14 @@
 # odin-htmx-demo
 
-A proof-of-concept web app — an **Odin** backend with **HTMX** on the front end — alongside
-its test plans.
+A proof-of-concept web app — an **Odin** backend with **HTMX** on the front end — with browser
+and load test suites.
 
 ```
 odin-htmx-demo/
   app/          The application: Odin server, views, static assets, run scripts.
-  e2e/          End-to-end (browser) test plan — see e2e/PLAN.md.
-  load-tests/   Load/throughput test plan — see load-tests/PLAN.md.
+  e2e/          Playwright browser tests — see e2e/README.md.
+  load-tests/   k6 throughput/latency tests — see load-tests/README.md.
+  docs/         PHILOSOPHY.md (root), USE_CASES.md, DATA.md, DATA_IMPL.md.
 ```
 
 ## Quick start
@@ -27,5 +28,10 @@ design notes.
 
 ## Tests
 
-`e2e/` and `load-tests/` currently hold **plans only** (`PLAN.md` in each). They describe how
-those suites will be built; the implementations land when explicitly requested.
+Both suites are implemented and gate CI, kept at par with the app — every endpoint has a
+behaviour test *and* a load scenario.
+
+- **`e2e/`** — Playwright browser tests (Chromium/Firefox/WebKit). `cd e2e && npm ci && npm test`.
+- **`load-tests/`** — k6 throughput/latency suite. `cd load-tests && ./run.sh --quick`.
+
+Each directory's `README.md` is the operating manual; its `PLAN.md` is the design rationale.

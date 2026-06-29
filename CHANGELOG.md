@@ -19,6 +19,12 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   interactions vanish); the detail `load` scenario now exercises the JOIN. **42 e2e total.**
 
 ### Changed
+- **Docs accuracy pass.** Brought the prose docs up to date with the SQLite store + events: the
+  top `README.md` no longer calls the e2e/load suites "plans only" (both are implemented and gate
+  CI); `CLAUDE.md`, `PHILOSOPHY.md`, `app/README.md`, the e2e/load READMEs+PLANs, and the
+  apollo-11/infra docs now reflect three dependencies (HTMX + odin-http + SQLite), the C-toolchain
+  requirement, `DB_PATH`, the exclusive-lock concurrency model, the `data-style`×`data-scheme` theme
+  system, the repository split, and the events JOIN.
 - **Repository split into common + per-entity files.** `repo_sqlite.odin` → `repo.odin` (the shared
   connection/lock, migration runner, and `exec`/`prep`/`bind_text`/`clone_col`/`scalar_int` helpers)
   + `contacts.odin` (the seven `repo_*`) + `events.odin` (`event_timeline`). Adding a table is now a

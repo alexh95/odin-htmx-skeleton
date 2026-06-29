@@ -49,8 +49,8 @@ e2e/
 
 ## Server under test
 
-The store is in-memory and resets every time the process starts, so a freshly spawned binary
-is a clean, deterministic fixture. As implemented:
+The store is SQLite at `:memory:` (the default when `DB_PATH` is unset), seeded fresh and gone on
+exit, so a freshly spawned binary is a clean, deterministic fixture. As implemented:
 1. `global-setup.ts` builds the binary once (`-warnings-as-errors`).
 2. A **worker-scoped fixture** (`fixtures.ts`) spawns one server per Playwright worker on its
    own port (`8200 + parallelIndex`), waits on `GET /healthz`, and kills it at worker end.
@@ -63,8 +63,9 @@ server; per-worker isolation replaced it. See the parallelisation commit.)
 
 ## Scenarios
 
-**navigation** — dashboard renders; each nav link routes and sets `aria-current`; theme
-toggle flips `data-theme` and survives a reload (localStorage).
+**navigation** — dashboard renders (+ stat-card drill-through); each nav link routes and sets
+`aria-current`; the theme picker switches `data-style`/`data-scheme`, the showroom swatches jump,
+and the choice survives a reload (localStorage).
 
 **search** — typing debounces then shows the dropdown; the query is highlighted with
 `<mark>`; an empty query collapses it; clicking a result lands on `/data?q=…`; outside-click

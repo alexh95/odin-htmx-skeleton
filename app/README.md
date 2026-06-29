@@ -74,7 +74,7 @@ src/ (main + routes) → controllers → services → repository → models
 
 | Package | Layer | Responsibility |
 |---------|-------|----------------|
-| `src/models/` | model | Domain types (`Contact`, `Role`, `Status`) |
+| `src/models/` | model | Domain types (`Contact`, `Role`, `Status`, `Event`, `Interaction`) |
 | `src/repository/` | repository | SQLite store + CRUD primitives, seeded on first boot (binds `src/sqlite/`) |
 | `src/services/` | service | Search, sort, paginate, validate — plain values, no HTTP |
 | `src/controllers/` | controller | The only layer that touches `odin-http`; embeds `htmx.min.js` via `#load` |
@@ -84,8 +84,9 @@ src/ (main + routes) → controllers → services → repository → models
 Build it with `odin build src` (the entry package).
 
 A "component" is just a proc that writes HTML into a `strings.Builder`. Response markup is
-built in odin-http's per-request arena and freed once the response is flushed; stored
-contacts live on the heap so they survive between requests.
+built in odin-http's per-request arena and freed once the response is flushed; the data lives in
+SQLite, and the repository hands rows back as **snapshots cloned into that per-request arena** (so
+nothing returned aliases a statement buffer across the lock).
 
 The server runs **one event-loop thread per core** (`thread_count = os.get_processor_core_count()`,
 overridable with `THREADS`), so handlers execute concurrently. The store is therefore guarded

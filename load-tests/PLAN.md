@@ -14,11 +14,15 @@ Measure how the Odin / `odin-http` server holds up under concurrency: throughput
 latency (p50/p90/p95/p99) per endpoint, where latency knees as load climbs, and — the
 interesting one — the ceiling imposed by the **single-threaded event loop**.
 
-The server runs `thread_count = 1` on purpose so the in-memory store can stay lock-free (see
-`app/src/repository/repository.odin`). Load testing is exactly the trigger to revisit that
-decision: first
-quantify the single-thread ceiling, then re-run with `thread_count = N` — which only becomes
-correct once the store is guarded. That before/after is a headline result, not a footnote.
+> **Status: carried out.** The experiment below was run — the store is guarded and the threading
+> **before/after is the headline in [`RESULTS.md`](RESULTS.md)** (later re-measured for the SQLite
+> store). The framing is kept for the rationale.
+
+The server *originally* ran `thread_count = 1` so the store could stay lock-free. Load testing was
+exactly the trigger to revisit that: first quantify the single-thread ceiling, then re-run with
+`thread_count = N` — which only becomes correct once the store is guarded (now an `sync.RW_Mutex`
+over SQLite, see `app/src/repository/repo.odin`). That before/after is a headline result, not a
+footnote.
 
 ## Tooling
 

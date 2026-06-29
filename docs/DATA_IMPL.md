@@ -207,14 +207,16 @@ the swap is clean. Add exactly one new behaviour: a test that data **survives a 
 restart the process pointed at a file DB → the contact is still there), the one thing the in-memory
 store could never do. Keep e2e/load at par as always.
 
-## 9. Rollout
+## 9. Rollout (as shipped)
 
-1. Land the binding + schema + a `repo_sqlite.odin`, selected by a build tag or a `DB_PATH` env
-   (in-memory store stays the default for tests; SQLite for a persistent deploy).
-2. Run the full e2e + load suites — they must pass untouched.
-3. Measure with `load-tests/` (single shared connection first); record the numbers next to the
-   threading before/after in `RESULTS.md`.
-4. If reads don't scale, move to per-thread WAL connections and re-measure.
+1. Landed the binding (`src/sqlite/`) + schema + the repository (`repo.odin` + per-table files),
+   **`DB_PATH`-selected** — `:memory:` for tests/dev (the old in-memory Odin store was *removed*,
+   not kept as a parallel backend), a file path to persist.
+2. Ran the full e2e + load suites — they passed untouched, plus one new test (survives a restart).
+3. Measured with `load-tests/` (single shared connection); recorded next to the threading
+   before/after in `RESULTS.md`.
+4. Reads scale ~3–4× under the exclusive lock (the `detail` JOIN worst at 1.9×) → the open next
+   step is **per-thread WAL connections**, now load-justified.
 
 ## When this is the wrong tool
 

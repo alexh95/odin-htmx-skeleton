@@ -7,8 +7,9 @@ the server.
 
 ## How it works
 
-The repo `Dockerfile` is self-contained (fetches a pinned Odin + htmx, builds a single static
-binary), so we **build on the server** — no registry, and no Docker needed on Windows.
+The repo `Dockerfile` is self-contained (fetches a pinned Odin + htmx + SQLite, compiles and links
+a single static binary), so we **build on the server** — no registry, and no Docker needed on
+Windows.
 [`deploy.sh`](deploy.sh) tars the build context (`Dockerfile` + `app/`) over SSH, drops it in
 `/mnt/fast-storage/odin-htmx/src`, pushes [`docker-compose.yml`](docker-compose.yml), and runs
 `docker compose up -d --build`. Matches the other services on the box: a folder under
@@ -45,8 +46,14 @@ cd deploy/apollo-11
 ./deploy.sh
 ```
 
-First run builds the image (pulls Odin + clang, ~2–4 min); later runs are cached and fast. On
-success it health-checks `http://localhost:8090/healthz` on the server and prints the LAN URL.
+First run builds the image (pulls Odin + clang, fetches + compiles SQLite, ~2–4 min); later runs
+are cached and fast. On success it health-checks `http://localhost:8090/healthz` on the server and
+prints the LAN URL.
+
+The SQLite DB **persists**: the compose mounts a named volume (`odin-htmx-data`) at `/data` with
+`DB_PATH=/data/data.db`, so data survives redeploys and restarts (migrations apply in order on
+boot). Set `DB_PATH=:memory:` in `docker-compose.yml` for an ephemeral, freshly-seeded store
+instead.
 
 ## Reverse proxy (nginx-proxy-manager)
 

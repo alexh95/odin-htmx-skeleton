@@ -46,8 +46,9 @@ screen*, and you can hold the entire thing in your head. That legibility is the 
 
 ## The line we hold
 
-The **shipped app depends on exactly two things: HTMX and odin-http.** (See `CLAUDE.md` →
-"Dependencies — the line we hold" for the operational rules.)
+The **shipped app depends on three things: HTMX, odin-http, and SQLite** — the last bound as the
+amalgamation and *statically linked into the one binary* (a C library, not a server or a framework).
+(See `CLAUDE.md` → "Dependencies — the line we hold" for the operational rules.)
 
 - No npm, no bundler, no CSS/JS framework, no template engine. HTML comes from Odin procedures; CSS
   is hand-written and token-driven; JS is vanilla and tiny.
@@ -62,9 +63,10 @@ pretending purity:
 - **A little JavaScript.** `app.js` exists. It's small, vanilla, and does only what the server
   can't. That's the philosophy working as intended, not a violation — but it's not *zero*, so we
   count it.
-- **A data layer.** There's an in-memory store. It's a proof-of-concept stand-in, deliberately the
-  simplest thing that works; a real datasource is future work (see `docs/DATA.md`). Until then it's
-  honest to call it what it is.
+- **A third dependency: SQLite.** The store is now real and persistent (`docs/DATA.md`), not the
+  in-memory POC. SQLite is the most-deployed database on earth, compiled into the single binary (no
+  server, no network hop), so it's about as in-keeping as a datastore gets — but it *is* a third
+  dependency, so we count it.
 
 Naming the 10% is the point. A philosophy you can't measure yourself against is just a vibe.
 

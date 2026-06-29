@@ -9,7 +9,8 @@ single-thread-ceiling investigation live in [`PLAN.md`](PLAN.md); this is the op
 - **k6** — `winget install GrafanaLabs.k6` (Windows) · `brew install k6` (macOS) ·
   [other installers](https://grafana.com/docs/k6/latest/set-up/install-k6/). The run script
   also finds it at `C:\Program Files\k6\k6.exe`, or set `K6=/path/to/k6`.
-- **Odin** on `PATH` (to build the app under test) — not needed with `--base`.
+- **Odin** + a **C toolchain** on `PATH` (to build the app under test, which links SQLite) — not
+  needed with `--base`. Run `app/prepare.*` once first so `vendor/sqlite/` is built.
 - **Git Bash** on Windows (`run.bat` shells out to `run.sh` — one driver, both platforms).
 - *Optional:* **bombardier** for raw-throughput baselines; used only if it's on `PATH`.
 
@@ -27,8 +28,8 @@ single-thread-ceiling investigation live in [`PLAN.md`](PLAN.md); this is the op
 `P95`/`P99` (latency gate, ms), `PORT_BASE` (8090), `K6`, `BOMBARDIER`.
 
 The driver builds the app `-o:speed`, then for **each scenario × VU level** launches a *fresh*
-server on its own port (clean in-memory store), waits on `/healthz`, runs a warmup + measured
-window, and tears it down. Everything lands in `results/` (git-ignored):
+server on its own port (clean `:memory:` SQLite store), waits on `/healthz`, runs a warmup +
+measured window, and tears it down. Everything lands in `results/` (git-ignored):
 
 ```
 results/
@@ -51,8 +52,8 @@ itself is scratch.
 | `list.js`   | `GET /contacts?status=&sort=` | The table region fragment — quick-filter + sort + paginate. |
 | `search.js` | `GET /search?q=` | HTMX live-search fragment (filter + row render). |
 | `api.js`    | `GET /api/search?q=` | Same filter via `json.marshal` (no HTML). |
-| `detail.js` | `GET /contacts/:id` | Detail drilldown — get + derived activity trail + related scan. |
-| `write.js`  | `POST /contacts` + `DELETE` | The mutating path; create→delete keeps the store steady. |
+| `detail.js` | `GET /contacts/:id` | Detail drilldown — get + the **events-timeline JOIN** + related scan. |
+| `write.js`  | `POST` + `POST` + `DELETE` | The mutating path; create→edit→delete keeps the store steady. |
 | `mixed.js`  | ~90% read / ~10% write | A realistic blend; bounded by the pure scenarios. |
 
 Each shares `lib/config.js` (knobs) and `lib/options.js` (the warmup→measured-window shape,
