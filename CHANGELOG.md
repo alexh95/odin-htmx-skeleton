@@ -9,6 +9,12 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **About page** (`/about`) — a content page describing the skeleton (Odin + HTMX + SQLite in one
+  binary, the demo as the worked example) with a button linking to the source on GitHub. Added to the
+  primary nav (boosted like the rest). The repo URL is a `BRAND_REPO` constant in `brand.odin` —
+  point it at your fork — alongside the brand wordmark/suffix; new `info` + `github` icons. e2e: the
+  page opens from the nav and the GitHub link is present and safe (`target=_blank`, `rel=noopener`);
+  the 390px responsive sweep now covers it too. **51 e2e total.**
 - **SPA-like navigation via `hx-boost`.** The brand and primary-nav links are boosted: htmx fetches
   the page, swaps the `<body>`, and pushes history instead of a full document load. Navigating
   between pages no longer re-parses the document, re-evaluates CSS/JS, or re-runs the theme pre-paint

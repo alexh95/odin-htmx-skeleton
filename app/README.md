@@ -47,6 +47,7 @@ an ephemeral, freshly-seeded store.
 | Components | `/components` | Buttons, badges, avatars, progress, tabs, accordion, modal, drawer, toasts |
 | Forms | `/forms` | Inputs, select, range, switch, radios + inline HTMX validation |
 | Data & CRUD | `/data` | Sortable, paginated table over a SQLite store; create / update / delete |
+| About | `/about` | What the skeleton is, the stack, and a link to the source on GitHub |
 
 Search lives in the top bar (debounced HTMX active-search) and is also exposed as a plain
 JSON endpoint that has nothing to do with HTMX:

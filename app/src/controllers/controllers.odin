@@ -135,6 +135,16 @@ page_data :: proc(req: ^http.Request, res: ^http.Response) {
 	)
 }
 
+page_about :: proc(req: ^http.Request, res: ^http.Response) {
+	render_page(
+		res,
+		"About",
+		"/about",
+		"About this project — a starter skeleton for simple, server-rendered websites: an Odin backend rendering HTML with HTMX over a SQLite store, in one self-contained binary. Links to the source on GitHub.",
+		views.view_about(),
+	)
+}
+
 // ---- search -------------------------------------------------------------
 
 frag_search :: proc(req: ^http.Request, res: ^http.Response) {

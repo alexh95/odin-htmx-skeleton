@@ -220,7 +220,7 @@ a { color: inherit; text-decoration: none; }
 .nav-link {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 13px; border-radius: 10px; color: var(--muted);
-  font-weight: 550; font-size: .92rem;
+  font-weight: 550; font-size: .92rem; white-space: nowrap; /* keep "Data & CRUD" on one line */
   transition: color var(--fast) var(--ease), background var(--fast) var(--ease);
 }
 .nav-link .icon { width: 17px; height: 17px; opacity: .85; }
@@ -359,6 +359,14 @@ a { color: inherit; text-decoration: none; }
 .block-head { margin-bottom: 14px; }
 .block-head h2 { font-size: 1.2rem; }
 .block-head p { font-size: .9rem; margin-top: 3px; }
+
+/* About page */
+.about { max-width: 660px; }
+.about-lede { font-size: 1.05rem; line-height: 1.55; }
+.about p + p { margin-top: 12px; }
+.about p a { color: var(--violet); text-decoration: underline; text-underline-offset: 2px; }
+.about p a:hover { color: var(--text); }
+.about-stack { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 20px; }
 
 .demo {
   border: 1px solid var(--line); border-radius: var(--radius);

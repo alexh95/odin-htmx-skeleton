@@ -5,7 +5,7 @@ import { test, expect } from '../fixtures';
 // columns. Assert no page-level horizontal overflow at a phone viewport.
 const PHONE = { width: 390, height: 844 };
 
-for (const path of ['/', '/data', '/forms', '/components']) {
+for (const path of ['/', '/data', '/forms', '/components', '/about']) {
   test(`no horizontal overflow at 390px — ${path}`, async ({ page }) => {
     await page.setViewportSize(PHONE);
     await page.goto(path);

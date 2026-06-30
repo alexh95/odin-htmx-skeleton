@@ -49,6 +49,17 @@ test.describe('navigation', () => {
     await expect(toast).toHaveCount(0, { timeout: 7000 });
   });
 
+  test('about page links to the source on GitHub', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'About' }).click();
+    await expect(page).toHaveURL('/about');
+    await expect(page.getByRole('heading', { name: 'About this project', level: 1 })).toBeVisible();
+    const gh = page.getByRole('link', { name: /View on GitHub/ });
+    await expect(gh).toHaveAttribute('href', /^https:\/\/github\.com\//);
+    await expect(gh).toHaveAttribute('target', '_blank');
+    await expect(gh).toHaveAttribute('rel', /noopener/);
+  });
+
   test('ping button swaps in a live reading', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Ping server' }).click();

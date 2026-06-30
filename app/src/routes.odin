@@ -15,6 +15,7 @@ build_router :: proc(r: ^http.Router) {
 	http.route_get(r, "/components", http.handler(controllers.page_components))
 	http.route_get(r, "/forms", http.handler(controllers.page_forms))
 	http.route_get(r, "/data", http.handler(controllers.page_data))
+	http.route_get(r, "/about", http.handler(controllers.page_about))
 
 	// search: HTMX fragment + plain JSON
 	http.route_get(r, "/search", http.handler(controllers.frag_search))

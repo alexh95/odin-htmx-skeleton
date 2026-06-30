@@ -256,3 +256,26 @@ view_data :: proc(p: services.Page) -> string {
 	w(&b, view_contacts_region(p))
 	return strings.to_string(b)
 }
+
+// ---- about --------------------------------------------------------------
+
+view_about :: proc() -> string {
+	b := strings.builder_make(context.temp_allocator)
+	page_head(
+		&b,
+		"About",
+		"About this project",
+		"A starter skeleton for simple, server-rendered websites — Odin + HTMX + SQLite in one self-contained binary.",
+	)
+
+	w(&b, `<section class="block"><article class="card about">`)
+	w(&b, `<p class="about-lede">This is a <strong>starter skeleton</strong>: an <a href="https://odin-lang.org" target="_blank" rel="noopener">Odin</a> backend that renders HTML, wired up with <a href="https://htmx.org" target="_blank" rel="noopener">HTMX</a> over a <a href="https://sqlite.org" target="_blank" rel="noopener">SQLite</a> store, served as a single statically-linked binary.</p>`)
+	w(&b, `<p class="muted">The contacts &amp; events console you have been clicking through is the <em>worked example</em> that proves the patterns — not the product. Clone the repository, strip the demo, and build your own thing on the same scaffolding: the layered architecture, the data layer, the theme system, and the build / CI / deploy / test harness.</p>`)
+	w(&b, `<div class="about-stack"><span class="tag">Odin</span><span class="tag">HTMX 4</span><span class="tag">SQLite</span><span class="tag">single binary</span><span class="tag">no build step</span></div>`)
+	// BRAND_REPO is a developer-set constant (see brand.odin), not user input.
+	fmt.sbprintf(&b, `<a class="btn btn-primary about-cta" href="%s" target="_blank" rel="noopener">`, BRAND_REPO)
+	icon(&b, "github")
+	w(&b, `<span>View on GitHub</span></a>`)
+	w(&b, `</article></section>`)
+	return strings.to_string(b)
+}

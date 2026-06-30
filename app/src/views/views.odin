@@ -92,6 +92,10 @@ icon :: proc(b: ^strings.Builder, name: string) {
 	case "arrow":   w(b, `<path d="M12 19V5M5 12l7-7 7 7"/>`)
 	case "users":   w(b, `<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/>`)
 	case "palette": w(b, `<path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.6-.4-1.1a1.6 1.6 0 0 1 1.6-1.6h2c3 0 5.6-2.5 5.6-5.5C22 6 17.5 2 12 2Z"/><circle cx="6.5" cy="11.5" r="1" fill="currentColor" stroke="none"/><circle cx="9.5" cy="7.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="7.5" r="1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="11.5" r="1" fill="currentColor" stroke="none"/>`)
+	case "info":    w(b, `<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>`)
+	// The GitHub mark is a solid glyph; fill it with currentColor and drop the
+	// stroke just for this path (overriding the SVG's stroked-line default).
+	case "github":  w(b, `<path fill="currentColor" stroke="none" d="M12 2A10 10 0 0 0 8.84 21.5c.5.08.66-.22.66-.48l-.01-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.26-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.6 9.6 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.39.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85l-.01 2.74c0 .27.16.57.67.48A10 10 0 0 0 12 2Z"/>`)
 	}
 	w(b, `</svg>`)
 }
@@ -272,6 +276,7 @@ NAV := [?]struct {
 	{"/components", "Components", "layers"},
 	{"/forms", "Forms", "edit"},
 	{"/data", "Data & CRUD", "table"},
+	{"/about", "About", "info"},
 }
 
 // The one page shell. `active` is the href of the current page so the nav can

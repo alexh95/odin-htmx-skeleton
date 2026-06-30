@@ -16,3 +16,7 @@ BRAND_WORDMARK :: "odin<b>·</b>htmx"
 // Appended after every page title: "<page> · <BRAND_SUFFIX>" in both <title>
 // and og:title. Plain text — escaped on output.
 BRAND_SUFFIX :: "Odin + HTMX"
+
+// The project's source repository, linked from the About page. Point this at
+// your fork.
+BRAND_REPO :: "https://github.com/alexh95/odin-htmx-skeleton"
