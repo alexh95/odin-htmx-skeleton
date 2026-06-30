@@ -1,8 +1,14 @@
-# Use cases — where this stack wins, and the flagship it's evolving into
+# Use cases — where this stack wins, and the example it ships
+
+> **Reframe (read first):** this project is a **starter skeleton** (see [`../TODO.md`](../TODO.md)).
+> The "flagship admin console" described below is the **worked example** that proves the stack's
+> patterns — *not* a product to finish. The sweet-spot analysis here still stands (it tells you
+> whether the skeleton is the right starting point for *your* site); the product-depth ambitions
+> (bulk actions, a named console identity) are retired as goals.
 
 Companion to [`../PHILOSOPHY.md`](../PHILOSOPHY.md). The philosophy says *use the right tool*; this
 says **which jobs are the right job** for server-rendered HTML + HTMX + a fast single-binary
-backend, and commits the demo to becoming the canonical exemplar of one of them.
+backend — i.e. when this skeleton is the right thing to fork.
 
 ## The sweet spot
 

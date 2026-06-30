@@ -19,6 +19,14 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   interactions vanish); the detail `load` scenario now exercises the JOIN. **42 e2e total.**
 
 ### Changed
+- **Reframed the project as a starter skeleton** (docs only). It's a template you clone, rename,
+  strip, and build on — the contacts/events admin app + theme library are the *worked example*, not
+  a product to finish. `TODO.md` rewritten around it: a **Phase F → 1.0** "template-ize" roadmap
+  (GitHub template, an `init` rename script, brand parameterization, a starter README, a
+  `docs/STRIP.md`), a **1.x** of what every new site needs (**auth/sessions/CSRF**, per-thread WAL
+  connections, a second entity as an "add your own resource" example), and **stretch** goals
+  (a `--minimal` variant, common-need recipes, export/a11y). Product-depth items (bulk actions, a
+  named console identity) retired as goals. README + `docs/USE_CASES.md` reframed to match.
 - **htmx 2 → 4 (pinned to 4.0.0-beta5).** `prepare.*` now pin htmx exactly — a specific version
   **and a SHA-256 check** (replacing the floating `htmx.org@2`) — same reproducibility discipline as
   `ODIN_VERSION` and the SQLite amalgamation; the embedded copy drops ~51 KB → ~36 KB. Migration

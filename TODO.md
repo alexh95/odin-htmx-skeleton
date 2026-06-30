@@ -3,7 +3,65 @@
 Source of truth for outstanding work. Check items off as you finish them; add follow-ups you
 discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` current.
 
-## Now / next
+## The project, in one line
+
+This is a **starter skeleton** for a simple, server-rendered website on Odin + HTMX + SQLite —
+clone it, rename it, strip the demo, build your thing. The bundled app (contacts/events admin
+console + the theme library + the test/deploy harness) is the **worked example** that proves the
+patterns, *not* the product. So "done" means *a great starting point*, not *a finished app*:
+copy-and-start ergonomics and good defaults matter more than feature depth.
+
+> Reframe: earlier docs ([`docs/USE_CASES.md`](docs/USE_CASES.md)) framed this as evolving into a
+> "flagship admin console." That app is now explicitly the **example**, not the goal. Product-depth
+> items (**bulk actions**, a **named console identity**) are **out of scope as goals** — they'd just
+> be cruft a copier deletes — and survive only as "example extensions you might add."
+
+## Roadmap to 1.0 — template-ize (Phase F)
+
+Make it trivial to start a new project from. Bounded: mostly docs + one script.
+
+- [ ] **GitHub *template repository*.** Flip the "Template repository" setting; add a "Use this
+      template" line to the README. (Operator setting + a README line.)
+- [ ] **An `init` / scaffold script** that renames the app everywhere it's hardcoded — the binary
+      (`demo`), the `fly.toml` app name, the docker image, the `odin·htmx` brand + page titles in
+      the layout, the apollo-11 service dir — and optionally trims the demo to a minimal example.
+      Today, copying means hand-editing all of those.
+- [ ] **Parameterize the brand / app name** to one place (a `BRAND` constant the layout + `<title>`
+      read), so the rename has few touch-points instead of literals scattered through the views.
+- [ ] **README as a starter guide**, not a demo tour: use-template → run `init` → the architecture →
+      add a page / entity / endpoint (point at the `CLAUDE.md` **Recipes**) → what's demo
+      (strippable) vs. scaffold (keep).
+- [ ] **`docs/STRIP.md` — "remove the demo."** The exact seams to delete the contacts/events domain
+      and demo pages, leaving the shell + data layer + theming + harness. The layering makes this
+      nearly mechanical; write it down.
+- [ ] **Re-skin the docs to the skeleton framing** — finish reframing `USE_CASES.md` (the "flagship"
+      language → "the worked example") and prune the retired product-depth items.
+
+## 1.x — what *every new site* needs (so the skeleton should ship it)
+
+- [ ] **Auth: sessions + CSRF.** The highest-leverage addition for a *starter* — every new site
+      reinvents login/sessions/CSRF and it's easy to get wrong. A minimal, in-philosophy
+      session-cookie pattern (login page, a protected-route guard, a CSRF token on POST/DELETE),
+      held to the "few dependencies" line. Also closes the current CSRF gap on the mutating surface.
+- [ ] **Per-thread WAL connections** — already **load-justified** (reads scale ~3–4× not ~5× under
+      the v1 single shared connection; the `detail` JOIN worst at 1.9×). Ship the right concurrency
+      default and re-measure in `load-tests/RESULTS.md`.
+- [ ] **A second entity as a worked "add your own resource" example** (e.g. teams/companies a
+      contact belongs to) — doubles as the multi-resource nav pattern *and* the literal tutorial for
+      extending the skeleton. App / e2e / load at par, as always.
+
+## Stretch goals
+
+- [ ] **A `--minimal` scaffold variant** — a near-empty but fully-wired shell (one page, one trivial
+      entity) beside the full showcase, so you can start from *blank-but-wired* or *copy-a-pattern*.
+- [ ] **Common-need recipes** as documented patterns (file upload, an env/config story, a background
+      task) — kept as *recipes*, not framework features, to stay true to the philosophy.
+- [ ] **Reporting/export** (CSV of the filtered table) and a focused **a11y pass** (drawer/modal
+      focus management, keyboard nav) — cheap reinforcement of the "exemplar" claim.
+
+## Shipped — the foundation the skeleton provides
+
+The patterns + harness a fork inherits. (Was "Now / next"; the initiative below is built.)
 
 - [~] **Vision + flagship + style library** (this initiative). Anchored by
       [`PHILOSOPHY.md`](PHILOSOPHY.md), [`docs/USE_CASES.md`](docs/USE_CASES.md),
@@ -38,9 +96,11 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
     - [~] Richer table.
       - [x] Saved/quick **status filters** (chips: All/Active/Invited/Disabled; compose with search +
             sort + paginate via a threaded `status` arg).
-      - [ ] Bulk actions (select rows → set status / delete) — deferred.
-    - [~] Coherent product frame. Done: dashboard stat cards drill into the filtered/sorted data
-          view (overview → tool). Further (deferred): a named console identity + deeper nav IA.
+      - [-] Bulk actions (select rows → set status / delete) — **out of scope as a goal** (skeleton:
+            app-specific; a copier would strip it). Keep only as an example extension if ever wanted.
+    - [x] Coherent product frame — the dashboard stat cards drill into the filtered/sorted data view
+          (overview → tool). A *named* console identity + deeper nav IA is **out of scope** for a
+          skeleton: the fork names and structures its own console.
   - [x] **Phase E — parity + polish sweep.** Parity closed: Phase D endpoints all have e2e + load
         (detail.js, the create→edit→delete write path, the new **list.js** for `GET /contacts`
         filter/sort); CHANGELOG/docs current; the Phase D review fix landed. Also wrote the
@@ -67,7 +127,7 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
         cascade test; **42 e2e**) + load (`detail.js` now exercises the JOIN). Load re-measured:
         reads scale ~3–4× under the single-connection exclusive lock (`detail` JOIN worst at 1.9×) —
         see `load-tests/RESULTS.md`.
-  - [ ] **Per-thread WAL connections** (next, load-justified) — restore concurrent reads; re-measure.
+  - [ ] **Per-thread WAL connections** — moved to the **1.x roadmap** above (load-justified).
 - [~] **Set up infrastructure** per [`infra/PLAN.md`](infra/PLAN.md). Code + config landed;
       what's left are operator actions on Fly/GitHub/Cloudflare (no repo changes).
   - [x] Prereq code change: `app/main.odin` reads `PORT` and binds `0.0.0.0` on `BIND_ALL`
@@ -75,8 +135,8 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
   - [x] Pin odin-http as a submodule (`app/odin-http` @ `112c49b`) for reproducible builds.
   - [x] `Dockerfile` + `.dockerignore` + `fly.toml`; `.github/workflows/ci.yml` (build,
         smoke, deploy-on-`master`).
-  - [ ] Operator: create the Fly app + set the `FLY_API_TOKEN` GitHub secret, then push to
-        trigger the first deploy (see `infra/PLAN.md` → "Operator steps").
+  - [x] Operator: created the Fly app + `FLY_API_TOKEN` secret; CI deploys on green push and the app
+        is live (Fly `fra`, Cloudflare-fronted at `odin-htmx.alexh95.com`).
   - [x] Operator: front the Fly app with a **proxied Cloudflare record** (`fly certs add` + the
         `_fly-ownership` TXT and `_acme-challenge` CNAME for DNS-01 validation, CF SSL Full-strict).
         This was also a latency fix: Fly's IPv6 anycast mis-routed an EU ISP to the `jnb`

@@ -1,7 +1,13 @@
 # odin-htmx-demo
 
-A proof-of-concept web app — an **Odin** backend with **HTMX** on the front end — with browser
-and load test suites.
+A **starter skeleton** for a simple, server-rendered website: an **Odin** backend rendering HTML
+with **HTMX**, a **SQLite** store, and browser + load test suites — all in one self-contained
+binary. Clone it, rename it, strip the demo, build your thing.
+
+The bundled app (a contacts/events admin console with a multi-style theme library) is the
+**worked example** that proves the patterns — not the product. You keep the scaffolding
+(architecture, data layer, theming, build / CI / deploy / test harness) and swap the demo domain
+for your own.
 
 ```
 odin-htmx-demo/
@@ -25,6 +31,22 @@ run.bat            # builds and serves http://localhost:8080          (./run.sh 
 
 See [app/README.md](app/README.md) for the full tour — pages, architecture, endpoints, and
 design notes.
+
+## Using this as a starter
+
+Clone it and replace the demo with your domain. What you **keep** vs. **strip**:
+
+- **Keep — the scaffolding:** the layered packages (`models` / `repository` / `services` / `views` /
+  `controllers`), the SQLite layer + migrations, the theme system, the view/component helpers, and
+  the build / CI / Docker / deploy / e2e / load harness.
+- **Strip — the demo:** the contacts + events domain and the demo pages' content. The strict
+  layering keeps this nearly mechanical.
+
+To extend it, follow the **Recipes** in [CLAUDE.md](CLAUDE.md) (new page, new endpoint, new
+component) and the architecture tour in [app/README.md](app/README.md).
+
+> Smoother onboarding — a “Use this template” button, an `init` rename script, and a `docs/STRIP.md`
+> — is on the [roadmap](TODO.md) (Phase F → 1.0).
 
 ## Tests
 
