@@ -152,11 +152,14 @@ SCHEMES := []Scheme_Opt {
 	{"arcade", "pop", "Pop", "#ff3b6b"},
 }
 
-// Cache-busting token for the static CSS/JS, set once at startup by
-// controllers.init_etags (a content hash). Appended as ?v=… to the asset URLs so
-// a redeploy is picked up immediately instead of waiting out Cache-Control max-age
-// (the reason a plain reload kept showing the old stylesheet).
-ASSET_VERSION := "dev"
+// Fingerprinted asset URLs ("/static/app.<hash>.css"), set once at startup by
+// controllers.init_etags from the embedded bytes. Content-addressed: a changed
+// asset gets a new URL (so a redeploy is picked up immediately, no waiting out
+// max-age) and the URL can be cached immutably — and it's cleaner than a ?v=
+// query. Bare defaults until init runs.
+HTMX_HREF := "/static/htmx.min.js"
+CSS_HREF := "/static/app.css"
+JS_HREF := "/static/app.js"
 
 theme_picker :: proc(b: ^strings.Builder) {
 	w(
@@ -300,15 +303,15 @@ layout :: proc(title, active, description, content: string) -> string {
 	esc(&b, description)
 	w(&b, `">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-<link rel="stylesheet" href="/static/app.css?v=`)
-	w(&b, ASSET_VERSION)
+<link rel="stylesheet" href="`)
+	w(&b, CSS_HREF)
 	w(&b, `">
 <script>try{var d=document.documentElement,s=localStorage.getItem('style'),c=localStorage.getItem('scheme');if(s)d.dataset.style=s;if(c)d.dataset.scheme=c;}catch(e){}</script>
-<script src="/static/htmx.min.js?v=`)
-	w(&b, ASSET_VERSION)
+<script src="`)
+	w(&b, HTMX_HREF)
 	w(&b, `" defer></script>
-<script src="/static/app.js?v=`)
-	w(&b, ASSET_VERSION)
+<script src="`)
+	w(&b, JS_HREF)
 	w(&b, `" defer></script>
 </head>
 <body>

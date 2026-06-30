@@ -421,6 +421,11 @@ FAVICON :: #load("../../static/favicon.svg")
 @(private = "file")
 etag_htmx, etag_css, etag_js, etag_favicon: string
 
+// Fingerprinted asset names ("htmx.<hash>.min.js", "app.<hash>.css", "app.<hash>.js")
+// computed once at startup; the layout links these and serve_static also accepts them.
+@(private = "file")
+asset_htmx, asset_css, asset_js: string
+
 @(private = "file")
 etag :: proc(blob: []byte) -> string {
 	return fmt.aprintf(`"%08x"`, hash.crc32(blob))
@@ -433,35 +438,47 @@ init_etags :: proc() {
 	etag_css = etag(APP_CSS)
 	etag_js = etag(APP_JS)
 	etag_favicon = etag(FAVICON)
-	// Cache-busting token for the versioned asset URLs in the page <head>: a hash
-	// of htmx + CSS + JS, so any change (an htmx upgrade included) yields new URLs
-	// and clients fetch fresh instead of serving a stale cached copy until max-age.
-	views.ASSET_VERSION = fmt.aprintf("%08x%08x%08x", hash.crc32(HTMX_JS), hash.crc32(APP_CSS), hash.crc32(APP_JS))
+	// Content-addressed asset names: a changed asset (an htmx upgrade included) gets
+	// a new URL, so the page <head> cache-busts with a clean path instead of a ?v=
+	// query — and these URLs can be cached immutably (see serve_static).
+	asset_htmx = fmt.aprintf("htmx.%08x.min.js", hash.crc32(HTMX_JS))
+	asset_css = fmt.aprintf("app.%08x.css", hash.crc32(APP_CSS))
+	asset_js = fmt.aprintf("app.%08x.js", hash.crc32(APP_JS))
+	views.HTMX_HREF = fmt.aprintf("/static/%s", asset_htmx)
+	views.CSS_HREF = fmt.aprintf("/static/%s", asset_css)
+	views.JS_HREF = fmt.aprintf("/static/%s", asset_js)
 }
 
 serve_static :: proc(req: ^http.Request, res: ^http.Response) {
 	name := req.url_params[0]
 	blob: []byte
 	tag: string
-	switch name {
-	case "htmx.min.js":
-		blob, tag = HTMX_JS, etag_htmx
-	case "app.css":
-		blob, tag = APP_CSS, etag_css
-	case "app.js":
-		blob, tag = APP_JS, etag_js
-	case "favicon.svg":
+	fingerprinted := false // a hashed name → the URL is content-addressed, cache it forever
+	switch {
+	case name == "htmx.min.js", name == asset_htmx:
+		blob, tag, fingerprinted = HTMX_JS, etag_htmx, name == asset_htmx
+	case name == "app.css", name == asset_css:
+		blob, tag, fingerprinted = APP_CSS, etag_css, name == asset_css
+	case name == "app.js", name == asset_js:
+		blob, tag, fingerprinted = APP_JS, etag_js, name == asset_js
+	case name == "favicon.svg":
 		blob, tag = FAVICON, etag_favicon
 	case:
 		http.respond(res, http.Status.Not_Found)
 		return
 	}
 
-	http.headers_set(&res.headers, "cache-control", "public, max-age=3600")
-	http.headers_set(&res.headers, "etag", tag)
-	if match, ok := http.headers_get(req.headers, "if-none-match"); ok && match == tag {
-		http.respond(res, http.Status.Not_Modified)
-		return
+	if fingerprinted {
+		// The hash is in the path, so the bytes for this URL can never change.
+		http.headers_set(&res.headers, "cache-control", "public, max-age=31536000, immutable")
+	} else {
+		// Bare name: revalidate after max-age with a cheap 304.
+		http.headers_set(&res.headers, "cache-control", "public, max-age=3600")
+		http.headers_set(&res.headers, "etag", tag)
+		if match, ok := http.headers_get(req.headers, "if-none-match"); ok && match == tag {
+			http.respond(res, http.Status.Not_Modified)
+			return
+		}
 	}
 	// respond_file_content sets the content-type from the name's extension.
 	http.respond_file_content(res, name, blob)

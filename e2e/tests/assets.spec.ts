@@ -36,6 +36,16 @@ test.describe('assets & API', () => {
     expect(revalidated.status()).toBe(304);
   });
 
+  test('the page links fingerprinted asset URLs, served immutable (no ?v=)', async ({ request }) => {
+    const html = await (await request.get('/')).text();
+    const href = html.match(/\/static\/app\.[0-9a-f]+\.css/)?.[0]; // app.<hash>.css, no query
+    expect(href).toBeTruthy();
+    expect(html).not.toContain('?v='); // cache-busting is in the path, not a query
+    const res = await request.get(href!);
+    expect(res.status()).toBe(200);
+    expect(res.headers()['cache-control'] ?? '').toContain('immutable');
+  });
+
   test('path traversal is blocked', async ({ request }) => {
     const res = await request.get('/static/%2e%2e%2froutes.odin', { maxRedirects: 0 });
     expect(res.status()).toBe(404);
