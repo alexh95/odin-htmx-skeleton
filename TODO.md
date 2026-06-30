@@ -105,8 +105,10 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
 
 ## Backlog
 
-- [ ] Data table: the actions column overflows into horizontal scroll on narrow viewports.
-      Consider a responsive tweak (narrower engagement column, or stacked actions).
+- [x] Data table: the actions column overflowed into horizontal scroll on narrow viewports. Fixed
+      in the mobile pass — below 560px the table folds email/role/engagement into the detail drawer
+      (name · status · actions remain); the topbar was the larger culprit (page-wide scroll), also
+      fixed. No horizontal overflow 320–1280px, pinned by e2e.
 - [ ] Pin htmx to an exact version in `prepare.*` (currently `@2`) for reproducible builds.
 - [ ] Optional: a build-flag-gated `/__reset` endpoint to reseed the store (useful for load
       tests; must never ship in a normal build). Tie to `load-tests/PLAN.md`.

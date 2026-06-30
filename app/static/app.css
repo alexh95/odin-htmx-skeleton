@@ -227,7 +227,9 @@ a { color: inherit; text-decoration: none; }
 .nav-link:hover { color: var(--text); background: color-mix(in oklab, var(--surface) 70%, transparent); }
 .nav-link[aria-current="page"] { color: var(--text); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-2); }
 .nav-link[aria-current="page"] .icon { color: var(--violet); opacity: 1; }
-@media (max-width: 880px) { .nav-link span { display: none; } }
+/* Hide nav labels (icon-only) until the labelled row genuinely fits — below
+   ~940px brand + labelled nav + search + picker would overflow into a scroll. */
+@media (max-width: 940px) { .nav-link span { display: none; } }
 
 /* search box */
 .search { position: relative; margin-left: auto; display: flex; align-items: center; }
@@ -1205,4 +1207,37 @@ tr.htmx-swapping { animation: row-out 220ms var(--ease) forwards; }
 }
 [data-style="arcade"] input[type="range"]::-webkit-slider-thumb {
   background: var(--violet); border: 2px solid #fff; box-shadow: 0 0 12px var(--violet);
+}
+
+/* =====================================================================
+   RESPONSIVE — phone / small-tablet. Last in the file so these layout
+   overrides win over the base + per-style rules they touch (the per-style
+   blocks only retheme topbar colours, never its layout).
+   ===================================================================== */
+
+/* The topbar's single row (brand · nav · search · picker) can't fit a phone,
+   forcing a page-wide horizontal scroll. Drop the search onto its own
+   full-width row and trim the chrome. (Below 880px the nav is already
+   icon-only; the brand mark still links home without its wordmark.) */
+@media (max-width: 720px) {
+  .topbar { flex-wrap: wrap; gap: 10px; padding: 10px 14px; }
+  .brand-name { display: none; }
+  .nav { margin-left: 0; gap: 2px; }
+  .nav-link { padding: 8px 10px; }
+  .picker { margin-left: auto; }                 /* hold the picker at the right of row 1 */
+  .search { order: 10; flex: 1 1 100%; margin-left: 0; }
+  .search input,
+  .search input:focus { width: 100%; max-width: none; }
+  .search-results { left: 0; right: 0; width: 100%; }
+}
+
+/* The six-column data table doesn't fit a phone. Keep the essentials — name,
+   status, actions — and fold email / role / engagement into the detail drawer
+   (one tap on the name). `.table-scroll` still catches anything still too wide. */
+@media (max-width: 560px) {
+  .table thead th:nth-child(2), .table tbody td:nth-child(2),   /* Email */
+  .table thead th:nth-child(3), .table tbody td:nth-child(3),   /* Role */
+  .table thead th:nth-child(5), .table tbody td:nth-child(5) {  /* Engagement */
+    display: none;
+  }
 }

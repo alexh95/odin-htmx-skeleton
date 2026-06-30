@@ -231,6 +231,14 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   `DOMContentLoaded`; the full e2e suite passes unchanged across all three engines.
 
 ### Fixed
+- **Broken mobile layout.** The topbar (brand · nav · search · picker) was a rigid single row that
+  forced a **page-wide horizontal scroll on phones** (~184px past a 390px viewport), with the search
+  box clipped; the data table also clipped its right-hand columns. Now: below **720px** the search
+  drops to a full-width second row (brand mark only, icon-only nav, picker right-aligned); the nav
+  labels hide until they genuinely fit (**≤940px**, was 880 — which closed an 881–939px overflow
+  band on small laptops); and below **560px** the data table folds email/role/engagement into the
+  detail drawer (name · status · actions remain), with `.table-scroll` still catching anything
+  wider. **Zero horizontal overflow from 320–1280px**, desktop unchanged; pinned by 4 e2e tests.
 - **Reflected HTML-injection via the `sort` query param** (security). The data table reflected
   `sort` into its `hx-get="…"` attributes (filter chips + pager) **without** the `url_encode` its
   sibling params (`q`, `status`) already used, so a crafted value — e.g.
