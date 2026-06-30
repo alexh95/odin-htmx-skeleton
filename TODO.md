@@ -26,8 +26,12 @@ Make it trivial to start a new project from. Bounded: mostly docs + one script.
       (`demo`), the `fly.toml` app name, the docker image, the `odin·htmx` brand + page titles in
       the layout, the apollo-11 service dir — and optionally trims the demo to a minimal example.
       Today, copying means hand-editing all of those.
-- [ ] **Parameterize the brand / app name** to one place (a `BRAND` constant the layout + `<title>`
-      read), so the rename has few touch-points instead of literals scattered through the views.
+- [x] **Parameterize the brand / app name** to one place — `app/src/views/brand.odin` holds
+      `BRAND_WORDMARK` (the topbar wordmark, inline markup allowed) and `BRAND_SUFFIX` (the
+      `<title>` / og:title suffix); `layout` is the only reader. The display name is now a
+      two-constant edit instead of literals scattered through the views. The remaining name
+      touch-points are outside the views (binary/app name in run/build scripts + `fly.toml` +
+      `Dockerfile`, and the `main.odin` startup banner) — the `init` script will tie them together.
 - [ ] **README as a starter guide**, not a demo tour: use-template → run `init` → the architecture →
       add a page / entity / endpoint (point at the `CLAUDE.md` **Recipes**) → what's demo
       (strippable) vs. scaffold (keep).

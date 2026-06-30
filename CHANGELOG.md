@@ -19,6 +19,17 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   interactions vanish); the detail `load` scenario now exercises the JOIN. **42 e2e total.**
 
 ### Changed
+- **Brand/app name centralized for renaming** (Phase F → 1.0). `app/src/views/brand.odin` now holds
+  `BRAND_WORDMARK` (the topbar wordmark) and `BRAND_SUFFIX` (the `<title>` / og:title suffix), read
+  only by `layout`. Renaming the skeleton's display name is now a two-constant edit instead of
+  literals scattered through the views. Output is byte-identical; the remaining name touch-points
+  (binary/`fly.toml`/`Dockerfile` names, the `main.odin` banner) are the `init` script's job.
+- **Quality pass: dropped a needless indirection, fixed stale copy.** The body-reading handlers that
+  need only the response (`contacts_create`, `validate_email_field`, `forms_submit`) now pass `res`
+  directly through `http.body`'s user pointer (odin-http's own idiom) instead of each allocating a
+  `Form_Ctx` whose `id` they never set; `Form_Ctx` remains only for `contacts_update`, which needs
+  the row id. Four user-facing strings that still called the store "in-memory" now say SQLite
+  (in-memory is just the default `:memory:` mode; a real deploy persists to a file).
 - **Reframed the project as a starter skeleton** (docs only). It's a template you clone, rename,
   strip, and build on — the contacts/events admin app + theme library are the *worked example*, not
   a product to finish. `TODO.md` rewritten around it: a **Phase F → 1.0** "template-ize" roadmap

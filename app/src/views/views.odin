@@ -291,14 +291,18 @@ layout :: proc(title, active, description, content: string) -> string {
 <meta name="htmx-config" content='{"transitions":true,"defaultSwap":"innerHTML"}'>
 <title>`)
 	esc(&b, title)
-	w(&b, ` · Odin + HTMX</title>
+	w(&b, " · ")
+	esc(&b, BRAND_SUFFIX)
+	w(&b, `</title>
 <meta name="description" content="`)
 	esc(&b, description)
 	w(&b, `">
 <meta property="og:type" content="website">
 <meta property="og:title" content="`)
 	esc(&b, title)
-	w(&b, ` · Odin + HTMX">
+	w(&b, " · ")
+	esc(&b, BRAND_SUFFIX)
+	w(&b, `">
 <meta property="og:description" content="`)
 	esc(&b, description)
 	w(&b, `">
@@ -318,7 +322,9 @@ layout :: proc(title, active, description, content: string) -> string {
 <header class="topbar">
   <a class="brand" href="/"><span class="brand-mark">`)
 	icon(&b, "bolt")
-	w(&b, `</span><span class="brand-name">odin<b>·</b>htmx</span></a>
+	w(&b, `</span><span class="brand-name">`)
+	w(&b, BRAND_WORDMARK)
+	w(&b, `</span></a>
   <nav class="nav" aria-label="Primary">`)
 	for item in NAV {
 		cur := item.href == active ? ` aria-current="page"` : ""
