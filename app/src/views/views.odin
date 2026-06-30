@@ -285,7 +285,7 @@ layout :: proc(title, active, description, content: string) -> string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="htmx-config" content='{"globalViewTransitions":true,"defaultSwapStyle":"innerHTML"}'>
+<meta name="htmx-config" content='{"transitions":true,"defaultSwap":"innerHTML"}'>
 <title>`)
 	esc(&b, title)
 	w(&b, ` · Odin + HTMX</title>

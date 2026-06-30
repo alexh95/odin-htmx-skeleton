@@ -117,7 +117,22 @@ function initRanges(root) {
 document.addEventListener("input", function (e) {
   if (e.target.matches && e.target.matches('input[type="range"]')) fillRange(e.target);
 });
-document.body.addEventListener("htmx:load", function (e) { initRanges(e.target); });
+// htmx 4 fires htmx:after:process when it wires up new content (initial load and
+// every swap); re-fill any range sliders inside it (e.g. the detail edit form).
+document.addEventListener("htmx:after:process", function (e) { initRanges(e.target); }, true);
+
+// Auto-reset a form marked [data-reset-on-success] after its OWN successful
+// submit. Done here (not hx-on) so it works whether the form's target sits inside
+// it (#form-result) or elsewhere (#contact-tbody → the table), and so a child
+// field's validation request can't trip it: ctx.sourceElement scopes the reset to
+// the submitting form. (That child-event leak was a real regression — the email
+// field on /forms validates as you type.)
+document.addEventListener("htmx:after:request", function (e) {
+  var ctx = e.detail && e.detail.ctx;
+  if (!ctx || !ctx.response || ctx.response.status >= 400) return;
+  var el = ctx.sourceElement;
+  if (el && el.matches && el.matches("form[data-reset-on-success]")) el.reset();
+}, true);
 
 // Dismiss the search dropdown on outside-click or Escape; Escape also closes
 // any open overlay.

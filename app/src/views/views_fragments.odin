@@ -133,16 +133,15 @@ page_btn :: proc(b: ^strings.Builder, p: services.Page, target: int, label: stri
 }
 
 // A single contact row. `fresh` adds the entrance highlight used when a row is
-// appended after a create.
-// `oob` marks the row for an out-of-band swap — used to refresh the table row
-// behind the detail drawer after an edit/cycle there.
-view_contact_row :: proc(b: ^strings.Builder, c: models.Contact, fresh: bool, oob := false) {
+// appended after a create. To refresh the row behind the detail drawer the
+// controller wraps this in an <hx-partial> targeting #contact-<id> (see
+// contacts_update) — no per-row OOB attribute needed.
+view_contact_row :: proc(b: ^strings.Builder, c: models.Contact, fresh: bool) {
 	fmt.sbprintf(
 		b,
-		`<tr id="contact-%d" class="%s"%s>`,
+		`<tr id="contact-%d" class="%s">`,
 		c.id,
 		fresh ? "row row-new" : "row",
-		oob ? ` hx-swap-oob="true"` : "",
 	)
 
 	fmt.sbprintf(

@@ -16,21 +16,33 @@ else
   git -C .. submodule update --init app/odin-http
 fi
 
-if [ -f static/htmx.min.js ]; then
-  echo "[skip] static/htmx.min.js already present."
+# sha256 helper (linux: sha256sum, macOS: shasum -a 256). Used for htmx + sqlite.
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+  else shasum -a 256 "$1" | awk '{print $1}'; fi
+}
+
+# htmx, pinned exactly (version + SHA-256) for reproducible builds — same
+# discipline as ODIN_VERSION and the SQLite amalgamation. Bump both together.
+HTMX_VERSION=4.0.0-beta5
+HTMX_SHA256=192d2d425dda6834bd15973a10f55940cea217a3a840f3f819ffd16063be9a68
+if [ -f static/htmx.min.js ] && [ "$(sha256_of static/htmx.min.js)" = "$HTMX_SHA256" ]; then
+  echo "[skip] htmx $HTMX_VERSION already present."
 else
-  echo "[get ] downloading htmx.min.js ..."
-  url="https://unpkg.com/htmx.org@2/dist/htmx.min.js"
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$url" -o static/htmx.min.js
-  else
-    wget -qO static/htmx.min.js "$url"
+  echo "[get ] downloading htmx $HTMX_VERSION ..."
+  url="https://unpkg.com/htmx.org@$HTMX_VERSION/dist/htmx.min.js"
+  if command -v curl >/dev/null 2>&1; then curl -fsSL "$url" -o static/htmx.min.js
+  else wget -qO static/htmx.min.js "$url"; fi
+  got="$(sha256_of static/htmx.min.js)"
+  if [ "$got" != "$HTMX_SHA256" ]; then
+    echo "error: htmx checksum mismatch: expected $HTMX_SHA256, got $got" >&2
+    rm -f static/htmx.min.js; exit 1
   fi
 fi
 
 # --- SQLite amalgamation (pinned; fetched + compiled, mirroring the htmx fetch) ---
 # Pin the version AND its zip SHA-256 in one place — same reproducibility
-# discipline as ODIN_VERSION / htmx@2. Bump both together.
+# discipline as ODIN_VERSION / htmx. Bump both together.
 SQLITE_YEAR=2026
 SQLITE_ID=sqlite-amalgamation-3530300                                            # SQLite 3.53.3
 SQLITE_SHA256=646421e12aac110282ef8cc68f1a62d4bb15fc7b8f09da0b53e29ee690500431
@@ -52,10 +64,6 @@ if [ -z "$CC" ] || ! command -v ar >/dev/null 2>&1; then
 fi
 
 mkdir -p "$SQLITE_DIR"
-sha256_of() {
-  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
-  else shasum -a 256 "$1" | awk '{print $1}'; fi
-}
 
 # Download + verify + extract, unless the pinned source is already in place.
 if [ -f "$SQLITE_DIR/sqlite3.c" ] && [ -f "$SQLITE_DIR/sqlite3.h" ] \

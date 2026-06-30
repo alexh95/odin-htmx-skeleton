@@ -160,11 +160,11 @@ view_forms :: proc() -> string {
 		"A real form wired to the same service layer. The email field validates as you type; submit creates a contact.",
 	)
 
-	// Guard the reset on event.target: the email field's inline validation fires
-	// its own htmx:afterRequest that bubbles up here, and an unguarded reset would
-	// wipe the name/email the user just typed.
+	// data-reset-on-success: app.js resets the form after its OWN successful submit.
+	// Scoped there to this form's request (ctx.sourceElement), so the email field's
+	// inline validation can't trip the reset and wipe what the user just typed.
 	w(&b, `<form class="form card" hx-post="/forms/submit" hx-target="#form-result" hx-swap="innerHTML"
-        hx-on::after-request="if(event.detail.successful && event.target === this)this.reset()">
+        data-reset-on-success>
   <div class="form-grid">
     <label class="field">
       <span>Full name</span>
@@ -242,7 +242,7 @@ view_data :: proc(p: services.Page) -> string {
 	icon(&b, "plus")
 	w(&b, `<span>New contact</span></summary>
       <form class="add-form card" hx-post="/contacts" hx-target="#contact-tbody" hx-swap="beforeend"
-            hx-on::after-request="if(event.detail.successful && event.target === this)this.reset()">
+            data-reset-on-success>
         <input name="name" placeholder="Full name" required aria-label="Name">
         <input name="email" type="email" placeholder="email@example.dev" required aria-label="Email">
         <select name="role" aria-label="Role">`)

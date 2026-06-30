@@ -19,6 +19,24 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   interactions vanish); the detail `load` scenario now exercises the JOIN. **42 e2e total.**
 
 ### Changed
+- **htmx 2 → 4 (pinned to 4.0.0-beta5).** `prepare.*` now pin htmx exactly — a specific version
+  **and a SHA-256 check** (replacing the floating `htmx.org@2`) — same reproducibility discipline as
+  `ODIN_VERSION` and the SQLite amalgamation; the embedded copy drops ~51 KB → ~36 KB. Migration
+  fixes for htmx 4's breaking changes, all caught by the e2e suite:
+  - **Config keys renamed** in the `htmx-config` meta: `defaultSwapStyle` → `defaultSwap`,
+    `globalViewTransitions` → `transitions`.
+  - **`htmx:load` → `htmx:after:process`** for re-initialising swapped content (range-slider fill).
+  - **Form auto-reset moved from `hx-on` to `app.js`.** htmx 4's `htmx:after:request` carries
+    `event.detail.ctx` (no `.successful`) and the reset is scoped by `ctx.sourceElement` on
+    `form[data-reset-on-success]` — robust whether the form's target is inside it (`#form-result`)
+    or elsewhere (`#contact-tbody`), and a child field's validation can't trip it.
+  - **Form bodies decode `+` as space.** htmx 4 sends spaces as `+` (the standard); odin-http's
+    `body_url_encoded` only percent-decodes, so controllers parse POST bodies with a new `body_form`
+    helper (`+`-aware, like `query_decode`). This was the latent bug behind broken creates/edits.
+  - **OOB table-row refresh via `<hx-partial>`.** htmx 4's OOB `querySelectorAll` doesn't descend
+    into `<template>`, and a response starting with the non-table `<aside>` drops a trailing bare
+    `<tr>`; the drawer-edit now wraps the row in `<hx-partial hx-target="#contact-N" hx-swap=…>`.
+    Removed the now-dead `oob` arg from `view_contact_row`.
 - **Docs accuracy pass.** Brought the prose docs up to date with the SQLite store + events: the
   top `README.md` no longer calls the e2e/load suites "plans only" (both are implemented and gate
   CI); `CLAUDE.md`, `PHILOSOPHY.md`, `app/README.md`, the e2e/load READMEs+PLANs, and the

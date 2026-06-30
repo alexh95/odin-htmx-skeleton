@@ -63,6 +63,27 @@ query_decode :: proc(s: string) -> string {
 	return ok ? dec : t
 }
 
+// Parse an application/x-www-form-urlencoded body into key→value. Unlike
+// http.body_url_encoded, this decodes '+' as space — htmx 4 sends spaces as '+'
+// (the form-encoding standard) and odin-http's parser only percent-decodes. Uses
+// the same '+'-aware decode as query strings (query_decode), so a literal '+'
+// sent as %2B still round-trips.
+@(private = "file")
+body_form :: proc(body: http.Body) -> map[string]string {
+	m := make(map[string]string, context.temp_allocator)
+	s := string(body)
+	for part in strings.split_by_byte_iterator(&s, '&') {
+		if part == "" {
+			continue
+		}
+		eq := strings.index_byte(part, '=')
+		key := eq < 0 ? part : part[:eq]
+		val := eq < 0 ? "" : part[eq + 1:]
+		m[query_decode(key)] = query_decode(val)
+	}
+	return m
+}
+
 render_page :: proc(res: ^http.Response, title, active, description, content: string) {
 	http.respond_html(res, views.layout(title, active, description, content))
 }
@@ -192,9 +213,9 @@ contacts_create :: proc(req: ^http.Request, res: ^http.Response) {
 			http.respond(res, http.Status.Bad_Request)
 			return
 		}
-		form, ok := http.body_url_encoded(body)
-		name := ok ? form["name"] : ""
-		email := ok ? form["email"] : ""
+		form := body_form(body)
+		name := form["name"]
+		email := form["email"]
 
 		errs := services.validate_contact(name, email)
 		if len(errs) > 0 {
@@ -202,7 +223,7 @@ contacts_create :: proc(req: ^http.Request, res: ^http.Response) {
 			return
 		}
 
-		role, _ := models.role_from(ok ? form["role"] : "")
+		role, _ := models.role_from(form["role"])
 		c := repository.repo_create(strings.trim_space(name), strings.trim_space(email), role, .Invited, 50)
 
 		b := strings.builder_make(context.temp_allocator)
@@ -220,7 +241,7 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 		ctx := cast(^Form_Ctx)user
 		res := ctx.res
 
-		form, _ := http.body_url_encoded(body)
+		form := body_form(body)
 		action := form["action"]
 		// view=detail → respond with the re-rendered detail drawer (the action came
 		// from the drawer); otherwise the table row.
@@ -255,14 +276,18 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 			return
 		}
 		if is_detail {
-			// the re-rendered drawer, plus an OOB swap to refresh the table row behind
-			// it. The <tr> is wrapped in a <template> so it survives parsing in the
-			// drawer (non-table) swap context — htmx's pattern for table-internal OOB.
+			// the re-rendered drawer (main swap into the open drawer), plus a refresh of
+			// the table row behind it. A plain `hx-swap-oob` <tr> can't ride along: a
+			// response that starts with the non-table <aside> is body-parsed, which drops
+			// a trailing <tr>; and a <template> wrapper hides it from htmx's OOB
+			// querySelectorAll (which doesn't descend into templates). htmx 4's
+			// <hx-partial> is built for this — it becomes a <template> (so the <tr>
+			// survives parsing) that htmx explicitly processes into hx-target/hx-swap.
 			b := strings.builder_make(context.temp_allocator)
 			strings.write_string(&b, views.view_contact_detail_frag(c, services.service_timeline(c), services.service_related(c, 4), false))
-			strings.write_string(&b, "<template>")
-			views.view_contact_row(&b, c, false, true)
-			strings.write_string(&b, "</template>")
+			fmt.sbprintf(&b, `<hx-partial hx-target="#contact-%d" hx-swap="outerHTML">`, c.id)
+			views.view_contact_row(&b, c, false)
+			strings.write_string(&b, `</hx-partial>`)
 			if len(edit_errs) > 0 {
 				strings.write_string(&b, views.view_toast("error", edit_errs[0].msg, true))
 			}
@@ -298,7 +323,7 @@ validate_email_field :: proc(req: ^http.Request, res: ^http.Response) {
 	ctx.res = res
 	http.body(req, -1, ctx, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
 		res := (cast(^Form_Ctx)user).res
-		form, _ := http.body_url_encoded(body)
+		form := body_form(body)
 		email := strings.trim_space(form["email"])
 		if email == "" {
 			http.respond_html(res, "")
@@ -317,7 +342,7 @@ forms_submit :: proc(req: ^http.Request, res: ^http.Response) {
 	ctx.res = res
 	http.body(req, -1, ctx, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
 		res := (cast(^Form_Ctx)user).res
-		form, _ := http.body_url_encoded(body)
+		form := body_form(body)
 		name := form["name"]
 		email := form["email"]
 

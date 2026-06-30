@@ -59,7 +59,7 @@ links it:
 No git submodule (the amalgamation has no canonical git repo; its canonical form is the versioned
 zip), and neither the source nor the built lib is committed. The version and its SHA-256 are pinned
 together at the top of `prepare.*` — the same reproducibility discipline as `ODIN_VERSION` and
-`htmx@2`. ~15 `foreign` decls (`app/src/sqlite/sqlite.odin`) cover everything below, with a per-OS
+`htmx`. ~15 `foreign` decls (`app/src/sqlite/sqlite.odin`) cover everything below, with a per-OS
 link block pointing at `app/vendor/sqlite/`: `sqlite3.lib` on Windows; `sqlite3.a` +
 `system:pthread` + `system:dl` on Linux/macOS. A C toolchain is now a hard build requirement.
 

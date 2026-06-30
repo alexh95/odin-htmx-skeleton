@@ -17,13 +17,11 @@ if exist "odin-http\server.odin" (
   if errorlevel 1 goto :fail
 )
 
-if exist "static\htmx.min.js" (
-  echo [skip] static\htmx.min.js already present.
-) else (
-  echo [get ] downloading htmx.min.js ...
-  powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing 'https://unpkg.com/htmx.org@2/dist/htmx.min.js' -OutFile 'static\htmx.min.js'"
-  if errorlevel 1 goto :fail
-)
+rem htmx, pinned exactly (version + SHA-256) for reproducible builds.
+set "HTMX_URL=https://unpkg.com/htmx.org@4.0.0-beta5/dist/htmx.min.js"
+set "HTMX_SHA256=192d2d425dda6834bd15973a10f55940cea217a3a840f3f819ffd16063be9a68"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $f='static\htmx.min.js'; $w='%HTMX_SHA256%'; if((Test-Path $f) -and ((Get-FileHash $f -Algorithm SHA256).Hash.ToLower() -eq $w)){Write-Host '[skip] htmx already present.';exit 0}; Write-Host '[get ] downloading htmx ...'; Invoke-WebRequest -UseBasicParsing '%HTMX_URL%' -OutFile $f; $g=(Get-FileHash $f -Algorithm SHA256).Hash.ToLower(); if($g -ne $w){Remove-Item $f -Force; Write-Error \"htmx checksum mismatch: expected $w got $g\"; exit 1}"
+if errorlevel 1 goto :fail
 
 rem --- SQLite amalgamation (pinned; fetched + compiled, mirroring the htmx fetch) ---
 set "SQLITE_URL=https://sqlite.org/2026/sqlite-amalgamation-3530300.zip"

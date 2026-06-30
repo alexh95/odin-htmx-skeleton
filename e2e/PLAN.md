@@ -85,7 +85,7 @@ own submit, not on field validation.
 removes the row (and a missing id returns 404 with the row untouched); sort headers reorder
 and flip asc/desc; pagination and filter swap the table region without a full reload.
 
-**assets** — `/static/htmx.min.js` is the embedded copy (200, JS content-type, ~51 KB);
+**assets** — `/static/htmx.min.js` is the embedded copy (200, JS content-type, ~36 KB, htmx 4);
 `/static/app.css` is 200 from disk; `/static/../main.odin` is blocked (404).
 
 ## Selectors

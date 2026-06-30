@@ -229,17 +229,30 @@ http.respond(res, http.Status.Not_Found)
 
 ## HTMX conventions / gotchas
 
-- **Events bubble.** A child's `htmx:afterRequest` reaches an ancestor's `hx-on`. Guard
-  ancestor handlers with `event.target === this` (this bit us: email validation was resetting
-  the whole form).
+- **htmx 4 events** are colon-namespaced (`htmx:after:request`, `htmx:after:swap`,
+  `htmx:after:process`) and carry `event.detail.ctx` (`sourceElement`, `target`, `response`, …).
+  Form auto-reset lives in `app.js` (not `hx-on`): a document listener resets
+  `form[data-reset-on-success]` after a 2xx, **scoped by `ctx.sourceElement`** so a child field's
+  validation request can't reset the form (the email field on /forms validates as you type — an
+  unscoped reset wiped what the user typed; this bit us once).
 - **Out-of-band toasts**: return `<div class="toast" hx-swap-oob="beforeend:#toasts">…</div>`
   from any handler; `view_toast(kind, msg, oob=true)` does this.
+- **OOB a *table row* with `<hx-partial>`, not `hx-swap-oob`.** htmx 4 collects OOB via
+  `querySelectorAll("[hx-swap-oob]")`, which doesn't descend into `<template>`; and a response that
+  *starts* with a non-table element is body-parsed, which drops a trailing bare `<tr>`. So to
+  refresh `#contact-<id>` alongside a drawer swap, wrap the row in
+  `<hx-partial hx-target="#contact-N" hx-swap="outerHTML">…</hx-partial>` (htmx turns it into a
+  `<template>` it processes). See `contacts_update`. (A row-only response that *starts* with `<tr>`,
+  like delete-from-drawer, is fine bare.)
+- **Form bodies arrive `+`-encoded.** htmx 4 sends spaces as `+` (the form-encoding standard);
+  odin-http's `body_url_encoded` only percent-decodes, so parse POST bodies with the controllers'
+  `body_form` helper (it `+`→space-decodes like `query_decode`), never `http.body_url_encoded`.
 - **Exit animations**: `hx-swap="outerHTML swap:220ms"` keeps the node around long enough for
   the `.htmx-swapping` CSS to play.
 - **Overlays** (modal/drawer) load into `#overlay` and close via `GET /ui/clear` (empty body).
   The modal backdrop intentionally has **no** close handler — an outside click must not
   discard a half-typed field. The drawer backdrop may close (no field to lose).
-- View Transitions are on globally via the `<meta name="htmx-config">` in `layout`.
+- View Transitions are on globally via `htmx-config` (`{"transitions":true}`) in `layout`.
 
 ## CSS conventions (`app/static/app.css`)
 
@@ -262,7 +275,8 @@ http.respond(res, http.Status.Not_Found)
 - Vanilla, no dependencies, small. HTMX drives interactions; JS only does what the server
   can't: theme persistence, toast lifecycle, tab selection state, slider fill, count-up.
 - **Delegated listeners** on `document` so dynamically swapped content is covered; re-init
-  swapped content on `htmx:load`. The file runs `defer` (DOM is ready).
+  swapped content on `htmx:after:process` (htmx 4's "content wired up" event). The file runs
+  `defer` (DOM is ready).
 
 ## Odin gotchas (discovered here)
 

@@ -109,7 +109,10 @@ discover. See `CLAUDE.md` for the standing policy. Keep this and `CHANGELOG.md` 
       in the mobile pass — below 560px the table folds email/role/engagement into the detail drawer
       (name · status · actions remain); the topbar was the larger culprit (page-wide scroll), also
       fixed. No horizontal overflow 320–1280px, pinned by e2e.
-- [ ] Pin htmx to an exact version in `prepare.*` (currently `@2`) for reproducible builds.
+- [x] Pin htmx to an exact version in `prepare.*` (was the floating `@2`) for reproducible builds —
+      pinned to **4.0.0-beta5** with a SHA-256 check (same discipline as ODIN_VERSION / SQLite), and
+      migrated htmx 2 → 4 (renamed config keys `defaultSwap`/`transitions`, `htmx:after:process`
+      re-init, the form auto-reset moved to `app.js` over `ctx.sourceElement`).
 - [ ] Optional: a build-flag-gated `/__reset` endpoint to reseed the store (useful for load
       tests; must never ship in a normal build). Tie to `load-tests/PLAN.md`.
 - [ ] Optional: `-o:speed` build path for benchmarking vs. the default showcase build.

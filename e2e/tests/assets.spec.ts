@@ -9,11 +9,13 @@ test.describe('assets & API', () => {
     expect((await res.text()).trim()).toBe('ok');
   });
 
-  test('htmx is the embedded copy (JS, ~51 KB)', async ({ request }) => {
+  test('htmx is the embedded copy (JS, ~36 KB)', async ({ request }) => {
     const res = await request.get('/static/htmx.min.js');
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type'] ?? '').toContain('javascript');
-    expect((await res.body()).byteLength).toBeGreaterThan(40_000);
+    const body = (await res.body()).toString();
+    expect(body.length).toBeGreaterThan(25_000); // real htmx 4 (~36 KB), not a 404/empty
+    expect(body.startsWith('var htmx=')).toBe(true);
   });
 
   test('app.css is served (embedded)', async ({ request }) => {
