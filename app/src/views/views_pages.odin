@@ -119,7 +119,7 @@ view_components :: proc() -> string {
 	w(&b, `<div class="demo col accordion">`)
 	acc_item(&b, "What is HTMX doing here?", "Every interactive panel on this page is a server fragment swapped in over a single request. No client state, no build step.", true)
 	acc_item(&b, "Where does the markup come from?", "Odin procedures write HTML into a string builder. A component is just a proc — this accordion item is one.", false)
-	acc_item(&b, "Is the data real?", "It is an in-memory store seeded at boot. Create and delete on the Data page mutate it live.", false)
+	acc_item(&b, "Is the data real?", "It is a real SQLite store, seeded at boot. Create and delete on the Data page mutate it live.", false)
 	w(&b, `</div></section>`)
 
 	// Overlays + toasts
@@ -224,7 +224,7 @@ view_data :: proc(p: services.Page) -> string {
 		&b,
 		"Data",
 		"Data &amp; CRUD",
-		"A live table over the in-memory store: filter, sort and paginate, plus create, update and delete.",
+		"A live table over a SQLite store: filter, sort and paginate, plus create, update and delete.",
 	)
 
 	// Filter + add form sit outside the swapped region so they survive a reload

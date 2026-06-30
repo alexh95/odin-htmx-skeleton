@@ -130,7 +130,7 @@ page_data :: proc(req: ^http.Request, res: ^http.Response) {
 		res,
 		"Data & CRUD",
 		"/data",
-		"A live contacts table over an in-memory Odin store: filter, sort and paginate, plus create, update and delete — all over HTMX with no full-page reloads.",
+		"A live contacts table over a SQLite store: filter, sort and paginate, plus create, update and delete — all over HTMX with no full-page reloads.",
 		views.view_data(p),
 	)
 }
@@ -195,8 +195,11 @@ contact_detail :: proc(req: ^http.Request, res: ^http.Response) {
 	}
 }
 
-// user_data passed through http.body. Allocated in the request arena so it
-// survives until the (possibly deferred) body callback runs.
+// contacts_update is the only body handler that needs more than the response in
+// its callback (the row id from the path), so it threads this small struct through
+// http.body's user pointer — allocated in the request arena, so it outlives the
+// possibly-deferred callback. Handlers that need only the response pass `res`
+// itself as the user pointer (see contacts_create), the same way odin-http does.
 @(private = "file")
 Form_Ctx :: struct {
 	res: ^http.Response,
@@ -204,11 +207,8 @@ Form_Ctx :: struct {
 }
 
 contacts_create :: proc(req: ^http.Request, res: ^http.Response) {
-	ctx := new(Form_Ctx, context.temp_allocator)
-	ctx.res = res
-	http.body(req, -1, ctx, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
-		ctx := cast(^Form_Ctx)user
-		res := ctx.res
+	http.body(req, -1, res, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
+		res := cast(^http.Response)user
 		if err != nil {
 			http.respond(res, http.Status.Bad_Request)
 			return
@@ -319,10 +319,8 @@ contacts_delete :: proc(req: ^http.Request, res: ^http.Response) {
 // ---- forms --------------------------------------------------------------
 
 validate_email_field :: proc(req: ^http.Request, res: ^http.Response) {
-	ctx := new(Form_Ctx, context.temp_allocator)
-	ctx.res = res
-	http.body(req, -1, ctx, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
-		res := (cast(^Form_Ctx)user).res
+	http.body(req, -1, res, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
+		res := cast(^http.Response)user
 		form := body_form(body)
 		email := strings.trim_space(form["email"])
 		if email == "" {
@@ -338,10 +336,8 @@ validate_email_field :: proc(req: ^http.Request, res: ^http.Response) {
 }
 
 forms_submit :: proc(req: ^http.Request, res: ^http.Response) {
-	ctx := new(Form_Ctx, context.temp_allocator)
-	ctx.res = res
-	http.body(req, -1, ctx, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
-		res := (cast(^Form_Ctx)user).res
+	http.body(req, -1, res, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
+		res := cast(^http.Response)user
 		form := body_form(body)
 		name := form["name"]
 		email := form["email"]
@@ -359,7 +355,7 @@ forms_submit :: proc(req: ^http.Request, res: ^http.Response) {
 
 		b := strings.builder_make(context.temp_allocator)
 		strings.write_string(&b, views.view_form_result(c))
-		strings.write_string(&b, views.view_toast("success", "Saved to the in-memory store.", true))
+		strings.write_string(&b, views.view_toast("success", "Saved to the SQLite store.", true))
 		http.respond_html(res, strings.to_string(b))
 	})
 }
