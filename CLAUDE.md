@@ -253,6 +253,13 @@ http.respond(res, http.Status.Not_Found)
   The modal backdrop intentionally has **no** close handler — an outside click must not
   discard a half-typed field. The drawer backdrop may close (no field to lose).
 - View Transitions are on globally via `htmx-config` (`{"transitions":true}`) in `layout`.
+- **Boosted navigation**: the brand + primary-nav links carry `hx-boost="true"` (on **each link** —
+  htmx 4 doesn't inherit it from a parent `<nav>` the way htmx 2 did). Clicking swaps the `<body>`
+  and pushes history instead of a full document load — SPA-like, no asset re-parse, no theme flash,
+  and the `<title>` updates from the response. Boost only internal HTML links; leave the JSON-API
+  tile and the no-action search/filter forms alone. Server work and bytes are unchanged (whole pages
+  are still rendered) — it's a client-side win. A body swap re-creates `#toasts` / `#overlay` / the
+  picker, so keep per-node JS state swap-safe (see the JS conventions).
 
 ## CSS conventions (`app/static/app.css`)
 
@@ -277,6 +284,10 @@ http.respond(res, http.Status.Not_Found)
 - **Delegated listeners** on `document` so dynamically swapped content is covered; re-init
   swapped content on `htmx:after:process` (htmx 4's "content wired up" event). The file runs
   `defer` (DOM is ready).
+- **Keep per-node state swap-safe** — a boosted nav swaps the whole `<body>`. Observe a stable
+  ancestor (the toast retire-observer watches `document.body`, not the swapped `#toasts`), and make
+  on-load init idempotent so `htmx:after:process` can re-run it after a swap (the count-up flags
+  `data-counted`; `markPicker` just re-sets aria state).
 
 ## Odin gotchas (discovered here)
 

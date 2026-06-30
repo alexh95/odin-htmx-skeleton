@@ -9,6 +9,18 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 ## [Unreleased]
 
 ### Added
+- **SPA-like navigation via `hx-boost`.** The brand and primary-nav links are boosted: htmx fetches
+  the page, swaps the `<body>`, and pushes history instead of a full document load. Navigating
+  between pages no longer re-parses the document, re-evaluates CSS/JS, or re-runs the theme pre-paint
+  script (so no flash), and with `transitions` on it crossfades. Server work and bytes are unchanged
+  (whole pages are still rendered) — this is a client-side / perceived-speed win, not a throughput
+  one. `hx-boost` sits on each link (htmx 4 doesn't inherit it from `<nav>` the way htmx 2 did) and
+  is scoped to internal HTML links, so the JSON-API tile and the no-action search/filter forms keep
+  their normal behaviour. To stay correct under a body swap, `app.js` hardens its per-node state: the
+  toast-retire `MutationObserver` watches `document.body` (stable) instead of the swapped `#toasts`,
+  and the dashboard count-up + theme-picker pressed-state re-init on `htmx:after:process` (both made
+  idempotent). New e2e: nav swaps in place without a reload and updates the `<title>`; toasts still
+  auto-retire after a boosted nav. **49 e2e total.**
 - **Events — a second table, related to contacts.** `events(actor_id, target_id → contacts,
   ON DELETE CASCADE, kind, at, note)` (`migrations/0002_events.sql`) records interactions *between*
   two contacts. The detail drawer's activity feed is now **real data**: `event_timeline` JOINs the

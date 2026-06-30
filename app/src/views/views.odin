@@ -319,8 +319,16 @@ layout :: proc(title, active, description, content: string) -> string {
 	w(&b, `" defer></script>
 </head>
 <body>
-<header class="topbar">
-  <a class="brand" href="/"><span class="brand-mark">`)
+<header class="topbar">`)
+	// hx-boost turns the brand + primary-nav links into AJAX swaps: htmx fetches the
+	// page, swaps the <body>, and pushes history instead of a full document load —
+	// SPA-like navigation with no asset re-parse, no theme re-flash, and (with
+	// transitions on) a crossfade. The server still renders whole pages; only the
+	// client work changes. Scoped to these links so the JSON-API tile and the
+	// no-action search/filter forms keep their normal behaviour. app.js keeps its
+	// per-node state swap-safe (see watchToasts / the htmx:after:process re-init).
+	w(&b, `
+  <a class="brand" href="/" hx-boost="true"><span class="brand-mark">`)
 	icon(&b, "bolt")
 	w(&b, `</span><span class="brand-name">`)
 	w(&b, BRAND_WORDMARK)
@@ -328,7 +336,9 @@ layout :: proc(title, active, description, content: string) -> string {
   <nav class="nav" aria-label="Primary">`)
 	for item in NAV {
 		cur := item.href == active ? ` aria-current="page"` : ""
-		fmt.sbprintf(&b, `<a class="nav-link" href="%s"%s>`, item.href, cur)
+		// hx-boost sits on each link, not the <nav>: htmx 4 doesn't inherit it to
+		// descendants the way htmx 2 did.
+		fmt.sbprintf(&b, `<a class="nav-link" href="%s"%s hx-boost="true">`, item.href, cur)
 		icon(&b, item.icon)
 		fmt.sbprintf(&b, `<span>%s</span></a>`, item.label)
 	}

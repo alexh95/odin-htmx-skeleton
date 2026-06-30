@@ -24,6 +24,31 @@ test.describe('navigation', () => {
     });
   }
 
+  test('primary nav is boosted: swaps in place (no full reload) and updates the title', async ({ page }) => {
+    await page.goto('/');
+    // Tag the live window. A full document navigation discards it; a boosted
+    // (AJAX + pushState) swap keeps the same document, so it survives the click.
+    await page.evaluate(() => { (window as Window & { __alive?: number }).__alive = 1; });
+
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Forms' }).click();
+    await expect(page).toHaveURL('/forms');
+    await expect(page.getByRole('heading', { name: 'Forms & validation', level: 1 })).toBeVisible();
+    await expect(page).toHaveTitle(/^Forms · /); // title updated from the response's <title>
+    expect(await page.evaluate(() => (window as Window & { __alive?: number }).__alive)).toBe(1);
+  });
+
+  test('toasts still auto-retire after a boosted navigation (swap-safe observer)', async ({ page }) => {
+    await page.goto('/');
+    // Boost over to the components page, then raise a toast on the swapped-in body.
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Components' }).click();
+    await expect(page).toHaveURL('/components');
+    await page.getByRole('button', { name: 'Success toast' }).click();
+    const toast = page.locator('#toasts .toast');
+    await expect(toast).toBeVisible();
+    // The retire observer must have survived the body swap (it watches document.body).
+    await expect(toast).toHaveCount(0, { timeout: 7000 });
+  });
+
   test('ping button swaps in a live reading', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Ping server' }).click();

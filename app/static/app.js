@@ -67,10 +67,11 @@ function dismissToast(btn) {
 }
 
 // Toasts can arrive from any handler (out-of-band swaps included), so we watch
-// the container rather than wiring each source. Each new toast self-retires.
+// for them rather than wiring each source. Each new toast self-retires. We observe
+// the whole body subtree, not just #toasts: a boosted navigation swaps the <body>
+// and replaces #toasts, but document.body is stable — so this one observer keeps
+// retiring toasts across page swaps.
 function watchToasts() {
-  var host = document.getElementById("toasts");
-  if (!host) return;
   new MutationObserver(function (muts) {
     muts.forEach(function (m) {
       m.addedNodes.forEach(function (n) {
@@ -79,13 +80,15 @@ function watchToasts() {
         }
       });
     });
-  }).observe(host, { childList: true });
+  }).observe(document.body, { childList: true, subtree: true });
 }
 
 // Count the dashboard stat values up from zero — cheap, and it makes the
 // numbers feel alive on first paint.
 function countUp() {
   document.querySelectorAll(".stat-value[data-count]").forEach(function (el) {
+    if (el.dataset.counted) return; // animate each card once — idempotent so it's
+    el.dataset.counted = "1";       // safe to re-run after a boosted nav swap.
     var target = parseInt(el.dataset.count, 10) || 0;
     if (target === 0) return;
     var start = performance.now(), dur = 600;
@@ -118,8 +121,15 @@ document.addEventListener("input", function (e) {
   if (e.target.matches && e.target.matches('input[type="range"]')) fillRange(e.target);
 });
 // htmx 4 fires htmx:after:process when it wires up new content (initial load and
-// every swap); re-fill any range sliders inside it (e.g. the detail edit form).
-document.addEventListener("htmx:after:process", function (e) { initRanges(e.target); }, true);
+// every swap, boosted navigation included). Re-fill range sliders inside it (e.g.
+// the detail edit form), and restore the chrome a boosted body-swap re-renders:
+// the picker's pressed state and the dashboard count-up. Both are idempotent, so
+// small in-page fragment swaps are cheap no-ops.
+document.addEventListener("htmx:after:process", function (e) {
+  initRanges(e.target);
+  markPicker();
+  countUp();
+}, true);
 
 // Auto-reset a form marked [data-reset-on-success] after its OWN successful
 // submit. Done here (not hx-on) so it works whether the form's target sits inside
