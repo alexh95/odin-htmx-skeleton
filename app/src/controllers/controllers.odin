@@ -433,10 +433,10 @@ init_etags :: proc() {
 	etag_css = etag(APP_CSS)
 	etag_js = etag(APP_JS)
 	etag_favicon = etag(FAVICON)
-	// Cache-busting token for the asset URLs in the page <head>: a hash of the
-	// CSS+JS, so any edit changes the URL and clients fetch the new file instead
-	// of serving a stale cached copy until max-age expires.
-	views.ASSET_VERSION = fmt.aprintf("%08x%08x", hash.crc32(APP_CSS), hash.crc32(APP_JS))
+	// Cache-busting token for the versioned asset URLs in the page <head>: a hash
+	// of htmx + CSS + JS, so any change (an htmx upgrade included) yields new URLs
+	// and clients fetch fresh instead of serving a stale cached copy until max-age.
+	views.ASSET_VERSION = fmt.aprintf("%08x%08x%08x", hash.crc32(HTMX_JS), hash.crc32(APP_CSS), hash.crc32(APP_JS))
 }
 
 serve_static :: proc(req: ^http.Request, res: ^http.Response) {

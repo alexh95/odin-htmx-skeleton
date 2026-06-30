@@ -37,6 +37,10 @@ place of releases. **Every behaviour/structure/build change gets an entry under
     into `<template>`, and a response starting with the non-table `<aside>` drops a trailing bare
     `<tr>`; the drawer-edit now wraps the row in `<hx-partial hx-target="#contact-N" hx-swap=…>`.
     Removed the now-dead `oob` arg from `view_contact_row`.
+  - **Cache-bust the htmx URL too.** `/static/htmx.min.js` now carries `?v=<hash>` like app.css/app.js
+    (htmx folded into `ASSET_VERSION`), so an htmx upgrade can't leave a stale copy at the CDN edge —
+    Cloudflare kept serving the old htmx for up to `max-age` after this bump because the URL hadn't
+    changed.
 - **Docs accuracy pass.** Brought the prose docs up to date with the SQLite store + events: the
   top `README.md` no longer calls the e2e/load suites "plans only" (both are implemented and gate
   CI); `CLAUDE.md`, `PHILOSOPHY.md`, `app/README.md`, the e2e/load READMEs+PLANs, and the

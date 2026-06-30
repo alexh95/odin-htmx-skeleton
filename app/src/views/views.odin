@@ -304,7 +304,9 @@ layout :: proc(title, active, description, content: string) -> string {
 	w(&b, ASSET_VERSION)
 	w(&b, `">
 <script>try{var d=document.documentElement,s=localStorage.getItem('style'),c=localStorage.getItem('scheme');if(s)d.dataset.style=s;if(c)d.dataset.scheme=c;}catch(e){}</script>
-<script src="/static/htmx.min.js" defer></script>
+<script src="/static/htmx.min.js?v=`)
+	w(&b, ASSET_VERSION)
+	w(&b, `" defer></script>
 <script src="/static/app.js?v=`)
 	w(&b, ASSET_VERSION)
 	w(&b, `" defer></script>
