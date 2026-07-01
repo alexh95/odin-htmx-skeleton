@@ -67,11 +67,12 @@ function dismissToast(btn) {
 }
 
 // Toasts can arrive from any handler (out-of-band swaps included), so we watch
-// for them rather than wiring each source. Each new toast self-retires. We observe
-// the whole body subtree, not just #toasts: a boosted navigation swaps the <body>
-// and replaces #toasts, but document.body is stable — so this one observer keeps
-// retiring toasts across page swaps.
+// the container rather than wiring each source. Each new toast self-retires.
+// #toasts is hx-preserve'd (see layout), so a boosted navigation keeps the very
+// same node — this one observer, set up once, survives page swaps.
 function watchToasts() {
+  var host = document.getElementById("toasts");
+  if (!host) return;
   new MutationObserver(function (muts) {
     muts.forEach(function (m) {
       m.addedNodes.forEach(function (n) {
@@ -80,7 +81,7 @@ function watchToasts() {
         }
       });
     });
-  }).observe(document.body, { childList: true, subtree: true });
+  }).observe(host, { childList: true });
 }
 
 // Count the dashboard stat values up from zero — cheap, and it makes the
