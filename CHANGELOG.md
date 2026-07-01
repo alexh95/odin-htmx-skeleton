@@ -8,7 +8,18 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed
+- **Load tests re-run for 1.0** — [`load-tests/RESULTS.md`](load-tests/RESULTS.md) refreshed on the
+  current SQLite build (2026-07-01, Ryzen 5800X, `THREADS=1` vs `16`, `:memory:`). Reads scale **~4×**
+  (search 4.6×, pages 4.2×, list/mixed 4.0–4.1×, api 3.8×); the `detail` events-JOIN is the worst
+  read at **1.9×** and flat past 50 VUs — the single shared connection's exclusive lock, the concrete
+  case for per-thread WAL connections. Writes ~2×, `static` ~2.3× (peaks **~2.3 GB/s** over
+  loopback), **0% errors through 200 VUs**; a file DB costs **~3×** on writes. The doc now leads with
+  SQLite (the current store) and demotes the pre-SQLite in-memory numbers to a historical note.
+- **Simpler toast observer.** `watchToasts` (`app.js`) watches `#toasts` directly again instead of the
+  whole `document.body` subtree — a workaround that's unnecessary now that `#toasts` is `hx-preserve`'d
+  (so it's the same node across boosted navigations). Same behaviour, narrower scope; the toast e2e
+  still passes.
 
 ## [1.0.0] - 2026-07-01
 
