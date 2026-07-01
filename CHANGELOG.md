@@ -29,6 +29,9 @@ place of releases. **Every behaviour/structure/build change gets an entry under
     specs/scenarios, then drops in minimal templates (`tools/init/minimal/`, embedded via `#load`).
     Validated end-to-end: renamed + stripped app builds `-warnings-as-errors`, runs, and passes a
     fresh 4-test e2e suite across all three engines.
+  - CI **`minimal` job** guards the templates from rotting: it strips a fresh checkout to the Notes
+    starter and runs its e2e (global-setup builds `-warnings-as-errors`, so one job covers compile-
+    and runtime-rot, and the rename path too). Chromium only; gates deploy alongside build + e2e.
 - **About page** (`/about`) — a content page describing the skeleton (Odin + HTMX + SQLite in one
   binary, the demo as the worked example) with a button linking to the source on GitHub. Added to the
   primary nav (boosted like the rest). The repo URL is a `BRAND_REPO` constant in `brand.odin` —

@@ -188,10 +188,10 @@ The patterns + harness a fork inherits. (Was "Now / next"; the initiative below 
 - [ ] Optional: a build-flag-gated `/__reset` endpoint to reseed the store (useful for load
       tests; must never ship in a normal build). Tie to `load-tests/PLAN.md`.
 - [ ] Optional: `-o:speed` build path for benchmarking vs. the default showcase build.
-- [ ] CI guard for `init --minimal` rot. The `tools/init/minimal/` templates aren't compiled by CI
-      (only `app/src` is), so they can drift as the skeleton evolves. Add a CI job that runs
-      `init --minimal` on a throwaway checkout, builds it `-warnings-as-errors`, and runs the minimal
-      e2e — the only way to keep the minimal variant honest. (Tested by hand for now.)
+- [x] CI guard for `init --minimal` rot — a `minimal` CI job strips a fresh checkout to the Notes
+      starter and runs its e2e (global-setup builds it `-warnings-as-errors`, so one job catches
+      compile- **and** runtime-rot, and exercises the rename path too). Chromium only; gates deploy.
+      Keeps the `tools/init/minimal/` templates honest as the skeleton evolves.
 
 ## Done
 
