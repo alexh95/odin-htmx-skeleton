@@ -42,11 +42,13 @@ Make it trivial to start a new project from. Bounded: mostly docs + one script.
 - [x] **README as a starter guide**, not a demo tour: use-template → run `init` → keep-vs-strip →
       the `CLAUDE.md` **Recipes** for adding a page / entity / endpoint. (Live in the README's
       "Using this as a starter".)
-- [ ] **`docs/STRIP.md` — "remove the demo."** The exact seams to delete the contacts/events domain
-      and demo pages, leaving the shell + data layer + theming + harness. The layering makes this
-      nearly mechanical; write it down.
-- [ ] **Re-skin the docs to the skeleton framing** — finish reframing `USE_CASES.md` (the "flagship"
-      language → "the worked example") and prune the retired product-depth items.
+- [x] **`docs/STRIP.md` — "remove the demo."** Written: the demo-vs-scaffold map + the file-by-file
+      seams to delete the contacts/events domain and demo pages, leaving the shell + data layer +
+      theming + harness. Cross-links `init --minimal` (the automated version) and the CLAUDE recipes.
+- [x] **Re-skin the docs to the skeleton framing** — `USE_CASES.md`'s "flagship (the app's
+      direction)" section is now "the worked example" (built, past tense), the retired product-depth
+      items (bulk actions, named console) are called out as out-of-scope, and the "read first" banner
+      is tightened.
 
 ## 1.x — what *every new site* needs (so the skeleton should ship it)
 

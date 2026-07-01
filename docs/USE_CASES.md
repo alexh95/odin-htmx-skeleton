@@ -1,10 +1,9 @@
 # Use cases — where this stack wins, and the example it ships
 
-> **Reframe (read first):** this project is a **starter skeleton** (see [`../TODO.md`](../TODO.md)).
-> The "flagship admin console" described below is the **worked example** that proves the stack's
-> patterns — *not* a product to finish. The sweet-spot analysis here still stands (it tells you
-> whether the skeleton is the right starting point for *your* site); the product-depth ambitions
-> (bulk actions, a named console identity) are retired as goals.
+> **Read first:** this project is a **starter skeleton** (see [`../TODO.md`](../TODO.md)). The
+> contacts/events console is the **worked example** that proves the stack's patterns — *not* a
+> product to finish. The sweet-spot analysis below is what still matters: it tells you whether the
+> skeleton is the right thing to fork for *your* site.
 
 Companion to [`../PHILOSOPHY.md`](../PHILOSOPHY.md). The philosophy says *use the right tool*; this
 says **which jobs are the right job** for server-rendered HTML + HTMX + a fast single-binary
@@ -40,31 +39,28 @@ Per the philosophy's scope humility — reach for more client code when the job 
 HTMX handles *debounced* live search, inline validation, optimistic-ish swaps, and progressive
 disclosure comfortably. It does **not** want to be a 60fps physics loop. Know the difference.
 
-## The flagship (the app's direction)
+## The worked example
 
-The demo today is a *sampler* — a dashboard, a component gallery, a forms page, a CRUD table —
-good for proving the stack, but it reads as several disconnected demos. The decision (see
-`CHANGELOG`/`TODO`) is to **evolve it into one cohesive flagship: an internal admin console** built
-on the domain it already has (people/contacts with roles, status, and a score). This is the dead-
-center sweet-spot application, and making it *one believable tool* rather than a grab-bag is the
-most honest possible showcase.
+The bundled app is a **contacts/events admin console** — the dead-center sweet-spot application
+(internal tool, data-on-server, CRUD + tables + forms). It's here to *prove the patterns*, not to be
+a product you finish, so it's built as one believable tool rather than a grab-bag:
 
-What "flagship" means in practice (tracked in `TODO.md`):
+- a **dashboard** whose stat cards drill into the filtered data view;
+- a **sortable / filterable / paginated table** with create · update · delete;
+- a record **detail drawer** with inline edit, an activity trail from real `events` joined back to
+  contacts, and related records — CRUD that feels like a tool you'd use;
+- a **forms** page with live inline validation that mirrors the server;
+- a component gallery that doubles as the **style/scheme showroom** — every theme, shown *in situ*.
 
-- **A coherent product frame** — a named internal console, consistent nav, a real information
-  architecture, not four unrelated pages.
-- **Depth on the core entity** — a record **detail** view, richer fields, related data, an activity
-  trail; CRUD that feels like a tool you'd actually use.
-- **Real workflows** — bulk actions, saved filters, inline edit, validation that mirrors the server.
-- **The component gallery becomes the style/scheme showroom** (see the theming work) rather than a
-  standalone page — components shown *in situ* in the console.
-
-It stays strictly CRUD-centric and within the sweet spot — we are deepening the exemplar, not
-chasing a use case the stack is wrong for.
+That's the exemplar. Product-depth features a real console would grow — **bulk actions**, saved
+filters, a **named console identity** — are **out of scope as goals**: they'd be cruft a copier
+deletes, and they teach nothing new about the stack. When you fork this, the example is what you
+*strip* — by hand ([`STRIP.md`](STRIP.md)) or with `init --minimal` — keeping the scaffolding beneath
+it. It stays strictly CRUD-centric and inside the sweet spot; that's the honest showcase.
 
 ## The standing rule: app / e2e / load-tests at par
 
 Every user-facing feature or endpoint lands in **all three** suites in the same change — `app/`
 builds it, [`../e2e/`](../e2e) asserts its behavior, [`../load-tests/`](../load-tests) measures its
 cost. Adding `/foo` means an e2e scenario *and* a load scenario for `/foo`, or an explicit TODO
-saying why not. This is non-negotiable; it's what keeps the flagship trustworthy as it grows.
+saying why not. This is non-negotiable; it's what keeps the example — and your fork — trustworthy.

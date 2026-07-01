@@ -60,6 +60,13 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   interactions vanish); the detail `load` scenario now exercises the JOIN. **42 e2e total.**
 
 ### Changed
+- **Phase F docs — `docs/STRIP.md` + `USE_CASES.md` re-skin** (Phase F → 1.0). New
+  [`docs/STRIP.md`](docs/STRIP.md): a demo-vs-scaffold map and file-by-file walkthrough for removing
+  the contacts/events demo by hand, cross-linked to `init --minimal` (the automated version) and the
+  CLAUDE recipes. `docs/USE_CASES.md`'s old "flagship (the app's direction)" section is rewritten as
+  "the worked example" (built, not a direction to chase), the retired product-depth items (bulk
+  actions, a named console) are named as out-of-scope, and the "read first" banner is tightened. With
+  these + the template repo, `init`, and `init --minimal`, **Phase F (template-ize) is complete.**
 - **Brand/app name centralized for renaming** (Phase F → 1.0). `app/src/views/brand.odin` now holds
   `BRAND_WORDMARK` (the topbar wordmark) and `BRAND_SUFFIX` (the `<title>` / og:title suffix), read
   only by `layout`. Renaming the skeleton's display name is now a two-constant edit instead of
