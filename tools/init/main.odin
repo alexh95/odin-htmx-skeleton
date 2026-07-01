@@ -6,14 +6,15 @@ package main
 // template:
 //
 //   odin run tools/init -- <new-name> [--wordmark "New·Name"] [--suffix "..."]
-//                                     [--repo <url>] [--yes]
+//                                     [--repo <url>] [--minimal] [--yes]
 //
 // <new-name> is the machine name (lower-case letters, digits, dashes; starts
 // with a letter), e.g. `acme-crm`. It becomes the binary, the Fly app, the
 // Docker image, the apollo-11 service, the startup banner, and the package
 // names. --wordmark / --suffix / --repo set the three brand constants the
 // layout reads (see app/src/views/brand.odin); sensible defaults are derived
-// from <new-name>.
+// from <new-name>. --minimal additionally strips the contacts/events demo down
+// to a one-page starter (see strip.odin).
 //
 // The tool is itself an Odin program — the skeleton's own tooling stays on the
 // stack it teaches. It edits a fixed set of files (no directory walk), so what
@@ -33,6 +34,7 @@ Options :: struct {
 	wordmark: string,
 	suffix:   string,
 	repo:     string,
+	minimal:  bool,
 	yes:      bool,
 }
 
@@ -44,6 +46,9 @@ main :: proc() {
 	fmt.printfln("  brand wordmark (topbar)            : %s", opt.wordmark)
 	fmt.printfln("  title suffix (<title>)             : %s", opt.suffix)
 	fmt.printfln("  GitHub repo (About page)           : %s", opt.repo)
+	if opt.minimal {
+		fmt.println("  + strip the contacts/events demo to a minimal one-page starter")
+	}
 	fmt.println()
 
 	if !opt.yes && !confirm("Proceed? [y/N] ") {
@@ -53,6 +58,10 @@ main :: proc() {
 
 	fmt.println("Renaming:")
 	rename(opt)
+	if opt.minimal {
+		fmt.println("Stripping the demo to a minimal starter:")
+		strip_to_minimal(opt)
+	}
 
 	fmt.println()
 	fmt.println("Done. Next:")
@@ -155,6 +164,8 @@ parse_args :: proc(args: []string) -> Options {
 		switch {
 		case a == "-y", a == "--yes":
 			opt.yes = true
+		case a == "--minimal":
+			opt.minimal = true
 		case a == "--wordmark":
 			opt.wordmark = next_arg(args, &i, "--wordmark")
 		case a == "--suffix":
@@ -241,6 +252,7 @@ usage :: proc() {
 	fmt.eprintln("  --wordmark   topbar wordmark (inline HTML ok); default: <new-name>")
 	fmt.eprintln("  --suffix     <title> suffix; default: Title Case of <new-name>")
 	fmt.eprintln("  --repo       GitHub URL for the About page; default: a placeholder")
+	fmt.eprintln("  --minimal    also strip the demo to a one-page starter")
 	fmt.eprintln("  --yes, -y    skip the confirmation prompt")
 	os.exit(2)
 }

@@ -22,13 +22,17 @@ Make it trivial to start a new project from. Bounded: mostly docs + one script.
 
 - [x] **GitHub *template repository*.** Repo set as a Template Repository (the "Use this template"
       button is live); README has the use-template → `init` steps.
-- [~] **An `init` / scaffold script** — `tools/init` (an Odin program: the skeleton's own tooling on
+- [x] **An `init` / scaffold script** — `tools/init` (an Odin program: the skeleton's own tooling on
       the stack it teaches). Renames the app everywhere it's hardcoded in one pass — the binary
       (`demo`), the `fly.toml` app, the docker image, the apollo-11 service + volume, the `main.odin`
       banner, the test-package names, and the three `brand.odin` constants — across a fixed, audited
       file set. `--wordmark`/`--suffix`/`--repo` override the brand defaults; a confirm prompt +
       name validation guard it. Tested (run → build → revert).
-  - [ ] `--minimal`: also strip the contacts/events demo to a one-page starter (next).
+  - [x] `--minimal`: strips the contacts/events demo to a one-page **Notes** starter (the full
+        model→repo→service→view→controller stack over one entity), keeping the shell + theme +
+        data-layer + harness. Deletes the demo domain/pages/specs/scenarios and drops in minimal
+        templates (`tools/init/minimal/`, embedded via `#load`). Tested end-to-end: run → build
+        (`-warnings-as-errors`) → curl smoke → **12/12 e2e** → revert.
 - [x] **Parameterize the brand / app name** to one place — `app/src/views/brand.odin` holds
       `BRAND_WORDMARK` (the topbar wordmark, inline markup allowed) and `BRAND_SUFFIX` (the
       `<title>` / og:title suffix); `layout` is the only reader. The display name is now a
@@ -59,8 +63,9 @@ Make it trivial to start a new project from. Bounded: mostly docs + one script.
 
 ## Stretch goals
 
-- [ ] **A `--minimal` scaffold variant** — a near-empty but fully-wired shell (one page, one trivial
-      entity) beside the full showcase, so you can start from *blank-but-wired* or *copy-a-pattern*.
+- [x] **A `--minimal` scaffold variant** — delivered as `init --minimal` (see Phase F above): a
+      fully-wired one-page **Notes** starter you generate on demand (blank-but-wired), instead of a
+      second variant to maintain beside the showcase.
 - [ ] **Common-need recipes** as documented patterns (file upload, an env/config story, a background
       task) — kept as *recipes*, not framework features, to stay true to the philosophy.
 - [ ] **Reporting/export** (CSV of the filtered table) and a focused **a11y pass** (drawer/modal
@@ -183,6 +188,10 @@ The patterns + harness a fork inherits. (Was "Now / next"; the initiative below 
 - [ ] Optional: a build-flag-gated `/__reset` endpoint to reseed the store (useful for load
       tests; must never ship in a normal build). Tie to `load-tests/PLAN.md`.
 - [ ] Optional: `-o:speed` build path for benchmarking vs. the default showcase build.
+- [ ] CI guard for `init --minimal` rot. The `tools/init/minimal/` templates aren't compiled by CI
+      (only `app/src` is), so they can drift as the skeleton evolves. Add a CI job that runs
+      `init --minimal` on a throwaway checkout, builds it `-warnings-as-errors`, and runs the minimal
+      e2e — the only way to keep the minimal variant honest. (Tested by hand for now.)
 
 ## Done
 

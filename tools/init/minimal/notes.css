@@ -1,0 +1,13 @@
+
+/* ---- minimal starter: the notes home page (replace with your own) ------ */
+.add-note { display: flex; gap: 10px; margin-bottom: 18px; }
+.add-note input {
+  flex: 1; padding: 10px 12px; font: inherit; color: var(--text);
+  background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px;
+}
+.note-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.note {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  padding: 11px 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;
+}
+.note-time { color: var(--muted); white-space: nowrap; font-size: .82rem; }

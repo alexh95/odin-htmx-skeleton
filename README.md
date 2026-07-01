@@ -54,8 +54,12 @@ design notes.
 To extend it, follow the **Recipes** in [CLAUDE.md](CLAUDE.md) (new page, new endpoint, new
 component) and the architecture tour in [app/README.md](app/README.md).
 
-> Still on the [roadmap](TODO.md) (Phase F → 1.0): an `init --minimal` that strips the demo to a
-> one-page starter for you, and a `docs/STRIP.md` walkthrough for doing it by hand.
+Prefer to start from a blank slate? `odin run tools/init -- your-name --minimal` also strips the
+contacts/events demo down to a one-page **Notes** starter (the full stack over one entity), keeping
+the shell, theme, data layer, and test/deploy harness.
+
+> Still on the [roadmap](TODO.md) (Phase F → 1.0): a `docs/STRIP.md` walkthrough for removing the
+> demo by hand.
 
 ## Tests
 

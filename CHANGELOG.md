@@ -22,7 +22,13 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   `--suffix` / `--repo` override the derived defaults). Name validation + a confirm prompt guard it.
   The tool is itself Odin — the skeleton's tooling stays on the stack it teaches. The repo is also a
   GitHub *template repository* now, and the README's "Using this as a starter" walks the
-  use-template → `init` → keep-vs-strip path. (`--minimal` demo-strip is next.)
+  use-template → `init` → keep-vs-strip path.
+  - `--minimal` additionally **strips the demo to a one-page Notes starter** — the full
+    model→repo→service→view→controller stack over a single entity, keeping the shell, theme, data
+    layer, and test/deploy harness. It deletes the contacts/events domain, the demo pages, and their
+    specs/scenarios, then drops in minimal templates (`tools/init/minimal/`, embedded via `#load`).
+    Validated end-to-end: renamed + stripped app builds `-warnings-as-errors`, runs, and passes a
+    fresh 4-test e2e suite across all three engines.
 - **About page** (`/about`) — a content page describing the skeleton (Odin + HTMX + SQLite in one
   binary, the demo as the worked example) with a button linking to the source on GitHub. Added to the
   primary nav (boosted like the rest). The repo URL is a `BRAND_REPO` constant in `brand.odin` —
