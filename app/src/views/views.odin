@@ -362,7 +362,9 @@ layout :: proc(title, active, description, content: string) -> string {
 	w(&b, content)
 	w(&b, `</main>
 <div id="overlay"></div>
-<div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
+<!-- hx-preserve keeps this node (and any live toast) across a boosted body swap,
+     so navigating to another page doesn't wipe a toast mid-flight. -->
+<div id="toasts" class="toasts" aria-live="polite" aria-atomic="false" hx-preserve="true"></div>
 </body>
 </html>`)
 	return strings.to_string(b)

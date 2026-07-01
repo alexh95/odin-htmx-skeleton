@@ -49,6 +49,18 @@ test.describe('navigation', () => {
     await expect(toast).toHaveCount(0, { timeout: 7000 });
   });
 
+  test('a toast survives a boosted navigation (hx-preserve, not wiped mid-flight)', async ({ page }) => {
+    await page.goto('/components');
+    await page.getByRole('button', { name: 'Success toast' }).click();
+    const toast = page.locator('#toasts .toast');
+    await expect(toast).toBeVisible();
+    // Navigate away via the boosted nav before the toast auto-retires; #toasts is
+    // hx-preserve'd, so the live toast rides through the body swap.
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Forms' }).click();
+    await expect(page).toHaveURL('/forms');
+    await expect(toast).toBeVisible();
+  });
+
   test('about page links to the source on GitHub', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'About' }).click();

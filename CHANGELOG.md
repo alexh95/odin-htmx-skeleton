@@ -8,6 +8,12 @@ place of releases. **Every behaviour/structure/build change gets an entry under
 
 ## [Unreleased]
 
+### Fixed
+- **A toast no longer vanishes when you navigate.** A boosted nav swaps the `<body>`, which was
+  wiping any live toast along with `#toasts`. `hx-preserve` on `#toasts` keeps the node (and its
+  toasts) across the swap, so a toast rides through a page change and retires on its own schedule.
+  Pinned by e2e.
+
 ### Added
 - **About page** (`/about`) — a content page describing the skeleton (Odin + HTMX + SQLite in one
   binary, the demo as the worked example) with a button linking to the source on GitHub. Added to the
