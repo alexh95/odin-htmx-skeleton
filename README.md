@@ -34,19 +34,28 @@ design notes.
 
 ## Using this as a starter
 
-Clone it and replace the demo with your domain. What you **keep** vs. **strip**:
-
-- **Keep — the scaffolding:** the layered packages (`models` / `repository` / `services` / `views` /
-  `controllers`), the SQLite layer + migrations, the theme system, the view/component helpers, and
-  the build / CI / Docker / deploy / e2e / load harness.
-- **Strip — the demo:** the contacts + events domain and the demo pages' content. The strict
-  layering keeps this nearly mechanical.
+1. **Use this template.** Click **“Use this template”** on GitHub to create your own repo (or just
+   clone this one).
+2. **Rename it.** From the repo root:
+   ```sh
+   odin run tools/init -- your-name --repo https://github.com/you/your-name
+   ```
+   One pass rewrites the binary, the Fly app, the Docker image, the apollo-11 service, the startup
+   banner, the test-package names, and the three brand constants in
+   [`app/src/views/brand.odin`](app/src/views/brand.odin). Run `odin run tools/init` with no args to
+   see the options (`--wordmark`, `--suffix`); delete `tools/init` once you're happy.
+3. **Replace the demo with your domain.** What you **keep** vs. **strip**:
+   - **Keep — the scaffolding:** the layered packages (`models` / `repository` / `services` /
+     `views` / `controllers`), the SQLite layer + migrations, the theme system, the view/component
+     helpers, and the build / CI / Docker / deploy / e2e / load harness.
+   - **Strip — the demo:** the contacts + events domain and the demo pages' content. The strict
+     layering keeps this nearly mechanical.
 
 To extend it, follow the **Recipes** in [CLAUDE.md](CLAUDE.md) (new page, new endpoint, new
 component) and the architecture tour in [app/README.md](app/README.md).
 
-> Smoother onboarding — a “Use this template” button, an `init` rename script, and a `docs/STRIP.md`
-> — is on the [roadmap](TODO.md) (Phase F → 1.0).
+> Still on the [roadmap](TODO.md) (Phase F → 1.0): an `init --minimal` that strips the demo to a
+> one-page starter for you, and a `docs/STRIP.md` walkthrough for doing it by hand.
 
 ## Tests
 

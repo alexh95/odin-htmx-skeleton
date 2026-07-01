@@ -15,6 +15,14 @@ place of releases. **Every behaviour/structure/build change gets an entry under
   Pinned by e2e.
 
 ### Added
+- **`tools/init` — a rename script for starting a new project** (Phase F → 1.0). An Odin program
+  (`odin run tools/init -- <new-name>`) that renames the skeleton in one pass across a fixed, audited
+  file set: the binary (`demo`), the Fly app + Docker image, the apollo-11 service + volume, the
+  `main.odin` banner, the e2e package names, and the three `brand.odin` constants (`--wordmark` /
+  `--suffix` / `--repo` override the derived defaults). Name validation + a confirm prompt guard it.
+  The tool is itself Odin — the skeleton's tooling stays on the stack it teaches. The repo is also a
+  GitHub *template repository* now, and the README's "Using this as a starter" walks the
+  use-template → `init` → keep-vs-strip path. (`--minimal` demo-strip is next.)
 - **About page** (`/about`) — a content page describing the skeleton (Odin + HTMX + SQLite in one
   binary, the demo as the worked example) with a button linking to the source on GitHub. Added to the
   primary nav (boosted like the rest). The repo URL is a `BRAND_REPO` constant in `brand.odin` —

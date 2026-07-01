@@ -20,21 +20,24 @@ copy-and-start ergonomics and good defaults matter more than feature depth.
 
 Make it trivial to start a new project from. Bounded: mostly docs + one script.
 
-- [ ] **GitHub *template repository*.** Flip the "Template repository" setting; add a "Use this
-      template" line to the README. (Operator setting + a README line.)
-- [ ] **An `init` / scaffold script** that renames the app everywhere it's hardcoded — the binary
-      (`demo`), the `fly.toml` app name, the docker image, the `odin·htmx` brand + page titles in
-      the layout, the apollo-11 service dir — and optionally trims the demo to a minimal example.
-      Today, copying means hand-editing all of those.
+- [x] **GitHub *template repository*.** Repo set as a Template Repository (the "Use this template"
+      button is live); README has the use-template → `init` steps.
+- [~] **An `init` / scaffold script** — `tools/init` (an Odin program: the skeleton's own tooling on
+      the stack it teaches). Renames the app everywhere it's hardcoded in one pass — the binary
+      (`demo`), the `fly.toml` app, the docker image, the apollo-11 service + volume, the `main.odin`
+      banner, the test-package names, and the three `brand.odin` constants — across a fixed, audited
+      file set. `--wordmark`/`--suffix`/`--repo` override the brand defaults; a confirm prompt +
+      name validation guard it. Tested (run → build → revert).
+  - [ ] `--minimal`: also strip the contacts/events demo to a one-page starter (next).
 - [x] **Parameterize the brand / app name** to one place — `app/src/views/brand.odin` holds
       `BRAND_WORDMARK` (the topbar wordmark, inline markup allowed) and `BRAND_SUFFIX` (the
       `<title>` / og:title suffix); `layout` is the only reader. The display name is now a
       two-constant edit instead of literals scattered through the views. The remaining name
       touch-points are outside the views (binary/app name in run/build scripts + `fly.toml` +
       `Dockerfile`, and the `main.odin` startup banner) — the `init` script will tie them together.
-- [ ] **README as a starter guide**, not a demo tour: use-template → run `init` → the architecture →
-      add a page / entity / endpoint (point at the `CLAUDE.md` **Recipes**) → what's demo
-      (strippable) vs. scaffold (keep).
+- [x] **README as a starter guide**, not a demo tour: use-template → run `init` → keep-vs-strip →
+      the `CLAUDE.md` **Recipes** for adding a page / entity / endpoint. (Live in the README's
+      "Using this as a starter".)
 - [ ] **`docs/STRIP.md` — "remove the demo."** The exact seams to delete the contacts/events domain
       and demo pages, leaving the shell + data layer + theming + harness. The layering makes this
       nearly mechanical; write it down.
