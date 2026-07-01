@@ -1,12 +1,25 @@
 # Changelog
 
 All notable changes to this project are recorded here. Format follows
-[Keep a Changelog](https://keepachangelog.com/); this project is pre-1.0 and dates are used in
-place of releases. **Every behaviour/structure/build change gets an entry under
-`[Unreleased]`** — see `CLAUDE.md`. Entries track [Conventional Commits](https://www.conventionalcommits.org):
-`feat`→Added, `fix`→Fixed, `refactor`/`perf`/`style`→Changed, removals→Removed.
+[Keep a Changelog](https://keepachangelog.com/); releases are tagged from **1.0.0** on. **Every
+behaviour/structure/build change gets an entry under `[Unreleased]`** — see `CLAUDE.md`. Entries
+track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Added, `fix`→Fixed,
+`refactor`/`perf`/`style`→Changed, removals→Removed.
 
 ## [Unreleased]
+
+_Nothing yet._
+
+## [1.0.0] - 2026-07-01
+
+First tagged release: the project is now a **template-ized starter skeleton** (Phase F). It's a
+GitHub *template repository* with a `tools/init` rename script (`--minimal` also strips the demo to a
+one-page Notes starter, guarded in CI), a centralized brand, and starter docs
+([`README`](README.md) "Using this as a starter", [`docs/STRIP.md`](docs/STRIP.md)). The bundled
+contacts/events console — Odin + HTMX + SQLite in one self-contained binary, with a multi-style theme
+library, boosted SPA-like navigation, and browser + load suites gating CI — is the **worked example**
+you clone and strip, not a product to finish. Everything below shipped continuously to the live demo
+pre-1.0; **1.0.0 marks the point it became clone-and-go.**
 
 ### Fixed
 - **A toast no longer vanishes when you navigate.** A boosted nav swaps the `<body>`, which was

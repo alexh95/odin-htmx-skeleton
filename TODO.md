@@ -16,9 +16,11 @@ copy-and-start ergonomics and good defaults matter more than feature depth.
 > items (**bulk actions**, a **named console identity**) are **out of scope as goals** — they'd just
 > be cruft a copier deletes — and survive only as "example extensions you might add."
 
-## Roadmap to 1.0 — template-ize (Phase F)
+## Roadmap to 1.0 — template-ize (Phase F) — ✅ shipped as v1.0.0 (2026-07-01)
 
-Make it trivial to start a new project from. Bounded: mostly docs + one script.
+Make it trivial to start a new project from. Bounded: mostly docs + one script. **All items below are
+done** — the repo is a GitHub template with `tools/init` (+ `--minimal`), a centralized brand, and
+the starter docs. Next up is **1.x** (below), headlined by auth.
 
 - [x] **GitHub *template repository*.** Repo set as a Template Repository (the "Use this template"
       button is live); README has the use-template → `init` steps.
