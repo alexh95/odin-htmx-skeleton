@@ -9,6 +9,14 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 ## [Unreleased]
 
 ### Changed
+- **Odin toolchain `dev-2026-06` → `dev-2026-07a`** (`Dockerfile` ARG + the CI `ODIN_VERSION` env).
+  Note the CI matrix's three hardcoded asset names had to change too, and two changed *shape*, not
+  just the version substring: upstream's `dev-2026-06` shipped a truncated `odin-macos-arm64-dev-06`
+  and an arch-less `odin-windows-dev-2026-06`, while `dev-2026-07a` is regular
+  (`odin-macos-arm64-dev-2026-07a`, `odin-windows-amd64-dev-2026-07a`). A version-only bump would
+  have 404'd the macOS and Windows legs — all three URLs were verified to resolve before landing.
+  Upstream's notable changes here: Linux now defaults to **PIE + full RELRO** and C-vararg handling
+  tightened; neither affected this codebase (clean `-warnings-as-errors` build, 156/156 e2e).
 - **Dependency sweep — low-risk pass.** Every pin checked against upstream and bumped where safe:
   - **Debian base `bookworm-slim` → `trixie-slim`** (Debian 13.6, both Dockerfile stages — they must
     match for glibc). Bookworm's *regular* security support ended 2026-07-12 (LTS-only from there),

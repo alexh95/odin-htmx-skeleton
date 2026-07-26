@@ -10,7 +10,7 @@
 FROM debian:trixie-slim AS build
 
 # Pin the toolchain so image builds are reproducible. Bump deliberately.
-ARG ODIN_VERSION=dev-2026-06
+ARG ODIN_VERSION=dev-2026-07a
 
 # clang is the linker driver and also compiles the SQLite amalgamation (prepare.sh);
 # unzip extracts it and binutils (ar) archives it into sqlite3.a. The Odin release
