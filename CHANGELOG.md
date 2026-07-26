@@ -9,6 +9,24 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 ## [Unreleased]
 
 ### Changed
+- **Dependency sweep — low-risk pass.** Every pin checked against upstream and bumped where safe:
+  - **Debian base `bookworm-slim` → `trixie-slim`** (Debian 13.6, both Dockerfile stages — they must
+    match for glibc). Bookworm's *regular* security support ended 2026-07-12 (LTS-only from there),
+    which made this the time-sensitive one. Brings clang 19 (was 14) and glibc 2.41 (was 2.36).
+  - **htmx `4.0.0-beta5` → `4.0.0-beta6`** (+ new SHA-256 in `prepare.sh`/`prepare.bat`). One
+    breaking change upstream — `htmx:swap:finally` renamed to `htmx:finally:swap` — which this repo
+    never referenced; all seven htmx-4 behaviours the app relies on are unchanged.
+  - **SQLite `3.53.3` → `3.53.4`** (amalgamation + new SHA-256; same 3.53 branch, patch only).
+  - **GitHub Actions onto their Node 24 majors**: `checkout@v4→v7`, `cache@v4→v6`,
+    `upload-artifact@v4→v7`. Note `upload-artifact@v5` is a trap — it advertises Node 24 but still
+    declares `using: node20`; v6 is the true minimum. `msvc-dev-cmd` is deliberately **held** at
+    v1.13.0 (upstream stale since 2024-03, still Node 20), so one deprecation warning remains by
+    design. `setup-flyctl` is no longer floating on `@master` — pinned to SHA `ed8efb33` (tag 1.6).
+  - **Checked and already current:** `odin-http` (submodule `112c49b` = upstream HEAD).
+  - **Deliberately held: Playwright.** npm has 1.62.0, but the matching CI container image is not
+    published yet — `mcr.microsoft.com/playwright:v1.62.0-jammy` 404s (verified against the full
+    registry tag list; playwright.dev's docs page claims otherwise but just templates the version
+    number in). The npm package and the image tag must move together, so both stay at 1.61.1.
 - **Load tests re-run for 1.0** — [`load-tests/RESULTS.md`](load-tests/RESULTS.md) refreshed on the
   current SQLite build (2026-07-01, Ryzen 5800X, `THREADS=1` vs `16`, `:memory:`). Reads scale **~4×**
   (search 4.6×, pages 4.2×, list/mixed 4.0–4.1×, api 3.8×); the `detail` events-JOIN is the worst

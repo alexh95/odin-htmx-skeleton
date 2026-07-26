@@ -42,13 +42,13 @@ jobs:
             # Odin won't infer the extension on Windows; -out: needs it spelled out.
             exe: '.exe'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive   # odin-http is a pinned submodule
 
       - name: Cache Odin toolchain
         id: cache-odin
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ matrix.odin_dir }}
           # runner.os in the key so the three OSes don't share one cache entry.
@@ -87,6 +87,10 @@ jobs:
           xcode-select -p        # Command Line Tools ship clang/ar — confirm present
           clang --version
 
+      # Held at v1.13.0 deliberately: upstream has been stale since 2024-03 and
+      # still targets Node 20, so this is the one action whose deprecation warning
+      # a bump can't clear. It keeps working (the runner force-runs it on Node 24);
+      # silencing it would mean inlining vcvars64.bat, which isn't worth it.
       - name: Set up MSVC (Windows)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1.13.0
@@ -159,13 +163,13 @@ jobs:
       matrix:
         browser: [chromium, firefox, webkit]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Cache Odin toolchain
         id: cache-odin
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: /opt/odin
           key: odin-${{ env.ODIN_VERSION }}
@@ -192,7 +196,9 @@ jobs:
         env:
           CI: 'true'
 
-      - uses: actions/upload-artifact@v4
+      # v7, not v5: upload-artifact v5 advertises Node 24 support but still declares
+      # `using: node20`, so it does NOT clear the deprecation. v6 is the true minimum.
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: playwright-report-${{ matrix.browser }}
@@ -215,13 +221,13 @@ jobs:
     env:
       HOME: /root
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Cache Odin toolchain
         id: cache-odin
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: /opt/odin
           key: odin-${{ env.ODIN_VERSION }}
@@ -265,10 +271,12 @@ jobs:
       group: deploy-master
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # SHA-pinned (tag 1.6, identical to master today) — house style is to pin
+      # everything; a floating branch can move under us on a deploying job.
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
       - run: flyctl deploy --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

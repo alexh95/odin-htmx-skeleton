@@ -24,8 +24,8 @@ sha256_of() {
 
 # htmx, pinned exactly (version + SHA-256) for reproducible builds — same
 # discipline as ODIN_VERSION and the SQLite amalgamation. Bump both together.
-HTMX_VERSION=4.0.0-beta5
-HTMX_SHA256=192d2d425dda6834bd15973a10f55940cea217a3a840f3f819ffd16063be9a68
+HTMX_VERSION=4.0.0-beta6
+HTMX_SHA256=28fae7bbe8e8142b702debb9d5234a9a436d9435a4b5165b195aa1a7ed840d25
 if [ -f static/htmx.min.js ] && [ "$(sha256_of static/htmx.min.js)" = "$HTMX_SHA256" ]; then
   echo "[skip] htmx $HTMX_VERSION already present."
 else
@@ -44,8 +44,8 @@ fi
 # Pin the version AND its zip SHA-256 in one place — same reproducibility
 # discipline as ODIN_VERSION / htmx. Bump both together.
 SQLITE_YEAR=2026
-SQLITE_ID=sqlite-amalgamation-3530300                                            # SQLite 3.53.3
-SQLITE_SHA256=646421e12aac110282ef8cc68f1a62d4bb15fc7b8f09da0b53e29ee690500431
+SQLITE_ID=sqlite-amalgamation-3530400                                            # SQLite 3.53.4
+SQLITE_SHA256=1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d
 SQLITE_DIR=vendor/sqlite
 
 # Compiling the amalgamation makes a C toolchain a hard requirement. Check up front.

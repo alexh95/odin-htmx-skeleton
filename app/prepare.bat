@@ -18,14 +18,14 @@ if exist "odin-http\server.odin" (
 )
 
 rem htmx, pinned exactly (version + SHA-256) for reproducible builds.
-set "HTMX_URL=https://unpkg.com/htmx.org@4.0.0-beta5/dist/htmx.min.js"
-set "HTMX_SHA256=192d2d425dda6834bd15973a10f55940cea217a3a840f3f819ffd16063be9a68"
+set "HTMX_URL=https://unpkg.com/htmx.org@4.0.0-beta6/dist/htmx.min.js"
+set "HTMX_SHA256=28fae7bbe8e8142b702debb9d5234a9a436d9435a4b5165b195aa1a7ed840d25"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $f='static\htmx.min.js'; $w='%HTMX_SHA256%'; if((Test-Path $f) -and ((Get-FileHash $f -Algorithm SHA256).Hash.ToLower() -eq $w)){Write-Host '[skip] htmx already present.';exit 0}; Write-Host '[get ] downloading htmx ...'; Invoke-WebRequest -UseBasicParsing '%HTMX_URL%' -OutFile $f; $g=(Get-FileHash $f -Algorithm SHA256).Hash.ToLower(); if($g -ne $w){Remove-Item $f -Force; Write-Error \"htmx checksum mismatch: expected $w got $g\"; exit 1}"
 if errorlevel 1 goto :fail
 
 rem --- SQLite amalgamation (pinned; fetched + compiled, mirroring the htmx fetch) ---
-set "SQLITE_URL=https://sqlite.org/2026/sqlite-amalgamation-3530300.zip"
-set "SQLITE_SHA256=646421e12aac110282ef8cc68f1a62d4bb15fc7b8f09da0b53e29ee690500431"
+set "SQLITE_URL=https://sqlite.org/2026/sqlite-amalgamation-3530400.zip"
+set "SQLITE_SHA256=1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d"
 set "SQLITE_DIR=vendor\sqlite"
 
 rem Compiling the amalgamation needs MSVC's cl.exe (same env Odin's linker needs).

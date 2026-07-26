@@ -4,7 +4,10 @@
 # static assets on a slim glibc base. The runtime image carries no toolchain.
 
 # ---- build: fetch a pinned Odin, build for linux/amd64 -------------------
-FROM debian:bookworm-slim AS build
+# Debian 13 (trixie). Bookworm's regular security support ended 2026-07-12 (LTS
+# only from there). Both stages must stay on the same release so the glibc the
+# binary links against is the glibc it runs on.
+FROM debian:trixie-slim AS build
 
 # Pin the toolchain so image builds are reproducible. Bump deliberately.
 ARG ODIN_VERSION=dev-2026-06
@@ -32,7 +35,8 @@ RUN sh prepare.sh \
  && odin build src -out:bin/demo -o:speed -warnings-as-errors
 
 # ---- runtime: just the binary (all assets are embedded) ------------------
-FROM debian:bookworm-slim
+# Must match the build stage's Debian release (glibc compatibility).
+FROM debian:trixie-slim
 WORKDIR /app
 COPY --from=build /src/app/bin/demo /app/demo
 
