@@ -165,10 +165,6 @@ HTMX_HREF := "/static/htmx.min.js"
 CSS_HREF := "/static/app.css"
 JS_HREF := "/static/app.js"
 
-// The og:image card. Deliberately *not* fingerprinted: social platforms cache a
-// preview against its URL, so a stable path keeps already-shared links showing
-// the right card. It only ever changes when the card is redrawn.
-OG_IMAGE_HREF :: "/static/og.png"
 
 theme_picker :: proc(b: ^strings.Builder) {
 	w(

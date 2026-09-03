@@ -100,6 +100,43 @@ health :: proc(req: ^http.Request, res: ^http.Response) {
 	http.respond_plain(res, "ok")
 }
 
+// ---- seo ----------------------------------------------------------------
+//
+// robots.txt and sitemap.xml are generated, never files on disk: the sitemap
+// walks the same views.NAV the header renders from, so a page cannot be added
+// to the nav and silently left out. Both emit absolute URLs on the canonical
+// origin — a sitemap advertising a different host than the canonical tag is
+// discarded rather than followed.
+
+robots_txt :: proc(req: ^http.Request, res: ^http.Response) {
+	b := strings.builder_make(context.temp_allocator)
+	// Add any fragment route you introduce: endpoints answering with bare HTML
+	// meant to be swapped into a page are thin near-duplicates on their own.
+	strings.write_string(&b, `User-agent: *
+Allow: /
+
+Sitemap: `)
+	strings.write_string(&b, views.SITE_URL)
+	strings.write_string(&b, "/sitemap.xml\n")
+	http.respond_plain(res, strings.to_string(b))
+}
+
+sitemap_xml :: proc(req: ^http.Request, res: ^http.Response) {
+	b := strings.builder_make(context.temp_allocator)
+	strings.write_string(&b, `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+`)
+	for item in views.NAV {
+		strings.write_string(&b, "  <url><loc>")
+		strings.write_string(&b, views.SITE_URL)
+		strings.write_string(&b, item.href)
+		strings.write_string(&b, "</loc></url>\n")
+	}
+	strings.write_string(&b, "</urlset>\n")
+	// respond_file_content takes the content type from the extension: text/xml.
+	http.respond_file_content(res, "sitemap.xml", transmute([]byte)strings.to_string(b))
+}
+
 // ---- static -------------------------------------------------------------
 //
 // Every asset is embedded into the binary at compile time (#load; paths relative
@@ -109,11 +146,12 @@ HTMX_JS :: #load("../../static/htmx.min.js")
 APP_CSS :: #load("../../static/app.css")
 APP_JS :: #load("../../static/app.js")
 FAVICON :: #load("../../static/favicon.svg")
+OG_IMAGE :: #load("../../static/og.png")
 
 // Strong ETags (content hashes) computed once at startup; they let the browser
 // revalidate with a cheap 304 after max-age instead of re-downloading.
 @(private = "file")
-etag_htmx, etag_css, etag_js, etag_favicon: string
+etag_htmx, etag_css, etag_js, etag_favicon, etag_og: string
 
 // Fingerprinted asset names ("app.<hash>.css", …) — the layout links these and
 // serve_static also accepts them, so a changed asset gets a new (immutable) URL.
@@ -131,6 +169,7 @@ init_etags :: proc() {
 	etag_css = etag(APP_CSS)
 	etag_js = etag(APP_JS)
 	etag_favicon = etag(FAVICON)
+	etag_og = etag(OG_IMAGE)
 	asset_htmx = fmt.aprintf("htmx.%08x.min.js", hash.crc32(HTMX_JS))
 	asset_css = fmt.aprintf("app.%08x.css", hash.crc32(APP_CSS))
 	asset_js = fmt.aprintf("app.%08x.js", hash.crc32(APP_JS))
@@ -153,6 +192,10 @@ serve_static :: proc(req: ^http.Request, res: ^http.Response) {
 		blob, tag, fingerprinted = APP_JS, etag_js, name == asset_js
 	case name == "favicon.svg":
 		blob, tag = FAVICON, etag_favicon
+	// Unfingerprinted on purpose: og:image is cached by social platforms against
+	// its URL, so the path has to stay put across redeploys.
+	case name == "og.png":
+		blob, tag = OG_IMAGE, etag_og
 	case:
 		http.respond(res, http.Status.Not_Found)
 		return

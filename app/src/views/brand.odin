@@ -29,3 +29,10 @@ BRAND_REPO :: "https://github.com/alexh95/odin-htmx-skeleton"
 // appended verbatim. SITE_URL in the environment overrides it (main reads it),
 // so a fork points at its own domain without touching the source.
 SITE_URL := "https://odin-htmx.alexh95.com"
+
+// The og:image card. Deliberately *not* fingerprinted: social platforms cache a
+// preview against its URL, so a stable path keeps already-shared links showing
+// the right card. It only changes when the card is redrawn. Lives here rather
+// than in views.odin because `init --minimal` replaces that file wholesale and
+// both variants serve the same card.
+OG_IMAGE_HREF :: "/static/og.png"
