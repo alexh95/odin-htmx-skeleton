@@ -36,3 +36,10 @@ SITE_URL := "https://odin-htmx.alexh95.com"
 // than in views.odin because `init --minimal` replaces that file wholesale and
 // both variants serve the same card.
 OG_IMAGE_HREF :: "/static/og.png"
+
+// Bing Webmaster Tools site verification. Bing looks for this token at
+// /BingSiteAuth.xml; it is public by design, not a secret. Per-deployment
+// identity rather than skeleton functionality, so it lives here beside SITE_URL
+// and `init` blanks it — a fork must never serve someone else's token. Empty
+// disables the route (404), which is the right answer for an unverified site.
+BING_SITE_AUTH :: "66E45151A5C32201FC3C8F86B6E094FF"

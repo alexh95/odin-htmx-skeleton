@@ -83,6 +83,25 @@ test.describe('SEO contract', () => {
     }
   });
 
+  test('BingSiteAuth.xml proves ownership with a well-formed token', async ({ request }) => {
+    // Deployment-specific, not skeleton functionality: `init` blanks the token and
+    // the minimal starter has no route at all, so this is scoped to the demo the
+    // same way the robots disallow list is.
+    const paths = await sitemapPaths(request);
+    test.skip(!paths.includes('/data'), 'no verification token in this variant');
+
+    const res = await request.get('/BingSiteAuth.xml');
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-type'] ?? '').toContain('xml');
+
+    const body = await res.text();
+    // Bing parses this as XML; a stray character makes it unverifiable, and the
+    // failure surfaces only in Bing's console days later.
+    expect(body.startsWith('<?xml')).toBe(true);
+    const token = attr(body, /<user>([^<]+)<\/user>/);
+    expect(token).toMatch(/^[0-9A-F]{32}$/); // Bing tokens are 32 uppercase hex
+  });
+
   test('social card tags are present and absolute', async ({ request }) => {
     const html = await (await request.get('/')).text();
 
