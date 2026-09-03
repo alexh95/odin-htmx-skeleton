@@ -38,6 +38,12 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   constants, defaulting to `https://<name>.example.com`. Without it every fork would serve
   canonical tags and a sitemap pointing at *this* project's domain, telling Google the fork is a
   copy of someone else's page.
+- **The `--minimal` starter ships the same crawler contract.** `init --minimal` replaces
+  `routes.odin`, `controllers.odin` and `views.odin` wholesale, so the SEO work had to be ported
+  into those templates too — otherwise the variant that exists *to be built on* would be the one
+  shipping without canonical tags, robots or a sitemap. `OG_IMAGE_HREF` moved to `brand.odin`
+  (which survives the strip) so both variants share one definition. Its sitemap lists whatever its
+  smaller `NAV` holds, which is exactly the point of deriving it.
 - **e2e `seo.spec.ts` (11 cases) and the `seo` load scenario**, per the both-suites rule: the
   crawler contract is invisible in the UI, so it can rot silently. Covers robots/sitemap content
   and content types, canonical↔og:url agreement per page, absolute `og:image`, JSON-LD *parsing*
