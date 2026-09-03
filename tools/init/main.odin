@@ -6,12 +6,13 @@ package main
 // template:
 //
 //   odin run tools/init -- <new-name> [--wordmark "New·Name"] [--suffix "..."]
-//                                     [--repo <url>] [--minimal] [--yes]
+//                                     [--repo <url>] [--site <url>]
+//                                     [--minimal] [--yes]
 //
 // <new-name> is the machine name (lower-case letters, digits, dashes; starts
 // with a letter), e.g. `acme-crm`. It becomes the binary, the Fly app, the
 // Docker image, the apollo-11 service, the startup banner, and the package
-// names. --wordmark / --suffix / --repo set the three brand constants the
+// names. --wordmark / --suffix / --repo / --site set the four brand constants the
 // layout reads (see app/src/views/brand.odin); sensible defaults are derived
 // from <new-name>. --minimal additionally strips the contacts/events demo down
 // to a one-page starter (see strip.odin).
@@ -34,6 +35,7 @@ Options :: struct {
 	wordmark: string,
 	suffix:   string,
 	repo:     string,
+	site:     string,
 	minimal:  bool,
 	yes:      bool,
 }
@@ -46,6 +48,7 @@ main :: proc() {
 	fmt.printfln("  brand wordmark (topbar)            : %s", opt.wordmark)
 	fmt.printfln("  title suffix (<title>)             : %s", opt.suffix)
 	fmt.printfln("  GitHub repo (About page)           : %s", opt.repo)
+	fmt.printfln("  canonical site URL (SEO tags)      : %s", opt.site)
 	if opt.minimal {
 		fmt.println("  + strip the contacts/events demo to a minimal one-page starter")
 	}
@@ -66,7 +69,8 @@ main :: proc() {
 	fmt.println()
 	fmt.println("Done. Next:")
 	fmt.println("  - review the diff (git diff), then build: cd app && ./run.sh   (run.bat on Windows)")
-	fmt.println("  - the brand wordmark/suffix/repo live in app/src/views/brand.odin — tweak to taste")
+	fmt.println("  - the brand wordmark/suffix/repo/site live in app/src/views/brand.odin — tweak to taste")
+	fmt.println("  - SITE_URL drives the canonical tags and /sitemap.xml; point it at your real domain")
 	fmt.println("  - CHANGELOG.md / TODO.md / load-tests/RESULTS.md describe the example; prune them")
 	fmt.println("  - once you're happy, delete tools/init (a one-time step) and commit")
 }
@@ -76,16 +80,15 @@ main :: proc() {
 rename :: proc(opt: Options) {
 	name := opt.name
 
-	// The name shows up three ways: as the app/machine name (`odin-htmx-skeleton`
-	// is the Fly app, `odin-htmx-demo` the banner/README, `odin-htmx-e2e` the test
-	// package) and as the binary (`demo`). These tokens are specific enough to
-	// replace literally without touching prose.
+	// The name shows up two ways: as the app/machine name (`odin-htmx-skeleton` is
+	// the Fly app, the banner and the README; `odin-htmx-e2e` the test package) and
+	// as the binary (`demo`). These tokens are specific enough to replace literally
+	// without touching prose.
 	std := []Repl {
 		{"demo.exe", strings.concatenate({name, ".exe"})}, // before bin/demo, so bin\demo.exe (Windows) is caught
 		{"bin/demo", strings.concatenate({"bin/", name})},
 		{"/app/demo", strings.concatenate({"/app/", name})},
 		{"odin-htmx-skeleton", name},
-		{"odin-htmx-demo", name},
 		{"odin-htmx-e2e", strings.concatenate({name, "-e2e"})},
 	}
 	std_files := []string {
@@ -116,7 +119,7 @@ rename :: proc(opt: Options) {
 	append(&apollo, Repl{"odin-htmx", name}) // also rewrites odin-htmx-data -> <name>-data
 	edit("deploy/apollo-11/docker-compose.yml", apollo[:])
 
-	// brand.odin holds the three display constants; rewrite each whole line so the
+	// brand.odin holds the four display constants; rewrite each whole line so the
 	// repo URL's `odin-htmx-skeleton` isn't caught by the token pass above.
 	edit(
 		"app/src/views/brand.odin",
@@ -124,6 +127,7 @@ rename :: proc(opt: Options) {
 			{`BRAND_WORDMARK :: "odin<b>·</b>htmx"`, strings.concatenate({`BRAND_WORDMARK :: "`, opt.wordmark, `"`})},
 			{`BRAND_SUFFIX :: "Odin + HTMX"`, strings.concatenate({`BRAND_SUFFIX :: "`, opt.suffix, `"`})},
 			{`BRAND_REPO :: "https://github.com/alexh95/odin-htmx-skeleton"`, strings.concatenate({`BRAND_REPO :: "`, opt.repo, `"`})},
+			{`SITE_URL := "https://odin-htmx.alexh95.com"`, strings.concatenate({`SITE_URL := "`, opt.site, `"`})},
 		},
 	)
 }
@@ -172,6 +176,8 @@ parse_args :: proc(args: []string) -> Options {
 			opt.suffix = next_arg(args, &i, "--suffix")
 		case a == "--repo":
 			opt.repo = next_arg(args, &i, "--repo")
+		case a == "--site":
+			opt.site = next_arg(args, &i, "--site")
 		case a == "-h", a == "--help":
 			usage()
 		case strings.has_prefix(a, "-"):
@@ -191,8 +197,11 @@ parse_args :: proc(args: []string) -> Options {
 	if !valid_name(opt.name) {
 		fatal("<new-name> must be lower-case letters, digits and dashes, starting with a letter (e.g. acme-crm)")
 	}
-	if strings.contains(opt.wordmark, `"`) || strings.contains(opt.suffix, `"`) || strings.contains(opt.repo, `"`) {
-		fatal(`--wordmark / --suffix / --repo cannot contain a double-quote`)
+	if strings.contains(opt.wordmark, `"`) ||
+	   strings.contains(opt.suffix, `"`) ||
+	   strings.contains(opt.repo, `"`) ||
+	   strings.contains(opt.site, `"`) {
+		fatal(`--wordmark / --suffix / --repo / --site cannot contain a double-quote`)
 	}
 	// Defaults derived from the name.
 	if opt.wordmark == "" {
@@ -203,6 +212,12 @@ parse_args :: proc(args: []string) -> Options {
 	}
 	if opt.repo == "" {
 		opt.repo = strings.concatenate({"https://github.com/your-org/", opt.name})
+	}
+	// A deliberately obvious placeholder: left unset, every canonical tag and
+	// sitemap entry the fork serves would still point at the upstream domain,
+	// which tells Google the fork is a copy of someone else's page.
+	if opt.site == "" {
+		opt.site = strings.concatenate({"https://", opt.name, ".example.com"})
 	}
 	return opt
 }

@@ -165,6 +165,11 @@ HTMX_HREF := "/static/htmx.min.js"
 CSS_HREF := "/static/app.css"
 JS_HREF := "/static/app.js"
 
+// The og:image card. Deliberately *not* fingerprinted: social platforms cache a
+// preview against its URL, so a stable path keeps already-shared links showing
+// the right card. It only ever changes when the card is redrawn.
+OG_IMAGE_HREF :: "/static/og.png"
+
 theme_picker :: proc(b: ^strings.Builder) {
 	w(
 		b,
@@ -310,6 +315,25 @@ layout :: proc(title, active, description, content: string) -> string {
 	w(&b, `">
 <meta property="og:description" content="`)
 	esc(&b, description)
+	// canonical and og:url must be absolute, so they carry the origin. SITE_URL and
+	// `active` are developer constants (brand.odin and the NAV table), never user
+	// input, so they go in raw — url_encode would mangle the scheme and slashes.
+	w(&b, `">
+<meta property="og:site_name" content="`)
+	esc(&b, BRAND_SUFFIX)
+	w(&b, `">
+<meta property="og:url" content="`)
+	w(&b, SITE_URL)
+	w(&b, active)
+	w(&b, `">
+<meta property="og:image" content="`)
+	w(&b, SITE_URL)
+	w(&b, OG_IMAGE_HREF)
+	w(&b, `">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="`)
+	w(&b, SITE_URL)
+	w(&b, active)
 	w(&b, `">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <link rel="stylesheet" href="`)
@@ -321,7 +345,21 @@ layout :: proc(title, active, description, content: string) -> string {
 	w(&b, `" defer></script>
 <script src="`)
 	w(&b, JS_HREF)
+	// JSON-LD ties the site to its repository so a crawler reads one project
+	// rather than two unrelated URLs. It is literal braces from end to end, so it
+	// must be written with w() — sbprintf would fill it with %!(MISSING).
 	w(&b, `" defer></script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"`)
+	esc(&b, BRAND_SUFFIX)
+	w(&b, ` skeleton","description":"`)
+	esc(&b, description)
+	w(&b, `","codeRepository":"`)
+	w(&b, BRAND_REPO)
+	w(&b, `","url":"`)
+	w(&b, SITE_URL)
+	w(&b, `/","programmingLanguage":["Odin","HTML","CSS","JavaScript"]}
+</script>
 </head>
 <body>
 <header class="topbar">`)
