@@ -71,3 +71,9 @@ behaviour test *and* a load scenario.
 - **`load-tests/`** — k6 throughput/latency suite. `cd load-tests && ./run.sh --quick`.
 
 Each directory's `README.md` is the operating manual; its `PLAN.md` is the design rationale.
+
+## License
+
+[zlib](LICENSE) — use it for anything, including commercially, with or without changes. The only
+conditions are that you don't claim you wrote the original, that you mark altered versions as
+altered, and that you leave the notice in the source. Attribution is appreciated, not required.
