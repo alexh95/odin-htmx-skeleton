@@ -8,7 +8,7 @@ on:
 
 # Same Odin release the Dockerfile pins, so CI builds what production builds.
 env:
-  ODIN_VERSION: dev-2026-07a
+  ODIN_VERSION: dev-2026-09
 
 jobs:
   build:
@@ -20,25 +20,25 @@ jobs:
     # core:nbio). Each leg names its own asset rather than templating one: upstream
     # asset names have been irregular in the past (dev-2026-06 shipped a truncated
     # `...-dev-06` macOS name and an arch-less Windows name), so a version-only bump
-    # can silently 404. dev-2026-07a is regular again — verify the names on each bump.
+    # can silently 404. dev-2026-09 is regular again — verify the names on each bump.
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         include:
           - os: ubuntu-latest
-            odin_asset: odin-linux-amd64-dev-2026-07a.tar.gz
+            odin_asset: odin-linux-amd64-dev-2026-09.tar.gz
             odin_dir: /opt/odin
             exe: ''
           - os: macos-latest
             # arm64 build (macos-latest has been Apple Silicon since macos-14).
-            odin_asset: odin-macos-arm64-dev-2026-07a.tar.gz
+            odin_asset: odin-macos-arm64-dev-2026-09.tar.gz
             odin_dir: /opt/odin
             exe: ''
           - os: windows-latest
             # Unpacks to a top-level dist/ (odin.exe + LLVM-C.dll live there
             # together) — verified for this release.
-            odin_asset: odin-windows-amd64-dev-2026-07a.zip
+            odin_asset: odin-windows-amd64-dev-2026-09.zip
             odin_dir: C:\odin
             # Odin won't infer the extension on Windows; -out: needs it spelled out.
             exe: '.exe'
@@ -151,7 +151,7 @@ jobs:
     name: E2E (${{ matrix.browser }})
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.61.1-jammy
+      image: mcr.microsoft.com/playwright:v1.62.1-jammy
       # The server uses io_uring (core:nbio); Docker's default seccomp profile
       # blocks io_uring syscalls, so the server can't start in the container.
       options: --security-opt seccomp=unconfined
@@ -217,7 +217,7 @@ jobs:
     name: init --minimal builds + tests
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.61.1-jammy
+      image: mcr.microsoft.com/playwright:v1.62.1-jammy
       options: --security-opt seccomp=unconfined
     env:
       HOME: /root
