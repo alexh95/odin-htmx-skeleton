@@ -18,6 +18,8 @@ build_router :: proc(r: ^http.Router) {
 	http.route_get(r, "/sitemap.xml", http.handler(controllers.sitemap_xml))
 	// Bing ownership proof; 404s when views.BING_SITE_AUTH is unset.
 	http.route_get(r, "/BingSiteAuth.xml", http.handler(controllers.bing_site_auth))
+	// Crawlers and browsers both look for this at the root, not under /static.
+	http.route_get(r, "/favicon%.ico", http.handler(controllers.favicon_ico))
 	// IndexNow ownership proof. The path *is* the key, so the pattern is built
 	// here rather than written literally; `%%.` escapes the dot, which Lua
 	// patterns would otherwise read as "any character". Unset key, no route.

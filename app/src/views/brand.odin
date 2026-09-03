@@ -17,6 +17,12 @@ BRAND_WORDMARK :: "odin<b>·</b>htmx"
 // and og:title. Plain text — escaped on output.
 BRAND_SUFFIX :: "Odin + HTMX"
 
+// The home page's <title> stands alone rather than taking the "<page> · <brand>"
+// shape. Search engines show it as the result title for the site as a whole, and
+// "Dashboard · Odin + HTMX" describes a nav item, not the project. Keep it near
+// 60 characters — past that it is truncated in results.
+BRAND_HOME_TITLE :: "Odin + HTMX skeleton — server-rendered HTML, one binary"
+
 // The project's source repository, linked from the About page. Point this at
 // your fork.
 BRAND_REPO :: "https://github.com/alexh95/odin-htmx-skeleton"

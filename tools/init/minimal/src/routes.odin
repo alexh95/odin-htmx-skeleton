@@ -11,6 +11,8 @@ build_router :: proc(r: ^http.Router) {
 	// Crawler contract. Both are generated from views.NAV + views.SITE_URL.
 	http.route_get(r, "/robots.txt", http.handler(controllers.robots_txt))
 	http.route_get(r, "/sitemap.xml", http.handler(controllers.sitemap_xml))
+	// Crawlers and browsers both look for this at the root, not under /static.
+	http.route_get(r, "/favicon%.ico", http.handler(controllers.favicon_ico))
 
 	// pages
 	http.route_get(r, "/", http.handler(controllers.page_home))

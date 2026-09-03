@@ -147,16 +147,70 @@ test.describe('SEO contract', () => {
     expect([...body.subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
   });
 
-  test('JSON-LD parses and links the site to its repository', async ({ request }) => {
+  test('JSON-LD parses, names the site and links its repository', async ({ request }) => {
     const html = await (await request.get('/')).text();
-    const raw = attr(html, /<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+    const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
+    expect(blocks.length).toBeGreaterThan(0);
 
-    const ld = JSON.parse(raw); // invalid JSON here is invisible in the UI but fatal to crawlers
-    expect(ld['@context']).toBe('https://schema.org');
-    expect(ld['@type']).toBe('SoftwareSourceCode');
-    expect(ld.codeRepository).toMatch(/^https:\/\//);
-    expect(new URL(ld.url).origin).toMatch(ORIGIN);
-    expect(ld.programmingLanguage).toContain('Odin');
+    // Parsed, not pattern-matched: invalid JSON here is invisible in the UI and
+    // fatal to crawlers.
+    const ld = blocks.map((m) => JSON.parse(m[1]));
+    for (const d of ld) expect(d['@context']).toBe('https://schema.org');
+
+    const code = ld.find((d) => d['@type'] === 'SoftwareSourceCode');
+    expect(code, 'a SoftwareSourceCode block').toBeTruthy();
+    expect(code.codeRepository).toMatch(/^https:\/\//);
+    expect(new URL(code.url).origin).toMatch(ORIGIN);
+    expect(code.programmingLanguage).toContain('Odin');
+
+    // Without WebSite.name a search engine derives the site name from the
+    // hostname, which on a subdomain is the bare registrable name rather than
+    // the project. It must agree with og:site_name to be trusted over that.
+    const site = ld.find((d) => d['@type'] === 'WebSite');
+    expect(site, 'a WebSite block on the home page').toBeTruthy();
+    expect(site.name.length).toBeGreaterThan(0);
+    expect(site.name).toBe(attr(html, /<meta property="og:site_name" content="([^"]+)">/));
+    expect(new URL(site.url).origin).toMatch(ORIGIN);
+  });
+
+  test('WebSite structured data is on the home page only', async ({ request }) => {
+    // Google reads it from the home page; repeating it on every page is noise at
+    // best and a conflicting site-name signal at worst.
+    const paths = (await sitemapPaths(request)).filter((p) => p !== '/');
+    for (const path of paths) {
+      expect((await (await request.get(path)).text()), path).not.toContain('"WebSite"');
+    }
+  });
+
+  test('the home page title names the project, not a nav item', async ({ request }) => {
+    const home = attr(await (await request.get('/')).text(), /<title>([^<]*)<\/title>/);
+    // "Dashboard · Brand" is what a search result would otherwise show for the
+    // site as a whole — the nav item, not the product.
+    expect(home).not.toMatch(/^Dashboard/);
+    expect(home.length).toBeGreaterThan(10);
+
+    // Interior pages keep the "<page> · <brand>" shape.
+    const paths = (await sitemapPaths(request)).filter((p) => p !== '/');
+    if (paths.length) {
+      const inner = attr(await (await request.get(paths[0])).text(), /<title>([^<]*)<\/title>/);
+      expect(inner).toContain(' · ');
+    }
+  });
+
+  test('favicon.ico is served from the site root for search engines', async ({ request }) => {
+    // Crawlers look here by default, and are far more reliable with a raster .ico
+    // than an SVG — a favicon they cannot use is why a result shows a placeholder.
+    const res = await request.get('/favicon.ico');
+    expect(res.status()).toBe(200);
+    const body = await res.body();
+    // ICO magic: reserved=0, type=1 (icon).
+    expect([...body.subarray(0, 4)]).toEqual([0x00, 0x00, 0x01, 0x00]);
+    expect(body.length).toBeGreaterThan(1000);
+
+    // Both icon links are offered; browsers take the SVG, crawlers the .ico.
+    const html = await (await request.get('/')).text();
+    expect(html).toContain('href="/favicon.ico"');
+    expect(html).toContain('href="/static/favicon.svg"');
   });
 
   test.describe('canonical host redirect', () => {
