@@ -18,8 +18,8 @@ if exist "odin-http\server.odin" (
 )
 
 rem htmx, pinned exactly (version + SHA-256) for reproducible builds.
-set "HTMX_URL=https://unpkg.com/htmx.org@4.0.0-beta6/dist/htmx.min.js"
-set "HTMX_SHA256=28fae7bbe8e8142b702debb9d5234a9a436d9435a4b5165b195aa1a7ed840d25"
+set "HTMX_URL=https://unpkg.com/htmx.org@4.0.0/dist/htmx.min.js"
+set "HTMX_SHA256=e484d9171a9db30a39c8f16e3d709d4137f3211c659f8e6125816635033d593f"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $f='static\htmx.min.js'; $w='%HTMX_SHA256%'; if((Test-Path $f) -and ((Get-FileHash $f -Algorithm SHA256).Hash.ToLower() -eq $w)){Write-Host '[skip] htmx already present.';exit 0}; Write-Host '[get ] downloading htmx ...'; Invoke-WebRequest -UseBasicParsing '%HTMX_URL%' -OutFile $f; $g=(Get-FileHash $f -Algorithm SHA256).Hash.ToLower(); if($g -ne $w){Remove-Item $f -Force; Write-Error \"htmx checksum mismatch: expected $w got $g\"; exit 1}"
 if errorlevel 1 goto :fail
 

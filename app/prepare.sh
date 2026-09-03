@@ -24,8 +24,8 @@ sha256_of() {
 
 # htmx, pinned exactly (version + SHA-256) for reproducible builds — same
 # discipline as ODIN_VERSION and the SQLite amalgamation. Bump both together.
-HTMX_VERSION=4.0.0-beta6
-HTMX_SHA256=28fae7bbe8e8142b702debb9d5234a9a436d9435a4b5165b195aa1a7ed840d25
+HTMX_VERSION=4.0.0
+HTMX_SHA256=e484d9171a9db30a39c8f16e3d709d4137f3211c659f8e6125816635033d593f
 if [ -f static/htmx.min.js ] && [ "$(sha256_of static/htmx.min.js)" = "$HTMX_SHA256" ]; then
   echo "[skip] htmx $HTMX_VERSION already present."
 else
