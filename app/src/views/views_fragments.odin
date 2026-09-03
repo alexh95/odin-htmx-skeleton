@@ -240,7 +240,11 @@ detail_view_body :: proc(b: ^strings.Builder, c: models.Contact, timeline: []mod
 	w(b, `' hx-target="closest .drawer-detail" hx-swap="outerHTML">`)
 	icon(b, "cycle")
 	w(b, `<span>Cycle</span></button>`)
-	fmt.sbprintf(b, `<button class="btn btn-ghost btn-sm danger" hx-delete="/contacts/%d?from=drawer" hx-target="#overlay" hx-swap="innerHTML swap:240ms" hx-confirm="Delete this contact?">`, c.id)
+	// swapEmpty:true is load-bearing: the delete-from-drawer response is an empty body
+	// plus one OOB <tr> (see contacts_delete), and closing the drawer *is* that empty
+	// swap. htmx 4.0.0 made an OOB swap suppress an empty main swap by default, which
+	// left the drawer open; this opts that suppression back out for this one button.
+	fmt.sbprintf(b, `<button class="btn btn-ghost btn-sm danger" hx-delete="/contacts/%d?from=drawer" hx-target="#overlay" hx-swap="innerHTML swap:240ms swapEmpty:true" hx-confirm="Delete this contact?">`, c.id)
 	icon(b, "trash")
 	w(b, `<span>Delete</span></button></div><div class="detail-meta">`)
 	role_chip(b, c.role)
