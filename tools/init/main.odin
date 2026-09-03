@@ -119,7 +119,7 @@ rename :: proc(opt: Options) {
 	append(&apollo, Repl{"odin-htmx", name}) // also rewrites odin-htmx-data -> <name>-data
 	edit("deploy/apollo-11/docker-compose.yml", apollo[:])
 
-	// brand.odin holds the four display constants; rewrite each whole line so the
+	// brand.odin holds the site-identity constants; rewrite each whole line so the
 	// repo URL's `odin-htmx-skeleton` isn't caught by the token pass above.
 	edit(
 		"app/src/views/brand.odin",
@@ -128,6 +128,10 @@ rename :: proc(opt: Options) {
 			{`BRAND_SUFFIX :: "Odin + HTMX"`, strings.concatenate({`BRAND_SUFFIX :: "`, opt.suffix, `"`})},
 			{`BRAND_REPO :: "https://github.com/alexh95/odin-htmx-skeleton"`, strings.concatenate({`BRAND_REPO :: "`, opt.repo, `"`})},
 			{`SITE_URL := "https://odin-htmx.alexh95.com"`, strings.concatenate({`SITE_URL := "`, opt.site, `"`})},
+			// Blanked, never rewritten: a search-engine ownership token proves *this*
+			// deployment is ours. A fork serving it would be advertising a stranger's
+			// proof. Empty makes the route 404 until the fork verifies its own site.
+			{`BING_SITE_AUTH :: "66E45151A5C32201FC3C8F86B6E094FF"`, `BING_SITE_AUTH :: ""`},
 		},
 	)
 }

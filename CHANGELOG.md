@@ -9,6 +9,25 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 ## [Unreleased]
 
 ### Added
+- **`LICENSE` — zlib.** There was none, so the default was *all rights reserved*, which flatly
+  contradicted a repo whose pitch is "clone it, rename it, build your thing". zlib is the most
+  permissive of the common licences that still asks altered versions to say they are altered —
+  exactly the ask of a skeleton meant to be cloned and rewritten. Deliberately **not** mirrored into
+  the JSON-LD `license` field: `views.odin` is shared with the `--minimal` templates every fork
+  starts from, and a hardcoded licence URL there would have each fork asserting a licence its author
+  never chose. GitHub's own licence detection is the signal that matters anyway.
+- **`GET /BingSiteAuth.xml`** — Bing Webmaster ownership proof, served from the binary. DNS
+  verification had cost two wrong record values and a resolver-cache stall; a file the app serves is
+  deterministic the moment it deploys, with no propagation or caches in the way.
+  `views.BING_SITE_AUTH` (brand.odin) holds the token — per-deployment identity, so it sits beside
+  `SITE_URL` rather than in the view. **An empty token 404s the route**, and `init` blanks it, so a
+  fork can never advertise someone else's ownership proof. The minimal templates deliberately do not
+  carry the route at all: it is deployment config, not skeleton functionality.
+  Covered in `seo.spec.ts` (XML shape + a 32-hex token), skipped in variants without a token.
+  Not added to the load suite on purpose — a one-shot verification endpoint that search engines hit
+  a handful of times ever is not a traffic path, and measuring it would be noise.
+
+### Added
 - **Crawler contract — the site can now be indexed.** It previously shipped `<title>`, a meta
   description and `og:title`/`og:description`, but nothing that told a search engine *which* URL a
   page is or where the pages are, and nothing linking the site to its repository:

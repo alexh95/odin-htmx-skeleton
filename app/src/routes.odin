@@ -13,6 +13,8 @@ build_router :: proc(r: ^http.Router) {
 	// Crawler contract. Both are generated from views.NAV + views.SITE_URL.
 	http.route_get(r, "/robots.txt", http.handler(controllers.robots_txt))
 	http.route_get(r, "/sitemap.xml", http.handler(controllers.sitemap_xml))
+	// Bing ownership proof; 404s when views.BING_SITE_AUTH is unset.
+	http.route_get(r, "/BingSiteAuth.xml", http.handler(controllers.bing_site_auth))
 
 	// pages
 	http.route_get(r, "/", http.handler(controllers.page_dashboard))

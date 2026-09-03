@@ -70,20 +70,26 @@ the starter docs. Next up is **1.x** (below), headlined by auth.
 The crawler-facing plumbing shipped (canonical/og/JSON-LD, `robots.txt`, `sitemap.xml`, the
 `*.fly.dev` → canonical 301). What's left needs an account, not a commit:
 
-- [ ] **Set the GitHub repo description, topics and homepage.** Currently all three are empty, so
-      nothing on the web links to the site and the repo has no keywords. Homepage →
-      `https://odin-htmx.alexh95.com`; topics → `odin`, `odin-lang`, `htmx`, `sqlite`,
-      `server-rendered`, `hypermedia`, `starter-template`. This is the single highest-impact item:
-      it is the inbound link that gets *both* properties crawled at all.
-- [ ] **Google Search Console + Bing Webmaster Tools.** Verify `alexh95.com` as a *Domain* property
-      (DNS TXT via Cloudflare covers every subdomain at once), submit `/sitemap.xml`, then Request
-      Indexing on `/`. Bing also feeds DuckDuckGo and supports IndexNow for instant pings.
-- [ ] **Confirm Cloudflare isn't blocking the crawl.** SSL/TLS mode must be **Full (strict)** —
-      `force_https` in `fly.toml` plus Flexible mode is an infinite redirect loop — and check
-      Bot Fight Mode isn't challenging legitimate crawlers.
-- [ ] **Add a LICENSE.** There is none, so the default is *all rights reserved* — which quietly
-      contradicts a repo whose whole pitch is "clone it, rename it, build your thing". Needs an
-      owner decision (MIT/Apache-2.0/…), then wire it into the JSON-LD `license` field.
+- [x] **GitHub repo description, topics and homepage set.** All three were empty, which meant
+      nothing on the web linked to the site and the repo carried no keywords — the highest-impact
+      item of the lot, since the homepage field is the inbound link that gets *either* property
+      crawled in the first place.
+- [x] **Google Search Console** — `alexh95.com` verified as a *Domain* property (DNS TXT via
+      Cloudflare, which covers every subdomain at once); `/sitemap.xml` submitted and indexing
+      requested for `/` and `/about`.
+- [ ] **Bing Webmaster Tools** — DNS verification cost two wrong record values and a resolver-cache
+      stall, so ownership moved to `/BingSiteAuth.xml`, served from the binary and deterministic on
+      deploy. Finish verifying, then submit the sitemap there too (Bing feeds DuckDuckGo and Yahoo,
+      and supports IndexNow for instant submission).
+- [x] **Cloudflare is not blocking the crawl** — SSL/TLS set to **Full (strict)** (`force_https` in
+      `fly.toml` plus Flexible mode would be an infinite redirect loop), and Bot Fight Mode left
+      **off**: the free tier lacks the verified-bot allowlist that Super Bot Fight Mode has, and a
+      challenged crawler fails in a way that reads as "Google is just slow".
+- [x] **Add a LICENSE** — **zlib**, chosen for being the most permissive of the common licences
+      while still asking that altered versions say so: exactly the ask of a skeleton meant to be
+      cloned and rewritten. Deliberately *not* mirrored into the JSON-LD `license` field: the
+      minimal templates are shared with forks, and a hardcoded licence URL there would have every
+      fork asserting a licence its author never chose.
 - [ ] **Distribution beats meta tags.** `r/odinlang`, the Odin Discord, `awesome-odin`, htmx's
       "in the wild" page, a Show HN. Backlinks from those outweigh any on-page tuning for a new
       project; `odin htmx skeleton` itself has ~no search volume.

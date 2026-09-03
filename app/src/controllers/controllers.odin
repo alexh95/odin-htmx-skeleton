@@ -452,6 +452,26 @@ sitemap_xml :: proc(req: ^http.Request, res: ^http.Response) {
 	http.respond_file_content(res, "sitemap.xml", transmute([]byte)strings.to_string(b))
 }
 
+// Bing verifies ownership by fetching this file and matching the token inside.
+// Google's equivalent is the DNS TXT record, which needs no code. Serving it
+// from the binary rather than as a static asset keeps it beside the token it
+// renders; an unset token 404s, so a fork does not advertise a stale one.
+bing_site_auth :: proc(req: ^http.Request, res: ^http.Response) {
+	if views.BING_SITE_AUTH == "" {
+		http.respond(res, http.Status.Not_Found)
+		return
+	}
+	b := strings.builder_make(context.temp_allocator)
+	strings.write_string(&b, `<?xml version="1.0"?>
+<users>
+	<user>`)
+	strings.write_string(&b, views.BING_SITE_AUTH)
+	strings.write_string(&b, `</user>
+</users>
+`)
+	http.respond_file_content(res, "BingSiteAuth.xml", transmute([]byte)strings.to_string(b))
+}
+
 // ---- static -------------------------------------------------------------
 
 // Every asset is embedded into the binary at compile time (#load; paths are
