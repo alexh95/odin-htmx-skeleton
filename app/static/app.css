@@ -1,4 +1,4 @@
-/* odin-htmx-demo — one stylesheet, driven by variables.
+/* odin-htmx-skeleton — one stylesheet, driven by variables.
    The whole theme is two token sets (dark default, light override). Components
    read tokens, never raw colours, so re-theming is local to :root. */
 

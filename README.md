@@ -1,8 +1,11 @@
-# odin-htmx-demo
+# odin-htmx-skeleton
 
 A **starter skeleton** for a simple, server-rendered website: an **Odin** backend rendering HTML
 with **HTMX**, a **SQLite** store, and browser + load test suites — all in one self-contained
 binary. Clone it, rename it, strip the demo, build your thing.
+
+**Live demo: [odin-htmx.alexh95.com](https://odin-htmx.alexh95.com/)** — the whole thing, served by
+one ~3 MB binary on a shared-cpu-1x machine.
 
 The bundled app (a contacts/events admin console with a multi-style theme library) is the
 **worked example** that proves the patterns — not the product. You keep the scaffolding
@@ -10,7 +13,7 @@ The bundled app (a contacts/events admin console with a multi-style theme librar
 for your own.
 
 ```
-odin-htmx-demo/
+odin-htmx-skeleton/
   app/          The application: Odin server, views, static assets, run scripts.
   e2e/          Playwright browser tests — see e2e/README.md.
   load-tests/   k6 throughput/latency tests — see load-tests/README.md.
