@@ -472,6 +472,13 @@ bing_site_auth :: proc(req: ^http.Request, res: ^http.Response) {
 	http.respond_file_content(res, "BingSiteAuth.xml", transmute([]byte)strings.to_string(b))
 }
 
+// IndexNow proves ownership by serving the key back as plain text at /<key>.txt.
+// The body is the key and nothing else — the search engines compare it verbatim,
+// so no trailing newline and no XML wrapper here.
+indexnow_key :: proc(req: ^http.Request, res: ^http.Response) {
+	http.respond_plain(res, views.INDEXNOW_KEY)
+}
+
 // ---- static -------------------------------------------------------------
 
 // Every asset is embedded into the binary at compile time (#load; paths are

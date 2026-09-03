@@ -43,3 +43,10 @@ OG_IMAGE_HREF :: "/static/og.png"
 // and `init` blanks it — a fork must never serve someone else's token. Empty
 // disables the route (404), which is the right answer for an unverified site.
 BING_SITE_AUTH :: "66E45151A5C32201FC3C8F86B6E094FF"
+
+// IndexNow: one key push-notifies Bing, Yandex, Seznam and Naver that a URL
+// changed, instead of waiting to be re-crawled. Ownership is proved by serving
+// the key as plain text at /<key>.txt, so the key is public by design — the same
+// per-deployment identity as BING_SITE_AUTH, blanked by `init` for the same
+// reason, and an empty key means the route is never registered.
+INDEXNOW_KEY :: "e826b40f813548d2bd2e94885e506dfa"
