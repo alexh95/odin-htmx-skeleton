@@ -65,6 +65,29 @@ the starter docs. Next up is **1.x** (below), headlined by auth.
       contact belongs to) — doubles as the multi-resource nav pattern *and* the literal tutorial for
       extending the skeleton. App / e2e / load at par, as always.
 
+## Discoverability — the half that isn't code
+
+The crawler-facing plumbing shipped (canonical/og/JSON-LD, `robots.txt`, `sitemap.xml`, the
+`*.fly.dev` → canonical 301). What's left needs an account, not a commit:
+
+- [ ] **Set the GitHub repo description, topics and homepage.** Currently all three are empty, so
+      nothing on the web links to the site and the repo has no keywords. Homepage →
+      `https://odin-htmx.alexh95.com`; topics → `odin`, `odin-lang`, `htmx`, `sqlite`,
+      `server-rendered`, `hypermedia`, `starter-template`. This is the single highest-impact item:
+      it is the inbound link that gets *both* properties crawled at all.
+- [ ] **Google Search Console + Bing Webmaster Tools.** Verify `alexh95.com` as a *Domain* property
+      (DNS TXT via Cloudflare covers every subdomain at once), submit `/sitemap.xml`, then Request
+      Indexing on `/`. Bing also feeds DuckDuckGo and supports IndexNow for instant pings.
+- [ ] **Confirm Cloudflare isn't blocking the crawl.** SSL/TLS mode must be **Full (strict)** —
+      `force_https` in `fly.toml` plus Flexible mode is an infinite redirect loop — and check
+      Bot Fight Mode isn't challenging legitimate crawlers.
+- [ ] **Add a LICENSE.** There is none, so the default is *all rights reserved* — which quietly
+      contradicts a repo whose whole pitch is "clone it, rename it, build your thing". Needs an
+      owner decision (MIT/Apache-2.0/…), then wire it into the JSON-LD `license` field.
+- [ ] **Distribution beats meta tags.** `r/odinlang`, the Odin Discord, `awesome-odin`, htmx's
+      "in the wild" page, a Show HN. Backlinks from those outweigh any on-page tuning for a new
+      project; `odin htmx skeleton` itself has ~no search volume.
+
 ## Stretch goals
 
 - [x] **A `--minimal` scaffold variant** — delivered as `init --minimal` (see Phase F above): a
