@@ -150,9 +150,15 @@ layout :: proc(title, active, description, content: string) -> string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="htmx-config" content='{"transitions":true,"defaultSwap":"innerHTML"}'>
 <title>`)
-	esc(&b, title)
-	w(&b, " · ")
-	esc(&b, BRAND_SUFFIX)
+	// The home page is the result a search engine shows for the site itself, so it
+	// carries the project's name rather than "<nav item> · <brand>".
+	if active == "/" {
+		esc(&b, BRAND_HOME_TITLE)
+	} else {
+		esc(&b, title)
+		w(&b, " · ")
+		esc(&b, BRAND_SUFFIX)
+	}
 	w(&b, `</title>
 <meta name="description" content="`)
 	esc(&b, description)
@@ -185,6 +191,7 @@ layout :: proc(title, active, description, content: string) -> string {
 	w(&b, SITE_URL)
 	w(&b, active)
 	w(&b, `">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <link rel="stylesheet" href="`)
 	w(&b, CSS_HREF)
@@ -199,7 +206,22 @@ layout :: proc(title, active, description, content: string) -> string {
 	// rather than two unrelated URLs. Literal braces throughout, so it must be
 	// written with w() — sbprintf would fill it with %!(MISSING).
 	w(&b, `" defer></script>
-<script type="application/ld+json">
+`)
+	// The site name a search engine prints above the result. Without this it is
+	// derived from the hostname rather than the project. Google reads WebSite only
+	// from the home page, hence the guard, and `name` matches og:site_name on
+	// purpose: agreeing signals are what make it pick ours over the fallback.
+	if active == "/" {
+		w(&b, `<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebSite","name":"`)
+		esc(&b, BRAND_SUFFIX)
+		w(&b, `","url":"`)
+		w(&b, SITE_URL)
+		w(&b, `/"}
+</script>
+`)
+	}
+	w(&b, `<script type="application/ld+json">
 {"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"`)
 	esc(&b, BRAND_SUFFIX)
 	w(&b, `","description":"`)

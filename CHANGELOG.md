@@ -9,6 +9,28 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 ## [Unreleased]
 
 ### Added
+- **How the site presents itself in search results.** It reached page one, and the result showed a
+  placeholder icon, the site name "alexh95" and the title "Dashboard · Odin + HTMX" — three separate
+  defaults, each with its own documented lever:
+  - **`GET /favicon.ico`** — a real 16/32/48 multi-size `.ico`, rendered from the existing
+    `favicon.svg` and embedded via `#load`. Crawlers look for it at the *site root* (not `/static`)
+    and are far more reliable with a raster icon than an SVG; the SVG link stays for browsers, so
+    each client takes what it prefers.
+  - **`WebSite` JSON-LD on the home page**, with `name` matching `og:site_name`. Absent it, the site
+    name is derived from the hostname — which on a subdomain is the bare registrable name, hence
+    "alexh95" rather than the project. Emitted **only** on the home page: that is where Google reads
+    it, and repeating it elsewhere is a conflicting signal at best.
+  - **`BRAND_HOME_TITLE`** — the home page's `<title>` now stands alone instead of taking the
+    `<page> · <brand>` shape, because that page is the result shown for the site as a whole and
+    "Dashboard" describes a nav item, not the product. Interior pages keep the suffix.
+- All three are **skeleton functionality, not deployment config**, so unlike the verification tokens
+  they are ported into the `--minimal` templates too: every site wants a favicon a crawler can use
+  and its own name in results.
+- Four e2e cases cover them, including that `WebSite` appears on the home page *only*, that the ICO
+  magic bytes are real, and that `WebSite.name` and `og:site_name` agree — they are trusted over the
+  hostname fallback precisely because they agree, so a drift between them is a regression.
+
+### Added
 - **IndexNow — `GET /<key>.txt`.** One key push-notifies Bing, Yandex, Seznam and Naver that a URL
   changed instead of waiting to be re-crawled. Ownership is proved by serving the key back as plain
   text at its own path, so `views.INDEXNOW_KEY` (brand.odin) is public by design — the same

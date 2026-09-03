@@ -137,6 +137,19 @@ sitemap_xml :: proc(req: ^http.Request, res: ^http.Response) {
 	http.respond_file_content(res, "sitemap.xml", transmute([]byte)strings.to_string(b))
 }
 
+// Served from the site root, not /static: that is where browsers and crawlers
+// look for it by default, and a favicon a crawler cannot fetch is why a result
+// shows a generic placeholder.
+favicon_ico :: proc(req: ^http.Request, res: ^http.Response) {
+	http.headers_set(&res.headers, "cache-control", "public, max-age=86400")
+	http.headers_set(&res.headers, "etag", etag_favicon_ico)
+	if match, ok := http.headers_get(req.headers, "if-none-match"); ok && match == etag_favicon_ico {
+		http.respond(res, http.Status.Not_Modified)
+		return
+	}
+	http.respond_file_content(res, "favicon.ico", FAVICON_ICO)
+}
+
 // ---- static -------------------------------------------------------------
 //
 // Every asset is embedded into the binary at compile time (#load; paths relative
@@ -146,12 +159,15 @@ HTMX_JS :: #load("../../static/htmx.min.js")
 APP_CSS :: #load("../../static/app.css")
 APP_JS :: #load("../../static/app.js")
 FAVICON :: #load("../../static/favicon.svg")
+// Search engines look for /favicon.ico at the site root and are far more
+// reliable with a raster .ico than with an SVG; browsers prefer the SVG.
+FAVICON_ICO :: #load("../../static/favicon.ico")
 OG_IMAGE :: #load("../../static/og.png")
 
 // Strong ETags (content hashes) computed once at startup; they let the browser
 // revalidate with a cheap 304 after max-age instead of re-downloading.
 @(private = "file")
-etag_htmx, etag_css, etag_js, etag_favicon, etag_og: string
+etag_htmx, etag_css, etag_js, etag_favicon, etag_favicon_ico, etag_og: string
 
 // Fingerprinted asset names ("app.<hash>.css", …) — the layout links these and
 // serve_static also accepts them, so a changed asset gets a new (immutable) URL.
@@ -169,6 +185,7 @@ init_etags :: proc() {
 	etag_css = etag(APP_CSS)
 	etag_js = etag(APP_JS)
 	etag_favicon = etag(FAVICON)
+	etag_favicon_ico = etag(FAVICON_ICO)
 	etag_og = etag(OG_IMAGE)
 	asset_htmx = fmt.aprintf("htmx.%08x.min.js", hash.crc32(HTMX_JS))
 	asset_css = fmt.aprintf("app.%08x.css", hash.crc32(APP_CSS))

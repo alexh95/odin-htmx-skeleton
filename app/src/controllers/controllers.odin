@@ -472,6 +472,19 @@ bing_site_auth :: proc(req: ^http.Request, res: ^http.Response) {
 	http.respond_file_content(res, "BingSiteAuth.xml", transmute([]byte)strings.to_string(b))
 }
 
+// Served from the site root, not /static: that is where browsers and crawlers
+// look for it by default, and a favicon Google cannot fetch is why a result
+// shows the generic globe.
+favicon_ico :: proc(req: ^http.Request, res: ^http.Response) {
+	http.headers_set(&res.headers, "cache-control", "public, max-age=86400")
+	http.headers_set(&res.headers, "etag", etag_favicon_ico)
+	if match, ok := http.headers_get(req.headers, "if-none-match"); ok && match == etag_favicon_ico {
+		http.respond(res, http.Status.Not_Modified)
+		return
+	}
+	http.respond_file_content(res, "favicon.ico", FAVICON_ICO)
+}
+
 // IndexNow proves ownership by serving the key back as plain text at /<key>.txt.
 // The body is the key and nothing else — the search engines compare it verbatim,
 // so no trailing newline and no XML wrapper here.
@@ -490,6 +503,10 @@ HTMX_JS :: #load("../../static/htmx.min.js")
 APP_CSS :: #load("../../static/app.css")
 APP_JS :: #load("../../static/app.js")
 FAVICON :: #load("../../static/favicon.svg")
+// Search engines look for /favicon.ico at the site root and are far more
+// reliable with a raster .ico than with an SVG; browsers prefer the SVG. Both
+// are served, and the link tags offer each to whichever wants it.
+FAVICON_ICO :: #load("../../static/favicon.ico")
 OG_IMAGE :: #load("../../static/og.png")
 
 // Strong ETags (content hashes) computed once at startup. They let the browser
@@ -497,7 +514,7 @@ OG_IMAGE :: #load("../../static/og.png")
 // re-downloading. A redeploy changes the bytes, hence the ETag, so clients pick
 // up new assets without ever serving stale ones.
 @(private = "file")
-etag_htmx, etag_css, etag_js, etag_favicon, etag_og: string
+etag_htmx, etag_css, etag_js, etag_favicon, etag_favicon_ico, etag_og: string
 
 // Fingerprinted asset names ("htmx.<hash>.min.js", "app.<hash>.css", "app.<hash>.js")
 // computed once at startup; the layout links these and serve_static also accepts them.
@@ -516,6 +533,7 @@ init_etags :: proc() {
 	etag_css = etag(APP_CSS)
 	etag_js = etag(APP_JS)
 	etag_favicon = etag(FAVICON)
+	etag_favicon_ico = etag(FAVICON_ICO)
 	etag_og = etag(OG_IMAGE)
 	// Content-addressed asset names: a changed asset (an htmx upgrade included) gets
 	// a new URL, so the page <head> cache-busts with a clean path instead of a ?v=
