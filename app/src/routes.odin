@@ -1,7 +1,10 @@
 package main
 
+import "core:fmt"
+
 import http "../odin-http"
 import "controllers"
+import "views"
 
 // The whole route table in one place. Specific patterns are registered before
 // catch-alls (e.g. the embedded htmx route before the on-disk /static handler)
@@ -15,6 +18,16 @@ build_router :: proc(r: ^http.Router) {
 	http.route_get(r, "/sitemap.xml", http.handler(controllers.sitemap_xml))
 	// Bing ownership proof; 404s when views.BING_SITE_AUTH is unset.
 	http.route_get(r, "/BingSiteAuth.xml", http.handler(controllers.bing_site_auth))
+	// IndexNow ownership proof. The path *is* the key, so the pattern is built
+	// here rather than written literally; `%%.` escapes the dot, which Lua
+	// patterns would otherwise read as "any character". Unset key, no route.
+	if views.INDEXNOW_KEY != "" {
+		http.route_get(
+			r,
+			fmt.aprintf("/%s%%.txt", views.INDEXNOW_KEY),
+			http.handler(controllers.indexnow_key),
+		)
+	}
 
 	// pages
 	http.route_get(r, "/", http.handler(controllers.page_dashboard))

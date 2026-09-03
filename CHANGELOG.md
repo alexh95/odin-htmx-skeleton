@@ -9,6 +9,18 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 ## [Unreleased]
 
 ### Added
+- **IndexNow — `GET /<key>.txt`.** One key push-notifies Bing, Yandex, Seznam and Naver that a URL
+  changed instead of waiting to be re-crawled. Ownership is proved by serving the key back as plain
+  text at its own path, so `views.INDEXNOW_KEY` (brand.odin) is public by design — the same
+  per-deployment identity as `BING_SITE_AUTH`, blanked by `init` for the same reason, and an unset
+  key means **the route is never registered at all**.
+  The path *is* the key, so the route pattern is built at startup rather than written literally, and
+  the dot is escaped (`%%.`): unescaped, a Lua pattern reads `.` as *any character* and would hand
+  the key out from near-miss paths. Both the exact path and that near-miss are asserted in
+  `seo.spec.ts`, along with byte-exact equality of the body — the engines compare it verbatim, so a
+  trailing newline would fail the ownership check.
+
+### Added
 - **`LICENSE` — zlib.** There was none, so the default was *all rights reserved*, which flatly
   contradicted a repo whose pitch is "clone it, rename it, build your thing". zlib is the most
   permissive of the common licences that still asks altered versions to say they are altered —

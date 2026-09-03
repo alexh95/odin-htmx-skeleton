@@ -132,6 +132,7 @@ rename :: proc(opt: Options) {
 			// deployment is ours. A fork serving it would be advertising a stranger's
 			// proof. Empty makes the route 404 until the fork verifies its own site.
 			{`BING_SITE_AUTH :: "66E45151A5C32201FC3C8F86B6E094FF"`, `BING_SITE_AUTH :: ""`},
+			{`INDEXNOW_KEY :: "e826b40f813548d2bd2e94885e506dfa"`, `INDEXNOW_KEY :: ""`},
 		},
 	)
 }

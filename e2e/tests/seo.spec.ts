@@ -102,6 +102,28 @@ test.describe('SEO contract', () => {
     expect(token).toMatch(/^[0-9A-F]{32}$/); // Bing tokens are 32 uppercase hex
   });
 
+  test('the IndexNow key file is served verbatim at its own path', async ({ request }) => {
+    // Same deployment-specific scoping as BingSiteAuth: `init` blanks the key and
+    // the route is not even registered without one.
+    const paths = await sitemapPaths(request);
+    test.skip(!paths.includes('/data'), 'no IndexNow key in this variant');
+
+    // Mirrors views.INDEXNOW_KEY. Duplicated on purpose: the path *is* the key, so
+    // rotating it must fail here rather than silently deactivate IndexNow.
+    const KEY = 'e826b40f813548d2bd2e94885e506dfa';
+
+    const res = await request.get(`/${KEY}.txt`);
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-type'] ?? '').toContain('text/plain');
+    // The engines compare the body verbatim — a trailing newline or any wrapper
+    // fails the ownership check, so this is an exact-equality assertion.
+    expect(await res.text()).toBe(KEY);
+
+    // The route pattern escapes the dot; unescaped it would be a Lua wildcard and
+    // match any character, handing the key out from near-miss paths.
+    expect((await request.get(`/${KEY}Xtxt`)).status()).toBe(404);
+  });
+
   test('social card tags are present and absolute', async ({ request }) => {
     const html = await (await request.get('/')).text();
 

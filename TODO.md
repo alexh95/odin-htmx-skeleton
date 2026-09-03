@@ -79,8 +79,8 @@ The crawler-facing plumbing shipped (canonical/og/JSON-LD, `robots.txt`, `sitema
       requested for `/` and `/about`.
 - [ ] **Bing Webmaster Tools** — DNS verification cost two wrong record values and a resolver-cache
       stall, so ownership moved to `/BingSiteAuth.xml`, served from the binary and deterministic on
-      deploy. Finish verifying, then submit the sitemap there too (Bing feeds DuckDuckGo and Yahoo,
-      and supports IndexNow for instant submission).
+      deploy. **IndexNow is wired too** (`/<key>.txt`), which covers Bing, Yandex, Seznam and Naver
+      from one key. Left open until verification is confirmed and the sitemap is submitted there.
 - [x] **Cloudflare is not blocking the crawl** — SSL/TLS set to **Full (strict)** (`force_https` in
       `fly.toml` plus Flexible mode would be an infinite redirect loop), and Bot Fight Mode left
       **off**: the free tier lacks the verified-bot allowlist that Super Bot Fight Mode has, and a
