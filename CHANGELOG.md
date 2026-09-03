@@ -9,6 +9,30 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 ## [Unreleased]
 
 ### Changed
+- **Dependency sweep — every pin checked against upstream.** Three moved, the rest were already
+  current:
+  - **Odin toolchain `dev-2026-07a` → `dev-2026-09`** (`Dockerfile` ARG + the CI `ODIN_VERSION` env).
+    Two releases in one step. Per the standing warning above the CI matrix, all three hardcoded
+    asset names were verified to resolve *before* landing — `dev-2026-09` is regular
+    (`odin-linux-amd64-`, `odin-macos-arm64-`, `odin-windows-amd64-`), so the version-only bump is
+    safe here; `dev-2026-08` was checked too and is likewise regular.
+  - **odin-http `112c49b` → `fac113f`** (8 commits). Six are vendored-OpenSSL churn that cannot
+    reach this binary — it never takes odin-http's TLS client path, and `ldd`/`nm` on the built
+    binary confirm it links only libc/libm with zero OpenSSL symbols (Fly terminates TLS at the
+    edge). The remaining two are small fixes (a client-cookie delete allocator, #114/#117).
+  - **Playwright `1.61.1` → `1.62.1`** (`e2e/package.json` + lockfile, and both CI container image
+    tags). This unblocks the previous sweep's deliberate hold: it stayed at 1.61.1 only because
+    `mcr.microsoft.com/playwright:v1.62.0-jammy` was unpublished. `v1.62.1-jammy` now exists, so the
+    npm package and the image move together as they must.
+  - **Checked and already current:** SQLite `3.53.4` (the mirror's `master` reads 3.54.0, but no
+    `version-3.54.0` release tag exists yet), htmx `4.0.0`, `actions/checkout@v7`,
+    `actions/cache@v6`, `actions/upload-artifact@v7`, `superfly/setup-flyctl` at SHA `ed8efb33`
+    (tag 1.6). **`ilammy/msvc-dev-cmd@v1.13.0` is no longer a deliberate hold** — upstream has
+    published nothing newer, so the pin is simply current; the standing deprecation warning remains.
+    The Debian base is the floating `trixie-slim` tag and tracks Debian 13 point releases on rebuild.
+  - Verified: clean `-warnings-as-errors` build on `dev-2026-09`, and 51/52 e2e on chromium (the one
+    failure is `persistence.spec.ts`, the known sandbox port-reuse race — `Address_In_Use` on
+    restart — which passes on CI).
 - **htmx `4.0.0-beta6` → `4.0.0`** (the 4.0 final, released 2026-08-28; + new SHA-256 in
   `prepare.sh`/`prepare.bat`). One behaviour change upstream bit us, and it is subtle: an OOB swap
   now **suppresses an empty main swap** by default. htmx computes
