@@ -9,6 +9,25 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 ## [Unreleased]
 
 ### Changed
+- **htmx `4.0.0-beta6` → `4.0.0`** (the 4.0 final, released 2026-08-28; + new SHA-256 in
+  `prepare.sh`/`prepare.bat`). One behaviour change upstream bit us, and it is subtle: an OOB swap
+  now **suppresses an empty main swap** by default. htmx computes
+  `hasPartials = partialTasks.length || (oobTasks.length && !config.allowEmptySwapAfterOOB)` and
+  skips the main swap when it is set — in beta6 only `hx-partial` counted, so an empty body still
+  swapped. Delete-from-drawer depends on exactly that shape: `contacts_delete` answers `?from=drawer`
+  with an empty body plus one OOB `<tr hx-swap-oob="delete">`, and *closing the drawer is that empty
+  swap into `#overlay`*. Under 4.0.0 the drawer stayed open. Fixed with the new `swapEmpty:true` swap
+  modifier on that one button (`views_fragments.odin`) rather than the global
+  `allowEmptySwapAfterOOB` config — the safer new default holds everywhere else, and the one site
+  that relies on the old semantics now says so. The other OOB sites were audited and are unaffected:
+  the create form's validation-error toast swaps `beforeend` (an empty fragment appends nothing) and
+  `/ui/clear` sends no OOB at all. Every other htmx-4 behaviour the app relies on is unchanged
+  (`htmx:after:*` events and `detail.ctx`, `hx-partial`, `hx-boost`, `hx-preserve`, `hx-vals`,
+  OOB toasts, `htmx-config`). Note `config.defaultSwapEmpty` was also dropped from the empty-swap
+  chain upstream; this repo never set it. Caught by the existing `crud.spec.ts` drawer-delete
+  scenario — 51/52 e2e green on chromium (the lone failure, `persistence.spec.ts`, is a local
+  harness port-reuse race — the restarted server hits `Address_In_Use` — and fails identically on
+  beta6, so it is unrelated to this bump).
 - **Odin toolchain `dev-2026-06` → `dev-2026-07a`** (`Dockerfile` ARG + the CI `ODIN_VERSION` env).
   Note the CI matrix's three hardcoded asset names had to change too, and two changed *shape*, not
   just the version substring: upstream's `dev-2026-06` shipped a truncated `odin-macos-arm64-dev-06`

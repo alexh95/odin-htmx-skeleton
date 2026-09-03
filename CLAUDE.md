@@ -244,6 +244,12 @@ http.respond(res, http.Status.Not_Found)
   `<hx-partial hx-target="#contact-N" hx-swap="outerHTML">…</hx-partial>` (htmx turns it into a
   `<template>` it processes). See `contacts_update`. (A row-only response that *starts* with `<tr>`,
   like delete-from-drawer, is fine bare.)
+- **An OOB swap suppresses an *empty* main swap** (htmx 4.0.0 changed this; in beta6 only
+  `hx-partial` did). So a response that is nothing but OOB no longer clears its target. Where the
+  empty swap is the point — delete-from-drawer sends an empty body plus one OOB `<tr>`, and closing
+  the drawer *is* that empty swap into `#overlay` — opt back out per element with the `swapEmpty:true`
+  swap modifier (see the drawer's Delete button in `views_fragments.odin`). Prefer that over the
+  global `allowEmptySwapAfterOOB` config, so the safer default still holds everywhere else.
 - **Form bodies arrive `+`-encoded.** htmx 4 sends spaces as `+` (the form-encoding standard);
   odin-http's `body_url_encoded` only percent-decodes, so parse POST bodies with the controllers'
   `body_form` helper (it `+`→space-decodes like `query_decode`), never `http.body_url_encoded`.
