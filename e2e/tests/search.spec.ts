@@ -48,7 +48,8 @@ test.describe('active search', () => {
     await searchbox(page).pressSequentially('grace');
     await expect(page.locator(`${box} .search-panel`)).toBeVisible();
     // Click well inside the page body (away from the sticky header / search).
-    await page.getByRole('heading', { name: 'Dashboard', level: 1 }).click();
+    // Matched by level so the target survives a rewording of the page copy.
+    await page.getByRole('heading', { level: 1 }).click();
     await expect(page.locator(`${box} .search-panel`)).toHaveCount(0);
   });
 });

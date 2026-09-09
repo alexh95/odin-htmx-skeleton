@@ -3,7 +3,10 @@ import { test, expect } from '../fixtures';
 test.describe('navigation', () => {
   test('dashboard renders with stat cards', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Dashboard', level: 1 })).toBeVisible();
+    // By level, not by name: what this asserts is that the page rendered its
+    // heading, and the home page's wording is the site's pitch — seo.spec.ts owns
+    // what it says. Matching the copy here made a rewording fail an unrelated test.
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.locator('.stat')).toHaveCount(4);
     await expect(page.getByRole('button', { name: 'Ping server' })).toBeVisible();
   });
