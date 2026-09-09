@@ -280,6 +280,21 @@ NAV := [?]struct {
 	{"/about", "About", "info"},
 }
 
+// One resolution for the <title> and og:title alike: a page that answers "what
+// is this" with two different names gets neither weighed. The home page carries
+// the project's own name rather than "<nav item> · <brand>" — it is the result
+// shown for the site as a whole, and "Dashboard" describes a nav item.
+@(private = "file")
+head_title :: proc(b: ^strings.Builder, title, active: string) {
+	if active == "/" {
+		esc(b, BRAND_HOME_TITLE)
+		return
+	}
+	esc(b, title)
+	w(b, " · ")
+	esc(b, BRAND_SUFFIX)
+}
+
 // The one page shell. `active` is the href of the current page so the nav can
 // mark it. The inline head script sets the theme before first paint to avoid a
 // flash of the wrong palette.
@@ -296,24 +311,14 @@ layout :: proc(title, active, description, content: string) -> string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="htmx-config" content='{"transitions":true,"defaultSwap":"innerHTML"}'>
 <title>`)
-	// The home page is the result a search engine shows for the site itself, so it
-	// carries the project's name rather than "<nav item> · <brand>".
-	if active == "/" {
-		esc(&b, BRAND_HOME_TITLE)
-	} else {
-		esc(&b, title)
-		w(&b, " · ")
-		esc(&b, BRAND_SUFFIX)
-	}
+	head_title(&b, title, active)
 	w(&b, `</title>
 <meta name="description" content="`)
 	esc(&b, description)
 	w(&b, `">
 <meta property="og:type" content="website">
 <meta property="og:title" content="`)
-	esc(&b, title)
-	w(&b, " · ")
-	esc(&b, BRAND_SUFFIX)
+	head_title(&b, title, active)
 	w(&b, `">
 <meta property="og:description" content="`)
 	esc(&b, description)
@@ -452,13 +457,22 @@ view_dashboard :: proc() -> string {
 	avg := total > 0 ? score_sum / total : 0
 
 	b := strings.builder_make(context.temp_allocator)
+	// The heading names the project, not the nav item. This is the one page a
+	// search engine shows for the site as a whole, and it reads the <h1> together
+	// with <title>, og:title and the JSON-LD name — "Dashboard" answers a
+	// different question than the other three do. The overview keeps its own
+	// heading below, where it describes the section rather than the site.
 	page_head(
 		&b,
-		"Overview",
-		"Dashboard",
-		"A proof-of-concept component kit served from an Odin backend, wired up with HTMX.",
+		"Odin + HTMX",
+		"A server-rendered web stack in one binary",
+		"An Odin backend renders every page as HTML, HTMX supplies the interaction and SQLite holds the data — no framework, no bundler, no build step.",
 	)
 
+	w(
+		&b,
+		`<div class="block-head"><h2>Overview</h2><p class="muted">Live figures from the demo store, counted on the server.</p></div>`,
+	)
 	w(&b, `<section class="stat-grid">`)
 	stat_card(&b, "users", "Total contacts", total, "+4 this week", []int{6, 9, 7, 11, 10, 14, 13, 18}, "/data")
 	stat_card(&b, "check", "Active", active, "82% of base", []int{10, 11, 9, 12, 13, 12, 15, 16}, "/data?status=Active")
@@ -466,7 +480,9 @@ view_dashboard :: proc() -> string {
 	stat_card(&b, "bolt", "Avg. engagement", avg, "score / 100", []int{40, 52, 48, 60, 58, 66, 70, 74}, "/data?sort=score_desc")
 	w(&b, `</section>`)
 
-	w(&b, `<section class="split">
+	// `block` only adds the section spacing `.split` has none of — the new prose
+	// section below would otherwise sit flush against this one.
+	w(&b, `<section class="block split">
   <article class="card">
     <div class="card-head"><h2>Explore the kit</h2><span class="muted">four pages</span></div>
     <div class="link-grid">`)
@@ -484,6 +500,20 @@ view_dashboard :: proc() -> string {
 	icon(&b, "bolt")
 	w(&b, `<span>Ping server</span></button>
   </aside>
+</section>`)
+
+	// A page of widgets says nothing about itself to a reader who arrived from a
+	// search result — the stats and tiles above are captions, not an explanation.
+	// Deliberately not the About page's wording: two pages restating each other
+	// are two thin pages, so this one covers the mechanism and About covers the
+	// project.
+	w(&b, `<section class="block"><div class="block-head"><h2>What you are looking at</h2><p class="muted">The stack behind these pages.</p></div>
+  <article class="card about">
+    <p class="about-lede">Every page here was assembled as a string by an Odin procedure and sent as HTML. No client-side framework renders it, no bundler packs it, and nothing is read from disk while it runs: htmx, the stylesheet, the icons and the social card are compiled into the binary and served from memory.</p>
+    <p class="muted">HTMX covers what a plain page cannot. The table sorts, pages and edits in place, fields validate as you type, overlays open and toasts arrive — each one a small fragment of HTML swapped into the page over a single request, rendered by the same server that rendered the page. The store is SQLite, linked in as the amalgamation, so a deploy is one file you copy.</p>
+    <p class="muted">The contacts console is a demonstration rather than the point of it. What a fork inherits is underneath: strictly layered packages the compiler keeps honest, the data layer, the token-driven theme system, and the build, test and deploy harness that comes with them. <a href="/about">More about the project</a>.</p>
+    <div class="about-stack"><span class="tag">Odin</span><span class="tag">HTMX 4</span><span class="tag">SQLite</span><span class="tag">single binary</span><span class="tag">no build step</span></div>
+  </article>
 </section>`)
 	return strings.to_string(b)
 }

@@ -95,7 +95,7 @@ page_dashboard :: proc(req: ^http.Request, res: ^http.Response) {
 		res,
 		"Dashboard",
 		"/",
-		"A proof-of-concept component kit served from a single Odin binary and wired up with HTMX: dashboard, data table with CRUD, forms with live validation, and a vibrant component gallery.",
+		"A server-rendered web stack in one binary: an Odin backend renders the HTML, HTMX handles the interaction, SQLite holds the data. Click through the worked example.",
 		views.view_dashboard(),
 	)
 }

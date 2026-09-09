@@ -213,6 +213,44 @@ test.describe('SEO contract', () => {
     expect(html).toContain('href="/static/favicon.svg"');
   });
 
+  test('<title> and og:title agree on every page', async ({ request }) => {
+    // Two names for one page is a worse signal than a mediocre one: a crawler
+    // picking between them may print either. They are resolved by one proc in
+    // the layout precisely so they cannot drift apart again.
+    for (const path of await sitemapPaths(request)) {
+      const html = await (await request.get(path)).text();
+      const title = attr(html, /<title>([^<]*)<\/title>/);
+      expect(attr(html, /<meta property="og:title" content="([^"]+)">/), path).toBe(title);
+    }
+  });
+
+  test('the home page heading names the site, not the nav item', async ({ request }) => {
+    const html = await (await request.get('/')).text();
+    const h1 = attr(html, /<h1>([^<]*)<\/h1>/);
+
+    // Cross-checked against the app's own nav rather than a hardcoded string, so
+    // it holds for any variant: the home page is the result shown for the site as
+    // a whole, and its heading has to answer the same question <title> answers.
+    // A nav label ("Dashboard", "Home") answers a different one.
+    const navLabel = attr(html, /<a class="nav-link" href="\/"[^>]*>[\s\S]*?<span>([^<]+)<\/span>/);
+    expect(h1).not.toBe(navLabel);
+  });
+
+  test('the home page carries prose, not only widgets', async ({ request }) => {
+    // Stat cards and link tiles are captions; alone they leave the page thin for
+    // anyone — reader or crawler — who arrives without knowing what the project
+    // is. Scoped to the demo, whose copy this is; the starter has its own.
+    const paths = await sitemapPaths(request);
+    test.skip(!paths.includes('/data'), 'demo copy');
+
+    const html = await (await request.get('/')).text();
+    const prose = attr(html, /<article class="card about">([\s\S]*?)<\/article>/)
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    expect(prose.length).toBeGreaterThan(600);
+  });
+
   test.describe('canonical host redirect', () => {
     test('a *.fly.dev request is 301d to the canonical origin, query intact', async ({ request }) => {
       const res = await request.get('/?q=ada&sort=name', {
