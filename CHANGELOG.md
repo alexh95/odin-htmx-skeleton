@@ -8,6 +8,34 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Fixed
+- **`<title>` and `og:title` disagreed on the home page.** The previous pass gave `/` a title that
+  names the project, but left `og:title` on the `"<page> · <brand>"` shape — so the page offered
+  "Dashboard · Odin + HTMX" as its other name, and a crawler weighing two names for one page may
+  print either. Both now resolve through a single `head_title` proc in `layout`, so they cannot drift
+  apart again, and `seo.spec.ts` asserts they agree on every page in the sitemap. Ported to the
+  `--minimal` templates, which carried the same mismatch.
+
+### Added
+- **The home page now says what the site is.** Its `<h1>` read "Dashboard" — the nav item, not the
+  product — while `<title>`, `og:title` and the JSON-LD `name` all named the project; and the whole
+  page carried ~120 words, every one of them a caption on a stat card or a link tile. Bing had
+  crawled it and declined to index it ("known to Bing but has some issues"), which is the same thing
+  a reader arriving from a search result experiences: a wall of widgets and no answer to "what is
+  this". So:
+  - the heading names the stack (**"A server-rendered web stack in one binary"**), agreeing with the
+    title rather than competing with it;
+  - the overview keeps its own `<h2>`, where "Overview" describes the *section* — which is what it
+    was always describing;
+  - a closing prose block explains the mechanism (rendered by Odin procedures, embedded assets, HTMX
+    fragments, SQLite linked in). Deliberately **not** the About page's wording: two pages restating
+    each other are two thin pages, so this one covers the mechanism and About covers the project.
+  - the meta description was realigned with the title for the same reason.
+  Reuses the About card's classes (`.card.about`, `.about-lede`, `.about-stack`) — no new CSS. e2e:
+  the home `<h1>` is cross-checked against the app's own rendered nav label rather than a hardcoded
+  string, so it holds for the `--minimal` starter too, and the prose block is asserted to carry real
+  text. Load scenarios already cover `/` (`pages.js`, `mixed.js`); the page only got bigger.
+
 ### Added
 - **How the site presents itself in search results.** It reached page one, and the result showed a
   placeholder icon, the site name "alexh95" and the title "Dashboard · Odin + HTMX" — three separate

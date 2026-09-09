@@ -80,7 +80,13 @@ The crawler-facing plumbing shipped (canonical/og/JSON-LD, `robots.txt`, `sitema
 - [ ] **Bing Webmaster Tools** — DNS verification cost two wrong record values and a resolver-cache
       stall, so ownership moved to `/BingSiteAuth.xml`, served from the binary and deterministic on
       deploy. **IndexNow is wired too** (`/<key>.txt`), which covers Bing, Yandex, Seznam and Naver
-      from one key. Left open until verification is confirmed and the sitemap is submitted there.
+      from one key. Bing reports the URL as *known but not indexed*; the delivery path is ruled out
+      — a bingbot-UA fetch returns 200 with our own `robots.txt` (not a Cloudflare-managed one), TLS
+      1.2 negotiates, and Cloudflare's Security Events log shows **no bingbot mitigations at all**
+      (that log records only *mitigated* requests, so the absence is the edge clearing itself, not
+      evidence of a crawl). Crawl Information reports **no data**, i.e. Bingbot has barely fetched.
+      Left: submit `/sitemap.xml` in Bing's console, watch the IndexNow tab for rejected
+      submissions, run Site Scan, and re-inspect once Bing has actually crawled.
 - [x] **Cloudflare is not blocking the crawl** — SSL/TLS set to **Full (strict)** (`force_https` in
       `fly.toml` plus Flexible mode would be an infinite redirect loop), and Bot Fight Mode left
       **off**: the free tier lacks the verified-bot allowlist that Super Bot Fight Mode has, and a
@@ -92,7 +98,10 @@ The crawler-facing plumbing shipped (canonical/og/JSON-LD, `robots.txt`, `sitema
       fork asserting a licence its author never chose.
 - [ ] **Distribution beats meta tags.** `r/odinlang`, the Odin Discord, `awesome-odin`, htmx's
       "in the wild" page, a Show HN. Backlinks from those outweigh any on-page tuning for a new
-      project; `odin htmx skeleton` itself has ~no search volume.
+      project; `odin htmx skeleton` itself has ~no search volume. Note the correction to the GitHub
+      item above: GitHub applies `rel="nofollow"` to the repo homepage link, so it aids *discovery*
+      (which is why Bing knows the URL) but passes no authority — a zero-authority subdomain with no
+      followed inbound link is the likeliest reason Bing crawls it and declines to index.
 
 ## Stretch goals
 

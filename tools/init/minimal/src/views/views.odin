@@ -135,6 +135,21 @@ NAV := [?]struct {
 	{"/about", "About", "info"},
 }
 
+// One resolution for the <title> and og:title alike: a page that answers "what
+// is this" with two different names gets neither weighed. The home page carries
+// the project's own name rather than "<nav item> · <brand>" — it is the result
+// shown for the site as a whole, and "Dashboard" describes a nav item.
+@(private = "file")
+head_title :: proc(b: ^strings.Builder, title, active: string) {
+	if active == "/" {
+		esc(b, BRAND_HOME_TITLE)
+		return
+	}
+	esc(b, title)
+	w(b, " · ")
+	esc(b, BRAND_SUFFIX)
+}
+
 // The one page shell. `active` is the href of the current page so the nav can
 // mark it. The inline head script sets the theme before first paint to avoid a
 // flash of the wrong palette.
@@ -150,15 +165,7 @@ layout :: proc(title, active, description, content: string) -> string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="htmx-config" content='{"transitions":true,"defaultSwap":"innerHTML"}'>
 <title>`)
-	// The home page is the result a search engine shows for the site itself, so it
-	// carries the project's name rather than "<nav item> · <brand>".
-	if active == "/" {
-		esc(&b, BRAND_HOME_TITLE)
-	} else {
-		esc(&b, title)
-		w(&b, " · ")
-		esc(&b, BRAND_SUFFIX)
-	}
+	head_title(&b, title, active)
 	w(&b, `</title>
 <meta name="description" content="`)
 	esc(&b, description)
@@ -168,9 +175,7 @@ layout :: proc(title, active, description, content: string) -> string {
 	w(&b, `">
 <meta property="og:type" content="website">
 <meta property="og:title" content="`)
-	esc(&b, title)
-	w(&b, " · ")
-	esc(&b, BRAND_SUFFIX)
+	head_title(&b, title, active)
 	w(&b, `">
 <meta property="og:description" content="`)
 	esc(&b, description)
