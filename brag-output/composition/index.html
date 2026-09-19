@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>odin-htmx-skeleton — brag</title>
+    <script src="assets/vendor/gsap.min.js"></script>
+    <script src="assets/audio-data.js"></script>
+    <style>
+      /* Fonts stand in for the app's --font / --mono roles; shipped locally so the
+         render never depends on the network. */
+      @font-face { font-family: "BragSans"; src: url("assets/fonts/inter-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: block; }
+      @font-face { font-family: "BragSans"; src: url("assets/fonts/inter-600.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: block; }
+      @font-face { font-family: "BragSans"; src: url("assets/fonts/inter-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: block; }
+      @font-face { font-family: "BragMono"; src: url("assets/fonts/jbmono-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: block; }
+      @font-face { font-family: "BragMono"; src: url("assets/fonts/jbmono-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: block; }
+
+      /* Straight from app/static/app.css — the video wears the app's palette. */
+      :root {
+        --bg: #0b0d17;
+        --surface: #151a2c;
+        --surface-2: #1b2138;
+        --line: #2a3252;
+        --line-2: #353f66;
+        --text: #eef1fb;
+        --muted: #9aa3c4;
+        --faint: #6b769e;
+        --violet: #7c5cff;
+        --indigo: #5b8cff;
+        --cyan: #22d3ee;
+        --green: #34d399;
+        --grad: linear-gradient(135deg, var(--violet), var(--indigo) 55%, var(--cyan));
+      }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); }
+
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "BragSans", sans-serif;
+      }
+
+      /* Untimed decoratives need their own positioning — the runtime only lays out
+         elements that carry data-start. */
+      #bg-tint {
+        position: absolute; inset: 0;
+        background:
+          radial-gradient(1100px 700px at 14% -8%, rgba(124, 92, 255, 0.16), transparent 62%),
+          radial-gradient(980px 660px at 92% 108%, rgba(34, 211, 238, 0.12), transparent 60%);
+      }
+      #glow {
+        position: absolute; left: 50%; top: 50%;
+        width: 1500px; height: 1500px; margin: -750px 0 0 -750px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(124, 92, 255, 0.20), rgba(91, 140, 255, 0.07) 42%, transparent 66%);
+        opacity: 0.35;
+      }
+
+      .clip { position: absolute; inset: 0; }
+
+      /* ---- the browser window the app screenshots live in -------------------- */
+      .window {
+        position: absolute; left: 54px; top: 54px;
+        width: 1812px; height: 972px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        box-shadow: 0 40px 90px -36px rgba(3, 5, 16, 0.95);
+        overflow: hidden;
+      }
+      .window-bar {
+        position: absolute; left: 0; top: 0; width: 100%; height: 44px;
+        display: flex; align-items: center; gap: 9px; padding: 0 18px;
+        background: #10141f;
+        border-bottom: 1px solid var(--line);
+      }
+      .window-bar i { width: 11px; height: 11px; border-radius: 50%; background: #2f3856; }
+      .window-url {
+        margin-left: 14px;
+        font-family: "BragMono", monospace; font-size: 15px; color: #8b95b8;
+      }
+      .window-view { position: absolute; left: 0; top: 44px; width: 1812px; height: 928px; overflow: hidden; }
+      .shot { position: absolute; left: 0; top: 0; width: 1812px; height: 1132px; object-fit: cover; object-position: top center; }
+
+      /* ---- scene 1: the build ------------------------------------------------ */
+      #s1-wrap {
+        position: absolute; left: 0; right: 0; top: 50%;
+        transform: translateY(-50%);
+        text-align: center;
+      }
+      #s1-cmd { font-family: "BragMono", monospace; font-size: 62px; letter-spacing: -0.01em; }
+      #s1-cmd .dollar { color: var(--violet); margin-right: 20px; }
+      #s1-cmd .ch { opacity: 0; color: var(--text); }
+      #s1-caret {
+        display: inline-block; width: 26px; height: 58px; margin-left: 6px;
+        vertical-align: -9px; background: var(--cyan);
+      }
+      #s1-out {
+        margin-top: 62px;
+        font-family: "BragMono", monospace; font-size: 40px; color: var(--muted);
+        opacity: 0;
+      }
+      #s1-out .size {
+        margin-left: 26px; font-weight: 700; font-size: 58px;
+        background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+      }
+      #s1-sub { margin-top: 26px; font-size: 26px; color: var(--faint); letter-spacing: 0.01em; opacity: 0; }
+
+      /* ---- captions ---------------------------------------------------------- */
+      .cap {
+        position: absolute; left: 96px; bottom: 104px;
+        padding: 18px 28px; border-radius: 12px;
+        background: rgba(11, 13, 23, 0.88);
+        border: 1px solid var(--line);
+        font-family: "BragMono", monospace; font-size: 30px; color: var(--text);
+        opacity: 0;
+      }
+      .cap b { color: var(--cyan); font-weight: 400; }
+
+      /* ---- scene 3: drawer + validation -------------------------------------- */
+      #s3-scrim { position: absolute; inset: 0; background: rgba(6, 8, 16, 0.55); opacity: 0; }
+      #s3-drawer { position: absolute; right: 0; top: 0; width: 557px; height: 1132px; }
+      #s3-cursor {
+        position: absolute; left: 300px; top: 470px; width: 22px; height: 22px;
+        border-radius: 50%; background: var(--text);
+        box-shadow: 0 0 0 4px rgba(238, 241, 251, 0.25);
+        opacity: 0;
+      }
+      #s3-ring {
+        position: absolute; left: 271px; top: 441px; width: 80px; height: 80px;
+        border-radius: 50%; border: 3px solid var(--cyan); opacity: 0;
+      }
+      #s3-email {
+        position: absolute; left: 50%; top: 50%;
+        width: 1155px; height: 390px; margin: -195px 0 0 -577px;
+        border-radius: 16px; border: 1px solid var(--line);
+        background: var(--surface); overflow: hidden;
+        box-shadow: 0 40px 90px -36px rgba(3, 5, 16, 0.95);
+        opacity: 0;
+      }
+      #s3-email img { position: absolute; left: 0; top: 0; width: 1155px; height: 390px; }
+      #s3-email-ok { opacity: 0; }
+      #s3-cap2 {
+        position: absolute; left: 0; right: 0; top: 50%; margin-top: -300px;
+        text-align: center;
+        font-family: "BragMono", monospace; font-size: 34px; color: var(--muted);
+        opacity: 0;
+      }
+
+      /* ---- scene 4: the theme sweep ------------------------------------------ */
+      #s4-card .shot { opacity: 0; }
+      #s4-card .shot.first { opacity: 1; }
+      .style-chip {
+        position: absolute; right: 30px; bottom: 26px;
+        padding: 12px 24px; border-radius: 999px;
+        background: rgba(11, 13, 23, 0.9); border: 1px solid var(--line-2);
+        font-family: "BragMono", monospace; font-size: 27px; color: var(--text);
+        opacity: 0;
+      }
+      .style-chip.first { opacity: 1; }
+      #s4-scrim { position: absolute; inset: 0; background: rgba(8, 10, 19, 0.91); opacity: 0; }
+      #s4-line {
+        position: absolute; left: 0; right: 0; top: 50%; margin-top: -86px;
+        text-align: center; opacity: 0;
+      }
+      #s4-line .big { font-size: 78px; font-weight: 700; letter-spacing: -0.025em; }
+      #s4-line .sub {
+        margin-top: 26px; font-family: "BragMono", monospace; font-size: 40px;
+        background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+      }
+
+      /* ---- scene 5: receipts + outro ----------------------------------------- */
+      #s5-row {
+        position: absolute; left: 0; right: 0; top: 50%; margin-top: -112px;
+        display: flex; justify-content: center; align-items: flex-start; gap: 96px;
+      }
+      .receipt { width: 340px; text-align: center; opacity: 0; }
+      .receipt .num {
+        font-family: "BragMono", monospace; font-weight: 700; font-size: 88px;
+        letter-spacing: -0.03em;
+        background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+      }
+      .receipt .lab { margin-top: 16px; font-size: 27px; color: var(--muted); }
+      #s5-foot {
+        position: absolute; left: 0; right: 0; top: 50%; margin-top: 150px;
+        text-align: center; font-family: "BragMono", monospace; font-size: 24px; color: var(--faint);
+        opacity: 0;
+      }
+      #s5-outro { position: absolute; left: 0; right: 0; top: 50%; margin-top: -132px; text-align: center; opacity: 0; }
+      #s5-mark { font-size: 108px; font-weight: 700; letter-spacing: -0.035em; }
+      #s5-mark b {
+        background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+        padding: 0 6px;
+      }
+      #s5-tag { margin-top: 34px; font-size: 40px; color: var(--text); }
+      #s5-repo { margin-top: 30px; font-family: "BragMono", monospace; font-size: 26px; color: var(--faint); }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="brag"
+      data-start="0"
+      data-width="1920"
+      data-height="1080"
+      data-duration="23"
+      data-fps="30"
+    >
+      <div id="bg-tint"></div>
+      <div id="glow"></div>
+
+      <!-- ---- scene 1: the build ------------------------------------------- -->
+      <section id="s1" class="clip" data-start="0" data-duration="3.2" data-track-index="0">
+        <div id="s1-wrap">
+          <div id="s1-cmd"><span class="dollar">$</span><span id="s1-typed"></span><span id="s1-caret"></span></div>
+          <div id="s1-out"><span class="file">bin/demo.bin</span><span class="size">3.2 MB</span></div>
+          <div id="s1-sub">the entire website — one file</div>
+        </div>
+      </section>
+
+      <!-- ---- scene 2: the thing it built ----------------------------------- -->
+      <section id="s2" class="clip" data-start="3.2" data-duration="3.4" data-track-index="1">
+        <div id="s2-card" class="window">
+          <div class="window-bar" data-layout-allow-occlusion><i></i><i></i><i></i><span class="window-url">localhost:8080</span></div>
+          <div class="window-view">
+            <img class="shot" data-layout-allow-overflow src="assets/ui/dashboard-hero.png" alt="The skeleton's dashboard" />
+          </div>
+        </div>
+        <div id="s2-cap" class="cap">rendered by Odin <b>·</b> swapped by HTMX</div>
+      </section>
+
+      <!-- ---- scene 3: the app working -------------------------------------- -->
+      <section id="s3" class="clip" data-start="6.6" data-duration="6.05" data-track-index="2">
+        <div id="s3-card" class="window">
+          <div class="window-bar" data-layout-allow-occlusion><i></i><i></i><i></i><span class="window-url">localhost:8080/data</span></div>
+          <div class="window-view">
+            <img class="shot" data-layout-allow-overflow src="assets/ui/data.png" alt="The contacts table" />
+            <div id="s3-scrim"></div>
+            <img id="s3-drawer" data-layout-allow-overflow src="assets/ui/drawer-panel.png" alt="The contact detail drawer" />
+            <div id="s3-ring"></div>
+            <div id="s3-cursor"></div>
+          </div>
+        </div>
+        <div id="s3-cap" class="cap">one request <b>→</b> one HTML fragment</div>
+
+        <div id="s3-cap2">validated as you type — on the server</div>
+        <div id="s3-email">
+          <img id="s3-email-bad" src="assets/ui/email-invalid.png" alt="The email field showing a validation error" />
+          <img id="s3-email-ok" src="assets/ui/email-valid.png" alt="The email field accepted" />
+        </div>
+      </section>
+
+      <!-- ---- scene 4: same HTML, six skins --------------------------------- -->
+      <section id="s4" class="clip" data-start="12.65" data-duration="4.85" data-track-index="3">
+        <div id="s4-card" class="window">
+          <div class="window-bar" data-layout-allow-occlusion><i></i><i></i><i></i><span class="window-url">localhost:8080</span></div>
+          <div class="window-view">
+            <img class="shot first" id="s4-shot-0" src="assets/ui/theme-modern-midnight.png" alt="The dashboard in the Modern style" />
+            <img class="shot" data-layout-allow-overflow id="s4-shot-1" src="assets/ui/theme-skeuo-aqua.png" alt="The dashboard in the Skeuo style" />
+            <img class="shot" data-layout-allow-overflow id="s4-shot-2" src="assets/ui/theme-terminal-green.png" alt="The dashboard in the Terminal style" />
+            <img class="shot" data-layout-allow-overflow id="s4-shot-3" src="assets/ui/theme-brutal-acid.png" alt="The dashboard in the Brutalist style" />
+            <img class="shot" data-layout-allow-overflow id="s4-shot-4" src="assets/ui/theme-editorial-manuscript.png" alt="The dashboard in the Editorial style" />
+            <img class="shot" data-layout-allow-overflow id="s4-shot-5" src="assets/ui/theme-arcade-synthwave.png" alt="The dashboard in the Arcade style" />
+            <div class="style-chip first" id="s4-chip-0">Modern</div>
+            <div class="style-chip" id="s4-chip-1">Skeuo</div>
+            <div class="style-chip" id="s4-chip-2">Terminal</div>
+            <div class="style-chip" id="s4-chip-3">Brutalist</div>
+            <div class="style-chip" id="s4-chip-4">Editorial</div>
+            <div class="style-chip" id="s4-chip-5">Arcade</div>
+          </div>
+        </div>
+        <div id="s4-scrim"></div>
+        <div id="s4-line">
+          <div class="big">Same HTML.</div>
+          <div class="sub">6 styles × 23 schemes</div>
+        </div>
+      </section>
+
+      <!-- ---- scene 5: receipts + outro ------------------------------------- -->
+      <section id="s5" class="clip" data-start="17.5" data-duration="5.5" data-track-index="4">
+        <div id="s5-row">
+          <div class="receipt" id="s5-r0"><div class="num" id="s5-n0">0</div><div class="lab">lines of Odin</div></div>
+          <div class="receipt" id="s5-r1"><div class="num" id="s5-n1">0</div><div class="lab">lines of JavaScript</div></div>
+          <div class="receipt" id="s5-r2"><div class="num" id="s5-n2">0</div><div class="lab">runtime dependencies</div></div>
+          <div class="receipt" id="s5-r3"><div class="num" id="s5-n3">&lt;1 ms</div><div class="lab">time to first byte</div></div>
+        </div>
+        <div id="s5-foot">measured on the binary in this repo</div>
+        <div id="s5-outro">
+          <div id="s5-mark">odin<b>·</b>htmx</div>
+          <div id="s5-tag">Clone it. Rename it. Build your thing.</div>
+          <div id="s5-repo">github.com/alexh95/odin-htmx-skeleton</div>
+        </div>
+      </section>
+
+      <!-- ---- audio ---------------------------------------------------------- -->
+      <audio
+        id="music"
+        src="assets/music/bed.mp3"
+        data-start="0"
+        data-duration="23"
+        data-track-index="20"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0},{"t":1.2,"v":0.22},{"t":3.0,"v":0.22},{"t":3.5,"v":0.46},{"t":12.5,"v":0.5},{"t":12.8,"v":0.62},{"t":17.4,"v":0.55},{"t":20.4,"v":0.45},{"t":21.2,"v":0.34},{"t":23,"v":0}]}]}'
+      ></audio>
+
+      <!-- scene 1: the typed command, then the binary landing -->
+      <audio id="sfx-key-0" src="assets/sfx/keyboard/keypress-003.wav" data-start="0.42" data-duration="0.25" data-track-index="30" data-volume="0.22"></audio>
+      <audio id="sfx-key-1" src="assets/sfx/keyboard/keypress-007.wav" data-start="0.54" data-duration="0.25" data-track-index="31" data-volume="0.2"></audio>
+      <audio id="sfx-key-2" src="assets/sfx/keyboard/keypress-011.wav" data-start="0.66" data-duration="0.25" data-track-index="32" data-volume="0.22"></audio>
+      <audio id="sfx-key-3" src="assets/sfx/keyboard/keypress-015.wav" data-start="0.78" data-duration="0.25" data-track-index="33" data-volume="0.2"></audio>
+      <audio id="sfx-key-4" src="assets/sfx/keyboard/keypress-019.wav" data-start="0.90" data-duration="0.25" data-track-index="34" data-volume="0.22"></audio>
+      <audio id="sfx-key-5" src="assets/sfx/keyboard/keypress-023.wav" data-start="1.02" data-duration="0.25" data-track-index="35" data-volume="0.2"></audio>
+      <audio id="sfx-key-6" src="assets/sfx/keyboard/keypress-007.wav" data-start="1.14" data-duration="0.25" data-track-index="36" data-volume="0.22"></audio>
+      <audio id="sfx-key-7" src="assets/sfx/keyboard/keypress-015.wav" data-start="1.26" data-duration="0.25" data-track-index="37" data-volume="0.2"></audio>
+      <audio id="sfx-build" src="assets/sfx/impact/impactSoft_medium_004.ogg" data-start="1.6" data-duration="0.15" data-track-index="38" data-volume="0.4"></audio>
+
+      <!-- scene 2/3: the reveal, the simulated click, the drawer latching -->
+      <audio id="sfx-reveal" src="assets/sfx/impact/impactSoft_medium_001.ogg" data-start="3.2" data-duration="0.19" data-track-index="40" data-volume="0.38"></audio>
+      <audio id="sfx-click" src="assets/sfx/interface/click_003.ogg" data-start="7.5" data-duration="0.01" data-track-index="41" data-volume="0.45"></audio>
+      <audio id="sfx-drawer" src="assets/sfx/interface/drop_001.ogg" data-start="8.02" data-duration="0.11" data-track-index="42" data-volume="0.4"></audio>
+      <audio id="sfx-valid" src="assets/sfx/interface/click_005.ogg" data-start="11.75" data-duration="0.01" data-track-index="43" data-volume="0.4"></audio>
+
+      <!-- scene 4: one tick per theme, on the beat grid -->
+      <audio id="sfx-theme-0" src="assets/sfx/interface/click_005.ogg" data-start="12.65" data-duration="0.01" data-track-index="50" data-volume="0.3"></audio>
+      <audio id="sfx-theme-1" src="assets/sfx/interface/click_005.ogg" data-start="13.18" data-duration="0.01" data-track-index="51" data-volume="0.3"></audio>
+      <audio id="sfx-theme-2" src="assets/sfx/interface/click_005.ogg" data-start="13.70" data-duration="0.01" data-track-index="52" data-volume="0.3"></audio>
+      <audio id="sfx-theme-3" src="assets/sfx/interface/click_005.ogg" data-start="14.22" data-duration="0.01" data-track-index="53" data-volume="0.3"></audio>
+      <audio id="sfx-theme-4" src="assets/sfx/interface/click_005.ogg" data-start="14.76" data-duration="0.01" data-track-index="54" data-volume="0.3"></audio>
+      <audio id="sfx-theme-5" src="assets/sfx/interface/click_005.ogg" data-start="15.28" data-duration="0.01" data-track-index="55" data-volume="0.3"></audio>
+      <audio id="sfx-line" src="assets/sfx/impact/impactSoft_medium_001.ogg" data-start="15.55" data-duration="0.19" data-track-index="56" data-volume="0.42"></audio>
+
+      <!-- scene 5: one tick per number, one bell on the wordmark -->
+      <audio id="sfx-n0" src="assets/sfx/interface/click_003.ogg" data-start="17.91" data-duration="0.01" data-track-index="60" data-volume="0.28"></audio>
+      <audio id="sfx-n1" src="assets/sfx/interface/click_003.ogg" data-start="18.44" data-duration="0.01" data-track-index="61" data-volume="0.28"></audio>
+      <audio id="sfx-n2" src="assets/sfx/interface/click_003.ogg" data-start="18.96" data-duration="0.01" data-track-index="62" data-volume="0.28"></audio>
+      <audio id="sfx-n3" src="assets/sfx/interface/click_003.ogg" data-start="19.49" data-duration="0.01" data-track-index="63" data-volume="0.28"></audio>
+      <audio id="sfx-mark" src="assets/sfx/impact/impactBell_heavy_000.ogg" data-start="20.54" data-duration="1.48" data-track-index="64" data-volume="0.5"></audio>
+    </div>
+
+    <script>
+      // The command is typed one character at a time, so it needs one span each.
+      (function buildTypedCommand() {
+        var host = document.getElementById("s1-typed");
+        var text = "odin build src";
+        for (var i = 0; i < text.length; i++) {
+          var s = document.createElement("span");
+          s.className = "ch";
+          s.textContent = text[i] === " " ? " " : text[i];
+          host.appendChild(s);
+        }
+      })();
+
+      var tl = gsap.timeline({ paused: true });
+
+      // ---- scene 1: the build ---------------------------------------------
+      tl.to("#s1-cmd .ch", { opacity: 1, duration: 0.01, stagger: 0.062 }, 0.4);
+      tl.to("#s1-caret", { opacity: 0, duration: 0.34, repeat: 5, yoyo: true, ease: "steps(1)" }, 1.32);
+      tl.fromTo("#s1-out", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.42, ease: "power3.out" }, 1.6);
+      tl.fromTo("#s1-sub", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.out" }, 2.0);
+      tl.to("#s1-wrap", { opacity: 0, duration: 0.24, ease: "power2.in" }, 3.0);
+
+      // ---- scene 2: the thing it built ------------------------------------
+      tl.fromTo("#s2-card", { opacity: 0, y: 44, scale: 1.035 }, { opacity: 1, y: 0, scale: 1, duration: 0.72, ease: "power3.out" }, 3.2);
+      tl.to("#s2-card", { scale: 1.022, duration: 2.6, ease: "none" }, 3.95); // slow push-in, the only motion in the scene
+      tl.fromTo("#s2-cap", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.38, ease: "power3.out" }, 3.95);
+      tl.to("#s2-cap", { opacity: 0, duration: 0.24 }, 6.34);
+      tl.to("#s2-card", { opacity: 0, duration: 0.26, ease: "power2.in" }, 6.4);
+
+      // ---- scene 3: the app working ---------------------------------------
+      tl.fromTo("#s3-card", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 6.6);
+      // the simulated row click: cursor settles, ring pulses out, drawer answers
+      tl.fromTo("#s3-cursor", { opacity: 0, x: 60, y: 40 }, { opacity: 1, x: 0, y: 0, duration: 0.45, ease: "power2.out" }, 7.05);
+      tl.fromTo("#s3-ring", { opacity: 0.9, scale: 0.25 }, { opacity: 0, scale: 1, duration: 0.5, ease: "power2.out" }, 7.5);
+      tl.to("#s3-scrim", { opacity: 1, duration: 0.35, ease: "power2.out" }, 7.56);
+      tl.fromTo("#s3-drawer", { xPercent: 100 }, { xPercent: 0, duration: 0.5, ease: "power3.out" }, 7.56);
+      tl.to("#s3-cursor", { opacity: 0, duration: 0.2 }, 7.7);
+      tl.fromTo("#s3-cap", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.34, ease: "power3.out" }, 8.3);
+      tl.to("#s3-cap", { opacity: 0, duration: 0.22 }, 10.1);
+      tl.to("#s3-card", { opacity: 0, duration: 0.26, ease: "power2.in" }, 10.12);
+      // the field validating: error, then accepted
+      tl.fromTo("#s3-email", { opacity: 0, scale: 0.945 }, { opacity: 1, scale: 1, duration: 0.36, ease: "power3.out" }, 10.25);
+      tl.fromTo("#s3-cap2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.34, ease: "power3.out" }, 10.35);
+      tl.to("#s3-email-bad", { opacity: 0, duration: 0.22, ease: "power2.inOut" }, 11.75);
+      tl.to("#s3-email-ok", { opacity: 1, duration: 0.22, ease: "power2.inOut" }, 11.75);
+
+      // ---- scene 4: same HTML, six skins ----------------------------------
+      // beat-grid: 12.65 / 13.18 / 13.70 / 14.22 / 14.76 / 15.28 (114.84 BPM preset)
+      var themeBeats = [12.65, 13.18, 13.7, 14.22, 14.76, 15.28];
+      tl.set("#s4-card", { opacity: 0, scale: 1 }, 0); // baseline: fromTo from-values must not leak to pre-scene seeks
+      tl.fromTo("#s4-card", { opacity: 0, scale: 1.02 }, { opacity: 1, scale: 1, duration: 0.3, ease: "power3.out" }, 12.65);
+      for (var t = 1; t < themeBeats.length; t++) {
+        tl.set("#s4-shot-" + (t - 1), { opacity: 0 }, themeBeats[t]);
+        tl.set("#s4-shot-" + t, { opacity: 1 }, themeBeats[t]);
+        tl.set("#s4-chip-" + (t - 1), { opacity: 0 }, themeBeats[t]);
+        tl.fromTo("#s4-chip-" + t, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.22, ease: "power3.out" }, themeBeats[t]);
+        // a small settle on each cut, so the swap reads as physical rather than a dissolve
+        tl.fromTo("#s4-card", { scale: 1.014 }, { scale: 1, duration: 0.26, ease: "power2.out", immediateRender: false }, themeBeats[t]);
+      }
+      // beat-locked: 15.55s — the claim lands over the last skin
+      tl.to("#s4-scrim", { opacity: 1, duration: 0.3, ease: "power2.out" }, 15.55);
+      tl.to("#s4-chip-5", { opacity: 0, duration: 0.22, ease: "power2.out" }, 15.55);
+      tl.fromTo("#s4-line", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.42, ease: "power3.out" }, 15.58);
+      tl.to("#s4-line", { opacity: 0, duration: 0.26, ease: "power2.in" }, 17.24);
+      tl.to("#s4-card", { opacity: 0, duration: 0.26, ease: "power2.in" }, 17.24);
+
+      // ---- scene 5: receipts + outro --------------------------------------
+      // beat-grid: 17.91 / 18.44 / 18.96 / 19.49
+      var receipts = [
+        { beat: 17.91, id: "#s5-n0", to: 3060, group: true },
+        { beat: 18.44, id: "#s5-n1", to: 169, group: false },
+        { beat: 18.96, id: "#s5-n2", to: 3, group: false },
+        { beat: 19.49, id: "#s5-n3", to: null, group: false }
+      ];
+      for (var r = 0; r < receipts.length; r++) {
+        var spec = receipts[r];
+        tl.fromTo("#s5-r" + r, { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.42, ease: "power3.out" }, spec.beat);
+        if (spec.to !== null) {
+          // count up into the element's text; no clocks, no randomness — pure tween state
+          var counter = { v: 0 };
+          tl.to(
+            counter,
+            {
+              v: spec.to,
+              duration: 0.5,
+              ease: "power2.out",
+              onUpdate: (function (node, box, grouped) {
+                return function () {
+                  var n = Math.round(box.v);
+                  node.textContent = grouped ? n.toLocaleString("en-US") : String(n);
+                };
+              })(document.querySelector(spec.id), counter, spec.group)
+            },
+            spec.beat
+          );
+        }
+      }
+      tl.fromTo("#s5-foot", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power2.out" }, 19.7);
+      tl.to("#s5-row", { opacity: 0, y: -22, duration: 0.32, ease: "power2.in" }, 20.34);
+      tl.to("#s5-foot", { opacity: 0, duration: 0.26, ease: "power2.in" }, 20.34);
+      tl.fromTo("#s5-outro", { opacity: 0, scale: 0.955 }, { opacity: 1, scale: 1, duration: 0.5, ease: "power3.out" }, 20.54);
+      tl.fromTo("#s5-tag", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.42, ease: "power3.out" }, 20.86);
+      tl.fromTo("#s5-repo", { opacity: 0 }, { opacity: 1, duration: 0.42, ease: "power2.out" }, 21.18);
+
+      // ---- audio-reactive: the background glow breathes with the bass -------
+      // Pre-extracted per-frame data, sampled once per frame — no runtime analysis.
+      (function wireGlow() {
+        var glow = document.getElementById("glow");
+        var frames = AUDIO_DATA.frames;
+        var fps = AUDIO_DATA.fps;
+        for (var f = 0; f < frames.length; f++) {
+          tl.call(
+            (function (frame) {
+              return function () {
+                var energy = frame.b * 0.65 + frame.m * 0.35;
+                glow.style.opacity = (0.26 + energy * 0.3).toFixed(3);
+                gsap.set(glow, { scale: 1 + energy * 0.12 });
+              };
+            })(frames[f]),
+            [],
+            f / fps
+          );
+        }
+      })();
+
+      window.__timelines["brag"] = tl;
+    </script>
+  </body>
+</html>
