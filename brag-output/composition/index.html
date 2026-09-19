@@ -287,7 +287,7 @@
           <div class="receipt" id="s5-r0"><div class="num" id="s5-n0">0</div><div class="lab">lines of Odin</div></div>
           <div class="receipt" id="s5-r1"><div class="num" id="s5-n1">0</div><div class="lab">lines of JavaScript</div></div>
           <div class="receipt" id="s5-r2"><div class="num" id="s5-n2">0</div><div class="lab">runtime dependencies</div></div>
-          <div class="receipt" id="s5-r3"><div class="num" id="s5-n3">&lt;1 ms</div><div class="lab">time to first byte</div></div>
+          <div class="receipt" id="s5-r3"><div class="num" id="s5-n3">0</div><div class="lab">HTML for the dashboard</div></div>
         </div>
         <div id="s5-foot">measured on the binary in this repo</div>
         <div id="s5-outro">
@@ -410,10 +410,12 @@
       // ---- scene 5: receipts + outro --------------------------------------
       // beat-grid: 17.91 / 18.44 / 18.96 / 19.49
       var receipts = [
-        { beat: 17.91, id: "#s5-n0", to: 3060, group: true },
-        { beat: 18.44, id: "#s5-n1", to: 169, group: false },
-        { beat: 18.96, id: "#s5-n2", to: 3, group: false },
-        { beat: 19.49, id: "#s5-n3", to: null, group: false }
+        { beat: 17.91, id: "#s5-n0", to: 3060, group: true, suffix: "" },
+        { beat: 18.44, id: "#s5-n1", to: 169, group: false, suffix: "" },
+        { beat: 18.96, id: "#s5-n2", to: 3, group: false, suffix: "" },
+        // the wire weight of the page the film just showed — a property of the app,
+        // unlike a latency measured over loopback, which is a property of the machine
+        { beat: 19.49, id: "#s5-n3", to: 19, group: false, suffix: " KB" }
       ];
       for (var r = 0; r < receipts.length; r++) {
         var spec = receipts[r];
@@ -427,12 +429,12 @@
               v: spec.to,
               duration: 0.5,
               ease: "power2.out",
-              onUpdate: (function (node, box, grouped) {
+              onUpdate: (function (node, box, grouped, suffix) {
                 return function () {
                   var n = Math.round(box.v);
-                  node.textContent = grouped ? n.toLocaleString("en-US") : String(n);
+                  node.textContent = (grouped ? n.toLocaleString("en-US") : String(n)) + suffix;
                 };
-              })(document.querySelector(spec.id), counter, spec.group)
+              })(document.querySelector(spec.id), counter, spec.group, spec.suffix)
             },
             spec.beat
           );

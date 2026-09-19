@@ -31,7 +31,9 @@ server-rendered websites built with Odin + HTMX + SQLite that ships as one binar
   - `Clone it. Rename it. Build your thing.`
   - `github.com/alexh95/odin-htmx-skeleton`
 - Numbers are measured, not invented: 3,218,432-byte binary, 3,060 lines of Odin, 169 lines
-  of JS, 3 runtime dependencies (HTMX, odin-http, SQLite), sub-millisecond time-to-first-byte.
+  of JS, 3 runtime dependencies (HTMX, odin-http, SQLite), a 19,000-byte dashboard document.
+  Every figure is a property of the app, not of the machine that measured it — a latency taken
+  over loopback would not be.
 
 ## Creative Direction
 - Tone preset: polished
@@ -69,7 +71,7 @@ Scene summary:
 4. Same HTML, six skins — 12.65–17.5s — the same dashboard cut through Modern, Skeuo,
    Terminal, Brutalist, Editorial, Arcade on the beat grid, then
    `Same HTML. 6 styles × 23 schemes.`
-5. Receipts — 17.5–23.0s — 3,060 / 169 / 3 / <1 ms count up, then the wordmark and
+5. Receipts — 17.5–23.0s — 3,060 / 169 / 3 / 19 KB count up, then the wordmark and
    `Clone it. Rename it. Build your thing.`
 
 ## Audio

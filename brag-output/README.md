@@ -22,7 +22,14 @@ composition/          the Hyperframes project that renders brag.mp4
 Every frame of UI is a **real screenshot of this repo's binary**, not a recreation: `app/bin/demo.bin`
 was built and served on `localhost:8080`, then captured headless at 2x. The numbers are measured,
 not written: a 3,218,432-byte binary, 3,060 lines of Odin, 169 lines of JS, 3 runtime dependencies,
-sub-millisecond time-to-first-byte.
+a 19 KB base document for the dashboard.
+
+The figures are deliberately all *properties of the app* rather than of the machine that
+measured them. An earlier cut showed a sub-millisecond "time to first byte"; that was a
+loopback number — no DNS, no TLS, no round trip — so no visitor would ever see it. It was
+replaced with the document's wire weight, which is the same wherever you measure it.
+Note that the server sends no `Content-Encoding`, so 19 KB is what actually goes over the
+wire; gzip would put it near 4.4 KB.
 
 The screenshots under `composition/assets/ui/` are the dashboard, the contacts table, the detail
 drawer (cropped out of a drawer-open capture so it can slide in), the email field before and after

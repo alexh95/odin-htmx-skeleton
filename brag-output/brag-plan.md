@@ -20,7 +20,7 @@ A cursor on a black terminal types `odin build src`, and the answer lands hard:
   request, one fragment of server-rendered HTML.
 - The theme sweep: the *same* dashboard HTML re-skinned through Modern, Skeuo, Terminal,
   Brutalist, Editorial and Arcade, one per beat. Nothing in the markup changed.
-- The receipts row counting up: 3,060 lines of Odin, 169 lines of JS, 3 dependencies, <1 ms.
+- The receipts row counting up: 3,060 lines of Odin, 169 lines of JS, 3 dependencies, 19 KB.
 
 ## Outro / punchline
 The wordmark, then the line the README ends on: **Clone it. Rename it. Build your thing.**
@@ -52,7 +52,7 @@ type into the email field on /forms and watch it validate inline as you type.
 
 ## Share copy (draft)
 A whole website in one 3.2 MB binary: Odin renders the HTML, HTMX swaps it, SQLite stores it.
-3,060 lines of Odin, 169 lines of JS, three dependencies, sub-millisecond responses.
+3,060 lines of Odin, 169 lines of JS, three dependencies, a 19 KB page.
 
 ## Audio direction
 - Role: sparse professional accents over a low, warm bed
@@ -120,7 +120,7 @@ Transition mood: clean → Scene 5
 
 ### Scene 5 — Receipts — 3.7s
 Back to black. Four mono figures count up on one row, arriving left to right: `3,060` lines of
-Odin · `169` lines of JS · `3` dependencies · `<1 ms` response. They hold together, then fall
+Odin · `169` lines of JS · `3` dependencies · `19 KB` of HTML. They hold together, then fall
 away to the wordmark **odin·htmx** in the accent gradient, with `Clone it. Rename it. Build your
 thing.` beneath and `github.com/alexh95/odin-htmx-skeleton` in faint mono.
 Sequential/interaction: yes — the four figures count up and arrive one by one, then hold as a

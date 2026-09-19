@@ -1,4 +1,4 @@
 A whole website in one 3.2 MB binary: Odin renders the HTML, HTMX swaps it, SQLite stores it.
-3,060 lines of Odin, 169 lines of JavaScript, three dependencies, sub-millisecond responses —
+3,060 lines of Odin, 169 lines of JavaScript, three dependencies, a 19 KB page with no bundle —
 and six themes over the same markup. Clone it, rename it, build your thing.
 github.com/alexh95/odin-htmx-skeleton
