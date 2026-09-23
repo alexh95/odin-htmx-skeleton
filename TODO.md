@@ -234,6 +234,16 @@ The patterns + harness a fork inherits. (Was "Now / next"; the initiative below 
       starter and runs its e2e (global-setup builds it `-warnings-as-errors`, so one job catches
       compile- **and** runtime-rot, and exercises the rename path too). Chromium only; gates deploy.
       Keeps the `tools/init/minimal/` templates honest as the skeleton evolves.
+- [ ] `/forms` email validates one value twice: `keyup changed delay:400ms` checks it as you type,
+      then `change` re-sends it on blur — a redundant request, and the `.msg` fade-up replays. Since
+      #8's fix it no longer costs a click, only the round-trip. htmx 4's `changed` modifier keeps its
+      last value *per trigger*, so `change changed` can't dedupe against the keyup; a lone
+      `input changed delay:400ms` would (it also covers a mouse paste, which keyup misses). Keep the
+      e2e's click-during-a-swap case exercising a real swap if you change it.
+- [ ] Optional: crossfade back/forward too. Since #8, only the boosted links opt into a view
+      transition, and htmx 4 takes a history restore's from the global `transitions` flag alone — so
+      it would take one `htmx:config:request` listener in `app.js` setting `ctx.transition` on
+      `HX-History-Restore-Request` requests. It reopens a (brief) dead-click window each time.
 
 ## Done
 
