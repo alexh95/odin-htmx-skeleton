@@ -280,8 +280,18 @@ http.respond(res, http.Status.Not_Found)
 - **Overlays** (modal/drawer) load into `#overlay` and close via `GET /ui/clear` (empty body).
   The modal backdrop intentionally has **no** close handler — an outside click must not
   discard a half-typed field. The drawer backdrop may close (no field to lose).
-- View Transitions are on globally via `htmx-config` (`{"transitions":true}`) in `layout`.
-- **Boosted navigation**: the brand + primary-nav links carry `hx-boost="true"` (on **each link** —
+- **View Transitions are for boosted navigation only — never set `transitions` in `htmx-config`.**
+  While a view transition runs (~250ms, the default crossfade), Chromium hit-tests the whole page to
+  `<html>`, so a click whose mouse-up lands in one is dropped, and `pointer-events: none` on
+  `::view-transition` does **not** change that (Firefox/WebKit unchecked — the rule doesn't depend on
+  them). A page swap can afford it. A
+  fragment swap can't, because the rest of the page stays live: with the global flag on, the `/forms`
+  email field's blur validation swallowed the very click that blurred it (issue #8). The brand + nav
+  links opt in per element with the `transition:true` swap modifier; a fragment wants its own CSS
+  entrance animation instead (`.msg`, `.toast`, `.modal`, `.row-new` all have one). Consequence:
+  back/forward restores don't crossfade — htmx 4 takes their transition from the global flag alone.
+- **Boosted navigation**: the brand + primary-nav links carry
+  `hx-boost="true" hx-swap="innerHTML transition:true"` (on **each link** —
   htmx 4 doesn't inherit it from a parent `<nav>` the way htmx 2 did). Clicking swaps the `<body>`
   and pushes history instead of a full document load — SPA-like, no asset re-parse, no theme flash,
   and the `<title>` updates from the response. Boost only internal HTML links; leave the JSON-API

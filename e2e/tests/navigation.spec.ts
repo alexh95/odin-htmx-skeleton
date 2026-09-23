@@ -40,6 +40,35 @@ test.describe('navigation', () => {
     expect(await page.evaluate(() => (window as Window & { __alive?: number }).__alive)).toBe(1);
   });
 
+  test('only boosted navigation runs in a view transition, never a fragment swap (regression)', async ({ page }) => {
+    // While a view transition runs, Chromium hit-tests the whole page to <html> and
+    // drops the click. A page swap can afford that; a fragment swap cannot — it
+    // leaves the rest of the page live (forms.spec.ts has the click it cost).
+    // Counting the calls asserts the cause itself, in every engine.
+    await page.addInitScript(() => {
+      const w = window as Window & { __transitions: number };
+      const start = Document.prototype.startViewTransition;
+      w.__transitions = 0;
+      if (start) {
+        Document.prototype.startViewTransition = function (...args: Parameters<typeof start>) {
+          w.__transitions += 1;
+          return start.apply(this, args);
+        };
+      }
+    });
+    await page.goto('/');
+    test.skip(!(await page.evaluate(() => 'startViewTransition' in document)), 'no View Transitions API');
+    const transitions = () => page.evaluate(() => (window as Window & { __transitions: number }).__transitions);
+
+    await page.getByRole('button', { name: 'Ping server' }).click();
+    await expect(page.locator('#ping-slot .ping-ok')).toContainText('200 OK');
+    expect(await transitions()).toBe(0);
+
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Forms' }).click();
+    await expect(page.getByRole('heading', { name: 'Forms & validation', level: 1 })).toBeVisible();
+    await expect.poll(transitions).toBe(1);
+  });
+
   test('toasts still auto-retire after a boosted navigation (swap-safe observer)', async ({ page }) => {
     await page.goto('/');
     // Boost over to the components page, then raise a toast on the swapped-in body.

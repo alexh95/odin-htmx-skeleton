@@ -157,13 +157,15 @@ layout :: proc(title, active, description, content: string) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	// The head carries literal { } (htmx-config JSON, the theme script), and
 	// Odin's fmt treats braces as directives — so write it raw with w() and splice
-	// the only dynamic values (title/description) in between.
+	// the only dynamic values (title/description) in between. htmx-config leaves
+	// `transitions` off on purpose: the boosted links below are the only swaps that
+	// opt in.
 	w(&b, `<!doctype html>
 <html lang="en" data-style="modern" data-scheme="midnight">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="htmx-config" content='{"transitions":true,"defaultSwap":"innerHTML"}'>
+<meta name="htmx-config" content='{"defaultSwap":"innerHTML"}'>
 <title>`)
 	head_title(&b, title, active)
 	w(&b, `</title>
@@ -239,8 +241,13 @@ layout :: proc(title, active, description, content: string) -> string {
 </script>
 </head>
 <body>
-<header class="topbar">
-  <a class="brand" href="/" hx-boost="true"><span class="brand-mark">`)
+<header class="topbar">`)
+	// Boosted navigation, and the only swaps that crossfade (`transition:true`).
+	// While a view transition runs, Chromium hit-tests the whole page to <html> and
+	// drops clicks: fine while the page itself is replaced, not for a fragment swap
+	// like adding a note, which leaves the rest of the page live.
+	w(&b, `
+  <a class="brand" href="/" hx-boost="true" hx-swap="innerHTML transition:true"><span class="brand-mark">`)
 	icon(&b, "bolt")
 	w(&b, `</span><span class="brand-name">`)
 	w(&b, BRAND_WORDMARK)
@@ -248,7 +255,7 @@ layout :: proc(title, active, description, content: string) -> string {
   <nav class="nav" aria-label="Primary">`)
 	for item in NAV {
 		cur := item.href == active ? ` aria-current="page"` : ""
-		fmt.sbprintf(&b, `<a class="nav-link" href="%s"%s hx-boost="true">`, item.href, cur)
+		fmt.sbprintf(&b, `<a class="nav-link" href="%s"%s hx-boost="true" hx-swap="innerHTML transition:true">`, item.href, cur)
 		icon(&b, item.icon)
 		fmt.sbprintf(&b, `<span>%s</span></a>`, item.label)
 	}

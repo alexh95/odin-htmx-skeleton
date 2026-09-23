@@ -35,10 +35,12 @@ global-setup.ts        runs prepare + builds the app binary once (-warnings-as-e
 fixtures.ts            per-worker server (own port + isolated :memory: store) → parallel
 helpers/server.ts      spawn/get/post/del/health for specs that manage their own server
 tests/
-  navigation.spec.ts   dashboard + stat-card drill-through, routing + aria-current, ping, theme + showroom
+  navigation.spec.ts   dashboard + stat-card drill-through, routing + aria-current, ping, theme + showroom,
+                       view transitions on boosted nav only (regression)
   search.spec.ts       active search: highlight, navigate, collapse, Escape/outside-click
   components.spec.ts    tabs, accordion, toasts, modal (regression), drawer
-  forms.spec.ts        email validation, field-persist (regression), slider --fill (regression), submit+reset
+  forms.spec.ts        email validation, field-persist (regression), click during a swap (regression),
+                       slider --fill (regression), submit+reset
   crud.spec.ts         create/cycle/delete, 404, sort (+ injection regression), pagination, filters, detail drawer
   assets.spec.ts       embedded htmx, on-disk css, path-traversal 404, health, JSON API
   events.spec.ts       events between contacts: deleting a contact cascades its interactions (FK)
@@ -47,7 +49,10 @@ tests/
 
 The regression tests pin bugs fixed earlier: the modal keeps its field on a
 backdrop click, `/forms` doesn't wipe name/email on validation, range sliders
-paint `--fill` to match the thumb, and a crafted `sort` param can't inject markup.
+paint `--fill` to match the thumb, a crafted `sort` param can't inject markup,
+and a click isn't swallowed by a swap's view transition. That last one presses
+with `mouse.down()` / `mouse.up()`: `locator.click()` waits a transition out,
+which hides the race.
 
 ## Parity with load-tests
 
