@@ -303,13 +303,14 @@ layout :: proc(title, active, description, content: string) -> string {
 	// The head carries literal { } (htmx-config JSON, the theme script), and
 	// Odin's fmt treats braces as directives — so write it raw with w() and
 	// splice the only dynamic value, the title, in between. (sbprintf here would
-	// emit %!(MISSING) for every brace.)
+	// emit %!(MISSING) for every brace.) htmx-config leaves `transitions` off on
+	// purpose: the boosted links below are the only swaps that opt in.
 	w(&b, `<!doctype html>
 <html lang="en" data-style="modern" data-scheme="midnight">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="htmx-config" content='{"transitions":true,"defaultSwap":"innerHTML"}'>
+<meta name="htmx-config" content='{"defaultSwap":"innerHTML"}'>
 <title>`)
 	head_title(&b, title, active)
 	w(&b, `</title>
@@ -389,13 +390,20 @@ layout :: proc(title, active, description, content: string) -> string {
 <header class="topbar">`)
 	// hx-boost turns the brand + primary-nav links into AJAX swaps: htmx fetches the
 	// page, swaps the <body>, and pushes history instead of a full document load —
-	// SPA-like navigation with no asset re-parse, no theme re-flash, and (with
-	// transitions on) a crossfade. The server still renders whole pages; only the
-	// client work changes. Scoped to these links so the JSON-API tile and the
-	// no-action search/filter forms keep their normal behaviour. app.js keeps its
-	// per-node state swap-safe (see watchToasts / the htmx:after:process re-init).
+	// SPA-like navigation with no asset re-parse and no theme re-flash. The server
+	// still renders whole pages; only the client work changes. Scoped to these links
+	// so the JSON-API tile and the no-action search/filter forms keep their normal
+	// behaviour. app.js keeps its per-node state swap-safe (see watchToasts / the
+	// htmx:after:process re-init).
+	//
+	// `transition:true` crossfades these swaps, and only these. While a view
+	// transition runs, Chromium hit-tests the whole page to <html>, so a click that
+	// lands in one is dropped — `pointer-events` on ::view-transition does not
+	// change that. Fine while the page itself is being replaced; not for a fragment
+	// swap, which leaves the rest of the page live (the email field's blur
+	// validation swallowed the very click that blurred it).
 	w(&b, `
-  <a class="brand" href="/" hx-boost="true"><span class="brand-mark">`)
+  <a class="brand" href="/" hx-boost="true" hx-swap="innerHTML transition:true"><span class="brand-mark">`)
 	icon(&b, "bolt")
 	w(&b, `</span><span class="brand-name">`)
 	w(&b, BRAND_WORDMARK)
@@ -405,7 +413,7 @@ layout :: proc(title, active, description, content: string) -> string {
 		cur := item.href == active ? ` aria-current="page"` : ""
 		// hx-boost sits on each link, not the <nav>: htmx 4 doesn't inherit it to
 		// descendants the way htmx 2 did.
-		fmt.sbprintf(&b, `<a class="nav-link" href="%s"%s hx-boost="true">`, item.href, cur)
+		fmt.sbprintf(&b, `<a class="nav-link" href="%s"%s hx-boost="true" hx-swap="innerHTML transition:true">`, item.href, cur)
 		icon(&b, item.icon)
 		fmt.sbprintf(&b, `<span>%s</span></a>`, item.label)
 	}

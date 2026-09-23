@@ -9,6 +9,26 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 ## [Unreleased]
 
 ### Fixed
+- **Clicks were lost while an htmx swap ran** ([#8](https://github.com/alexh95/odin-htmx-skeleton/issues/8)).
+  `htmx-config` turned `transitions` on globally, so *every* swap — a validation message, a search
+  result, a toast — ran inside `document.startViewTransition()`, and for as long as a view transition
+  runs, Chromium hit-tests the whole page to `<html>`. A click whose mouse-up landed in that
+  window (~250 ms of default crossfade) never reached its target. The easy way to hit it: type in
+  the `/forms` email field, then click the theme picker — the mouse-down blurs the field, its
+  `change` trigger validates, and that swap's transition took the mouse-up; the picker needed a
+  second click. Now only the boosted brand + nav links run a view transition, opting in with
+  `hx-swap="innerHTML transition:true"`: a page that is being replaced can afford the dead window,
+  a fragment swap that leaves the rest of the page live cannot. Fragments lose nothing visible —
+  each already has its own CSS entrance animation. The alternative the issue floated,
+  `::view-transition { pointer-events: none }`, was tried first and does not help: Chromium still
+  routes the hit to `<html>`. One side effect: back/forward no longer crossfade, since htmx 4 takes a
+  history restore's transition from the global flag alone. Ported to the `--minimal` templates.
+  e2e: a real press on the picker (`mouse.down()`, ~100 ms, `mouse.up()`) that blurs the email field
+  must open it — `locator.click()` waits a transition out, which is how the suite missed this; a
+  `startViewTransition` counter pins a fragment swap at zero transitions and a boosted navigation at
+  one, so the cause is caught in every engine, including those that don't drop the click; and the
+  minimal starter's spec presses the picker right after adding a note. No load-test change: no
+  endpoint changed, and the pages differ only in a few bytes of htmx attributes.
 - **`<title>` and `og:title` disagreed on the home page.** The previous pass gave `/` a title that
   names the project, but left `og:title` on the `"<page> · <brand>"` shape — so the page offered
   "Dashboard · Odin + HTMX" as its other name, and a crawler weighing two names for one page may

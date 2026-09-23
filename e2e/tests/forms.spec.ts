@@ -32,6 +32,27 @@ test.describe('forms & validation', () => {
     await expect(email).toHaveValue('ada@example.dev');
   });
 
+  test('a click that blurs the email field is not lost to its validation swap (regression)', async ({ page }) => {
+    // The mousedown of a click elsewhere blurs the field, and its `change` trigger
+    // validates it, so the swap lands while the button is still down. Swaps used
+    // to run inside a view transition, during which Chromium hit-tests the whole
+    // page to <html>: the mouseup, and so the click, went there instead. Only a real
+    // press straddles the swap — locator.click() waits the transition out.
+    const email = page.locator('input[name="email"]');
+    const picker = page.locator('.picker');
+    await email.fill('grace@hopper.dev'); // no keyup, so the blur is the one validation
+    await picker.locator('summary').hover(); // aim now: hover() would wait out a transition too
+
+    const validated = page.waitForResponse('**/validate/email');
+    await page.mouse.down();
+    await validated;
+    await page.waitForTimeout(100); // a short, human press, released mid-swap
+    await page.mouse.up();
+
+    await expect(page.locator('.field-msg')).toContainText('Looks good');
+    await expect(picker.locator('.picker-panel')).toBeVisible();
+  });
+
   test('range slider paints --fill to match the value (regression)', async ({ page }) => {
     const slider = page.locator('input[name="score"]');
     await slider.evaluate((el: HTMLInputElement) => {
