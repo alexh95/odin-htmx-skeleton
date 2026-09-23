@@ -244,6 +244,10 @@ The patterns + harness a fork inherits. (Was "Now / next"; the initiative below 
       transition, and htmx 4 takes a history restore's from the global `transitions` flag alone — so
       it would take one `htmx:config:request` listener in `app.js` setting `ctx.transition` on
       `HX-History-Restore-Request` requests. It reopens a (brief) dead-click window each time.
+- [ ] Move the CI `e2e` + `minimal` containers off `mcr.microsoft.com/playwright:v*-jammy` before
+      Ubuntu 22.04 leaves standard support (2027). `noble` is the conservative step. It changes the
+      jobs' apt `clang` (14 → 18), which compiles SQLite and links Odin, so land it alone and not
+      inside a dependency sweep. Same rule as the Debian base in the `Dockerfile`.
 
 ## Done
 
