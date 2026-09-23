@@ -8,6 +8,28 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Changed
+- **Dependency sweep — every pin checked against upstream; one moved.**
+  - **Playwright `1.62.1` → `1.63.0`** (`e2e/package.json` + lockfile, and both CI container image
+    tags — `mcr.microsoft.com/playwright:v1.63.0-jammy` is published, so the npm package and the
+    image move together as they must). The lockfile also loses its `fsevents` entry: `playwright`
+    1.63.0 no longer declares that optional dependency, so the drop is upstream's, not npm pruning a
+    macOS-only package on a Windows install. Nothing in the release affects this suite — its new APIs
+    (test locks, `locator.visible()`, frame-agnostic `frameLocator()`) are additive, and its one
+    removal, Ubuntu 20.04 support, doesn't touch the `jammy` image.
+  - **Checked and already current:** Odin `dev-2026-09` (still the latest release), odin-http
+    `fac113f` (upstream `main`), htmx `4.0.0` (the newest 4.x; npm's `latest` tag is the 2.x line),
+    SQLite `3.53.4` (no newer release), `actions/checkout@v7` (7.0.1), `actions/cache@v6` (6.1.0),
+    `actions/upload-artifact@v7` (7.0.1), `ilammy/msvc-dev-cmd@v1.13.0`, and `setup-flyctl` at SHA
+    `ed8efb33` (still tag 1.6 and upstream `master`). The Debian base floats on `trixie-slim`.
+  - **The CI containers stay on `jammy` deliberately.** Playwright now also ships `noble` (24.04) and
+    `resolute` (26.04) images, but moving would change the e2e jobs' OS and their apt `clang`
+    (14 → 18) along with the browsers — the same rule the Debian base follows: leave a release when
+    its standard support ends, in a change of its own. Logged in `TODO.md`.
+  - Verified on Windows 11 (MSVC 14.51): a fresh `prepare.bat` (the pinned htmx and SQLite downloads
+    still match their SHA-256s), a clean `-warnings-as-errors` build on the `dev-2026-09` release, and
+    all 213 e2e tests — 71 each on chromium, firefox and webkit — on Playwright 1.63.0.
+
 ### Fixed
 - **Clicks were lost while an htmx swap ran** ([#8](https://github.com/alexh95/odin-htmx-skeleton/issues/8)).
   `htmx-config` turned `transitions` on globally, so *every* swap — a validation message, a search
