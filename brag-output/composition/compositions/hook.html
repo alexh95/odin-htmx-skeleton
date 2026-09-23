@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root { position: absolute; inset: 0; }
+        #hook-inner { position: absolute; left: 110px; top: 330px; width: 900px; }
+        #hook-kicker { display: flex; align-items: center; gap: 12px; font-family: var(--mono); font-size: 25px; font-weight: 500; color: var(--muted); margin-bottom: 26px; opacity: 0; }
+        #hook-kicker i { display: block; width: 12px; height: 12px; border-radius: 50%; background: #34d399; box-shadow: 0 0 14px #34d399; }
+        .hook-hl { display: block; font-size: 84px; line-height: 100px; font-weight: 800; letter-spacing: -0.035em; color: var(--text); white-space: nowrap; opacity: 0; }
+        #hook-hl-2 { position: relative; z-index: 0; }
+        .hook-mb { position: relative; display: inline-block; }
+        #hook-mb-bar { position: absolute; left: -4px; right: -4px; bottom: 6px; height: 16px; border-radius: 8px; background: var(--grad); opacity: 0.85; z-index: -1; transform-origin: 0 50%; }
+      </style>
+
+      <div id="root" data-composition-id="hook" data-width="1920" data-height="1080">
+        <div id="hook-inner">
+          <div id="hook-kicker"><i></i><span>running live at odin-htmx.alexh95.com</span></div>
+          <span class="hook-hl" id="hook-hl-1">This whole website</span>
+          <span class="hook-hl" id="hook-hl-2">is one <span class="hook-mb"><span id="hook-mb-bar"></span>3 MB</span> binary.</span>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          const tl = gsap.timeline({ paused: true });
+          gsap.set("#hook-mb-bar", { scaleX: 0 });
+          tl.fromTo("#hook-hl-1", { y: 44, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: "power3.out" }, 0.15);
+          tl.fromTo("#hook-hl-2", { y: 44, opacity: 0 }, { y: 0, opacity: 1, duration: 0.55, ease: "power3.out" }, 0.56); // beat-grid: 0.56
+          tl.fromTo("#hook-mb-bar", { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power2.out" }, 0.95);
+          tl.fromTo("#hook-kicker", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "power2.out" }, 1.64);
+          tl.to("#hook-inner", { x: -120, opacity: 0, duration: 0.3, ease: "power2.in" }, 3.02); // clears before the camera swings across
+          window.__timelines["hook"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

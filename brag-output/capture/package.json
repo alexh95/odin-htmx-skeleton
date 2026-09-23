@@ -1,0 +1,14 @@
+{
+  "name": "brag-capture",
+  "private": true,
+  "type": "module",
+  "description": "Films the live site for the brag video: headless Chrome at 3x, CDP screencast, logged cursor/keys/network.",
+  "scripts": {
+    "take1": "node take1.mjs out/take1",
+    "take2": "node take2.mjs out/take2",
+    "export": "node export-data.mjs ../composition/assets/capture-data.js"
+  },
+  "dependencies": {
+    "playwright-core": "1.62.1"
+  }
+}

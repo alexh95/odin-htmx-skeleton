@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root { position: absolute; inset: 0; }
+        #rc-row { position: absolute; left: 150px; top: 300px; width: 1620px; display: flex; justify-content: space-between; }
+        .rc { width: 500px; text-align: center; opacity: 0; }
+        .rc-num { display: block; font-family: var(--mono); font-size: 128px; line-height: 140px; font-weight: 800; letter-spacing: -0.04em; color: var(--text); font-variant-numeric: tabular-nums; }
+        .rc-bar { display: block; width: 150px; height: 8px; margin: 18px auto 24px; border-radius: 4px; background: var(--grad); transform-origin: 50% 50%; }
+        .rc-lbl { display: block; font-size: 36px; line-height: 46px; font-weight: 600; color: var(--muted); letter-spacing: -0.015em; }
+        .rc-sub { display: block; margin-top: 10px; font-family: var(--mono); font-size: 22px; line-height: 30px; color: var(--faint); }
+        #rc-deps { position: absolute; left: 0; top: 720px; width: 1920px; text-align: center; font-size: 40px; line-height: 52px; font-weight: 600; color: var(--muted); letter-spacing: -0.015em; opacity: 0; }
+        #rc-deps b { color: var(--text); font-weight: 800; }
+      </style>
+
+      <div id="root" data-composition-id="receipts" data-width="1920" data-height="1080">
+        <div id="rc-row">
+          <div class="rc" id="rc-1"><span class="rc-num" id="rc-num-1">0</span><span class="rc-bar"></span><span class="rc-lbl">lines of Odin</span><span class="rc-sub">the whole server</span></div>
+          <div class="rc" id="rc-2"><span class="rc-num" id="rc-num-2">0</span><span class="rc-bar"></span><span class="rc-lbl">lines of JavaScript</span><span class="rc-sub">app.js, hand-written</span></div>
+          <div class="rc" id="rc-3"><span class="rc-num" id="rc-num-3">0</span><span class="rc-bar"></span><span class="rc-lbl">req/s, 2-core home server</span><span class="rc-sub">search · k6 over real LAN</span></div>
+        </div>
+        <div id="rc-deps"><b>3 dependencies:</b> HTMX · odin-http · SQLite</div>
+      </div>
+
+      <script>
+        (function () {
+          // Scene-local time: the host mounts this at 16.3s, so 1.17 / 2.26 / 3.36 are
+          // the composition's 17.47 / 18.56 / 19.66 strong cues (every other beat).
+          const tl = gsap.timeline({ paused: true });
+          const fmt = (n) => Math.round(n).toLocaleString("en-US");
+          const RC = [["#rc-1", "#rc-num-1", 3060, 1.17], ["#rc-2", "#rc-num-2", 169, 2.26], ["#rc-3", "#rc-num-3", 27959, 3.36]];
+          gsap.set(".rc-bar", { scaleX: 0 });
+          RC.forEach(([col, num, to, t]) => {
+            tl.fromTo(col, { y: 36, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, t); // beat-locked
+            tl.fromTo(col + " .rc-bar", { scaleX: 0 }, { scaleX: 1, duration: 0.55, ease: "power2.out" }, t + 0.1);
+            const st = { n: 0 };
+            const el = document.querySelector(num);
+            tl.fromTo(st, { n: 0 }, { n: to, duration: 0.7, ease: "power2.out", onUpdate: () => { el.textContent = fmt(st.n); } }, t);
+          });
+          tl.fromTo("#rc-deps", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "power3.out" }, 3.89); // 20.19
+          tl.to(["#rc-1", "#rc-2", "#rc-3", "#rc-deps"], { opacity: 0, y: -24, duration: 0.35, ease: "power2.in", stagger: 0.04 }, 4.98); // 21.28
+          window.__timelines["receipts"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

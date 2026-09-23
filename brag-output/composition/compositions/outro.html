@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root { position: absolute; inset: 0; }
+        #outro-lockup { position: absolute; left: 0; top: 300px; width: 1920px; display: flex; justify-content: center; align-items: center; gap: 34px; opacity: 0; }
+        #outro-mark { width: 132px; height: 132px; filter: drop-shadow(0 18px 40px rgba(124, 92, 255, 0.45)); }
+        #outro-wordmark { font-size: 150px; line-height: 170px; font-weight: 800; letter-spacing: -0.05em; color: var(--text); }
+        #outro-wordmark b { font-weight: 800; color: #9d86ff; }
+        #outro-cta { position: absolute; left: 0; top: 540px; width: 1920px; text-align: center; font-size: 58px; line-height: 72px; font-weight: 700; letter-spacing: -0.03em; color: var(--text); opacity: 0; }
+        #outro-urls { position: absolute; left: 0; top: 660px; width: 1920px; text-align: center; font-family: var(--mono); font-size: 29px; line-height: 40px; font-weight: 500; color: var(--muted); opacity: 0; }
+        #outro-urls .sep { display: inline-block; width: 2px; height: 26px; margin: 0 26px; vertical-align: -5px; background: #3a4468; }
+      </style>
+
+      <div id="root" data-composition-id="outro" data-width="1920" data-height="1080">
+        <div id="outro-lockup">
+          <!-- the project's own mark (app/static/favicon.svg) -->
+          <svg id="outro-mark" viewBox="0 0 32 32" aria-hidden="true">
+            <defs><linearGradient id="outro-mk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c5cff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+            <rect x="1" y="1" width="30" height="30" rx="7" fill="url(#outro-mk)"/>
+            <g fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="10.5,9.5 5.5,16 10.5,22.5"/><polyline points="21.5,9.5 26.5,16 21.5,22.5"/></g>
+            <path d="M17.6 7.5 L12.8 17 L15.8 17 L14.4 24.5 L19.6 15 L16.6 15 Z" fill="#fbbf24"/>
+          </svg>
+          <span id="outro-wordmark">odin<b>·</b>htmx</span>
+        </div>
+        <div id="outro-cta">Clone it. Rename it. Build your thing.</div>
+        <div id="outro-urls">odin-htmx.alexh95.com<span class="sep"></span>github.com/alexh95/odin-htmx-skeleton</div>
+      </div>
+
+      <script>
+        (function () {
+          // Scene-local time: mounted at 21.2s → 0.64 = 21.84 (lockup), 1.17 = 22.37 (strong cue).
+          const tl = gsap.timeline({ paused: true });
+          tl.fromTo("#outro-lockup", { scale: 0.9, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.6, ease: "back.out(1.5)" }, 0.64);
+          tl.fromTo("#outro-mark", { rotation: -12 }, { rotation: 0, duration: 0.7, ease: "back.out(1.8)" }, 0.64);
+          tl.fromTo("#outro-cta", { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }, 1.17); // beat-locked: 22.37
+          tl.fromTo("#outro-urls", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "power2.out" }, 1.55);
+          window.__timelines["outro"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

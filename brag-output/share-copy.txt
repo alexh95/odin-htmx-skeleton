@@ -1,0 +1,3 @@
+A whole website in one ~3 MB binary: Odin renders the HTML, HTMX swaps it in, SQLite stores it.
+Filmed on the live site: opening a contact is 6.5 KB of HTML, inline validation is 69 bytes, and re-skinning the entire app is zero requests.
+Try it at odin-htmx.alexh95.com, then clone it, rename it, build your thing: github.com/alexh95/odin-htmx-skeleton

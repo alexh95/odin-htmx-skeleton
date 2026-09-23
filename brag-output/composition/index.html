@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>odin·htmx — watch the wire</title>
+    <script src="assets/vendor/gsap.min.js"></script>
+    <script src="assets/capture-data.js"></script>
+    <script src="assets/audio-data.js"></script>
+    <style>
+      @font-face { font-family: "Inter"; src: url("assets/fonts/inter-var-latin.woff2") format("woff2"); font-weight: 400 800; font-display: block; }
+      @font-face { font-family: "JetBrains Mono"; src: url("assets/fonts/jetbrains-mono-var-latin.woff2") format("woff2"); font-weight: 400 800; font-display: block; }
+      :root {
+        --bg: #0b0d17; --surface: #151a2c; --line: #2a3252;
+        --text: #eef1fb; --muted: #aeb6d6; --faint: #8a93b8; --cyan: #22d3ee;
+        --grad: linear-gradient(135deg, #7c5cff, #5b8cff 55%, #22d3ee);
+        --sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+        --mono: "JetBrains Mono", ui-monospace, monospace;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--sans); }
+
+      /* background: the app's two brand glows + a dot field, breathing with the bed */
+      #bg { position: absolute; inset: 0; overflow: hidden; }
+      .glow { position: absolute; border-radius: 50%; }
+      #glow-a { left: -420px; top: -520px; width: 1500px; height: 1500px; background: radial-gradient(closest-side, rgba(124, 92, 255, 0.55), rgba(124, 92, 255, 0) 72%); }
+      #glow-b { left: 1080px; top: 420px; width: 1300px; height: 1300px; background: radial-gradient(closest-side, rgba(34, 211, 238, 0.32), rgba(34, 211, 238, 0) 70%); }
+      #dots {
+        position: absolute; inset: 0; opacity: 0.55;
+        background-image: radial-gradient(rgba(154, 163, 196, 0.34) 1.6px, transparent 1.9px); background-size: 44px 44px;
+        -webkit-mask-image: radial-gradient(ellipse 70% 65% at 50% 45%, #000 20%, transparent 78%);
+        mask-image: radial-gradient(ellipse 70% 65% at 50% 45%, #000 20%, transparent 78%);
+      }
+
+      /* the browser: real footage of the live site, camera-moved as one unit */
+      #browser {
+        position: absolute; left: 110px; top: 160px; width: 1700px; height: 1122px; opacity: 0;
+        border-radius: 22px; overflow: hidden; background: var(--bg); border: 2px solid var(--line);
+        box-shadow: 0 40px 120px -20px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(124, 92, 255, 0.12);
+      }
+      .bar { position: absolute; left: 0; top: 0; width: 100%; height: 58px; display: flex; align-items: center; gap: 22px; padding: 0 24px; background: var(--surface); border-bottom: 2px solid var(--line); }
+      .dots3 { display: flex; gap: 10px; }
+      .dots3 i { display: block; width: 15px; height: 15px; border-radius: 50%; }
+      .dots3 i:nth-child(1) { background: #ff6159; }
+      .dots3 i:nth-child(2) { background: #ffbd2e; }
+      .dots3 i:nth-child(3) { background: #28c941; }
+      .url {
+        margin: 0 auto; transform: translateX(-60px); display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 22px;
+        border-radius: 19px; background: #0e1222; border: 1.5px solid var(--line);
+        font-family: var(--mono); font-size: 21px; font-weight: 500; color: #d7dcf2; letter-spacing: -0.01em;
+      }
+      .url svg { width: 17px; height: 17px; color: #28c941; }
+      .viewport { position: absolute; left: 0; top: 58px; width: 1700px; height: 1062px; overflow: hidden; background: var(--bg); }
+      .viewport video, .viewport img { position: absolute; left: 0; top: 0; width: 1700px; height: 1062px; object-fit: cover; }
+      /* cursor space = the page's own 1120×700 CSS px, scaled to the viewport */
+      #cur-layer { position: absolute; left: 0; top: 0; width: 1120px; height: 700px; transform: scale(1.5178571); transform-origin: 0 0; }
+      #cursor { position: absolute; left: 0; top: 0; width: 22px; height: 28px; opacity: 0; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55)); }
+      #cursor svg { display: block; width: 22px; height: 28px; }
+      #ring { position: absolute; left: -20px; top: -20px; width: 40px; height: 40px; border-radius: 50%; opacity: 0; border: 3px solid rgba(124, 92, 255, 0.95); background: rgba(124, 92, 255, 0.16); }
+
+      /* caption band above the browser; the scrim covers it when the camera fills the frame */
+      #scrim { position: absolute; left: 0; top: 0; width: 1920px; height: 320px; opacity: 0; background: linear-gradient(to bottom, #0b0d17 0%, #0b0d17 44%, rgba(11, 13, 23, 0.62) 72%, rgba(11, 13, 23, 0) 100%); }
+      .cap { position: absolute; left: 110px; top: 50px; width: 1700px; opacity: 0; font-size: 60px; line-height: 76px; font-weight: 600; letter-spacing: -0.025em; color: var(--muted); white-space: nowrap; }
+      .cap b { font-weight: 800; color: var(--text); }
+
+      /* wire log: what each filmed interaction actually cost */
+      #hud { position: absolute; left: 72px; top: 730px; width: 860px; height: 312px; opacity: 0; border-radius: 22px; background: rgba(12, 15, 30, 0.97); border: 2px solid var(--line); box-shadow: 0 30px 80px -24px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.04); overflow: hidden; }
+      .hud-head { position: absolute; left: 0; top: 0; width: 100%; height: 56px; padding: 0 26px; display: flex; align-items: center; gap: 12px; border-bottom: 1.5px solid var(--line); font-family: var(--mono); font-size: 20px; font-weight: 700; letter-spacing: 0.18em; color: var(--text); }
+      .hud-head .live { width: 12px; height: 12px; border-radius: 50%; background: #34d399; box-shadow: 0 0 12px #34d399; }
+      .hud-head em { margin-left: auto; font-style: normal; font-weight: 500; letter-spacing: 0.02em; color: var(--faint); }
+      .hud-list { position: absolute; left: 0; top: 64px; width: 100%; height: 236px; overflow: hidden; }
+      .hud-e { position: absolute; left: 0; top: 0; width: 100%; height: 78px; padding: 6px 26px 0; opacity: 0; }
+      .row { display: flex; align-items: baseline; gap: 16px; font-family: var(--mono); font-size: 26px; line-height: 36px; font-weight: 600; white-space: nowrap; }
+      .row .m { width: 76px; flex: none; color: #a996ff; font-weight: 800; }
+      .row .p { color: var(--text); overflow: hidden; }
+      .row .n { margin-left: auto; color: var(--cyan); font-weight: 800; font-variant-numeric: tabular-nums; }
+      .row .n i { font-style: normal; color: var(--muted); font-weight: 600; margin-left: 8px; }
+      .peek { font-family: var(--mono); font-size: 19px; line-height: 28px; color: var(--faint); white-space: nowrap; overflow: hidden; }
+      .peek .t { color: #c7b8ff; }
+      .peeks { position: relative; height: 28px; }
+      .peeks .peek { position: absolute; left: 0; top: 0; width: 100%; opacity: 0; }
+      /* S4: the log collapses to its newest line, clear of the form being re-skinned */
+      #chip { position: absolute; left: 1180px; top: 918px; width: 680px; height: 122px; opacity: 0; padding: 18px 26px 0; border-radius: 22px; background: rgba(12, 15, 30, 0.97); border: 2px solid var(--line); box-shadow: 0 30px 80px -24px rgba(0, 0, 0, 0.8); }
+      #chip .row { gap: 14px; }
+      #chip .live { width: 12px; height: 12px; border-radius: 50%; background: #34d399; box-shadow: 0 0 12px #34d399; align-self: center; flex: none; }
+      #chip .peeks { margin-top: 10px; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="24.5" data-width="1920" data-height="1080" data-fps="60">
+      <div id="bg">
+        <div class="glow" id="glow-a" data-layout-allow-overflow></div>
+        <div class="glow" id="glow-b" data-layout-allow-overflow></div>
+        <div id="dots"></div>
+      </div>
+
+      <!-- The browser: two continuous takes of https://odin-htmx.alexh95.com filmed headless at 3x,
+           read-only actions only (see ../capture/). Footage → composition time mapping: assets/capture-data.js. -->
+      <div id="browser" data-layout-allow-overflow>
+        <div class="bar">
+          <div class="dots3"><i></i><i></i><i></i></div>
+          <div class="url">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>
+            <span>odin-htmx.alexh95.com</span>
+          </div>
+        </div>
+        <div class="viewport">
+          <video id="take1" src="assets/footage/take1.mp4" data-start="0" data-duration="7.45" data-media-start="0.5" data-track-index="0" muted playsinline></video>
+          <video id="take2" src="assets/footage/take2.mp4" data-start="7.45" data-duration="11.3" data-media-start="1.154" data-track-index="1" muted playsinline></video>
+          <img id="arcade-still" class="clip" src="assets/ui/forms-arcade.jpg" data-start="18.7" data-duration="3.3" data-track-index="2" alt="" />
+          <div id="cur-layer">
+            <div id="ring"></div>
+            <div id="cursor">
+              <svg viewBox="0 0 22 28" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M1.6 1.4 L1.6 21.6 L6.9 16.8 L10.5 25.2 L14.1 23.6 L10.6 15.4 L17.9 15.4 Z" fill="#0b0d17" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="scrim"></div>
+      <div class="cap" id="cap-click"><b>Click.</b> The server answers in HTML.</div>
+      <div class="cap" id="cap-type"><b>Type.</b> Validation runs on the server.</div>
+      <div class="cap" id="cap-skin"><b>Re-skin.</b> 6 styles, 23 schemes, 0 requests.</div>
+
+      <div id="hud">
+        <div class="hud-head"><span class="live"></span><span>WIRE</span><em>response bodies, bytes of HTML</em></div>
+        <div class="hud-list">
+          <div class="hud-e" id="e1">
+            <div class="row"><span class="m">GET</span><span class="p">/data</span><span class="n"><span class="v" data-to="25638">0</span><i>B</i></span></div>
+            <div class="peek"><span class="t">&lt;!doctype html&gt;</span> the whole page, swapped in by hx-boost</div>
+          </div>
+          <div class="hud-e" id="e2">
+            <div class="row"><span class="m">GET</span><span class="p">/contacts/1</span><span class="n"><span class="v" data-to="6468">0</span><i>B</i></span></div>
+            <div class="peek"><span class="t">&lt;div class="backdrop" …&gt;&lt;aside class="drawer drawer-detail"</span> …</div>
+          </div>
+          <div class="hud-e" id="e3">
+            <div class="row"><span class="m">POST</span><span class="p">/validate/email</span><span class="n"><span class="v" data-to="69">0</span><i>B</i></span></div>
+            <div class="peek"><span class="t">&lt;span class="msg msg-err"&gt;</span>That doesn&amp;#39;t look like an email.<span class="t">&lt;/span&gt;</span></div>
+          </div>
+          <div class="hud-e" id="e4">
+            <div class="row"><span class="m">POST</span><span class="p">/validate/email</span><span class="n"><span class="v" data-to="43">0</span><i>B</i></span></div>
+            <div class="peek"><span class="t">&lt;span class="msg msg-ok"&gt;</span>Looks good.<span class="t">&lt;/span&gt;</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="chip">
+        <div class="row"><span class="live"></span><span class="m">—</span><span class="p">no request</span><span class="n">0<i>B</i></span></div>
+        <!-- one line per re-skin, stacked; exactly one is visible at a time -->
+        <div class="peeks" data-layout-allow-overlap>
+          <div class="peek st"><span class="t">&lt;html data-style="skeuo"&gt;</span> set in the browser</div>
+          <div class="peek st"><span class="t">&lt;html data-style="terminal"&gt;</span> set in the browser</div>
+          <div class="peek st"><span class="t">&lt;html data-style="brutal"&gt;</span> set in the browser</div>
+          <div class="peek st"><span class="t">&lt;html data-style="editorial"&gt;</span> set in the browser</div>
+          <div class="peek st"><span class="t">&lt;html data-style="arcade"&gt;</span> set in the browser</div>
+        </div>
+      </div>
+
+      <!-- scenes that stand on their own live in sub-compositions (scene-local timelines) -->
+      <div id="hook" data-composition-id="hook" data-composition-src="compositions/hook.html" data-start="0" data-duration="3.9" data-track-index="3" data-width="1920" data-height="1080"></div>
+      <div id="receipts" data-composition-id="receipts" data-composition-src="compositions/receipts.html" data-start="16.3" data-duration="5.4" data-track-index="4" data-width="1920" data-height="1080"></div>
+      <div id="outro" data-composition-id="outro" data-composition-src="compositions/outro.html" data-start="21.2" data-duration="3.3" data-track-index="5" data-width="1920" data-height="1080"></div>
+
+      <!-- audio: the bed + motion-matched SFX at the recorded click / key / response times -->
+      <audio id="music" src="assets/music/happy-beats-business-moves-vol-12-by-ende-dot-app.mp3" data-start="0" data-duration="24.5" data-track-index="10" data-volume="1"
+        data-automation='{"version":1,"lanes":[{"target":"volume","points":[{"t":0,"v":0},{"t":0.8,"v":0.42},{"t":10.6,"v":0.42},{"t":12.9,"v":0.46},{"t":23.2,"v":0.46},{"t":24.5,"v":0}]}]}'></audio>
+      <audio id="sfx-hook" src="assets/sfx/impact/impactSoft_medium_003.ogg" data-start="0.56" data-track-index="11" data-volume="0.3"></audio>
+      <audio id="sfx-click-nav" src="assets/sfx/ui/mouseclick1.ogg" data-start="3.893" data-track-index="12" data-volume="0.6"></audio>
+      <audio id="sfx-click-ada" src="assets/sfx/ui/mouseclick1.ogg" data-start="5.451" data-track-index="13" data-volume="0.6"></audio>
+      <audio id="sfx-drawer" src="assets/sfx/interface/drop_002.ogg" data-start="5.63" data-track-index="14" data-volume="0.42"></audio>
+      <audio id="sfx-click-focus" src="assets/sfx/ui/mouseclick1.ogg" data-start="7.587" data-track-index="15" data-volume="0.55"></audio>
+      <audio id="key-01" src="assets/sfx/keyboard/keypress-003.wav" data-start="7.901" data-track-index="16" data-volume="0.60"></audio>
+      <audio id="key-02" src="assets/sfx/keyboard/keypress-011.wav" data-start="7.963" data-track-index="17" data-volume="0.60"></audio>
+      <audio id="key-03" src="assets/sfx/keyboard/keypress-019.wav" data-start="8.056" data-track-index="18" data-volume="0.52"></audio>
+      <audio id="key-04" src="assets/sfx/keyboard/keypress-027.wav" data-start="8.151" data-track-index="19" data-volume="0.56"></audio>
+      <audio id="key-05" src="assets/sfx/keyboard/keypress-007.wav" data-start="8.229" data-track-index="20" data-volume="0.60"></audio>
+      <audio id="key-06" src="assets/sfx/keyboard/keypress-015.wav" data-start="8.353" data-track-index="21" data-volume="0.60"></audio>
+      <audio id="key-07" src="assets/sfx/keyboard/keypress-023.wav" data-start="8.447" data-track-index="22" data-volume="0.60"></audio>
+      <audio id="key-08" src="assets/sfx/keyboard/keypress-031.wav" data-start="8.54" data-track-index="23" data-volume="0.60"></audio>
+      <audio id="key-09" src="assets/sfx/keyboard/keypress-003.wav" data-start="8.634" data-track-index="24" data-volume="0.56"></audio>
+      <audio id="key-10" src="assets/sfx/keyboard/keypress-019.wav" data-start="8.726" data-track-index="25" data-volume="0.52"></audio>
+      <audio id="key-11" src="assets/sfx/keyboard/keypress-011.wav" data-start="8.805" data-track-index="26" data-volume="0.60"></audio>
+      <audio id="key-12" src="assets/sfx/keyboard/keypress-027.wav" data-start="8.882" data-track-index="27" data-volume="0.56"></audio>
+      <audio id="key-13" src="assets/sfx/keyboard/keypress-015.wav" data-start="9.998" data-track-index="28" data-volume="0.60"></audio>
+      <audio id="key-14" src="assets/sfx/keyboard/keypress-007.wav" data-start="10.077" data-track-index="29" data-volume="0.60"></audio>
+      <audio id="key-15" src="assets/sfx/keyboard/keypress-031.wav" data-start="10.184" data-track-index="30" data-volume="0.60"></audio>
+      <audio id="key-16" src="assets/sfx/keyboard/keypress-023.wav" data-start="10.294" data-track-index="31" data-volume="0.60"></audio>
+      <audio id="sfx-ok" src="assets/sfx/interface/bong_001.ogg" data-start="10.783" data-track-index="32" data-volume="0.4"></audio>
+      <audio id="key-tab" src="assets/sfx/keyboard/keypress-019.wav" data-start="11.216" data-track-index="33" data-volume="0.52"></audio>
+      <audio id="sfx-click-picker" src="assets/sfx/ui/mouseclick1.ogg" data-start="12.055" data-track-index="34" data-volume="0.6"></audio>
+      <audio id="sfx-skin-1" src="assets/sfx/ui/mouseclick1.ogg" data-start="13.09" data-track-index="35" data-volume="0.55"></audio>
+      <audio id="sfx-skin-2" src="assets/sfx/ui/mouseclick1.ogg" data-start="13.64" data-track-index="36" data-volume="0.5"></audio>
+      <audio id="sfx-skin-3" src="assets/sfx/ui/mouseclick1.ogg" data-start="14.17" data-track-index="37" data-volume="0.55"></audio>
+      <audio id="sfx-skin-4" src="assets/sfx/ui/mouseclick1.ogg" data-start="14.70" data-track-index="38" data-volume="0.5"></audio>
+      <audio id="sfx-skin-5" src="assets/sfx/ui/mouseclick1.ogg" data-start="15.26" data-track-index="39" data-volume="0.55"></audio>
+      <audio id="sfx-click-close" src="assets/sfx/ui/mouseclick1.ogg" data-start="16.5" data-track-index="44" data-volume="0.5"></audio>
+      <audio id="sfx-rc-1" src="assets/sfx/impact/impactSoft_medium_001.ogg" data-start="17.47" data-track-index="40" data-volume="0.4"></audio>
+      <audio id="sfx-rc-2" src="assets/sfx/impact/impactSoft_medium_004.ogg" data-start="18.56" data-track-index="41" data-volume="0.4"></audio>
+      <audio id="sfx-rc-3" src="assets/sfx/impact/impactSoft_medium_002.ogg" data-start="19.66" data-track-index="42" data-volume="0.42"></audio>
+      <audio id="sfx-bell" src="assets/sfx/impact/impactBell_heavy_000.ogg" data-start="21.84" data-track-index="43" data-volume="0.45"></audio>
+    </div>
+
+    <script>
+      (function () {
+        const tl = gsap.timeline({ paused: true });
+        const C = window.CAPTURE;
+        const A = window.AUDIO_DATA;
+        const $$ = (s) => Array.from(document.querySelectorAll(s));
+        const fmt = (n) => Math.round(n).toLocaleString("en-US");
+        // Scene boundaries on the vol-12 beat grid (109.96 BPM); the re-skins are filmed on it.
+        const T = { s2: 3.27, s3: 7.45, s4: 11.35, s5: 16.62, s6: 21.28, end: 24.5 };
+
+        // ---- camera --------------------------------------------------------------
+        // #browser transforms about its top-left: pose (x, y, s) puts that corner at
+        // (110+x, 160+y). A page point (css px) lands at (110+x+s·K·cx, 160+y+s·(58+K·cy)).
+        const K = 1700 / 1120;
+        const focus = (cx, cy, s, sx, sy) => ({ x: sx - 110 - s * cx * K, y: sy - 160 - s * (58 + cy * K), scale: s });
+        const zoomIn = focus(603, 340, 2.1, 820, 470); // the email field
+        const zoomDrift = focus(603, 340, 2.2, 820, 470);
+        const drawerPush = { x: -(0.12 * 898 * K), y: 0, scale: 1.12 }; // grow toward the drawer; top edge stays put
+        const INIT = { transformOrigin: "0% 0%", transformPerspective: 2600, x: 1010, y: 130, scale: 0.72, rotationY: -18, rotationX: 3, opacity: 0 };
+        gsap.set("#browser", INIT); // a zero-length tl.set at 0 would not paint frame 0
+        tl.set("#browser", INIT, 0);
+        tl.to("#browser", { y: 50, opacity: 1, duration: 0.9, ease: "power3.out" }, 0.05);
+        tl.to("#browser", { rotationY: -14, duration: 2.3, ease: "sine.inOut" }, 0.95);
+        tl.to("#browser", { x: 0, y: 0, scale: 1, rotationY: 0, rotationX: 0, duration: 0.6, ease: "power3.inOut" }, T.s2);
+        tl.to("#browser", { ...drawerPush, duration: 1.6, ease: "power1.inOut" }, 5.75);
+        tl.set("#browser", zoomIn, T.s3); // hard cut into the email field
+        tl.to("#browser", { ...zoomDrift, duration: T.s4 - T.s3, ease: "none" }, T.s3);
+        tl.to("#browser", { x: 0, y: 0, scale: 1, duration: 0.65, ease: "power3.inOut" }, T.s4);
+        C.take2.styleLog.forEach((s) => { // a small physical nudge on each on-beat re-skin
+          tl.to("#browser", { scale: 1.012, duration: 0.08, ease: "power2.out" }, s.visible);
+          tl.to("#browser", { scale: 1, duration: 0.3, ease: "power2.out" }, s.visible + 0.08);
+        });
+        tl.to("#browser", { x: 960 - 110 - 0.62 * 850, y: 470 - 160 - 0.62 * 561, scale: 0.62, opacity: 0.2, filter: "blur(10px)", duration: 0.85, ease: "power3.inOut" }, T.s5);
+        tl.to("#browser", { opacity: 0, duration: 0.5, ease: "power2.in" }, T.s6);
+
+        // ---- cursor: replays the logged mouse path (page css px) ------------------
+        const CUR0 = { transformOrigin: "0% 0%", x: 1010, y: 655, opacity: 0, scale: 1 };
+        gsap.set("#cursor", CUR0);
+        gsap.set("#ring", { opacity: 0, scale: 0.3 });
+        tl.set("#cursor", CUR0, 0);
+        tl.set("#ring", { opacity: 0, scale: 0.3 }, 0);
+        const at = (S, t) => {
+          let p = S[0];
+          for (const s of S) { if (s[0] > t) { const f = (t - p[0]) / Math.max(1e-6, s[0] - p[0]); return [t, p[1] + (s[1] - p[1]) * f, p[2] + (s[2] - p[2]) * f]; } p = s; }
+          return [t, p[1], p[2]];
+        };
+        const follow = (S, from, to) => {
+          let prev = at(S, from);
+          tl.set("#cursor", { x: prev[1], y: prev[2] }, from);
+          for (const s of S) {
+            if (s[0] <= from) continue;
+            if (s[0] > to) break;
+            if (s[1] !== prev[1] || s[2] !== prev[2]) tl.to("#cursor", { x: s[1], y: s[2], duration: Math.max(0.001, s[0] - prev[0]), ease: "none" }, prev[0]);
+            prev = s;
+          }
+        };
+        follow(C.take1.mouse, 0, T.s3 - 0.001);
+        follow(C.take2.mouse, T.s3, T.s5);
+        tl.to("#cursor", { opacity: 1, duration: 0.18 }, 3.22);
+        tl.set("#cursor", { scale: 0.6 }, T.s3); // counter the 2.1x camera so the arrow stays arrow-sized
+        tl.to("#cursor", { opacity: 0, duration: 0.15 }, 7.8); // typing: hands on the keyboard
+        tl.to("#cursor", { opacity: 1, duration: 0.15 }, 11.38);
+        tl.to("#cursor", { scale: 1, duration: 0.65, ease: "power3.inOut" }, T.s4);
+        tl.to("#cursor", { opacity: 0, duration: 0.15 }, 16.62); // after the picker-close click
+        [...C.take1.downs, ...C.take2.downs].filter((d) => d.t > 3.3 && d.t < 16.6).forEach((d) => {
+          const s = d.t > T.s3 && d.t < T.s4 ? 0.6 : 1;
+          tl.set("#ring", { x: d.x, y: d.y, opacity: 1, scale: 0.35 * s }, d.t);
+          tl.to("#ring", { scale: 1.5 * s, opacity: 0, duration: 0.5, ease: "power2.out" }, d.t);
+          tl.to("#cursor", { scale: 0.84 * s, duration: 0.06, ease: "power2.out" }, d.t);
+          tl.to("#cursor", { scale: s, duration: 0.12, ease: "power2.out" }, d.t + 0.09);
+        });
+
+        // ---- captions + scrim ---------------------------------------------------------
+        const cap = (sel, tin, tout) => {
+          tl.fromTo(sel, { y: 18, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "power3.out", immediateRender: false }, tin);
+          tl.to(sel, { opacity: 0, y: -10, duration: 0.2, ease: "power2.in" }, tout);
+        };
+        cap("#cap-click", 3.42, T.s3 - 0.2);
+        cap("#cap-type", T.s3 + 0.1, T.s4 - 0.2);
+        cap("#cap-skin", T.s4 + 0.2, T.s5 - 0.25);
+        tl.set("#scrim", { opacity: 1 }, T.s3);
+        tl.to("#scrim", { opacity: 0, duration: 0.55, ease: "power2.inOut" }, T.s4 + 0.1);
+
+        // ---- wire log -------------------------------------------------------------------
+        tl.fromTo("#hud", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out", immediateRender: false }, 3.8);
+        tl.set("#hud", { x: 1000 - 72 }, T.s3); // S3/S4: the page's empty right-hand column
+        tl.to("#hud", { opacity: 0, y: 16, duration: 0.3, ease: "power2.in" }, T.s4); // the re-skin gets the chip instead
+        const SLOT = 78, BOTTOM = 156; // three visible slots: y = 156, 78, 0
+        const arrivals = [
+          ["#e1", C.take1.net.find((n) => n.path === "/data").t],
+          ["#e2", C.take1.net.find((n) => n.path === "/contacts/1").t],
+          ["#e3", C.take2.net.find((n) => n.bytes === 69).t],
+          ["#e4", C.take2.net.find((n) => n.bytes === 43).t],
+        ];
+        gsap.set(".hud-e", { y: BOTTOM + SLOT });
+        tl.set(".hud-e", { y: BOTTOM + SLOT, opacity: 0 }, 0);
+        arrivals.forEach(([sel, t], i) => {
+          tl.to(sel, { y: BOTTOM, opacity: 1, duration: 0.35, ease: "power3.out" }, t);
+          for (let j = 0; j < i; j++) { // older entries climb a slot and dim
+            const depth = i - j;
+            tl.to(arrivals[j][0], { y: BOTTOM - SLOT * depth, opacity: [0, 0.7, 0.4, 0][Math.min(depth, 3)], duration: 0.35, ease: "power3.out" }, t);
+          }
+          const v = document.querySelector(sel + " .v");
+          if (v) {
+            const st = { n: 0 };
+            const to = Number(v.dataset.to);
+            tl.fromTo(st, { n: 0 }, { n: to, duration: to > 1000 ? 0.45 : 0.3, ease: "power2.out", onUpdate: () => { v.textContent = fmt(st.n); } }, t);
+          }
+          tl.fromTo(sel + " .n", { color: "#ffffff" }, { color: "#22d3ee", duration: 0.6, ease: "power2.out", immediateRender: false }, t + 0.2);
+        });
+        tl.fromTo("#chip", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out", immediateRender: false }, C.take2.styleLog[0].visible);
+        tl.to("#chip", { opacity: 0, y: 12, duration: 0.3, ease: "power2.in" }, T.s5 - 0.25);
+        const styleLines = $$("#chip .peek.st");
+        C.take2.styleLog.forEach((s, i) => { // the attribute line follows each visible re-skin
+          tl.set(styleLines, { opacity: 0 }, s.visible);
+          tl.set(styleLines[i], { opacity: 1 }, s.visible);
+        });
+
+        // ---- audio-reactive background: bass swells the violet glow, low-mids the cyan -----
+        for (let f = 0; f < A.bass.length && f / A.fps < T.end; f++) {
+          tl.set("#glow-a", { opacity: 0.62 + 0.3 * A.bass[f], scale: 1 + 0.05 * A.rms[f] }, f / A.fps);
+          tl.set("#glow-b", { opacity: 0.55 + 0.35 * A.low[f], scale: 1 + 0.04 * A.bass[f] }, f / A.fps);
+        }
+
+        window.__timelines["main"] = tl;
+      })();
+    </script>
+  </body>
+</html>
