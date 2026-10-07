@@ -122,7 +122,7 @@ src/ (main: main.odin, routes.odin) → controllers → services → repository 
 | `src/sqlite/` | binding | ~15 `foreign` decls for the SQLite amalgamation. The only C-ABI crossing. |
 | `src/repository/` | repository | Owns the SQLite store: `db.odin` (connection/lock/migration runner + helpers, entity-agnostic and shared with `--minimal`), `repo.odin` (this app's migrations, statement wiring, seed) + per-table files (`contacts.odin`, `events.odin`). Imports `models`, `sqlite`. |
 | `src/services/` | service | Search/sort/paginate/validate. Plain values + errors, never HTTP. Imports `models`, `repository`. |
-| `src/views/` | view | HTML builders (a component is a proc writing into a `^strings.Builder`). Imports `models`, `services`/`repository`. |
+| `src/views/` | view | HTML builders (a component is a proc writing into a `^strings.Builder`). Imports `models`, `services` — never `repository`: a page gets its data as a parameter. |
 | `src/controllers/` | controller | **The only layer that imports `http`.** Parse → call service → render via `views.*` → respond. Embeds htmx via `#load`. |
 | `src/` (`package main`) | entry + wiring | `main.odin` seeds + serves and holds the `canonical_host` middleware; `routes.odin` is the route table. Imports `controllers` (+ `repository` for the seed, `views` for `SITE_URL`). |
 
@@ -344,7 +344,8 @@ http.respond(res, http.Status.Not_Found)
   `/sitemap.xml` and its `active` href becomes the canonical URL — both are derived, not duplicated.
   Add e2e + load scenarios. Changelog.
 - **New fragment/endpoint**: `view_*` returning bare HTML → controller → route. If it mutates,
-  go through a service → repository proc; never touch the store from a controller. Escape all
+  go through a service → repository proc; never touch the store from a controller or a view (both
+  import only `services`, which is where validation and error mapping live). Escape all
   input. Add e2e + load scenarios. Changelog.
 - **New component**: a proc writing into `^strings.Builder` + a token-driven CSS block. Reuse
   `icon`, `esc`, `w`. Add it to the `/components` gallery.
