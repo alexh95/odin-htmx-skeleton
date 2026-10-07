@@ -263,6 +263,16 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   CSP violation.
 
 ### Changed
+- **`CLAUDE.md` matches the code, and covers what a fork does first** (part of
+  [#32](https://github.com/alexh95/odin-htmx-skeleton/issues/32) and
+  [#33](https://github.com/alexh95/odin-htmx-skeleton/issues/33)). New: a "New table / entity"
+  recipe (migration, statements in four places, seed, tests), a "Validation errors (422)" section,
+  the middleware, escaping, store-error and backup rules, a table of every environment variable, and
+  pointers to where a new e2e spec and k6 scenario go. Corrected: the allocator section described
+  the old in-memory store (`repo_delete` frees); "boundaries enforced by the compiler" (it only
+  forbids cycles); the "flagship admin console" framing (it's a starter); stale comments in
+  `main.odin` ("repository.odin") and `routes.odin` ("on-disk" static files). `app/README.md` and
+  `docs/DATA_IMPL.md` follow.
 - **The repository's SQLite plumbing is one shared file.** `repository/db.odin` holds the
   connection, lock, migration runner and bind/scan helpers, unchanged between the demo and the
   `--minimal` starter; `repo.odin` keeps only the app's wiring (migrations, statements, seed). A fix
