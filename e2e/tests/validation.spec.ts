@@ -60,7 +60,7 @@ test.describe('validation errors (422)', () => {
       await page.goto('/data');
       const stored = (await page.locator('.c-open .c-name-text strong').first().textContent())!.trim();
       await page.locator('.c-open').first().click();
-      await page.locator('.drawer-detail').getByRole('button', { name: 'Edit' }).click();
+      await page.locator('.drawer-detail').getByRole('button', { name: 'Edit', exact: true }).click();
 
       const edit = page.locator('.detail-edit');
       await edit.locator('input[name="name"]').fill('Typed But Refused');
@@ -81,9 +81,12 @@ test.describe('validation errors (422)', () => {
       const submit = await request.post('/forms/submit', { headers: form, data: 'name=Grace&email=grace@localhost' });
       expect(submit.status()).toBe(422);
 
-      const edit = await request.post('/contacts/1', { headers: form, data: 'name=%20&email=a@b.co' });
+      // A contact of its own: the worker's store is shared, so a seeded row may be gone.
+      const made = await request.post('/contacts', { headers: form, data: 'name=Edit+Target&email=edit.target@example.dev' });
+      const id = (await made.text()).match(/id="contact-(\d+)"/)![1];
+      const edit = await request.post(`/contacts/${id}`, { headers: form, data: 'name=%20&email=a@b.co' });
       expect(edit.status()).toBe(422);
-      expect((await (await request.get('/contacts/1')).text())).not.toContain('a@b.co');
+      expect(await (await request.get(`/contacts/${id}`)).text()).not.toContain('a@b.co');
     });
   });
 
