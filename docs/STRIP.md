@@ -39,7 +39,7 @@ as a worked target.
 | `app/static/app.css`, `app.js` | theme + component CSS, tiny JS | **keep** (prune unused rules at leisure) |
 | `app/static/og.png`, `favicon.svg`, `favicon.ico` | the social card + icons, still the upstream's | **keep**, then redraw: `og.png` re-renders from [`../tools/og/og.html`](../tools/og/og.html) |
 | `e2e/tests/seo.spec.ts` | the crawler contract, derived from what the app serves | **keep**: it's generic (demo-only checks skip themselves) |
-| `e2e/tests/*.spec.ts` (the rest), `e2e/helpers/server.ts` | demo behaviour tests, and the helper only the persistence + events specs use | **delete**, write your own (keep `fixtures.ts`, `global-setup.ts`) |
+| `e2e/tests/*.spec.ts` (the rest) | demo behaviour tests | **delete**, write your own (keep `fixtures.ts`, `global-setup.ts`, `helpers/`: the harness that builds and starts the server) |
 | `load-tests/scenarios/*.js` | load scenarios | **keep** `static.js` + `seo.js` (generic), repoint `pages.js`, **delete** the rest |
 | `.github/workflows/ci.yml` → the `minimal` job | guards the `--minimal` templates by running `tools/init` | **delete** it and drop it from `deploy`'s `needs` (a fork deletes `tools/init`) |
 | `app/data.db` (+ `-wal`, `-shm`) | the local dev database, at the demo's schema | **delete** once your migrations replace the demo's |
@@ -90,8 +90,9 @@ Rewrite `routes.odin` to register only your routes, keeping the generic ones: `/
 
 ### 4. Tests + load
 
-Delete the demo specs under `e2e/tests/` and `e2e/helpers/server.ts`, and write your own specs
-against your pages (keep `fixtures.ts`, `global-setup.ts`). Keep `seo.spec.ts`: it derives the page
+Delete the demo specs under `e2e/tests/` and write your own against your pages. Keep the harness:
+`fixtures.ts`, `global-setup.ts` and `helpers/` (`helpers/server.ts` starts a server, for the
+fixtures and for a spec that needs its own). Keep `seo.spec.ts`: it derives the page
 set, origin and tokens from the app itself, so it holds for any site, and its demo-only checks skip
 themselves. Under `load-tests/scenarios/`, keep `static.js` and `seo.js` (generic), delete the
 contacts-specific ones (`api`, `detail`, `list`, `search`, `write`, `mixed`), point `pages.js` at your
