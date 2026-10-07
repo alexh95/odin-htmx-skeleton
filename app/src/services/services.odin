@@ -18,6 +18,10 @@ import "core:unicode/utf8"
 PAGE_SIZE :: 7
 SEARCH_LIMIT :: 6 // results shown in the nav search dropdown
 
+// A store failure, passed up as a value for the controller to answer (404, 409
+// or 500). Re-exported so the controllers need not import the repository.
+Store_Error :: repository.Error
+
 Page :: struct {
 	rows:        []models.Contact,
 	page:        int,
@@ -55,10 +59,14 @@ contact_matches :: proc(c: models.Contact, q: string) -> bool {
 
 // A list view: filter by q, sort by a "key" or "key_desc" string, then slice
 // out one page. Everything is built in the request arena.
-service_page :: proc(q, status, sort: string, page: int) -> Page {
+service_page :: proc(q, status, sort: string, page: int) -> (Page, Store_Error) {
 	sn := models.STATUS_NAMES
+	all, err := repository.repo_list()
+	if err != .None {
+		return {}, err
+	}
 	filtered := make([dynamic]models.Contact, context.temp_allocator)
-	for c in repository.repo_list() {
+	for c in all {
 		if !contact_matches(c, q) {
 			continue
 		}
@@ -85,7 +93,7 @@ service_page :: proc(q, status, sort: string, page: int) -> Page {
 		q = q,
 		status = status,
 		sort = sort,
-	}
+	}, .None
 }
 
 // Sort ascending by the chosen key, then reverse for "_desc". Reversing after
@@ -132,22 +140,24 @@ next_sort :: proc(current, column: string) -> string {
 }
 
 // Every match for the JSON API; an empty query lists everyone.
-search_all :: proc(q: string) -> []models.Contact {
+search_all :: proc(q: string) -> ([]models.Contact, Store_Error) {
+	all, err := repository.repo_list()
 	out := make([dynamic]models.Contact, context.temp_allocator)
-	for c in repository.repo_list() {
+	for c in all {
 		if contact_matches(c, q) {
 			append(&out, c)
 		}
 	}
-	return out[:]
+	return out[:], err
 }
 
-service_search :: proc(q: string, limit: int) -> []models.Contact {
+service_search :: proc(q: string, limit: int) -> ([]models.Contact, Store_Error) {
 	out := make([dynamic]models.Contact, context.temp_allocator)
 	if strings.trim_space(q) == "" {
-		return out[:]
+		return out[:], .None
 	}
-	for c in repository.repo_list() {
+	all, err := repository.repo_list()
+	for c in all {
 		if contact_matches(c, q) {
 			append(&out, c)
 			if len(out) >= limit {
@@ -155,7 +165,7 @@ service_search :: proc(q: string, limit: int) -> []models.Contact {
 			}
 		}
 	}
-	return out[:]
+	return out[:], err
 }
 
 // ---- detail view: interaction timeline + related ------------------------
@@ -165,7 +175,7 @@ service_search :: proc(q: string, limit: int) -> []models.Contact {
 // resolve the other party (see repository/events.odin). Related = others sharing
 // the role, a second, simpler relationship.
 
-service_timeline :: proc(c: models.Contact) -> []models.Interaction {
+service_timeline :: proc(c: models.Contact) -> ([]models.Interaction, Store_Error) {
 	return repository.event_timeline(c.id)
 }
 
@@ -186,9 +196,10 @@ time_ago :: proc(at: i64) -> string {
 	}
 }
 
-service_related :: proc(c: models.Contact, limit: int) -> []models.Contact {
+service_related :: proc(c: models.Contact, limit: int) -> ([]models.Contact, Store_Error) {
+	all, err := repository.repo_list()
 	out := make([dynamic]models.Contact, context.temp_allocator)
-	for other in repository.repo_list() {
+	for other in all {
 		if other.id == c.id {
 			continue
 		}
@@ -199,7 +210,7 @@ service_related :: proc(c: models.Contact, limit: int) -> []models.Contact {
 			}
 		}
 	}
-	return out[:]
+	return out[:], err
 }
 
 // ---- contacts: reads and writes ------------------------------------------
@@ -207,36 +218,53 @@ service_related :: proc(c: models.Contact, limit: int) -> []models.Contact {
 // The controllers reach the store only through these: one place to validate,
 // and one seam between what a request asked for and how it is stored.
 
-get_contact :: proc(id: int) -> (models.Contact, bool) {
+get_contact :: proc(id: int) -> (models.Contact, Store_Error) {
 	return repository.repo_get(id)
 }
 
-// Trim + validate, then insert. A rejected contact comes back as per-field
-// messages and nothing is stored.
-create_contact :: proc(name, email: string, role: models.Role, status: models.Status, score: int) -> (models.Contact, []Field_Error) {
-	if errs := validate_contact(name, email); len(errs) > 0 {
-		return {}, errs
-	}
-	return repository.repo_create(strings.trim_space(name), strings.trim_space(email), role, status, clamp(score, 0, 100)), nil
+// Everything the detail drawer shows, or the first store error on the way.
+Detail :: struct {
+	contact:  models.Contact,
+	timeline: []models.Interaction,
+	related:  []models.Contact,
 }
 
-// The full edit from the detail drawer. `found` is false for a missing id.
-update_contact :: proc(id: int, name, email: string, role: models.Role, status: models.Status, score: int) -> (c: models.Contact, found: bool, errs: []Field_Error) {
+contact_detail :: proc(id: int) -> (d: Detail, err: Store_Error) {
+	d.contact = repository.repo_get(id) or_return
+	d.timeline = service_timeline(d.contact) or_return
+	d.related = service_related(d.contact, 4) or_return
+	return
+}
+
+// Trim + validate, then insert. A rejected contact comes back as per-field
+// messages (the user's to fix) and nothing is stored; a store failure comes
+// back as an error (the server's).
+create_contact :: proc(name, email: string, role: models.Role, status: models.Status, score: int) -> (models.Contact, []Field_Error, Store_Error) {
+	if errs := validate_contact(name, email); len(errs) > 0 {
+		return {}, errs, .None
+	}
+	c, err := repository.repo_create(strings.trim_space(name), strings.trim_space(email), role, status, clamp(score, 0, 100))
+	return c, nil, err
+}
+
+// The full edit from the detail drawer. A missing id is .Not_Found; rejected
+// input comes back with the stored contact, unchanged.
+update_contact :: proc(id: int, name, email: string, role: models.Role, status: models.Status, score: int) -> (c: models.Contact, errs: []Field_Error, err: Store_Error) {
 	if errs = validate_contact(name, email); len(errs) > 0 {
-		c, found = repository.repo_get(id)
+		c, err = repository.repo_get(id)
 		return
 	}
-	c, found = repository.repo_update(id, strings.trim_space(name), strings.trim_space(email), role, status, clamp(score, 0, 100))
+	c, err = repository.repo_update(id, strings.trim_space(name), strings.trim_space(email), role, status, clamp(score, 0, 100))
 	return
 }
 
 // Advance the status one step round the cycle (Active → Invited → Disabled → …).
-cycle_status :: proc(id: int) -> (c: models.Contact, found: bool) {
+cycle_status :: proc(id: int) -> (c: models.Contact, err: Store_Error) {
 	cur := repository.repo_get(id) or_return
 	return repository.repo_set_status(id, models.Status((int(cur.status) + 1) % len(models.Status)))
 }
 
-delete_contact :: proc(id: int) -> bool {
+delete_contact :: proc(id: int) -> Store_Error {
 	return repository.repo_delete(id)
 }
 
@@ -246,17 +274,18 @@ Stats :: struct {
 	total, active, invited, avg_score: int,
 }
 
-dashboard_stats :: proc() -> Stats {
+dashboard_stats :: proc() -> (Stats, Store_Error) {
 	s: Stats
 	score_sum := 0
-	for c in repository.repo_list() {
+	all, err := repository.repo_list()
+	for c in all {
 		s.total += 1
 		if c.status == .Active {s.active += 1}
 		if c.status == .Invited {s.invited += 1}
 		score_sum += c.score
 	}
 	s.avg_score = s.total > 0 ? score_sum / s.total : 0
-	return s
+	return s, err
 }
 
 // ---- validation ---------------------------------------------------------

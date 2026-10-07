@@ -34,11 +34,12 @@ finalize_notes :: proc() {
 }
 
 // Newest first.
-repo_list_notes :: proc() -> []models.Note {
+repo_list_notes :: proc() -> ([]models.Note, Error) {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
 	defer sqlite.reset(q_list)
 	out := make([dynamic]models.Note, context.temp_allocator)
-	for sqlite.step(q_list) == sqlite.ROW {
+	err: Error
+	for next_row(q_list, &err) {
 		append(
 			&out,
 			models.Note {
@@ -48,17 +49,20 @@ repo_list_notes :: proc() -> []models.Note {
 			},
 		)
 	}
-	return out[:]
+	return out[:], err
 }
 
-repo_create_note :: proc(body: string) -> models.Note {
+repo_create_note :: proc(body: string) -> (models.Note, Error) {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
 	defer sqlite.reset(q_create)
 	at := time.time_to_unix(time.now())
 	bind_text(q_create, 1, body)
 	sqlite.bind_int64(q_create, 2, at)
-	sqlite.step(q_create)
-	return models.Note{id = int(sqlite.last_insert_rowid(db)), body = body, at = at}
+	// On a failed insert last_insert_rowid is still the previous note's id.
+	if err := step_done(q_create); err != .None {
+		return {}, err
+	}
+	return models.Note{id = int(sqlite.last_insert_rowid(db)), body = body, at = at}, .None
 }
 
 // Package-visible to repo_seed (repo.odin); caller holds the lock.
@@ -82,7 +86,10 @@ seed_notes :: proc() {
 	for s, i in samples {
 		bind_text(q_create, 1, s)
 		sqlite.bind_int64(q_create, 2, now - i64(i) * 3600)
-		sqlite.step(q_create)
+		err := step_done(q_create)
 		sqlite.reset(q_create)
+		if err != .None {
+			fatal("seed")
+		}
 	}
 }
