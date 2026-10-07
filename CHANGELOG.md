@@ -8,6 +8,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Added
+- **The minimal starter covers every endpoint in both suites**
+  ([#27](https://github.com/alexh95/odin-htmx-skeleton/issues/27)). `init --minimal` now also installs
+  a `POST /notes` load scenario (`notes.js`) and an `/about` e2e spec. The spec checks that the page
+  renders as the current nav item, that the nav reaches it with a boosted swap, and that its repository
+  link matches the JSON-LD. The starter's `pages.js` now loads `/about` as well as `/`.
+
 ### Fixed
 - **A fork's e2e no longer fails on the blanked ownership tokens**
   ([#24](https://github.com/alexh95/odin-htmx-skeleton/issues/24)). The `BingSiteAuth.xml` and
