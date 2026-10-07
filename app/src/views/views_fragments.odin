@@ -331,11 +331,11 @@ interaction_icon :: proc(kind: models.Event_Kind) -> string {
 detail_edit_form :: proc(b: ^strings.Builder, c: models.Contact) {
 	rn := models.ROLE_NAMES
 	sn := models.STATUS_NAMES
-	fmt.sbprintf(b, `<form class="detail-body detail-edit" hx-post="/contacts/%d" hx-target="closest .drawer-detail" hx-swap="outerHTML"><input type="hidden" name="view" value="detail"><input type="hidden" name="frag" value="1"><label class="field"><span>Name</span><input name="name" value="`, c.id)
+	fmt.sbprintf(b, `<form class="detail-body detail-edit" hx-post="/contacts/%d" hx-target="closest .drawer-detail" hx-swap="outerHTML"><input type="hidden" name="view" value="detail"><input type="hidden" name="frag" value="1"><label class="field"><span>Name</span><input name="name" required maxlength="%d" value="`, c.id, services.MAX_NAME)
 	esc(b, c.name)
-	w(b, `" required></label><label class="field"><span>Email</span><input name="email" type="email" value="`)
+	fmt.sbprintf(b, `"></label><label class="field"><span>Email</span><input name="email" type="email" required maxlength="%d" value="`, services.MAX_EMAIL)
 	esc(b, c.email)
-	w(b, `" required></label><label class="field"><span>Role</span><select name="role">`)
+	w(b, `"></label><label class="field"><span>Role</span><select name="role">`)
 	for name, r in rn {
 		fmt.sbprintf(b, `<option%s>%s</option>`, r == c.role ? " selected" : "", name)
 	}

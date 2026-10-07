@@ -6,6 +6,7 @@ import "../repository"
 import "core:fmt"
 import "core:strings"
 import "core:time"
+import "core:unicode/utf8"
 
 // ---- services -----------------------------------------------------------
 //
@@ -17,13 +18,21 @@ list_notes :: proc() -> []models.Note {
 	return repository.repo_list_notes()
 }
 
-// Trim + validate, then persist. `ok` is false for an empty note.
-create_note :: proc(body: string) -> (models.Note, bool) {
+// The longest note, in characters. Small enough that one request can't park
+// megabytes in the store and in every page that lists it; the input carries the
+// same number as `maxlength`.
+MAX_NOTE :: 500
+
+// Trim + validate, then persist. `problem` says why a note was rejected.
+create_note :: proc(body: string) -> (note: models.Note, problem: string) {
 	trimmed := strings.trim_space(body)
-	if trimmed == "" {
-		return {}, false
+	switch {
+	case trimmed == "":
+		return {}, "Write something first."
+	case utf8.rune_count_in_string(trimmed) > MAX_NOTE:
+		return {}, fmt.tprintf("A note is at most %d characters.", MAX_NOTE)
 	}
-	return repository.repo_create_note(trimmed), true
+	return repository.repo_create_note(trimmed), ""
 }
 
 // Relative-time label from a unix timestamp, for display.

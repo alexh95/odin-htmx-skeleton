@@ -6,6 +6,7 @@ import "core:fmt"
 import "core:slice"
 import "core:strings"
 import "core:time"
+import "core:unicode/utf8"
 
 // ---- services -----------------------------------------------------------
 //
@@ -192,6 +193,12 @@ service_related :: proc(c: models.Contact, limit: int) -> []models.Contact {
 
 // ---- validation ---------------------------------------------------------
 
+// Field limits, in characters. Roomy for real data, small enough that one
+// request can't park megabytes in the store and in every page that renders it.
+// The inputs carry the same numbers as `maxlength`, so the browser stops first.
+MAX_NAME :: 100
+MAX_EMAIL :: 254 // the longest address SMTP can carry (RFC 5321)
+
 Field_Error :: struct {
 	field: string,
 	msg:   string,
@@ -208,10 +215,16 @@ valid_email :: proc(s: string) -> bool {
 
 validate_contact :: proc(name, email: string) -> []Field_Error {
 	errs := make([dynamic]Field_Error, context.temp_allocator)
-	if strings.trim_space(name) == "" {
+	switch n := strings.trim_space(name); {
+	case n == "":
 		append(&errs, Field_Error{"name", "Name is required."})
+	case utf8.rune_count_in_string(n) > MAX_NAME:
+		append(&errs, Field_Error{"name", fmt.tprintf("Name must be at most %d characters.", MAX_NAME)})
 	}
-	if !valid_email(strings.trim_space(email)) {
+	switch e := strings.trim_space(email); {
+	case utf8.rune_count_in_string(e) > MAX_EMAIL:
+		append(&errs, Field_Error{"email", fmt.tprintf("Email must be at most %d characters.", MAX_EMAIL)})
+	case !valid_email(e):
 		append(&errs, Field_Error{"email", "Enter a valid email address."})
 	}
 	return errs[:]

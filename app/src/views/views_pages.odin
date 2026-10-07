@@ -168,11 +168,16 @@ view_forms :: proc() -> string {
   <div class="form-grid">
     <label class="field">
       <span>Full name</span>
-      <input name="name" placeholder="Grace Hopper" required>
+      `)
+	// maxlength mirrors the server's limits, so the browser stops at the same place.
+	fmt.sbprintf(&b, `<input name="name" placeholder="Grace Hopper" required maxlength="%d">`, services.MAX_NAME)
+	w(&b, `
     </label>
     <label class="field">
       <span>Email</span>
-      <input name="email" type="email" placeholder="grace@example.dev" autocomplete="off"
+      `)
+	fmt.sbprintf(&b, `<input name="email" type="email" placeholder="grace@example.dev" autocomplete="off" maxlength="%d"`, services.MAX_EMAIL)
+	w(&b, `
              hx-post="/validate/email" hx-trigger="change, keyup changed delay:400ms"
              hx-target="next .field-msg" hx-swap="innerHTML">
       <p class="field-msg"></p>
@@ -243,8 +248,10 @@ view_data :: proc(p: services.Page) -> string {
 	w(&b, `<span>New contact</span></summary>
       <form class="add-form card" hx-post="/contacts" hx-target="#contact-tbody" hx-swap="beforeend"
             data-reset-on-success>
-        <input name="name" placeholder="Full name" required aria-label="Name">
-        <input name="email" type="email" placeholder="email@example.dev" required aria-label="Email">
+        `)
+	fmt.sbprintf(&b, `<input name="name" placeholder="Full name" required maxlength="%d" aria-label="Name">`, services.MAX_NAME)
+	fmt.sbprintf(&b, `<input name="email" type="email" placeholder="email@example.dev" required maxlength="%d" aria-label="Email">`, services.MAX_EMAIL)
+	w(&b, `
         <select name="role" aria-label="Role">`)
 	role_options(&b, .Engineer)
 	w(&b, `</select>
