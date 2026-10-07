@@ -118,3 +118,21 @@ a_database_from_before_named_migrations_is_adopted :: proc(t: ^testing.T) {
 table_count :: proc(name: string) -> int {
 	return scalar_int(csql(fmt.tprintf("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='%s'", name)))
 }
+
+@(test)
+contains_ci_folds_case_rune_by_rune :: proc(t: ^testing.T) {
+	testing.expect(t, contains_ci("Grace Hopper", "HOP"))
+	testing.expect(t, contains_ci("Alan Turing", "turİng")) // İ lowers to i
+	testing.expect(t, contains_ci("zz Straẞe", "straße")) // ẞ lowers to ß
+	testing.expect(t, contains_ci("anything", ""))
+	testing.expect(t, !contains_ci("Grace", "grace hopper"))
+	testing.expect(t, !contains_ci("", "a"))
+
+	// The same answer from inside SQL, where the list queries use it.
+	sync.guard(&serial)
+	db_open(":memory:")
+	defer db_close()
+	testing.expect_value(t, scalar_int("SELECT contains_ci('Alan Turing', 'TURİNG')"), 1)
+	testing.expect_value(t, scalar_int("SELECT contains_ci('Alan Turing', 'hopper')"), 0)
+	testing.expect_value(t, scalar_int("SELECT contains_ci(NULL, 'x')"), 0)
+}

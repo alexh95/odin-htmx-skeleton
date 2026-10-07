@@ -547,6 +547,7 @@ fieldset { border: none; padding: 0; margin: 0; display: flex; flex-direction: c
 /* Where hx-status:422 puts a refused submit's reason; takes no room until then. */
 .form-error:empty { display: none; }
 .add-form .form-error { grid-column: 1 / -1; }
+.page-gap { align-self: center; padding: 0 2px; color: var(--faint); }
 .msg { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; animation: fade-up var(--fast) var(--ease); }
 .msg-ok { color: var(--green); }
 .msg-err { color: var(--red); }

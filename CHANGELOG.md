@@ -73,6 +73,19 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
 
 ### Fixed
+- **Lists are filtered, sorted, paged and counted in SQL**
+  ([#14](https://github.com/alexh95/odin-htmx-skeleton/issues/14), partly). Every list request loaded
+  the whole table into Odin under the store's lock, so latency and response size grew with the
+  table. The table, the search dropdown, `/api/search` and the related list now run as SQL with
+  `WHERE`/`ORDER BY`/`LIMIT`/`OFFSET` and a `count(*)`: one prepared statement per sort key, and a
+  `contains_ci` SQL function written in Odin, so search keeps its per-rune Unicode matching (`LIKE`
+  folds ASCII only). The pager shows a window (1 2 3 … 12) instead of a button per page, and
+  `/api/search` returns at most 100 rows. The starter's note list is capped at the newest 50. With one
+  client at 20k contacts: `/data` 63 → 2 ms, a deep filtered page 107 → 16 ms, a search miss 259 →
+  18 ms, `/api/search` 213 → 1 ms. Still open: search is a scan (~1 µs a row), and everything runs
+  under one exclusive lock, so at 20 concurrent users on 20k rows the new `scale` k6 scenario still
+  shows p95 1.2 s (1.7 s before). Role/status sorts now break ties by id. e2e: `paging.spec.ts`; load:
+  `scenarios/scale.js`.
 - **Windows dev-loop papercuts** (part of
   [#35](https://github.com/alexh95/odin-htmx-skeleton/issues/35)). The server printed (and `run.bat`
   opened) `http://localhost`, but listens on IPv4 loopback only, so each request first tried `::1`:
