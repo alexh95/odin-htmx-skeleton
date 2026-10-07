@@ -234,6 +234,14 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
 
 ### Fixed
+- **A fork on `*.fly.dev` is served instead of redirected to a placeholder domain**
+  ([#25](https://github.com/alexh95/odin-htmx-skeleton/issues/25)). `canonical_host` 301'd every
+  `*.fly.dev` request to `SITE_URL`, which `init` sets to `https://<name>.example.com` until the fork
+  has a domain, so a fresh deploy sent every visitor to a site that doesn't exist while the exempt
+  health check kept the deploy green. The redirect is now off while `SITE_URL` is a reserved example
+  or test name (RFC 2606/6761: `example.com/.net/.org`, `.example`, `.test`, `.invalid`,
+  `.localhost`). `canonical_host` moves into `controllers/middleware.odin`. e2e: `canonical.spec.ts`
+  boots servers with a real and two placeholder origins.
 - **Escaping gaps closed** ([#22](https://github.com/alexh95/odin-htmx-skeleton/issues/22)). Avatar
   initials were cut byte by byte and written raw: a name starting with `<` broke the row's DOM, and
   every non-ASCII initial (the `É` of "Émile") rendered as half a character. They are now whole runes,

@@ -4,7 +4,6 @@ import "core:fmt"
 import "core:net"
 import "core:os"
 import "core:strconv"
-import "core:strings"
 
 import http "../odin-http"
 import "controllers"
@@ -54,11 +53,13 @@ main :: proc() {
 		db_path = ":memory:"
 	}
 	// SITE_URL names the canonical origin used by the canonical/og:url tags, the
-	// sitemap, and the redirect below. A fork sets it in the environment instead
-	// of editing brand.odin.
+	// sitemap, and the *.fly.dev redirect. A fork sets it in the environment
+	// instead of editing brand.odin. A placeholder origin leaves the redirect off
+	// (see controllers.canonical_host).
 	if v := os.get_env("SITE_URL", context.allocator); v != "" {
 		views.SITE_URL = v
 	}
+	controllers.canonical_redirect = !controllers.placeholder_origin(views.SITE_URL)
 
 	repository.repo_open(db_path)
 	defer repository.repo_close() // runs after the server loop returns (clean shutdown)
@@ -94,37 +95,8 @@ main :: proc() {
 
 	fmt.printfln("odin-htmx-skeleton listening on http://%s:%d (%d threads)", host, port, opts.thread_count)
 	routes := http.router_handler(&router)
-	front := http.middleware_proc(&routes, controllers.front)
-	if err := http.listen_and_serve(&s, http.middleware_proc(&front, canonical_host), endpoint, opts); err != nil {
+	if err := http.listen_and_serve(&s, http.middleware_proc(&routes, controllers.front), endpoint, opts); err != nil {
 		fmt.eprintfln("server error: %v", err)
 		os.exit(1)
 	}
-}
-
-// The platform hostname serves the very same app as the custom domain, so a
-// crawler that finds both indexes the site twice and splits its ranking signals.
-// A 301 collapses them onto views.SITE_URL and passes the accumulated authority
-// along with it — a canonical tag alone only hints, and only to search engines.
-//
-// Scoped to *.fly.dev rather than "any host that isn't canonical": localhost and
-// a LAN IP have to keep working for development, and a future domain must not
-// start bouncing the moment DNS points at it. /healthz is exempt regardless —
-// Fly's own health check calls it, and a probe that follows a redirect off-host
-// would fail the deploy rather than the request.
-canonical_host :: proc(handler: ^http.Handler, req: ^http.Request, res: ^http.Response) {
-	next := handler.next.(^http.Handler)
-	host, _ := http.headers_get(req.headers, "host")
-	if req.url.path != "/healthz" && strings.has_suffix(host, ".fly.dev") {
-		target := strings.concatenate(
-			{views.SITE_URL, req.url.path},
-			context.temp_allocator,
-		)
-		if req.url.query != "" {
-			target = strings.concatenate({target, "?", req.url.query}, context.temp_allocator)
-		}
-		http.headers_set(&res.headers, "location", target)
-		http.respond(res, http.Status.Moved_Permanently)
-		return
-	}
-	next.handle(next, req, res)
 }
