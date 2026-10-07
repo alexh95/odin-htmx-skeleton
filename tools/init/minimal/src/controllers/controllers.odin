@@ -51,12 +51,13 @@ page_about :: proc(req: ^http.Request, res: ^http.Response) {
 	)
 }
 
-// The one write path. Append the new note's <li> to the list on success; an
-// empty note appends nothing (the input's `required` guards it client-side too).
+// The one write path. Append the new note's <li> to the list on success. A
+// refused note is a 422 with the reason: the form's hx-status:422 routes it to
+// its error slot, and app.js resets a form only after a 2xx, so the input stays.
 notes_create :: proc(req: ^http.Request, res: ^http.Response) {
 	note, problem, err := services.create_note(request_form()["body"])
 	if problem != "" {
-		http.respond_html(res, "")
+		http.respond_html(res, views.view_form_error(problem), .Unprocessable_Content)
 		return
 	}
 	if err != .None {

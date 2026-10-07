@@ -162,7 +162,9 @@ view_forms :: proc() -> string {
 
 	// data-reset-on-success: app.js resets the form after its OWN successful submit.
 	// Scoped there to this form's request (ctx.sourceElement), so the email field's
-	// inline validation can't trip the reset and wipe what the user just typed.
+	// inline validation can't trip the reset and wipe what the user just typed. A
+	// refused submit is a 422, which lands in #form-result like a success and
+	// leaves the fields alone, so it needs no hx-status of its own.
 	w(&b, `<form class="form card" hx-post="/forms/submit" hx-target="#form-result" hx-swap="innerHTML"
         data-reset-on-success>
   <div class="form-grid">
@@ -176,7 +178,7 @@ view_forms :: proc() -> string {
     <label class="field">
       <span>Email</span>
       `)
-	fmt.sbprintf(&b, `<input name="email" type="email" placeholder="grace@example.dev" autocomplete="off" maxlength="%d"`, services.MAX_EMAIL)
+	fmt.sbprintf(&b, `<input name="email" type="email" placeholder="grace@example.dev" autocomplete="off" required maxlength="%d"`, services.MAX_EMAIL)
 	w(&b, `
              hx-post="/validate/email" hx-trigger="change, keyup changed delay:400ms"
              hx-target="next .field-msg" hx-swap="innerHTML">
@@ -247,7 +249,7 @@ view_data :: proc(p: services.Page) -> string {
 	icon(&b, "plus")
 	w(&b, `<span>New contact</span></summary>
       <form class="add-form card" hx-post="/contacts" hx-target="#contact-tbody" hx-swap="beforeend"
-            data-reset-on-success>
+            hx-status:422="target:#add-error swap:innerHTML" data-reset-on-success>
         `)
 	fmt.sbprintf(&b, `<input name="name" placeholder="Full name" required maxlength="%d" aria-label="Name">`, services.MAX_NAME)
 	fmt.sbprintf(&b, `<input name="email" type="email" placeholder="email@example.dev" required maxlength="%d" aria-label="Email">`, services.MAX_EMAIL)
@@ -256,6 +258,7 @@ view_data :: proc(p: services.Page) -> string {
 	role_options(&b, .Engineer)
 	w(&b, `</select>
         <button class="btn btn-accent" type="submit">Add</button>
+        <p class="field-msg form-error" id="add-error" role="alert"></p>
       </form>
     </details>
   </div>`)

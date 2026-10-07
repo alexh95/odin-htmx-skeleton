@@ -284,15 +284,27 @@ view_home :: proc(notes: []models.Note) -> string {
 	page_head(&b, "Starter", "Your app", "A minimal Odin + HTMX + SQLite page. Add a note — it's stored in SQLite and appended over one request. Replace this with your own.")
 
 	w(&b, `<section class="block"><article class="card">`)
-	// data-reset-on-success: app.js clears the form after its own 2xx submit.
-	w(&b, `<form class="add-note" hx-post="/notes" hx-target="#note-list" hx-swap="afterbegin" data-reset-on-success>`)
+	// data-reset-on-success: app.js clears the form after its own 2xx submit. A
+	// refused note (422) or a server error (5xx) is routed by hx-status into the
+	// form's error slot instead of the list, and leaves the input alone.
+	w(&b, `<form class="add-note" hx-post="/notes" hx-target="#note-list" hx-swap="afterbegin" data-reset-on-success
+      hx-status:422="target:#note-error swap:innerHTML" hx-status:5xx="target:#note-error swap:innerHTML">`)
 	fmt.sbprintf(&b, `<input name="body" placeholder="Write a note…" required maxlength="%d" autocomplete="off" aria-label="Note">`, services.MAX_NOTE)
-	w(&b, `<button class="btn btn-primary" type="submit">Add</button></form>`)
+	w(&b, `<button class="btn btn-primary" type="submit">Add</button><p class="field-msg form-error" id="note-error" role="alert"></p></form>`)
 	w(&b, `<ul class="note-list" id="note-list">`)
 	for n in notes {
 		view_note_li(&b, n)
 	}
 	w(&b, `</ul></article></section>`)
+	return strings.to_string(b)
+}
+
+// Why a submit was refused, for the form's error slot.
+view_form_error :: proc(msg: string) -> string {
+	b := strings.builder_make(context.temp_allocator)
+	w(&b, `<span class="msg msg-err">`)
+	esc(&b, msg)
+	w(&b, `</span>`)
 	return strings.to_string(b)
 }
 

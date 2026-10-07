@@ -1,6 +1,7 @@
 
 /* ---- minimal starter: the notes home page (replace with your own) ------ */
-.add-note { display: flex; gap: 10px; margin-bottom: 18px; }
+.add-note { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+.add-note .form-error { flex-basis: 100%; }
 .add-note input {
   flex: 1; padding: 10px 12px; font: inherit; color: var(--text);
   background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px;

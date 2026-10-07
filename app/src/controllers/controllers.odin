@@ -220,7 +220,9 @@ contacts_create :: proc(req: ^http.Request, res: ^http.Response) {
 	role, _ := models.role_from(form["role"])
 	c, errs, err := services.create_contact(form["name"], form["email"], role, .Invited, 50)
 	if len(errs) > 0 {
-		http.respond_html(res, views.view_toast("error", errs[0].msg, true))
+		// 422, not 200: app.js resets a form only after a 2xx, so the user's input
+		// survives, and the form's hx-status:422 routes this into its error slot.
+		http.respond_html(res, views.view_field_msg(false, errs[0].msg), .Unprocessable_Content)
 		return
 	}
 	if err != .None {
@@ -249,19 +251,32 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 	c: models.Contact
 	err: services.Store_Error
 	edit_errs: []services.Field_Error
+	typed: models.Contact
 	if action == "cycle" {
 		c, err = services.cycle_status(id)
-	} else if strings.trim_space(form["name"]) != "" {
+	} else if _, editing := form["name"]; editing {
 		// full edit from the detail drawer
 		role, _ := models.role_from(form["role"])
 		status, _ := models.status_from(form["status"])
-		c, edit_errs, err = services.update_contact(id, form["name"], form["email"], role, status, to_int(form["score"]))
+		score := clamp(to_int(form["score"]), 0, 100)
+		typed = {id = id, name = form["name"], email = form["email"], role = role, status = status, score = score}
+		c, edit_errs, err = services.update_contact(id, typed.name, typed.email, role, status, score)
 	} else {
 		c, err = services.get_contact(id)
 	}
 
 	if err != .None {
 		respond_store_error(req, res, err)
+		return
+	}
+	if len(edit_errs) > 0 {
+		// The edit form comes back as typed, with the reason, in place of the one
+		// that was sent: a refused edit keeps its input. 422 skips app.js's reset.
+		if is_detail {
+			http.respond_html(res, views.view_contact_edit_rejected(c, typed, edit_errs[0].msg), .Unprocessable_Content)
+		} else {
+			http.respond_html(res, views.view_field_msg(false, edit_errs[0].msg), .Unprocessable_Content)
+		}
 		return
 	}
 	if is_detail {
@@ -282,9 +297,6 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 		fmt.sbprintf(&b, `<hx-partial hx-target="#contact-%d" hx-swap="outerHTML">`, c.id)
 		views.view_contact_row(&b, c, false)
 		strings.write_string(&b, `</hx-partial>`)
-		if len(edit_errs) > 0 {
-			strings.write_string(&b, views.view_toast("error", edit_errs[0].msg, true))
-		}
 		http.respond_html(res, strings.to_string(b))
 	} else {
 		b := strings.builder_make(context.temp_allocator)
@@ -334,7 +346,8 @@ forms_submit :: proc(req: ^http.Request, res: ^http.Response) {
 	status, _ := models.status_from(form["status"])
 	c, errs, err := services.create_contact(form["name"], form["email"], role, status, to_int(form["score"]))
 	if len(errs) > 0 {
-		http.respond_html(res, views.view_form_errors(errs))
+		// Lands in #form-result like a success would; 422 keeps the form unreset.
+		http.respond_html(res, views.view_form_errors(errs), .Unprocessable_Content)
 		return
 	}
 	if err != .None {
