@@ -17,9 +17,10 @@ npm test                            # all three engines; add -- --project=chromi
 
 `global-setup.ts` runs `prepare` + builds `../app` once (with `-warnings-as-errors`), so a run
 needs `odin` **and a C toolchain** on `PATH` (prepare compiles SQLite). Then each Playwright
-**worker spawns its own server** on its own port (`8200 + parallelIndex`, see `fixtures.ts`) with
-an **isolated `:memory:` SQLite store** — which is what lets the suite run **fully in parallel**
-across workers and the three browser engines.
+**worker spawns its own server** on a port the OS picks, with an **isolated `:memory:` SQLite
+store** — which is what lets the suite run **fully in parallel** across workers and the three
+browser engines. The server's env is pinned (`helpers/server.ts`), so a `PORT` or `DB_PATH`
+exported in your shell can't redirect the suite to another server or your `data.db`.
 
 - `npm run test:ui` — interactive runner.
 - `npm run test:headed` — watch it drive a real browser.
@@ -33,7 +34,7 @@ On CI the engines are sharded across runners inside Playwright's official Docker
 ```
 global-setup.ts        runs prepare + builds the app binary once (-warnings-as-errors)
 fixtures.ts            per-worker server (own port + isolated :memory: store) → parallel
-helpers/server.ts      spawn/get/post/del/health for specs that manage their own server
+helpers/server.ts      starts a server (free port, pinned env, fails fast with its output) + get/post/del
 tests/
   navigation.spec.ts   dashboard + stat-card drill-through, routing + aria-current, ping, theme + showroom,
                        view transitions on boosted nav only (regression)

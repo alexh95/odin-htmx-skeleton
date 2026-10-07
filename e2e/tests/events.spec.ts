@@ -1,15 +1,13 @@
 import { test, expect } from '@playwright/test';
-import { spawnServer, get, del, waitHealthy, stop } from '../helpers/server';
+import { startServer, stopServer, get, del } from '../helpers/server';
 
 // Events are interactions BETWEEN contacts (events.actor_id/target_id → contacts,
 // ON DELETE CASCADE). This uses a dedicated :memory: server because it deletes a
 // seeded contact — keeping it off the shared per-worker store other tests use.
 test('deleting a contact cascades to its interactions (FK)', async () => {
-  const port = 8320 + test.info().parallelIndex;
-  const proc = spawnServer(test.info().config, port); // DB_PATH unset → :memory:
+  const server = await startServer(test.info().config); // its own :memory: store
+  const { port } = server;
   try {
-    await waitHealthy(port);
-
     // Contact 1's activity timeline links to other contacts via the events join.
     const before = await get(port, '/contacts/1');
     expect(before.status).toBe(200);
@@ -25,6 +23,6 @@ test('deleting a contact cascades to its interactions (FK)', async () => {
     expect(afterCount).toBeLessThan(partners.length); // interactions removed
     expect(after.body).not.toContain(`hx-get="/contacts/${partner}"`); // partner gone from the timeline
   } finally {
-    await stop(proc);
+    await stopServer(server);
   }
 });

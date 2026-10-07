@@ -10,13 +10,15 @@ export function appDirFrom(config: FullConfig): string {
   return path.resolve(e2eDir, '..', 'app');
 }
 
+// The binary global-setup builds and helpers/server.ts starts, relative to app/.
+export const BIN = process.platform === 'win32' ? 'bin\\demo.exe' : 'bin/demo';
+
 // Build the binary once, before any worker starts. Each worker then spawns its
 // own copy on its own port (see fixtures.ts), so the in-memory stores are
 // isolated and the suite can run fully in parallel.
 export default function globalSetup(config: FullConfig) {
   const appDir = appDirFrom(config);
   const isWin = process.platform === 'win32';
-  const out = isWin ? 'bin\\demo.exe' : 'bin/demo';
 
   mkdirSync(path.join(appDir, 'bin'), { recursive: true });
   try {
@@ -26,7 +28,7 @@ export default function globalSetup(config: FullConfig) {
     console.warn('[global-setup] prepare failed (continuing — deps may already be present)');
   }
 
-  execFileSync('odin', ['build', 'src', `-out:${out}`, '-warnings-as-errors'], {
+  execFileSync('odin', ['build', 'src', `-out:${BIN}`, '-warnings-as-errors'], {
     cwd: appDir,
     stdio: 'inherit',
   });

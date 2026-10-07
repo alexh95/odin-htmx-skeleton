@@ -52,8 +52,9 @@ e2e/
 The store is SQLite at `:memory:` (the default when `DB_PATH` is unset), seeded fresh and gone on
 exit, so a freshly spawned binary is a clean, deterministic fixture. As implemented:
 1. `global-setup.ts` builds the binary once (`-warnings-as-errors`).
-2. A **worker-scoped fixture** (`fixtures.ts`) spawns one server per Playwright worker on its
-   own port (`8200 + parallelIndex`), waits on `GET /healthz`, and kills it at worker end.
+2. A **worker-scoped fixture** (`fixtures.ts`) spawns one server per Playwright worker on a
+   port the OS picks, with a pinned env (`DB_PATH=:memory:` whatever the shell exports), waits on
+   `GET /healthz` (failing fast with the server's output if it exits), and kills it at worker end.
 3. It overrides `baseURL` so each worker's `page`/`request` hit that worker's server.
 
 Because every worker has its **own process and its own store**, the suite runs **fully in
