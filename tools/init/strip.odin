@@ -56,7 +56,6 @@ strip_to_minimal :: proc(opt: Options) {
 		"e2e/tests/persistence.spec.ts",
 		"e2e/tests/responsive.spec.ts",
 		"e2e/tests/search.spec.ts",
-		"e2e/helpers/server.ts", // spawns servers for the persistence + events specs
 		"load-tests/scenarios/api.js",
 		"load-tests/scenarios/detail.js",
 		"load-tests/scenarios/list.js",
@@ -66,6 +65,19 @@ strip_to_minimal :: proc(opt: Options) {
 	}
 	for f in demo {
 		remove(f)
+	}
+	// The helper that starts dedicated servers was the persistence + events
+	// specs' alone, unless the harness has come to start every server through it.
+	// Delete it only when nothing that stays imports it.
+	kept := []string{"e2e/fixtures.ts", "e2e/global-setup.ts", "e2e/tests/seo.spec.ts"}
+	used := strings.contains(MIN_E2E, "helpers/server") || strings.contains(MIN_E2E_ABOUT, "helpers/server")
+	for f in kept {
+		if i := load(f); i >= 0 {
+			used ||= strings.contains(changes[i].content, "helpers/server")
+		}
+	}
+	if !used {
+		remove("e2e/helpers/server.ts")
 	}
 
 	// 2. Drop in the minimal app (overwrites the demo's core files; main.odin,

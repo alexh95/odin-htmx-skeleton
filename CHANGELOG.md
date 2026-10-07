@@ -110,8 +110,8 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   and 260-line backlog were left in place, and `CLAUDE.md` tells an agent to work from that backlog.
   They're replaced with short starters (`tools/init/minimal/`). The changelog records the template
   release the fork started from, read from the upstream changelog. The TODO lists the remaining
-  make-it-yours steps. `--minimal` also deletes `e2e/helpers/server.ts`, which only the deleted
-  persistence and events specs used.
+  make-it-yours steps. `--minimal` also deletes `e2e/helpers/server.ts` when nothing it keeps
+  imports it (today only the deleted persistence and events specs do).
 - **`load-tests/run.sh --strict`**
   ([#40](https://github.com/alexh95/odin-htmx-skeleton/issues/40)). Without it the driver still records
   a breached threshold and carries on (a sweep exists to find the knee). With it, the run lists the
@@ -207,9 +207,9 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 - **`init` fails loudly instead of skipping an edit that no longer applies**
   ([#27](https://github.com/alexh95/odin-htmx-skeleton/issues/27)). It now plans every change in
   memory (`tools/init/plan.odin`) and writes only if all of them apply; otherwise it lists each miss
-  and changes nothing. A targeted replacement must match; for the name-token pass, each file must
-  still name the upstream and each token must hit somewhere. A second run says the checkout is
-  already renamed. An audit of every existing replacement found two misses: the `run.sh` scenario list
+  and changes nothing. A targeted replacement must match. In the name-token pass, every listed file
+  must exist and every token must hit somewhere; a file left with nothing to rename is only noted. A
+  second run says the checkout is already renamed. An audit of every existing replacement found two misses: the `run.sh` scenario list
   (above) and `app/README.md`, which was in the rename list with nothing to rename.
 
 ## [1.1.1] - 2026-10-07

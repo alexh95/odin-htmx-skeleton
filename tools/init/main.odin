@@ -104,6 +104,13 @@ main :: proc() {
 	}
 	fmt.println("  - once you're happy, delete tools/init (a one-time step) and commit")
 	report_leftovers()
+	if len(notes) > 0 {
+		fmt.println()
+		fmt.println("Notes for tools/init itself (harmless to this run):")
+		for n in notes {
+			fmt.printfln("  - %s", n)
+		}
+	}
 }
 
 // ---- leftovers ----------------------------------------------------------

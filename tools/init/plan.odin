@@ -31,6 +31,7 @@ Change :: struct {
 
 changes: [dynamic]Change
 problems: [dynamic]string
+notes: [dynamic]string // for init's maintainers; printed, never fatal
 
 problem :: proc(format: string, args: ..any) {
 	append(&problems, fmt.aprintf(format, ..args))
@@ -87,9 +88,10 @@ edit :: proc(path: string, repls: []Repl) {
 
 // A vocabulary pass: the same tokens over many files, each file holding only
 // some of them. Holding every token to every file would just restate a grep, so
-// the checks are per file (it must still name the upstream at all) and per token
-// (`hits`, which the caller checks hit somewhere). The closing scan in main
-// reports whatever is left.
+// the file must exist and each token must hit somewhere (`hits`, which the
+// caller checks). A file with nothing left to rename isn't a miss, since nothing
+// of the upstream is left in it either: it's a stale list entry, noted for
+// whoever maintains init. The closing scan in main reports whatever is left.
 sweep :: proc(path: string, repls: []Repl, hits: []int) {
 	i := load(path)
 	if i < 0 {
@@ -106,7 +108,7 @@ sweep :: proc(path: string, repls: []Repl, hits: []int) {
 		}
 	}
 	if total == 0 {
-		problem("%s: no longer names the upstream project; drop it from the rename list", path)
+		append(&notes, fmt.aprintf("%s has nothing to rename any more; drop it from rename's file list", path))
 	}
 	changes[i].content = s
 	changes[i].edits += total
