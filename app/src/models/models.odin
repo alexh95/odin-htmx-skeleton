@@ -28,6 +28,8 @@ Contact :: struct {
 	role:   Role,
 	status: Status,
 	score:  int, // 0..100 engagement, drives a progress bar in the table
+	notes:  string, // optional; "" when none
+	notify: bool, // wants email about account activity
 }
 
 ROLE_NAMES :: [Role]string {

@@ -159,6 +159,8 @@ Contact_DTO :: struct {
 	role:   string,
 	status: string,
 	score:  int,
+	notes:  string,
+	notify: bool,
 }
 
 // The non-HTMX surface: same data, plain JSON. Proves the service layer stands
@@ -174,7 +176,7 @@ api_search :: proc(req: ^http.Request, res: ^http.Response) {
 	}
 	out := make([dynamic]Contact_DTO, context.temp_allocator)
 	for c in rows {
-		append(&out, Contact_DTO{c.id, c.name, c.email, rn[c.role], sn[c.status], c.score})
+		append(&out, Contact_DTO{c.id, c.name, c.email, rn[c.role], sn[c.status], c.score, c.notes, c.notify})
 	}
 	http.respond_json(res, out[:])
 }
@@ -344,7 +346,9 @@ forms_submit :: proc(req: ^http.Request, res: ^http.Response) {
 	form := request_form()
 	role, _ := models.role_from(form["role"])
 	status, _ := models.status_from(form["status"])
-	c, errs, err := services.create_contact(form["name"], form["email"], role, status, to_int(form["score"]))
+	// An unticked checkbox isn't posted at all; a ticked one posts "on".
+	notify := form["notify"] == "on"
+	c, errs, err := services.create_contact(form["name"], form["email"], role, status, to_int(form["score"]), form["notes"], notify)
 	if len(errs) > 0 {
 		// Lands in #form-result like a success would; 422 keeps the form unreset.
 		respond_html(res, views.view_form_errors(errs), .Unprocessable_Content)
