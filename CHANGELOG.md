@@ -43,6 +43,10 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   The release's published digests sit next to `ODIN_VERSION`: `ODIN_SHA256` in `ci.yml`'s env and
   the `Dockerfile`, and one `odin_sha256` per build-matrix asset. The build job's Odin cache key now
   includes the digest.
+- **Browser-less e2e specs run once, not once per engine** (part of
+  [#42](https://github.com/alexh95/odin-htmx-skeleton/issues/42)). `events` and `persistence` never
+  open a page, so they're now the `api` project in `playwright.config.ts`, which CI runs on the
+  chromium shard. A full local run is 215 tests (71 per engine + 2), down from 219.
 
 ### Fixed
 - **`docker compose up` can start the server** ([#38](https://github.com/alexh95/odin-htmx-skeleton/issues/38)).

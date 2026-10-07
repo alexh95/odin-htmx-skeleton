@@ -1,5 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Specs that never open a page: each starts a server of its own and talks HTTP to
+// it, so a browser engine changes nothing. They run once, as the `api` project,
+// instead of once per engine.
+const API_ONLY = /[\\/](events|persistence)\.spec\.ts$/;
+
 // global-setup builds the binary once; each worker spawns its own server on its
 // own port (see fixtures.ts) with an isolated in-memory store — so the suite
 // runs fully in parallel across workers and the three browser engines.
@@ -19,8 +24,9 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    { name: 'chromium', testIgnore: API_ONLY, use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', testIgnore: API_ONLY, use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', testIgnore: API_ONLY, use: { ...devices['Desktop Safari'] } },
+    { name: 'api', testMatch: API_ONLY },
   ],
 });
