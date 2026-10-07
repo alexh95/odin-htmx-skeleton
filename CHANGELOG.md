@@ -111,6 +111,15 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   defaults. To keep an existing deployment's container and data, set `NAME`, `REMOTE_DIR`,
   `PROXY_NET` and `VOLUME`. Compose named the old volume `<project>_<volume>`, so check
   `docker volume ls`.
+- **`infra/PLAN.md` describes the repo as it is**
+  ([#33](https://github.com/alexh95/odin-htmx-skeleton/issues/33)). Gone: the on-disk `static/`, the
+  bookworm Dockerfile sketch, "prepare clones odin-http at latest", the stale odin-http/Odin pins,
+  and "CI smoke stands in for e2e". The operator steps use the name `init` sets and the current
+  repo instead of the upstream's. The deploy token gets a 90-day expiry (`-x 2160h`) and a rotation
+  note, instead of `-x 999999h`. New sections: the **io_uring platform requirement**, **Persistence
+  on Fly** (a volume is one machine's, so `fly scale count 2` means two databases; a deploy restarts
+  the machine), and rollback. `fly.toml` gains a commented `SITE_URL` and points at the volume
+  caveats.
 
 ### Fixed
 - **A fork's e2e no longer fails on the blanked ownership tokens**
