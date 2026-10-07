@@ -8,6 +8,20 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [1.1.1] - 2026-10-07
+
+A patch release with two changes:
+- **Search highlighting** now marks exactly what the search matched, including text whose lowercase
+  form has a different byte length (`İ`, `ẞ`, invalid UTF-8).
+- **CI** retries flaky Ubuntu mirror fetches and puts a timeout on every job.
+
+Nothing else changed since 1.1.0. A fork started from 1.1.0 or earlier should take the new
+`write_highlighted` in `app/src/views/views.odin` (it replaces the old one, with its file-private
+`match_ci` helper). The CI change is optional: `.github/scripts/apt-install.sh` plus the matching
+`ci.yml` edits.
+
 ### Changed
 - **CI survives Ubuntu mirror outages, and no job can run for hours** (part of
   [#36](https://github.com/alexh95/odin-htmx-skeleton/issues/36)). The three `apt-get install clang …`
