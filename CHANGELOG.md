@@ -266,6 +266,12 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
 
 ### Fixed
+- **Cycling a status can't lose a step** (part of
+  [#23](https://github.com/alexh95/odin-htmx-skeleton/issues/23)). It read the status and wrote the
+  next one under two separate lock acquisitions, so two clicks at once could both write the same
+  value. It is now one statement, `UPDATE contacts SET status=(status+1)%?2 WHERE id=?1`
+  (`repo_cycle_status`, replacing `repo_set_status`). e2e: `writes.spec.ts` cycles one contact 31
+  times at once.
 - **A wrong method is a 405, an unknown page a real 404 page, and text says it's UTF-8** (part of
   [#23](https://github.com/alexh95/odin-htmx-skeleton/issues/23)). `PUT /contacts/1` was a 404, an
   unknown URL an empty 404, and `content-type: text/html` named no charset. A last-resort route
