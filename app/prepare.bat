@@ -28,17 +28,6 @@ set "SQLITE_URL=https://sqlite.org/2026/sqlite-amalgamation-3530400.zip"
 set "SQLITE_SHA256=1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d"
 set "SQLITE_DIR=vendor\sqlite"
 
-rem Compiling the amalgamation needs MSVC's cl.exe (same env Odin's linker needs).
-where cl >nul 2>nul
-if errorlevel 1 (
-  echo.
-  echo error: MSVC cl.exe not found on PATH. Install the Build Tools ^(not full VS^):
-  echo   1^) winget install --id Microsoft.VisualStudio.2022.BuildTools -e
-  echo   2^) in the installer pick the "Desktop development with C++" workload
-  echo      ^(minimally MSVC v143 toolset + Windows 11 SDK^)
-  echo   3^) run this from an "x64 Native Tools Command Prompt for VS 2022"
-  goto :fail
-)
 if not exist "%SQLITE_DIR%" mkdir "%SQLITE_DIR%"
 
 rem Ensure the pinned, verified source is present (skips when the stamp matches).
@@ -49,17 +38,32 @@ rem Compile to sqlite3.lib once (skip if the lib is newer than the source).
 powershell -NoProfile -Command "if((Test-Path '%SQLITE_DIR%\sqlite3.lib') -and ((Get-Item '%SQLITE_DIR%\sqlite3.lib').LastWriteTime -ge (Get-Item '%SQLITE_DIR%\sqlite3.c').LastWriteTime)){exit 0}else{exit 1}"
 if not errorlevel 1 (
   echo [skip] sqlite3.lib is up to date.
-) else (
-  echo [cc  ] compiling sqlite3.c with cl ...
-  pushd "%SQLITE_DIR%"
-  rem /MT (static CRT) to match how Odin links the CRT on Windows; /MD's dynamic
-  rem imports (__imp_*) don't resolve against Odin's static libucrt.lib.
-  cl /nologo /c /O2 /MT sqlite3.c || ( popd ^& goto :fail )
-  lib /nologo /OUT:sqlite3.lib sqlite3.obj || ( popd ^& goto :fail )
-  del /q sqlite3.obj
-  popd
+  goto :ready
 )
 
+rem Only compiling needs MSVC's cl.exe, so it is looked for here, not up front: a
+rem re-run from a plain shell, with the lib already built, has nothing to compile.
+where cl >nul 2>nul
+if errorlevel 1 (
+  echo.
+  echo error: MSVC cl.exe not found on PATH, and sqlite3.lib needs building. Install the
+  echo Build Tools ^(not full VS^):
+  echo   1^) winget install --id Microsoft.VisualStudio.2022.BuildTools -e
+  echo   2^) in the installer pick the "Desktop development with C++" workload
+  echo      ^(minimally MSVC v143 toolset + Windows 11 SDK^)
+  echo   3^) run this from an "x64 Native Tools Command Prompt for VS 2022"
+  goto :fail
+)
+echo [cc  ] compiling sqlite3.c with cl ...
+pushd "%SQLITE_DIR%"
+rem /MT (static CRT) to match how Odin links the CRT on Windows; /MD's dynamic
+rem imports (__imp_*) don't resolve against Odin's static libucrt.lib.
+cl /nologo /c /O2 /MT sqlite3.c || (popd & goto :fail)
+lib /nologo /OUT:sqlite3.lib sqlite3.obj || (popd & goto :fail)
+del /q sqlite3.obj
+popd
+
+:ready
 echo.
 echo Ready. Start the server with:  run.bat
 exit /b 0
