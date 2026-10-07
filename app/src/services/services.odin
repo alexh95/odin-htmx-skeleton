@@ -264,9 +264,8 @@ update_contact :: proc(id: int, name, email: string, role: models.Role, status: 
 }
 
 // Advance the status one step round the cycle (Active → Invited → Disabled → …).
-cycle_status :: proc(id: int) -> (c: models.Contact, err: Store_Error) {
-	cur := repository.repo_get(id) or_return
-	return repository.repo_set_status(id, models.Status((int(cur.status) + 1) % len(models.Status)))
+cycle_status :: proc(id: int) -> (models.Contact, Store_Error) {
+	return repository.repo_cycle_status(id)
 }
 
 delete_contact :: proc(id: int) -> Store_Error {
