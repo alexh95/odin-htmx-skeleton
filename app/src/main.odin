@@ -45,6 +45,10 @@ main :: proc() {
 	// default (a real in-RAM SQLite, seeded fresh per boot, gone on exit — the
 	// isolation the e2e/load suites rely on); a real file path persists (prod sets
 	// it to a mounted volume). repo_open must run before repo_seed.
+	//
+	// Demo rows go only into a store nobody owns yet: :memory:, or a file when
+	// SEED=1 asks (run.* sets it for local dev). A production table emptied on
+	// purpose must not come back full of samples on the next deploy.
 	db_path := os.get_env("DB_PATH", context.allocator)
 	if db_path == "" {
 		db_path = ":memory:"
@@ -58,7 +62,9 @@ main :: proc() {
 
 	repository.repo_open(db_path)
 	defer repository.repo_close() // runs after the server loop returns (clean shutdown)
-	repository.repo_seed()
+	if seed, _ := os.lookup_env(env[:], "SEED"); db_path == ":memory:" || seed == "1" {
+		repository.repo_seed()
+	}
 	controllers.init_etags()
 
 	router: http.Router

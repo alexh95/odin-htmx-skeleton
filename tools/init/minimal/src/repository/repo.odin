@@ -9,9 +9,12 @@ import "core:sync"
 // make the schema, which tables prepare their statements at boot, and the seed.
 // Each table lives in its own file — notes.odin — owning its statements.
 
-// Applied in order at boot; index i == migration #(i+1). #load'd so they ride
-// inside the binary. Add 0002_*.sql here to grow the schema.
-@(private = "file") MIGRATIONS := [?]string{#load("migrations/0001_init.sql", string)}
+// The schema, in order (see migrate in db.odin). #load'd so it rides inside
+// the binary. To grow it, add 0002_*.sql and list it here; never edit a file
+// that has shipped, since every database records each one's hash.
+@(private = "file") MIGRATIONS := [?]Migration {
+	{"0001_init.sql", #load("migrations/0001_init.sql", string)},
+}
 
 // ---- lifecycle (called from main, around repo_seed) ---------------------
 
@@ -26,7 +29,8 @@ repo_close :: proc() {
 	db_close()
 }
 
-// Seed only when empty, so a persistent DB isn't duplicated. One transaction.
+// Seed only when empty. main calls it only for a store nobody owns yet
+// (:memory:, or SEED=1), so a real store is never refilled. One transaction.
 repo_seed :: proc() {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
 	exec("BEGIN;")

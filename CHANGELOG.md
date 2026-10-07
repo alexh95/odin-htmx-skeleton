@@ -234,6 +234,18 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
 
 ### Fixed
+- **Migrations are transactional and checked by name and hash, and demo rows only seed a store
+  nobody owns** ([#21](https://github.com/alexh95/odin-htmx-skeleton/issues/21); also stops the
+  [#26](https://github.com/alexh95/odin-htmx-skeleton/issues/26) crash from the runner side). Each
+  migration now runs in one transaction with the `schema_version` row that records it, so a failure
+  halfway leaves the schema untouched and the boot names the file. `schema_version` gains `name`
+  and `hash` (sha256), checked against the binary's list at every boot: an edited, renamed or unknown
+  migration stops the boot with a message saying what to do, where the old count-only runner skipped
+  it. That is what crashed the `--minimal` starter on a demo `data.db` with "no such table: notes".
+  Databases from 1.1 are adopted in place. `MIGRATIONS` entries are now `{name, sql}` pairs. Demo rows
+  seed only `:memory:`, or a file DB when `SEED=1` (`run.*` sets it for local dev), so an emptied
+  production table stays empty. Tested in `db_test.odin`: rollback, an edited and an unknown
+  migration, and adopting a 1.1 database.
 - **Ids are 64-bit, and a bad id is a 404**
   ([#16](https://github.com/alexh95/odin-htmx-skeleton/issues/16)). Ids were bound and read as
   32-bit `c.int`, and `to_int` ignored parse failures, so `GET /contacts/4294967297` returned
