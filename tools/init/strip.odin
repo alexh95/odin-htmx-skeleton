@@ -2,14 +2,16 @@ package main
 
 // ---- --minimal: strip the demo to a one-page starter --------------------
 //
-// Deletes the contacts/events demo (domain, pages, demo specs + load scenarios)
-// and drops in a minimal but complete app: a single `Note` entity with a home
+// Deletes the contacts/events demo (domain, pages, demo specs + load scenarios,
+// and the test helper only they used) and drops in a minimal but complete app: a single `Note` entity with a home
 // page that lists notes and adds one over HTMX — the whole model → repository →
 // service → view → controller stack, kept tiny so it reads as a template.
 //
 // The replacements live beside this file (tools/init/minimal/) as real files and
 // are embedded at compile time (#load), so what lands in the project is exactly
 // what you can read here.
+
+import "core:strings"
 
 MIN_MODELS :: #load("minimal/src/models/models.odin", string)
 MIN_REPO :: #load("minimal/src/repository/repo.odin", string)
@@ -24,6 +26,8 @@ MIN_E2E :: #load("minimal/e2e/home.spec.ts", string)
 MIN_E2E_ABOUT :: #load("minimal/e2e/about.spec.ts", string)
 MIN_PAGES :: #load("minimal/load/pages.js", string)
 MIN_NOTES_LOAD :: #load("minimal/load/notes.js", string)
+MIN_CHANGELOG :: #load("minimal/CHANGELOG.md", string)
+MIN_TODO :: #load("minimal/TODO.md", string)
 
 // The local dev database app/run.* default to. It holds the demo's tables at
 // the demo's migration count, so the starter's migration runner would count
@@ -52,6 +56,7 @@ strip_to_minimal :: proc(opt: Options) {
 		"e2e/tests/persistence.spec.ts",
 		"e2e/tests/responsive.spec.ts",
 		"e2e/tests/search.spec.ts",
+		"e2e/helpers/server.ts", // spawns servers for the persistence + events specs
 		"load-tests/scenarios/api.js",
 		"load-tests/scenarios/detail.js",
 		"load-tests/scenarios/list.js",
@@ -89,4 +94,38 @@ strip_to_minimal :: proc(opt: Options) {
 			{`for path in /static/app.css /api/search?q=a /; do`, `for path in /static/app.css /; do`},
 		},
 	)
+
+	// 5. A fresh changelog and backlog. The upstream's are its own history and
+	//    to-do list, and CLAUDE.md tells an agent to work from TODO.md. The new
+	//    changelog records the template release the fork started from: the
+	//    question the upstream's changelog answers later is "what changed since".
+	changelog, _ := strings.replace_all(MIN_CHANGELOG, "TEMPLATE_VERSION", template_version())
+	put("CHANGELOG.md", changelog)
+	put("TODO.md", MIN_TODO)
+}
+
+// The newest release in the upstream CHANGELOG.md, noting unreleased changes on
+// top of it.
+@(private = "file")
+template_version :: proc() -> string {
+	i := load("CHANGELOG.md")
+	if i < 0 {
+		return ""
+	}
+	s := changes[i].content
+	unreleased := false
+	for line in strings.split_lines_iterator(&s) {
+		end := strings.index_byte(line, ']')
+		if !strings.has_prefix(line, "## [") || end < 0 {
+			unreleased ||= strings.has_prefix(line, "- ") // only [Unreleased] precedes the first release
+			continue
+		}
+		v := line[len("## ["):end]
+		if v == "Unreleased" {
+			continue
+		}
+		return unreleased ? strings.concatenate({v, " plus unreleased changes"}) : v
+	}
+	problem("CHANGELOG.md: no release heading (`## [x.y.z]`) to record the template version from")
+	return ""
 }
