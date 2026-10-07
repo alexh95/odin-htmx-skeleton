@@ -94,6 +94,7 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   doesn't do. `e2e/README.md` left out `seo` and `responsive`. Both said CSS is served from disk.
   The `Dockerfile` header spoke of on-disk static assets, and `ci.yml` of "the planned SQLite layer".
 - **The minimal starter covers every endpoint in both suites**
+- **The minimal starter's write path and `/about` are in both suites**
   ([#27](https://github.com/alexh95/odin-htmx-skeleton/issues/27)). `init --minimal` now also installs
   a `POST /notes` load scenario (`notes.js`) and an `/about` e2e spec. The spec checks that the page
   renders as the current nav item, that the nav reaches it with a boosted swap, and that its repository
@@ -117,6 +118,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   a breached threshold and carries on (a sweep exists to find the knee). With it, the run lists the
   failed `scenario@VUs` and exits 1, so it can gate. Checked: `P95=0.001 ./run.sh --quick --strict
   static` exits 1, and exits 0 without `--strict`.
+
+- **`load-tests/parity.sh`** ([#40](https://github.com/alexh95/odin-htmx-skeleton/issues/40)) lists
+  every route in `routes.odin` and whether `e2e/tests/` and `load-tests/scenarios/` mention its path,
+  so the "both suites" rule can be checked rather than just stated. It's a text search, not coverage.
+  It reports and exits 0; `--strict` exits 1 on a gap, for when it can gate. Today it finds 26
+  literal routes: 6 with no e2e mention (the `/ui/*` fragments, reached by clicks), 14 with no load
+  scenario. On the minimal starter, 0 and 2 (`/healthz`, `/favicon.ico`).
 
 ### Changed
 - **The README says what the test suites enforce**

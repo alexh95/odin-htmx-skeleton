@@ -65,7 +65,7 @@ exactly what's demo vs. scaffold — follow [docs/STRIP.md](docs/STRIP.md).
 ## Tests
 
 Two suites, meant to stay at par with the app: every endpoint gets a behaviour test *and* a load
-scenario.
+scenario. `load-tests/parity.sh` lists the routes either suite doesn't mention yet.
 
 - **`e2e/`** — Playwright browser tests (Chromium/Firefox/WebKit). CI runs them on every push and
   PR. `cd e2e && npm ci && npx playwright install && npm test`.

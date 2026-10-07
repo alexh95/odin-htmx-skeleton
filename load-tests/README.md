@@ -80,3 +80,5 @@ headline figures — for those, generator and target belong on separate hosts (s
 
 Per `CLAUDE.md`: every endpoint measured here also has a behaviour test in [`../e2e/`](../e2e).
 Add an endpoint → add both its e2e scenario and its load scenario in the same change.
+[`parity.sh`](parity.sh) lists every route in `app/src/routes.odin` and whether each suite mentions
+its path. It's a text search, so read a gap as a prompt to check; `--strict` exits 1 on any gap.
