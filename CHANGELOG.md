@@ -35,6 +35,14 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   so the root `compose.yaml` aborted at startup. New `docker/seccomp-io-uring.json` is Docker's default
   profile plus `io_uring_setup`/`_enter`/`_register`, and `compose.yaml` runs under it. The requirement
   is noted in the `Dockerfile` and `compose.yaml`.
+- **The container stops cleanly, runs as non-root and reports its health**
+  ([#39](https://github.com/alexh95/odin-htmx-skeleton/issues/39)).
+  - **`STOPSIGNAL SIGINT`:** the server only handles SIGINT, so `docker stop`'s SIGTERM was ignored
+    by PID 1 and every stop waited 10 s for a SIGKILL, skipping `repo_close`.
+  - **`USER 10001`:** `/data` is created owned by it, so a fresh volume there is writable.
+    **Upgrading:** a volume that already holds root-owned files (apollo-11's `odin-htmx-data`), or a
+    Fly volume, needs a one-time `chown -R 10001:10001` on it before the new image can open the DB.
+  - **`HEALTHCHECK`** on `/healthz`, through bash's `/dev/tcp`, so it adds no package.
 
 ## [1.1.1] - 2026-10-07
 
