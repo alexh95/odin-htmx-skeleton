@@ -18,8 +18,10 @@ npm test                            # three engines + the api project; -- --proj
 Specs that never open a page (`events`, `persistence`: each starts its own server and talks HTTP)
 form the `api` project in `playwright.config.ts`, so they run once rather than once per engine.
 
-`global-setup.ts` runs `prepare` + builds `../app` once (with `-warnings-as-errors`), so a run
-needs `odin` **and a C toolchain** on `PATH` (prepare compiles SQLite). Then each Playwright
+`global-setup.ts` builds `../app` once (with `-warnings-as-errors`). It runs `prepare` first only
+when prepare's outputs are missing or don't match its pins, so a run needs `odin` (and its
+linker), plus **a C toolchain** whenever prepare has work to do (it compiles SQLite; on Windows,
+that means an x64 Native Tools prompt). A prepare failure stops the run. Then each Playwright
 **worker spawns its own server** on a port the OS picks, with an **isolated `:memory:` SQLite
 store** — which is what lets the suite run **fully in parallel** across workers and the three
 browser engines. The server's env is pinned (`helpers/server.ts`), so a `PORT` or `DB_PATH`
@@ -36,7 +38,7 @@ also runs the `api` project.
 ## Layout
 
 ```
-global-setup.ts        runs prepare + builds the app binary once (-warnings-as-errors)
+global-setup.ts        runs prepare if needed + builds the app binary once (-warnings-as-errors)
 fixtures.ts            per-worker server (own port + isolated :memory: store) → parallel
 helpers/server.ts      starts a server (free port, pinned env, fails fast with its output) + get/post/del
 tests/
