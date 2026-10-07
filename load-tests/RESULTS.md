@@ -212,13 +212,13 @@ errors**. `static` moved ~11 MB/s at 50 VUs — RTT/proxy-bound, nowhere near th
 ceiling, as expected over the internet. The 1→N thread scaling does **not** show here — the box has
 one shared vCPU — so this is a health-and-sizing check, not a threading comparison.
 
-## Two-host: apollo-11 home server (real network)
+## Two-host: a home server (real network)
 
 > Measured 2026-06-28 — generator and target on **separate machines**, so unlike loopback these
 > aren't fiction. Network-bound, so kept as-is for 1.0. **0% errors everywhere.**
 
-k6 on the workstation (5800X) → 1 GbE LAN → **apollo-11** (Intel i3-7100, 2C/4T, 4 nbio threads,
-Docker), deployed via [`../deploy/apollo-11`](../deploy/apollo-11).
+k6 on the workstation (5800X) → 1 GbE LAN → **a home server** (Intel i3-7100, 2C/4T, 4 nbio threads,
+Docker), deployed via [`../deploy/docker-host`](../deploy/docker-host).
 
 ### Direct (`http://<server-lan-ip>:8090`, no proxy)
 
