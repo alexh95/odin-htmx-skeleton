@@ -13,6 +13,9 @@ fi
 # for an ephemeral, freshly-seeded store.
 : "${DB_PATH:=data.db}"
 export DB_PATH
+# A file DB is only seeded when asked; a dev store wants the demo rows.
+: "${SEED:=1}"
+export SEED
 
 mkdir -p bin
 odin build src -out:bin/demo

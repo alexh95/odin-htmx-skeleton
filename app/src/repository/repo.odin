@@ -10,11 +10,12 @@ import "core:sync"
 // events.odin (event_*) — owning its prepared statements. Nothing above the
 // repository knows SQL.
 
-// Applied in order at boot; index i == migration #(i+1). #load'd so they ride
-// inside the binary. Add 0003_*.sql here to grow the schema.
-@(private = "file") MIGRATIONS := [?]string {
-	#load("migrations/0001_init.sql", string),
-	#load("migrations/0002_events.sql", string),
+// The schema, in order (see migrate in db.odin). #load'd so it rides inside
+// the binary. To grow it, add 0003_*.sql and list it here; never edit a file
+// that has shipped, since every database records each one's hash.
+@(private = "file") MIGRATIONS := [?]Migration {
+	{"0001_init.sql", #load("migrations/0001_init.sql", string)},
+	{"0002_events.sql", #load("migrations/0002_events.sql", string)},
 }
 
 // ---- lifecycle (called from main, around repo_seed) ---------------------
@@ -34,10 +35,10 @@ repo_close :: proc() {
 	db_close()
 }
 
-// Seed both tables, but each only when empty — so a persistent DB isn't
-// duplicated, and a DB migrated from contacts-only (e.g. an existing deploy)
-// still gets its events backfilled. One transaction = one fsync; events seed
-// after contacts so the FK targets exist.
+// Seed both tables, but each only when empty. main calls it only for a store
+// nobody owns yet (:memory:, or SEED=1), so a production table emptied on
+// purpose is never refilled with demo rows. One transaction = one fsync;
+// events seed after contacts so the FK targets exist.
 repo_seed :: proc() {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
 	exec("BEGIN;")

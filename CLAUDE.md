@@ -81,7 +81,8 @@ toolchain is now required** (MSVC Build Tools on Windows — run from an *x64 Na
 Verify with curl for contracts, and a browser (preview/headless pointed at `localhost`) for
 anything HTMX actually swaps or animates. The store is SQLite, chosen by `DB_PATH`: `:memory:`
 (a fresh seeded store per process — the test/CI default) or a file path that persists (`run.*`
-default to a local `data.db`). `SITE_URL` overrides the canonical origin (`views.SITE_URL`,
+default to a local `data.db`, with `SEED=1` so it gets the demo rows; a file DB is never seeded
+otherwise). `SITE_URL` overrides the canonical origin (`views.SITE_URL`,
 default `https://odin-htmx.alexh95.com`) that feeds the canonical/og tags, `/sitemap.xml` and the
 `*.fly.dev` redirect — set it in any environment served under another domain. A clean build is
 **zero warnings** — treat warnings as errors.

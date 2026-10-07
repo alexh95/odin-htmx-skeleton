@@ -3,6 +3,8 @@ package repository
 import "../sqlite"
 
 import "core:c"
+import "core:crypto/sha2"
+import "core:encoding/hex"
 import "core:fmt"
 import "core:log"
 import "core:os"
@@ -62,15 +64,132 @@ db_close :: proc() {
 	sqlite.close(db)
 }
 
-// Migrations applied in order at boot; index i == migration #(i+1).
+// ---- migrations ---------------------------------------------------------
+//
+// Plain SQL files applied in order at boot; migrations[i] is migration #(i+1).
+// Each runs in its own transaction together with the schema_version row that
+// records it, so one that fails halfway leaves the schema exactly as it was
+// (SQLite DDL is transactional; a migration file must not BEGIN/COMMIT itself).
+//
+// Every applied migration is recorded by file name and content hash and checked
+// against the binary's list on each boot. An edited, renamed or unknown one
+// stops the boot with a message naming it. Counting versions alone can't tell
+// a different schema from the same one: that is how the --minimal starter met a
+// demo data.db and died on "no such table: notes".
+
+Migration :: struct {
+	name, sql: string,
+}
+
 @(private)
-migrate :: proc(migrations: []string) {
-	exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);")
-	cur := scalar_int("SELECT coalesce(max(version),0) FROM schema_version")
-	for i in cur ..< len(migrations) {
-		exec(csql(migrations[i]))
-		exec(csql(fmt.tprintf("INSERT INTO schema_version(version) VALUES(%d);", i + 1)))
+migrate :: proc(migrations: []Migration) {
+	if problem := apply_migrations(migrations); problem != "" {
+		fmt.eprintfln("migrations: %s", problem)
+		os.exit(1)
 	}
+}
+
+// Returns "" or what stopped it; the caller decides whether that's fatal.
+@(private)
+apply_migrations :: proc(migrations: []Migration) -> (problem: string) {
+	Applied :: struct {
+		version:    int,
+		name, hash: string,
+		legacy:     bool,
+	}
+
+	exec("BEGIN;")
+	exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);")
+	// 1.1 and earlier recorded only the number. Add the identity columns; the
+	// rows they find are adopted below, trusting the binary that finds them.
+	if scalar_int("SELECT count(*) FROM pragma_table_info('schema_version') WHERE name='hash'") == 0 {
+		exec("ALTER TABLE schema_version ADD COLUMN name TEXT;")
+		exec("ALTER TABLE schema_version ADD COLUMN hash TEXT;")
+	}
+
+	rows := make([dynamic]Applied, context.temp_allocator)
+	{
+		st: sqlite.Stmt
+		prep("SELECT version, name, hash FROM schema_version ORDER BY version", &st)
+		defer sqlite.finalize(st)
+		err: Error
+		for next_row(st, &err) {
+			legacy := sqlite.column_type(st, 2) == sqlite.NULL
+			append(&rows, Applied{column_id(st, 0), clone_col(st, 1), clone_col(st, 2), legacy})
+		}
+	}
+
+	for r, i in rows {
+		switch {
+		case r.version != i + 1:
+			problem = fmt.tprintf("schema_version should count 1, 2, 3…; found #%d where #%d belongs", r.version, i + 1)
+		case r.version > len(migrations):
+			problem = fmt.tprintf(
+				"the database has migration #%d (%s), which this binary doesn't. It was written by a newer or a different app; point DB_PATH at its own file.",
+				r.version, r.legacy ? "unnamed" : r.name,
+			)
+		case r.legacy:
+			m := migrations[i]
+			st: sqlite.Stmt
+			prep("UPDATE schema_version SET name=?, hash=? WHERE version=?", &st)
+			bind_text(st, 1, m.name);bind_text(st, 2, migration_hash(m.sql));bind_id(st, 3, r.version)
+			err := step_done(st)
+			sqlite.finalize(st)
+			if err != .None {
+				problem = "recording the names of earlier migrations failed"
+			}
+		case r.name != migrations[i].name || r.hash != migration_hash(migrations[i].sql):
+			m := migrations[i]
+			problem = fmt.tprintf(
+				"migration #%d was applied as %s (sha256 %s) but this binary has %s (sha256 %s). An applied migration must never change: add a new one instead. For a dev database built by another schema, move it aside (delete app/data.db*).",
+				r.version, r.name, r.hash[:min(12, len(r.hash))], m.name, migration_hash(m.sql)[:12],
+			)
+		}
+		if problem != "" {
+			exec("ROLLBACK;")
+			return
+		}
+	}
+	exec("COMMIT;")
+
+	for m, i in migrations[len(rows):] {
+		exec("BEGIN;")
+		if sqlite.exec(db, csql(m.sql), nil, nil, nil) != sqlite.OK {
+			problem = fmt.tprintf("%s failed: %s. Rolled back; the schema is unchanged.", m.name, sqlite.errmsg(db))
+			exec("ROLLBACK;")
+			return
+		}
+		st: sqlite.Stmt
+		prep("INSERT INTO schema_version(version, name, hash) VALUES(?,?,?)", &st)
+		bind_id(st, 1, len(rows) + i + 1);bind_text(st, 2, m.name);bind_text(st, 3, migration_hash(m.sql))
+		err := step_done(st)
+		sqlite.finalize(st)
+		if err != .None {
+			exec("ROLLBACK;")
+			return fmt.tprintf("recording %s failed", m.name)
+		}
+		exec("COMMIT;")
+		log.infof("migrations: applied %s", m.name)
+	}
+	return ""
+}
+
+// sha256 of the SQL, hex. Carriage returns are dropped first, so a checkout
+// with CRLF line endings hashes the same as the LF one that wrote the record.
+@(private)
+migration_hash :: proc(sql: string) -> string {
+	ctx: sha2.Context_256
+	sha2.init_256(&ctx)
+	rest := sql
+	for len(rest) > 0 {
+		cr := strings.index_byte(rest, '\r')
+		chunk := cr < 0 ? rest : rest[:cr]
+		sha2.update(&ctx, transmute([]byte)chunk)
+		rest = cr < 0 ? "" : rest[cr + 1:]
+	}
+	sum: [sha2.DIGEST_SIZE_256]byte
+	sha2.final(&ctx, sum[:])
+	return string(hex.encode(sum[:], context.temp_allocator))
 }
 
 // ---- shared helpers (caller holds the lock) -----------------------------
