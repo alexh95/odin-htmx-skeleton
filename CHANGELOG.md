@@ -93,6 +93,14 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   six files run by a `serve.mjs` launcher, and its CI section described a browser install the CI
   doesn't do. `e2e/README.md` left out `seo` and `responsive`. Both said CSS is served from disk.
   The `Dockerfile` header spoke of on-disk static assets, and `ci.yml` of "the planned SQLite layer".
+### Fixed
+- **A fork's e2e no longer fails on the blanked ownership tokens**
+  ([#24](https://github.com/alexh95/odin-htmx-skeleton/issues/24)). The `BingSiteAuth.xml` and
+  IndexNow tests decided whether to run by looking for `/data` in the sitemap, so after `init` blanked
+  both tokens they still ran and got 404. They now read `BING_SITE_AUTH` / `INDEXNOW_KEY` from
+  `brand.odin` and skip only when the token is empty; when one is set they also check the served
+  value against it. The `*.fly.dev` redirect test skips while `SITE_URL` is still an
+  `*.example.com` placeholder, the case #25 changes.
 
 ## [1.1.1] - 2026-10-07
 

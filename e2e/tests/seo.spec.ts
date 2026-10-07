@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { test, expect } from '../fixtures';
+import { appDirFrom } from '../global-setup';
 
 // The crawler-facing contract. None of this is visible in the UI, so it can rot
 // silently — these are the checks that catch it.
@@ -19,6 +22,18 @@ function attr(text: string, re: RegExp): string {
 async function sitemapPaths(request: any): Promise<string[]> {
   const body = await (await request.get('/sitemap.xml')).text();
   return [...body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname);
+}
+
+// The search-engine ownership tokens are per-deployment identity: `init` blanks
+// them and a fork sets its own. Nothing the app serves says whether one is set
+// (an unset token is a plain 404), so read the constant from the source. A
+// missing constant fails rather than reads as "unset", so a renamed one can't
+// quietly turn its test into a skip.
+function brandConst(name: string): string {
+  const file = path.join(appDirFrom(test.info().config), 'src', 'views', 'brand.odin');
+  const m = readFileSync(file, 'utf8').match(new RegExp(`^${name}\\s*::\\s*"([^"]*)"`, 'm'));
+  expect(m, `${name} in brand.odin`).toBeTruthy();
+  return m![1];
 }
 
 test.describe('SEO contract', () => {
@@ -84,11 +99,8 @@ test.describe('SEO contract', () => {
   });
 
   test('BingSiteAuth.xml proves ownership with a well-formed token', async ({ request }) => {
-    // Deployment-specific, not skeleton functionality: `init` blanks the token and
-    // the minimal starter has no route at all, so this is scoped to the demo the
-    // same way the robots disallow list is.
-    const paths = await sitemapPaths(request);
-    test.skip(!paths.includes('/data'), 'no verification token in this variant');
+    const token = brandConst('BING_SITE_AUTH');
+    test.skip(token === '', 'BING_SITE_AUTH is unset, so the route 404s by design');
 
     const res = await request.get('/BingSiteAuth.xml');
     expect(res.status()).toBe(200);
@@ -98,19 +110,15 @@ test.describe('SEO contract', () => {
     // Bing parses this as XML; a stray character makes it unverifiable, and the
     // failure surfaces only in Bing's console days later.
     expect(body.startsWith('<?xml')).toBe(true);
-    const token = attr(body, /<user>([^<]+)<\/user>/);
+    expect(attr(body, /<user>([^<]+)<\/user>/)).toBe(token);
     expect(token).toMatch(/^[0-9A-F]{32}$/); // Bing tokens are 32 uppercase hex
   });
 
   test('the IndexNow key file is served verbatim at its own path', async ({ request }) => {
-    // Same deployment-specific scoping as BingSiteAuth: `init` blanks the key and
-    // the route is not even registered without one.
-    const paths = await sitemapPaths(request);
-    test.skip(!paths.includes('/data'), 'no IndexNow key in this variant');
-
-    // Mirrors views.INDEXNOW_KEY. Duplicated on purpose: the path *is* the key, so
-    // rotating it must fail here rather than silently deactivate IndexNow.
-    const KEY = 'e826b40f813548d2bd2e94885e506dfa';
+    // The path *is* the key, so a route that stopped matching it would silently
+    // deactivate IndexNow; this is what notices.
+    const KEY = brandConst('INDEXNOW_KEY');
+    test.skip(KEY === '', 'INDEXNOW_KEY is unset, so the route is not registered');
 
     const res = await request.get(`/${KEY}.txt`);
     expect(res.status()).toBe(200);
@@ -253,6 +261,12 @@ test.describe('SEO contract', () => {
 
   test.describe('canonical host redirect', () => {
     test('a *.fly.dev request is 301d to the canonical origin, query intact', async ({ request }) => {
+      // `init` defaults SITE_URL to a <name>.example.com placeholder until the
+      // fork has a real domain. Redirecting there would take the site down, so
+      // this contract only holds once SITE_URL names a real origin.
+      const origin = new URL((await (await request.get('/sitemap.xml')).text()).match(/<loc>([^<]+)</)![1]);
+      test.skip(/(^|\.)example\.(com|net|org)$/.test(origin.hostname), 'SITE_URL is a placeholder');
+
       const res = await request.get('/?q=ada&sort=name', {
         headers: { Host: 'example-app.fly.dev' },
         maxRedirects: 0,
