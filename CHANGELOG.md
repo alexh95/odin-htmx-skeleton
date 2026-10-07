@@ -8,6 +8,12 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Changed
+- **The repository's SQLite plumbing is one shared file.** `repository/db.odin` holds the
+  connection, lock, migration runner and bind/scan helpers, unchanged between the demo and the
+  `--minimal` starter; `repo.odin` keeps only the app's wiring (migrations, statements, seed). A fix
+  to the plumbing now lands in both variants at once.
+
 ### Fixed
 - **Request bodies and text fields are size-limited**
   ([#13](https://github.com/alexh95/odin-htmx-skeleton/issues/13)). A 50 MB `name` used to be
