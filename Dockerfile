@@ -2,6 +2,11 @@
 #
 # Two stages: build the self-contained binary, then ship it with the on-disk
 # static assets on a slim glibc base. The runtime image carries no toolchain.
+#
+# Running it needs Linux io_uring, which Docker's default seccomp profile blocks
+# (since 25.0): start it with docker/seccomp-io-uring.json, as compose.yaml does,
+# or the server aborts at startup. containerd's default (since 2.0) blocks it too,
+# so on Kubernetes RuntimeDefault isn't enough: load the same profile (Localhost).
 
 # ---- build: fetch a pinned Odin, build for linux/amd64 -------------------
 # Debian 13 (trixie). Bookworm's regular security support ended 2026-07-12 (LTS

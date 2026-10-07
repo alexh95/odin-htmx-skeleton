@@ -29,6 +29,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   for the whole workflow; no job needs more, the deploy included (it uses `FLY_API_TOKEN`). Branch
   pushes get a concurrency group per run, so they are never cancelled or queued.
 
+### Fixed
+- **`docker compose up` can start the server** ([#38](https://github.com/alexh95/odin-htmx-skeleton/issues/38)).
+  odin-http's event loop needs io_uring, which Docker's default seccomp profile has blocked since 25.0,
+  so the root `compose.yaml` aborted at startup. New `docker/seccomp-io-uring.json` is Docker's default
+  profile plus `io_uring_setup`/`_enter`/`_register`, and `compose.yaml` runs under it. The requirement
+  is noted in the `Dockerfile` and `compose.yaml`.
+
 ## [1.1.1] - 2026-10-07
 
 A patch release with two changes:
