@@ -39,6 +39,11 @@ test.describe('style defaults', () => {
     await page.goto('/');
     const list = page.locator('#note-list');
     expect(await list.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe('0px');
-    await expect(list.locator('.note').first()).toContainText('Welcome');
+    // Among the seeded notes the welcome one is the newest, so it comes first.
+    // (Other specs may have added newer notes above them on this worker's store.)
+    const notes = await list.locator('.note-body').allTextContents();
+    const at = (s: string) => notes.findIndex((n) => n.includes(s));
+    expect(at('Welcome')).toBeGreaterThanOrEqual(0);
+    expect(at('Welcome')).toBeLessThan(at('Notes live in SQLite'));
   });
 });
