@@ -12,13 +12,15 @@ import "core:sync"
 // The original entity. The seven repo_* (the storage contract) live here; the
 // shared connection/lock and the bind/scan/exec helpers come from db.odin.
 
-@(private = "file") q_list, q_get, q_create, q_update, q_set_status, q_delete, q_count: sqlite.Stmt
+@(private = "file") q_list, q_get, q_create, q_update, q_cycle, q_delete, q_count: sqlite.Stmt
 
 @(private = "file") SQL_LIST: cstring : "SELECT id,name,email,role,status,score FROM contacts ORDER BY id"
 @(private = "file") SQL_GET: cstring : "SELECT id,name,email,role,status,score FROM contacts WHERE id=? LIMIT 1"
 @(private = "file") SQL_CREATE: cstring : "INSERT INTO contacts(name,email,role,status,score) VALUES(?,?,?,?,?)"
 @(private = "file") SQL_UPDATE: cstring : "UPDATE contacts SET name=?,email=?,role=?,status=?,score=? WHERE id=?"
-@(private = "file") SQL_SET_STATUS: cstring : "UPDATE contacts SET status=? WHERE id=?"
+// One statement, so two clicks at once advance the status twice instead of both
+// reading the same value and writing the same next one. ?2 is len(models.Status).
+@(private = "file") SQL_CYCLE: cstring : "UPDATE contacts SET status=(status+1)%?2 WHERE id=?1"
 @(private = "file") SQL_DELETE: cstring : "DELETE FROM contacts WHERE id=?"
 @(private = "file") SQL_COUNT: cstring : "SELECT count(*) FROM contacts"
 
@@ -26,13 +28,13 @@ import "core:sync"
 prepare_contacts :: proc() {
 	prep(SQL_LIST, &q_list);prep(SQL_GET, &q_get)
 	prep(SQL_CREATE, &q_create);prep(SQL_UPDATE, &q_update)
-	prep(SQL_SET_STATUS, &q_set_status);prep(SQL_DELETE, &q_delete)
+	prep(SQL_CYCLE, &q_cycle);prep(SQL_DELETE, &q_delete)
 	prep(SQL_COUNT, &q_count)
 }
 
 @(private)
 finalize_contacts :: proc() {
-	for st in ([]sqlite.Stmt{q_list, q_get, q_create, q_update, q_set_status, q_delete, q_count}) {
+	for st in ([]sqlite.Stmt{q_list, q_get, q_create, q_update, q_cycle, q_delete, q_count}) {
 		sqlite.finalize(st)
 	}
 }
@@ -79,11 +81,12 @@ repo_update :: proc(id: int, name, email: string, role: models.Role, status: mod
 	return get_unlocked(id)
 }
 
-repo_set_status :: proc(id: int, status: models.Status) -> (models.Contact, Error) {
+// Advance the status one step round the cycle (Active → Invited → Disabled → …).
+repo_cycle_status :: proc(id: int) -> (models.Contact, Error) {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
-	defer sqlite.reset(q_set_status)
-	sqlite.bind_int(q_set_status, 1, c.int(status));bind_id(q_set_status, 2, id)
-	if err := step_done(q_set_status); err != .None {
+	defer sqlite.reset(q_cycle)
+	bind_id(q_cycle, 1, id);sqlite.bind_int(q_cycle, 2, c.int(len(models.Status)))
+	if err := step_done(q_cycle); err != .None {
 		return {}, err
 	}
 	if sqlite.changes(db) == 0 {
