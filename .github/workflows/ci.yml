@@ -161,6 +161,67 @@ jobs:
             --data 'name=CI Smoke&email=ci@example.com&role=0&status=1' -o /dev/null
           kill "$pid"
 
+  # Builds the production image and runs it through compose.yaml, so a broken
+  # Dockerfile fails the PR rather than Fly's builder after the merge, and a fork
+  # without Fly gets its image tested at all. Host runner: it needs the Docker
+  # daemon. deploy doesn't wait for it (init rewrites deploy's `needs:` line by
+  # exact match); Fly's builder rebuilds the same Dockerfile and fails the deploy
+  # itself if it doesn't build.
+  docker:
+    name: Docker image (build + run)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Build the image
+        run: docker compose build
+
+      # --wait returns once the HEALTHCHECK passes, and fails if the container exits
+      # or never turns healthy: the server started under docker/seccomp-io-uring.json.
+      - name: Start it (compose.yaml)
+        run: docker compose up --wait --wait-timeout 60
+
+      - name: Smoke test
+        run: |
+          test "$(curl -fsS http://127.0.0.1:8080/healthz)" = "ok"
+          curl -fsS http://127.0.0.1:8080/ -o /dev/null
+          test "$(docker compose exec -T app id -u)" = "10001"   # not root
+
+      # STOPSIGNAL SIGINT reaches the server's shutdown hook: a clean exit 0 within
+      # a second or so. A missed signal shows as a SIGKILL (137) after 10 s.
+      - name: docker stop shuts it down cleanly
+        run: |
+          id=$(docker compose ps -q app)
+          start=$(date +%s%N)
+          docker compose stop
+          ms=$(( ($(date +%s%N) - start) / 1000000 ))
+          code=$(docker inspect -f '{{.State.ExitCode}}' "$id")
+          echo "stopped in ${ms} ms, exit code ${code}"
+          test "$code" = 0 && test "$ms" -lt 3000
+
+      # The non-root user must be able to create the DB (and its -wal/-shm) on a
+      # fresh volume at /data, the documented DB_PATH home.
+      - name: Persist to a fresh /data volume
+        run: |
+          img=$(docker inspect -f '{{.Image}}' "$(docker compose ps -aq app)")
+          docker run -d --name persist --security-opt seccomp=docker/seccomp-io-uring.json \
+            -e DB_PATH=/data/data.db -v ci-data:/data "$img"
+          for i in $(seq 1 30); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' persist)" = healthy ] && break
+            sleep 1
+          done
+          docker exec persist test -s /data/data.db
+          docker stop persist
+
+      - name: Container output
+        if: ${{ !cancelled() }}
+        run: |
+          docker compose logs
+          docker logs persist || true
+
   # Browser tests (Playwright), sharded one engine per runner so the three run
   # concurrently. Runs in Playwright's official image, which bakes in the three
   # browsers + their OS deps + node/npm — so there's no per-run browser install
