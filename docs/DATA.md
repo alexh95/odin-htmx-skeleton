@@ -1,7 +1,7 @@
 # Data — past the in-memory POC
 
 > **Update:** the SQLite step described here now ships (see
-> [`DATA_IMPL.md`](DATA_IMPL.md) and the `src/repository/` package (`repo.odin` + `contacts.odin` + `events.odin`)). `DB_PATH=:memory:` keeps
+> [`DATA_IMPL.md`](DATA_IMPL.md) and the `src/repository/` package (`db.odin` + `repo.odin` + `contacts.odin` + `events.odin`)). `DB_PATH=:memory:` keeps
 > the old POC behaviour (in-RAM, seeded on boot, gone on exit — now a real in-RAM SQLite rather than
 > a hand-rolled slice); a file path persists. The *when-is-each-right* reasoning below still stands.
 
@@ -12,7 +12,7 @@ sense* — and when it honestly doesn't need to.
 ## The seam already exists
 
 The whole point of the layered design is that the datasource is swappable without touching anything
-above it. **the `src/repository/` package (`repo.odin` + `contacts.odin` + `events.odin`) is the only code that touches storage.** Everything
+above it. **the `src/repository/` package (`db.odin` + `repo.odin` + `contacts.odin` + `events.odin`) is the only code that touches storage.** Everything
 else speaks in `models.Contact` and calls `repo_list / repo_get / repo_create / repo_update /
 repo_delete`. Swapping backends = reimplementing those procedures. Services, views, controllers,
 and the entire HTTP surface stay byte-for-byte identical.

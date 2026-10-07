@@ -10,7 +10,7 @@ import "core:time"
 //
 // The one entity's storage — your example to copy. Statements are prepared once
 // (prepare_notes, called from repo_open) and every op takes the shared lock in
-// repo.odin. Text columns are cloned into the request arena (clone_col) so a
+// db.odin. Text columns are cloned into the request arena (clone_col) so a
 // returned string never aliases a statement buffer.
 
 @(private = "file") q_list, q_create, q_count: sqlite.Stmt
