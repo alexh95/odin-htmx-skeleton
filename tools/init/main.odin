@@ -95,9 +95,12 @@ main :: proc() {
 	fmt.println("  - deploy: infra/PLAN.md → Operator steps (Fly), or deploy/docker-host (any Docker host)")
 	fmt.println("  - LICENSE is the upstream's zlib notice, which stays in source copies; add your own")
 	fmt.println("    copyright for your changes")
-	fmt.println("  - CHANGELOG.md / TODO.md / load-tests/RESULTS.md describe the example; prune them")
 	if opt.minimal {
+		fmt.println("  - CHANGELOG.md and TODO.md are new (TODO.md keeps this list); load-tests/RESULTS.md")
+		fmt.println("    still holds the demo's numbers")
 		fmt.println("  - if DB_PATH points at a database other than app/data.db, delete that too: it has the demo's schema")
+	} else {
+		fmt.println("  - CHANGELOG.md / TODO.md / load-tests/RESULTS.md describe the example; prune them")
 	}
 	fmt.println("  - once you're happy, delete tools/init (a one-time step) and commit")
 	report_leftovers()
