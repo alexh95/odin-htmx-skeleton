@@ -38,6 +38,11 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 - **CI runs on `main` as well as `master`, and deploys from the repo's default branch** (part of
   [#44](https://github.com/alexh95/odin-htmx-skeleton/issues/44)). A fork that renamed its default
   branch used to lose CI and its deploy without a word.
+- **The Odin download is checked against its SHA-256** in CI and the `Dockerfile` (part of
+  [#44](https://github.com/alexh95/odin-htmx-skeleton/issues/44)), like htmx and SQLite already were.
+  The release's published digests sit next to `ODIN_VERSION`: `ODIN_SHA256` in `ci.yml`'s env and
+  the `Dockerfile`, and one `odin_sha256` per build-matrix asset. The build job's Odin cache key now
+  includes the digest.
 
 ### Fixed
 - **`docker compose up` can start the server** ([#38](https://github.com/alexh95/odin-htmx-skeleton/issues/38)).
