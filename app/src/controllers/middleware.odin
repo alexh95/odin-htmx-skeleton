@@ -2,8 +2,10 @@ package controllers
 
 import "core:crypto/sha2"
 import "core:encoding/base64"
+import "core:log"
 import "core:net"
 import "core:strings"
+import "core:time"
 
 import http "../../odin-http"
 import "../views"
@@ -19,7 +21,12 @@ import "../views"
 // at MAX_BODY. Doing that here rather than per handler means the cap and the
 // guard hold for every route, including the ones a fork adds, and a handler gets
 // the parsed form synchronously from request_form() instead of wiring its own
-// async read.
+// async read. Every way out writes one access-log line (access_log).
+
+// The build, as CI names it: `odin build src -define:VERSION=1.2.0` (or a commit).
+// Sent on every response (x-version) and logged at boot, so a log or a curl says
+// which release answered. A local build is "dev".
+VERSION :: #config(VERSION, "dev")
 
 // Far above any form this app posts (the longest field is capped in services),
 // so it only ever stops abuse. A larger body is refused with 413 before a byte
@@ -28,24 +35,29 @@ MAX_BODY :: 64 * 1024
 
 front :: proc(handler: ^http.Handler, req: ^http.Request, res: ^http.Response) {
 	next := handler.next.(^http.Handler)
+	start := time.tick_now()
 	security_headers(res)
 	if canonical_host(req, res) {
+		access_log(req, res, start)
 		return
 	}
 	if !same_origin(req) {
 		http.respond_plain(res, "Cross-site request refused.", .Forbidden)
+		access_log(req, res, start)
 		return
 	}
 	if !has_body(req) {
 		next.handle(next, req, res)
+		access_log(req, res, start)
 		return
 	}
 	// http.body may finish later, from the event loop, so what the callback
 	// needs lives in the request arena, not on this stack frame.
 	p := new(Pending, context.temp_allocator)
-	p^ = {next, req, res}
+	p^ = {next, req, res, start}
 	http.body(req, MAX_BODY, p, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
 		p := (^Pending)(user)
+		defer access_log(p.req, p.res, p.start)
 		if err != nil {
 			// The unread rest of the body is still on the wire, so odin-http will close
 			// the connection; say so, or a keep-alive client reuses a dead socket.
@@ -59,6 +71,17 @@ front :: proc(handler: ^http.Handler, req: ^http.Request, res: ^http.Response) {
 		context.user_ptr = &text
 		p.next.handle(p.next, p.req, p.res)
 	})
+}
+
+// One line per request: method, path (not the query, which can carry what a
+// user typed), status and the time spent in the app. Logged once the handler
+// has returned; every handler here responds before it does, so the status is
+// final. At .Info, so LOG_LEVEL=warn silences it (see main).
+@(private = "file")
+access_log :: proc(req: ^http.Request, res: ^http.Response, start: time.Tick) {
+	method := req.is_head ? "HEAD" : http.method_string(req.line.(http.Requestline).method)
+	ms := time.duration_milliseconds(time.tick_since(start))
+	log.infof("%s %s %d %.2fms", method, req.url.path, int(res.status), ms)
 }
 
 // The current request's form fields, '+'- and percent-decoded. Empty for a
@@ -107,6 +130,7 @@ init_security :: proc() {
 
 @(private = "file")
 security_headers :: proc(res: ^http.Response) {
+	http.headers_set(&res.headers, "x-version", VERSION)
 	http.headers_set(&res.headers, "content-security-policy", csp)
 	http.headers_set(&res.headers, "x-content-type-options", "nosniff")
 	http.headers_set(&res.headers, "x-frame-options", "DENY")
@@ -216,9 +240,10 @@ placeholder_origin :: proc(origin: string) -> bool {
 
 @(private = "file")
 Pending :: struct {
-	next: ^http.Handler,
-	req:  ^http.Request,
-	res:  ^http.Response,
+	next:  ^http.Handler,
+	req:   ^http.Request,
+	res:   ^http.Response,
+	start: time.Tick,
 }
 
 // Only a request that announces a body is read. http.body on one that doesn't

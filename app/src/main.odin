@@ -1,6 +1,7 @@
 package main
 
 import "core:fmt"
+import "core:log"
 import "core:net"
 import "core:os"
 import "core:strconv"
@@ -21,6 +22,21 @@ DEFAULT_PORT :: 8080
 
 main :: proc() {
 	env: [64]u8
+
+	// Odin's default logger discards everything, odin-http's own warnings
+	// included, so install a real one before anything can log. The server's
+	// threads are started with this context, so they inherit it. LOG_LEVEL
+	// (debug|info|warn|error) sets the floor; at warn the access log is off.
+	level := log.Level.Info
+	switch v, _ := os.lookup_env(env[:], "LOG_LEVEL"); v {
+	case "debug":
+		level = .Debug
+	case "warn", "warning":
+		level = .Warning
+	case "error":
+		level = .Error
+	}
+	context.logger = log.create_console_logger(level, {.Level, .Date, .Time, .Terminal_Color})
 
 	port := DEFAULT_PORT
 	if v, _ := os.lookup_env(env[:], "PORT"); v != "" {
@@ -95,6 +111,7 @@ main :: proc() {
 	}
 
 	fmt.printfln("odin-htmx-skeleton listening on http://%s:%d (%d threads)", host, port, opts.thread_count)
+	log.infof("version %s, store %s, site %s", controllers.VERSION, db_path, views.SITE_URL)
 	routes := http.router_handler(&router)
 	if err := http.listen_and_serve(&s, http.middleware_proc(&routes, controllers.front), endpoint, opts); err != nil {
 		fmt.eprintfln("server error: %v", err)
