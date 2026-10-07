@@ -82,8 +82,49 @@ concrete constraint forces it, not by default.
 - **Schema as plain SQL files**, applied in order at startup (a `schema_version` table + a tiny
   apply-on-boot loop) or by a one-shot tool. No ORM, no migration framework — same discipline as the
   rest of the stack.
-- **Backups** are a file copy (SQLite) or your provider's snapshots (Postgres).
+- **Backups** are `<bin> --backup <file>` (SQLite: a consistent copy via `VACUUM INTO`, safe while
+  the server runs; see the runbook below) or your provider's snapshots (Postgres). **Never copy
+  `data.db` itself while the server runs**: in WAL mode, recent commits live in `data.db-wal` until a
+  checkpoint, so a copy of the main file alone can silently miss them.
 - **Seeding** stays exactly as `repo_seed` does now, just writing through the real backend.
+
+## Backup and restore (SQLite)
+
+The binary backs itself up: `DB_PATH=<live db> <bin> --backup <new file>` writes a consistent,
+compacted snapshot with `VACUUM INTO` and exits. It opens its own connection, so it runs beside the
+live server, and it refuses to overwrite an existing file. `/healthz` stays green throughout.
+
+**Back up** (from wherever the database lives; use a dated name, so each run makes a new file):
+
+```sh
+# Fly (the Dockerfile puts the binary at /app/demo — /app/<name> after init; the volume at /data):
+fly ssh console -C "/app/demo --backup /data/backup-$(date +%F).db"   # DB_PATH is already set
+fly ssh sftp get /data/backup-$(date +%F).db                                     # take it off the volume
+# Docker host:
+docker exec <container> /app/demo --backup /data/backup-$(date +%F).db
+docker cp <container>:/data/backup-$(date +%F).db .
+```
+
+Run it on a schedule (a cron job or systemd timer on the host; on Fly, a scheduled GitHub Action or
+machine running the same `fly ssh console` line), keep several, and copy them **off the machine**: a
+backup on the same volume dies with it. A Fly volume lives on one host, so its snapshots are a
+second line, not the first.
+
+**Restore**:
+
+1. Stop the app (`fly scale count 0`, or `docker compose stop`).
+2. Replace `data.db` with the backup, and **delete `data.db-wal` and `data.db-shm`**: a stale WAL
+   would be replayed onto the restored file.
+3. Start the app. The boot log names the migrations it applied (none, if the backup is current), and
+   a backup from an older release is migrated forward like any database; one written by a different
+   app is refused with a message rather than opened.
+4. Check `/healthz` and a page you know the data for.
+
+Rehearse it once before you need it: `e2e/tests/backup.spec.ts` does exactly this.
+
+**One machine, one database.** With `DB_PATH` on a volume, `fly scale count 2` gives two machines
+two separate databases that drift apart. Persistent SQLite here means one machine; past that is the
+Postgres row of the table below.
 
 ## Summary
 

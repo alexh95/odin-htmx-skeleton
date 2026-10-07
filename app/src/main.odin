@@ -38,6 +38,12 @@ main :: proc() {
 	}
 	context.logger = log.create_console_logger(level, {.Level, .Date, .Time, .Terminal_Color})
 
+	// `<bin> --backup <path>`: write a consistent copy of DB_PATH to <path> and
+	// exit, beside a running server or not (repository.repo_backup).
+	if len(os.args) > 1 && os.args[1] == "--backup" {
+		os.exit(backup(os.args[2:]))
+	}
+
 	port := DEFAULT_PORT
 	if v, _ := os.lookup_env(env[:], "PORT"); v != "" {
 		if p, ok := strconv.parse_int(v); ok {
@@ -117,4 +123,18 @@ main :: proc() {
 		fmt.eprintfln("server error: %v", err)
 		os.exit(1)
 	}
+}
+
+backup :: proc(args: []string) -> int {
+	db_path := os.get_env("DB_PATH", context.temp_allocator)
+	if len(args) != 1 || db_path == "" || db_path == ":memory:" {
+		fmt.eprintln("usage: DB_PATH=<live db> <bin> --backup <new file>   (DB_PATH must be a file)")
+		return 2
+	}
+	if problem := repository.repo_backup(db_path, args[0]); problem != "" {
+		fmt.eprintfln("backup: %s", problem)
+		return 1
+	}
+	fmt.printfln("backup: %s -> %s", db_path, args[0])
+	return 0
 }
