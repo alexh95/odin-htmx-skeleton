@@ -63,6 +63,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
 
 ### Fixed
+- **`prepare.bat` re-runs cleanly outside the MSVC dev shell**
+  ([#31](https://github.com/alexh95/odin-htmx-skeleton/issues/31)). It looked for `cl` before checking
+  whether anything needed compiling, so every re-run from a plain shell failed with the Build Tools
+  banner even with `sqlite3.lib` built (and e2e's global-setup printed it on every run). `cl` is now
+  looked for only when the lib is missing or stale, and `prepare.sh` does the same for clang/gcc. A
+  failing `cl` or `lib` now stops the script: the old `( popd ^& goto :fail )` escaped the `&`, so
+  the `goto` never ran.
 - **Visual defaults: bare checkboxes, the starter's note list**
   ([#30](https://github.com/alexh95/odin-htmx-skeleton/issues/30)). The global
   `input, select, textarea { width: 100% }` stretched a bare checkbox to about 815 px; it now skips

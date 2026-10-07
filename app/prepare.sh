@@ -48,21 +48,6 @@ SQLITE_ID=sqlite-amalgamation-3530400                                           
 SQLITE_SHA256=1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d
 SQLITE_DIR=vendor/sqlite
 
-# Compiling the amalgamation makes a C toolchain a hard requirement. Check up front.
-CC="${CC:-}"
-if [ -z "$CC" ]; then
-  if command -v clang >/dev/null 2>&1; then CC=clang
-  elif command -v gcc >/dev/null 2>&1; then CC=gcc; fi
-fi
-if [ -z "$CC" ] || ! command -v ar >/dev/null 2>&1; then
-  echo "error: a C toolchain (clang/gcc + ar) is required to build SQLite." >&2
-  case "$(uname -s)" in
-    Darwin) echo "  macOS:  xcode-select --install" >&2 ;;
-    *)      echo "  Linux:  sudo apt-get install -y clang" >&2 ;;
-  esac
-  exit 1
-fi
-
 mkdir -p "$SQLITE_DIR"
 
 # Download + verify + extract, unless the pinned source is already in place.
@@ -89,6 +74,21 @@ fi
 if [ "$SQLITE_DIR/sqlite3.a" -nt "$SQLITE_DIR/sqlite3.c" ]; then
   echo "[skip] sqlite3.a is up to date."
 else
+  # Only compiling needs a C toolchain, so it is looked for here, not up front: a
+  # re-run with the lib already built has nothing to compile.
+  CC="${CC:-}"
+  if [ -z "$CC" ]; then
+    if command -v clang >/dev/null 2>&1; then CC=clang
+    elif command -v gcc >/dev/null 2>&1; then CC=gcc; fi
+  fi
+  if [ -z "$CC" ] || ! command -v ar >/dev/null 2>&1; then
+    echo "error: a C toolchain (clang/gcc + ar) is required to build SQLite." >&2
+    case "$(uname -s)" in
+      Darwin) echo "  macOS:  xcode-select --install" >&2 ;;
+      *)      echo "  Linux:  sudo apt-get install -y clang" >&2 ;;
+    esac
+    exit 1
+  fi
   echo "[cc  ] compiling sqlite3.c with $CC ..."
   ( cd "$SQLITE_DIR" && "$CC" -O2 -c sqlite3.c -o sqlite3.o && ar rcs sqlite3.a sqlite3.o && rm -f sqlite3.o )
 fi
