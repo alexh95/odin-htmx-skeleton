@@ -47,6 +47,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   [#42](https://github.com/alexh95/odin-htmx-skeleton/issues/42)). `events` and `persistence` never
   open a page, so they're now the `api` project in `playwright.config.ts`, which CI runs on the
   chromium shard. A full local run is 215 tests (71 per engine + 2), down from 219.
+- **e2e shards no longer compile SQLite on every run** (part of
+  [#43](https://github.com/alexh95/odin-htmx-skeleton/issues/43)). They cache `prepare`'s outputs
+  (`htmx.min.js`, `app/vendor/sqlite`), keyed on `prepare.sh` (the pins and compile flags) and the
+  image's distro, and `global-setup` skips `prepare` on a hit. That saves about a minute per shard.
+  The build job still runs `prepare` from scratch on all three OSes. The Odin cache keys stay as
+  they are: the containers write gzip archives and the host zstd, so one entry can't serve both.
+  `ci.yml` also notes how a private fork can drop the macOS (10×) or Windows (2×) leg.
 
 ### Fixed
 - **`docker compose up` can start the server** ([#38](https://github.com/alexh95/odin-htmx-skeleton/issues/38)).
