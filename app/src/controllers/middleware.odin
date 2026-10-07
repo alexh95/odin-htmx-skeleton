@@ -4,16 +4,18 @@ import "core:net"
 import "core:strings"
 
 import http "../../odin-http"
+import "../views"
 
 // ---- middleware: what every request passes through ----------------------
 //
 // One wrapper around the router (main.odin installs it). It is shared by the
 // demo and the `init --minimal` starter, so it stays entity-agnostic.
 //
-// It reads the body of every request that can carry one before routing, capped
-// at MAX_BODY. Doing it here rather than per handler means the cap holds for
-// every route, including the ones a fork adds, and a handler gets the parsed
-// form synchronously from request_form() instead of wiring its own async read.
+// In order: the *.fly.dev redirect (canonical_host), then the body of every
+// request that can carry one, read before routing and capped at MAX_BODY. Doing
+// that here rather than per handler means the cap holds for every route,
+// including the ones a fork adds, and a handler gets the parsed form
+// synchronously from request_form() instead of wiring its own async read.
 
 // Far above any form this app posts (the longest field is capped in services),
 // so it only ever stops abuse. A larger body is refused with 413 before a byte
@@ -22,6 +24,9 @@ MAX_BODY :: 64 * 1024
 
 front :: proc(handler: ^http.Handler, req: ^http.Request, res: ^http.Response) {
 	next := handler.next.(^http.Handler)
+	if canonical_host(req, res) {
+		return
+	}
 	if !has_body(req) {
 		next.handle(next, req, res)
 		return
@@ -54,6 +59,70 @@ request_form :: proc() -> map[string]string {
 		return make(map[string]string, context.temp_allocator)
 	}
 	return body_form((^string)(context.user_ptr)^)
+}
+
+// ---- canonical host -----------------------------------------------------
+//
+// The platform hostname serves the very same app as the custom domain, so a
+// crawler that finds both indexes the site twice and splits its ranking signals.
+// A 301 collapses them onto views.SITE_URL and passes the accumulated authority
+// along with it — a canonical tag alone only hints, and only to search engines.
+//
+// Off while SITE_URL is a placeholder (main decides at boot). `init` writes
+// https://<name>.example.com until the fork has a domain, and redirecting there
+// sent every visitor of a fork on *.fly.dev to a site that doesn't exist, while
+// the exempt health check kept the deploy green.
+//
+// Scoped to *.fly.dev rather than "any host that isn't canonical": localhost and
+// a LAN IP have to keep working for development, and a future domain must not
+// start bouncing the moment DNS points at it. /healthz is exempt regardless —
+// Fly's own health check calls it, and a probe that follows a redirect off-host
+// would fail the deploy rather than the request.
+
+canonical_redirect := false
+
+// Whether the request was answered with the redirect.
+@(private = "file")
+canonical_host :: proc(req: ^http.Request, res: ^http.Response) -> bool {
+	if !canonical_redirect || req.url.path == "/healthz" {
+		return false
+	}
+	host, _ := http.headers_get(req.headers, "host")
+	if !strings.has_suffix(host, ".fly.dev") {
+		return false
+	}
+	target := strings.concatenate({views.SITE_URL, req.url.path}, context.temp_allocator)
+	if req.url.query != "" {
+		target = strings.concatenate({target, "?", req.url.query}, context.temp_allocator)
+	}
+	http.headers_set(&res.headers, "location", target)
+	http.respond(res, http.Status.Moved_Permanently)
+	return true
+}
+
+// An origin on a name reserved for examples and tests (RFC 2606, RFC 6761):
+// example.com/.net/.org and their subdomains, and the .example, .test,
+// .invalid and .localhost TLDs. Nobody can be served from one.
+placeholder_origin :: proc(origin: string) -> bool {
+	host := origin
+	if i := strings.index(host, "://"); i >= 0 {
+		host = host[i + 3:]
+	}
+	if i := strings.index_any(host, "/:"); i >= 0 {
+		host = host[:i]
+	}
+	host = strings.trim_suffix(strings.to_lower(host, context.temp_allocator), ".")
+	for reserved in ([]string{"example.com", "example.net", "example.org"}) {
+		if host == reserved || strings.has_suffix(host, strings.concatenate({".", reserved}, context.temp_allocator)) {
+			return true
+		}
+	}
+	for tld in ([]string{".example", ".test", ".invalid", ".localhost"}) {
+		if strings.has_suffix(host, tld) || host == tld[1:] {
+			return true
+		}
+	}
+	return false
 }
 
 @(private = "file")

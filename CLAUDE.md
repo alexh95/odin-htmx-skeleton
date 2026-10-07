@@ -126,7 +126,7 @@ src/ (main: main.odin, routes.odin) → controllers → services → repository 
 | `src/services/` | service | Search/sort/paginate/validate. Plain values + errors, never HTTP. Imports `models`, `repository`. |
 | `src/views/` | view | HTML builders (a component is a proc writing into a `^strings.Builder`). Imports `models`, `services` — never `repository`: a page gets its data as a parameter. |
 | `src/controllers/` | controller | **The only layer that imports `http`.** Parse → call service → render via `views.*` → respond. Embeds htmx via `#load`. |
-| `src/` (`package main`) | entry + wiring | `main.odin` seeds + serves and holds the `canonical_host` middleware; `routes.odin` is the route table. Imports `controllers` (+ `repository` for the seed, `views` for `SITE_URL`). |
+| `src/` (`package main`) | entry + wiring | `main.odin` seeds + serves, installing `controllers.front` (the one middleware: `controllers/middleware.odin`); `routes.odin` is the route table. Imports `controllers` (+ `repository` for the seed, `views` for `SITE_URL`). |
 
 Cross-package calls are qualified: `repository.repo_list()`, `services.service_page()`,
 `views.view_dashboard()`, `models.Contact`. Sibling packages import each other relatively
@@ -246,7 +246,9 @@ http.respond(res, http.Status.Not_Found)
 - **One canonical origin.** `views.SITE_URL` (brand.odin, `SITE_URL` env overrides) is the single
   source for `<link rel="canonical">`, `og:url`, the `/sitemap.xml` entries, and the redirect
   target. The app answers on both the custom domain and its `*.fly.dev` hostname; `canonical_host`
-  in `main.odin` 301s the latter onto the former so the two don't compete as duplicates.
+  (in `controllers/middleware.odin`) 301s the latter onto the former so the two don't compete as
+  duplicates — **unless `SITE_URL` is a placeholder** (`*.example.com`, `.test`, … — what `init`
+  writes until the fork has a domain), when it serves instead of sending visitors nowhere.
   **`/healthz` is exempt** — Fly's probe calls it, and a probe that follows a redirect off-host
   fails the deploy.
 - **Derived, never duplicated.** `/sitemap.xml` walks `views.NAV` and the canonical URL is
