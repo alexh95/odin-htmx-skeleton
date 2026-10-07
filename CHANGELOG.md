@@ -54,6 +54,15 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
 
 ### Fixed
+- **A wrong method is a 405, an unknown page a real 404 page, and text says it's UTF-8** (part of
+  [#23](https://github.com/alexh95/odin-htmx-skeleton/issues/23)). `PUT /contacts/1` was a 404, an
+  unknown URL an empty 404, and `content-type: text/html` named no charset. A last-resort route
+  (`controllers.fallback`, registered by both variants' `routes.odin`) answers 405 with an `Allow`
+  header when another method serves the path, and otherwise `not_found`: the site's 404 page in the
+  layout for a browser, a bare 404 for htmx (whose body would be swapped into a fragment). Missing
+  contacts and unparsable ids use the same `not_found`. HTML and plain-text responses go through
+  `respond_html`/`respond_plain`, which add `; charset=utf-8`. The error-page body, `view_error`, is
+  shared by both variants (`views/errors.odin`). e2e: `routing.spec.ts`.
 - **A fork on `*.fly.dev` is served instead of redirected to a placeholder domain**
   ([#25](https://github.com/alexh95/odin-htmx-skeleton/issues/25)). `canonical_host` 301'd every
   `*.fly.dev` request to `SITE_URL`, which `init` sets to `https://<name>.example.com` until the fork

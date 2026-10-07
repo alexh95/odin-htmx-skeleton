@@ -49,7 +49,7 @@ to_int :: proc(s: string) -> int {
 }
 
 render_page :: proc(res: ^http.Response, title, active, description, content: string) {
-	http.respond_html(res, views.layout(title, active, description, content))
+	respond_html(res, views.layout(title, active, description, content))
 }
 
 // Answer a store failure the handler can't recover from. A missing row keeps
@@ -62,15 +62,15 @@ respond_store_error :: proc(req: ^http.Request, res: ^http.Response, err: servic
 	msg := "Something went wrong on our side. Try again in a moment."
 	#partial switch err {
 	case .Not_Found:
-		http.respond(res, http.Status.Not_Found)
+		not_found(req, res)
 		return
 	case .Constraint:
 		status, msg = .Conflict, "That change conflicts with what is already stored."
 	}
 	if http.headers_has(req.headers, "hx-request") {
-		http.respond_html(res, views.view_toast("error", msg, true), status)
+		respond_html(res, views.view_toast("error", msg, true), status)
 	} else {
-		http.respond_html(res, views.layout("Error", "", msg, views.view_error("That didn't work", msg)), status)
+		respond_html(res, views.layout("Error", "", msg, views.view_error("That didn't work", msg)), status)
 	}
 }
 
@@ -149,7 +149,7 @@ frag_search :: proc(req: ^http.Request, res: ^http.Response) {
 		respond_store_error(req, res, err)
 		return
 	}
-	http.respond_html(res, views.view_search_results(q, rows))
+	respond_html(res, views.view_search_results(q, rows))
 }
 
 Contact_DTO :: struct {
@@ -191,7 +191,7 @@ frag_contacts :: proc(req: ^http.Request, res: ^http.Response) {
 		respond_store_error(req, res, err)
 		return
 	}
-	http.respond_html(res, views.view_contacts_region(p))
+	respond_html(res, views.view_contacts_region(p))
 }
 
 // Drilldown: the full contact record + a derived activity trail + related
@@ -199,7 +199,7 @@ frag_contacts :: proc(req: ^http.Request, res: ^http.Response) {
 contact_detail :: proc(req: ^http.Request, res: ^http.Response) {
 	id, ok := parse_id(req.url_params[0])
 	if !ok {
-		http.respond(res, http.Status.Not_Found)
+		not_found(req, res)
 		return
 	}
 	d, err := services.contact_detail(id)
@@ -209,9 +209,9 @@ contact_detail :: proc(req: ^http.Request, res: ^http.Response) {
 	}
 	// frag=1 → just the <aside> (in-place swap of an open drawer); edit=1 → edit form.
 	if query_get(req, "frag") == "1" {
-		http.respond_html(res, views.view_contact_detail_frag(d.contact, d.timeline, d.related, query_get(req, "edit") == "1"))
+		respond_html(res, views.view_contact_detail_frag(d.contact, d.timeline, d.related, query_get(req, "edit") == "1"))
 	} else {
-		http.respond_html(res, views.view_contact_detail(d.contact, d.timeline, d.related))
+		respond_html(res, views.view_contact_detail(d.contact, d.timeline, d.related))
 	}
 }
 
@@ -222,7 +222,7 @@ contacts_create :: proc(req: ^http.Request, res: ^http.Response) {
 	if len(errs) > 0 {
 		// 422, not 200: app.js resets a form only after a 2xx, so the user's input
 		// survives, and the form's hx-status:422 routes this into its error slot.
-		http.respond_html(res, views.view_field_msg(false, errs[0].msg), .Unprocessable_Content)
+		respond_html(res, views.view_field_msg(false, errs[0].msg), .Unprocessable_Content)
 		return
 	}
 	if err != .None {
@@ -233,13 +233,13 @@ contacts_create :: proc(req: ^http.Request, res: ^http.Response) {
 	b := strings.builder_make(context.temp_allocator)
 	views.view_contact_row(&b, c, true)
 	strings.write_string(&b, views.view_toast("success", "Contact added.", true))
-	http.respond_html(res, strings.to_string(b))
+	respond_html(res, strings.to_string(b))
 }
 
 contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 	id, ok := parse_id(req.url_params[0])
 	if !ok {
-		http.respond(res, http.Status.Not_Found)
+		not_found(req, res)
 		return
 	}
 	form := request_form()
@@ -273,9 +273,9 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 		// The edit form comes back as typed, with the reason, in place of the one
 		// that was sent: a refused edit keeps its input. 422 skips app.js's reset.
 		if is_detail {
-			http.respond_html(res, views.view_contact_edit_rejected(c, typed, edit_errs[0].msg), .Unprocessable_Content)
+			respond_html(res, views.view_contact_edit_rejected(c, typed, edit_errs[0].msg), .Unprocessable_Content)
 		} else {
-			http.respond_html(res, views.view_field_msg(false, edit_errs[0].msg), .Unprocessable_Content)
+			respond_html(res, views.view_field_msg(false, edit_errs[0].msg), .Unprocessable_Content)
 		}
 		return
 	}
@@ -297,18 +297,18 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 		fmt.sbprintf(&b, `<hx-partial hx-target="#contact-%d" hx-swap="outerHTML">`, c.id)
 		views.view_contact_row(&b, c, false)
 		strings.write_string(&b, `</hx-partial>`)
-		http.respond_html(res, strings.to_string(b))
+		respond_html(res, strings.to_string(b))
 	} else {
 		b := strings.builder_make(context.temp_allocator)
 		views.view_contact_row(&b, c, false)
-		http.respond_html(res, strings.to_string(b))
+		respond_html(res, strings.to_string(b))
 	}
 }
 
 contacts_delete :: proc(req: ^http.Request, res: ^http.Response) {
 	id, ok := parse_id(req.url_params[0])
 	if !ok {
-		http.respond(res, http.Status.Not_Found)
+		not_found(req, res)
 		return
 	}
 	if err := services.delete_contact(id); err != .None {
@@ -319,9 +319,9 @@ contacts_delete :: proc(req: ^http.Request, res: ^http.Response) {
 	// detail drawer: the empty primary body closes the overlay, and an OOB swap
 	// removes the now-stale table row behind it.
 	if query_get(req, "from") == "drawer" {
-		http.respond_html(res, fmt.tprintf(`<tr id="contact-%d" hx-swap-oob="delete"></tr>`, id))
+		respond_html(res, fmt.tprintf(`<tr id="contact-%d" hx-swap-oob="delete"></tr>`, id))
 	} else {
-		http.respond_html(res, "")
+		respond_html(res, "")
 	}
 }
 
@@ -330,13 +330,13 @@ contacts_delete :: proc(req: ^http.Request, res: ^http.Response) {
 validate_email_field :: proc(req: ^http.Request, res: ^http.Response) {
 	email := strings.trim_space(request_form()["email"])
 	if email == "" {
-		http.respond_html(res, "")
+		respond_html(res, "")
 		return
 	}
 	if services.valid_email(email) {
-		http.respond_html(res, views.view_field_msg(true, "Looks good."))
+		respond_html(res, views.view_field_msg(true, "Looks good."))
 	} else {
-		http.respond_html(res, views.view_field_msg(false, "That doesn't look like an email."))
+		respond_html(res, views.view_field_msg(false, "That doesn't look like an email."))
 	}
 }
 
@@ -347,7 +347,7 @@ forms_submit :: proc(req: ^http.Request, res: ^http.Response) {
 	c, errs, err := services.create_contact(form["name"], form["email"], role, status, to_int(form["score"]))
 	if len(errs) > 0 {
 		// Lands in #form-result like a success would; 422 keeps the form unreset.
-		http.respond_html(res, views.view_form_errors(errs), .Unprocessable_Content)
+		respond_html(res, views.view_form_errors(errs), .Unprocessable_Content)
 		return
 	}
 	if err != .None {
@@ -358,37 +358,37 @@ forms_submit :: proc(req: ^http.Request, res: ^http.Response) {
 	b := strings.builder_make(context.temp_allocator)
 	strings.write_string(&b, views.view_form_result(c))
 	strings.write_string(&b, views.view_toast("success", "Saved to the SQLite store.", true))
-	http.respond_html(res, strings.to_string(b))
+	respond_html(res, strings.to_string(b))
 }
 
 // ---- ui fragments -------------------------------------------------------
 
 ui_modal :: proc(req: ^http.Request, res: ^http.Response) {
-	http.respond_html(res, views.view_modal())
+	respond_html(res, views.view_modal())
 }
 
 ui_drawer :: proc(req: ^http.Request, res: ^http.Response) {
-	http.respond_html(res, views.view_drawer())
+	respond_html(res, views.view_drawer())
 }
 
 ui_clear :: proc(req: ^http.Request, res: ^http.Response) {
-	http.respond_html(res, "")
+	respond_html(res, "")
 }
 
 ui_tab :: proc(req: ^http.Request, res: ^http.Response) {
-	http.respond_html(res, views.tab_panel(req.url_params[0]))
+	respond_html(res, views.tab_panel(req.url_params[0]))
 }
 
 ui_toast :: proc(req: ^http.Request, res: ^http.Response) {
 	kind := query_get(req, "kind")
 	msg := kind == "error" ? "Something went sideways." : "That worked nicely."
-	http.respond_html(res, views.view_toast(kind, msg, false))
+	respond_html(res, views.view_toast(kind, msg, false))
 }
 
 ui_ping :: proc(req: ^http.Request, res: ^http.Response) {
 	token := time.now()._nsec / 1_000_000
 	rps := 40 + int(token % 60)
-	http.respond_html(res, views.view_ping(token, rps))
+	respond_html(res, views.view_ping(token, rps))
 }
 
 // ---- health -------------------------------------------------------------
@@ -399,10 +399,10 @@ ui_ping :: proc(req: ^http.Request, res: ^http.Response) {
 // (set for every response by the middleware). Cheap: one SELECT 1.
 health :: proc(req: ^http.Request, res: ^http.Response) {
 	if !services.store_ok() {
-		http.respond_plain(res, "store unavailable", .Service_Unavailable)
+		respond_plain(res, "store unavailable", .Service_Unavailable)
 		return
 	}
-	http.respond_plain(res, "ok")
+	respond_plain(res, "ok")
 }
 
 // ---- seo ----------------------------------------------------------------
@@ -430,7 +430,7 @@ Disallow: /forms/submit
 Sitemap: `)
 	strings.write_string(&b, views.SITE_URL)
 	strings.write_string(&b, "/sitemap.xml\n")
-	http.respond_plain(res, strings.to_string(b))
+	respond_plain(res, strings.to_string(b))
 }
 
 sitemap_xml :: proc(req: ^http.Request, res: ^http.Response) {
@@ -455,7 +455,7 @@ sitemap_xml :: proc(req: ^http.Request, res: ^http.Response) {
 // renders; an unset token 404s, so a fork does not advertise a stale one.
 bing_site_auth :: proc(req: ^http.Request, res: ^http.Response) {
 	if views.BING_SITE_AUTH == "" {
-		http.respond(res, http.Status.Not_Found)
+		not_found(req, res)
 		return
 	}
 	b := strings.builder_make(context.temp_allocator)
@@ -486,7 +486,7 @@ favicon_ico :: proc(req: ^http.Request, res: ^http.Response) {
 // The body is the key and nothing else — the search engines compare it verbatim,
 // so no trailing newline and no XML wrapper here.
 indexnow_key :: proc(req: ^http.Request, res: ^http.Response) {
-	http.respond_plain(res, views.INDEXNOW_KEY)
+	respond_plain(res, views.INDEXNOW_KEY)
 }
 
 // ---- static -------------------------------------------------------------

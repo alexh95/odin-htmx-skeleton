@@ -248,6 +248,8 @@ http.router_init(&router); defer http.router_destroy(&router)
 http.route_get/route_post/route_put/route_patch/route_delete/route_options(
     &router, "/contacts/(%d+)", http.handler(some_handler))
 // register specific routes before catch-alls; first match in registration order wins.
+// routes.odin ends with http.route_all(r, ".*", controllers.fallback(r)): 405 + Allow for a path
+// another method serves, else not_found. Keep it last.
 
 // handler
 some_handler :: proc(req: ^http.Request, res: ^http.Response) { ... }
@@ -262,9 +264,11 @@ form := request_form()        // map[string]string, '+'- and percent-decoded; em
 // (front's own read: http.body(req, MAX_BODY, user, proc(user, body, err) {...}); Body_Error is
 // a #shared_nil union → != nil works, and http.body_error_status(err) maps it to 413/400.)
 
-// responses
-http.respond_html(res, html, status = .OK)
-http.respond_plain(res, text)
+// responses — HTML and text through the controllers' own helpers (middleware.odin), which add
+// "; charset=utf-8" that odin-http's respond_html/respond_plain leave out
+respond_html(res, html, status = .OK)
+respond_plain(res, text)
+not_found(req, res)                                        // the 404 page, or a bare 404 for htmx
 http.respond_json(res, value)                              // marshals any
 http.respond_file_content(res, "htmx.min.js", HTMX_JS)     // content-type from extension
 http.respond_dir(res, "/static/", "static", req.url.path)  // pass the FULL path; it strips base + blocks traversal
