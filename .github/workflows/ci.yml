@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Every job is bounded: without it a hung apt fetch sits for GitHub's 6 h
     # default. Normal runs take 1-6 min per job.
-    timeout-minutes: 20
+    timeout-minutes: 25
     # WSL/Docker only cover Linux. This matrix also guards Windows (our primary
     # dev platform) and macOS (Apple Silicon = arm64-darwin — the one target we
     # can't test locally, and it exercises odin-http's kqueue path under
@@ -79,12 +79,12 @@ jobs:
       # unix; on Windows its own bundled radlink — the default since dev-2026-10 —
       # against the MSVC + Windows SDK libraries), so each leg makes one available +
       # puts odin on PATH.
-      # apt goes through .github/scripts/apt-install.sh, which retries the whole
-      # update+install with backoff: runner access to the Ubuntu mirrors drops out
-      # for minutes at a time.
+      # apt goes through .github/scripts/apt-install.sh: one try on the runner's
+      # mirror, then failover to HTTPS mirrors on other hosts (port-80 fetches from
+      # the runners have been timing out for minutes at a time).
       - name: Odin on PATH + clang (Linux)
         if: runner.os == 'Linux'
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           echo "/opt/odin" >> "$GITHUB_PATH"
           sh .github/scripts/apt-install.sh clang
@@ -158,7 +158,7 @@ jobs:
   e2e:
     name: E2E (${{ matrix.browser }})
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-jammy
       # The server uses io_uring (core:nbio); Docker's default seccomp profile
@@ -192,7 +192,7 @@ jobs:
           tar -xzf /tmp/odin.tar.gz -C /opt/odin --strip-components=1
 
       - name: Put Odin and clang on PATH
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           echo "/opt/odin" >> "$GITHUB_PATH"
           # clang links Odin and compiles the SQLite amalgamation (prepare.sh);
@@ -226,7 +226,7 @@ jobs:
   minimal:
     name: init --minimal builds + tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-jammy
       options: --security-opt seccomp=unconfined
@@ -252,7 +252,7 @@ jobs:
           tar -xzf /tmp/odin.tar.gz -C /opt/odin --strip-components=1
 
       - name: Put Odin and clang on PATH
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           echo "/opt/odin" >> "$GITHUB_PATH"
           # clang links the init tool + the app, and compiles the SQLite
