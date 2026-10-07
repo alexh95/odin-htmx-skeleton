@@ -17,7 +17,10 @@ odin-htmx-skeleton/
   app/          The application: Odin server, views, static assets, run scripts.
   e2e/          Playwright browser tests — see e2e/README.md.
   load-tests/   k6 throughput/latency tests — see load-tests/README.md.
-  docs/         PHILOSOPHY.md (root), USE_CASES.md, DATA.md, DATA_IMPL.md.
+  docs/         PHILOSOPHY.md (root), USE_CASES.md, DATA.md, DATA_IMPL.md, STRIP.md.
+  infra/        PLAN.md: hosting, CI/CD, and the Fly operator steps.
+  deploy/       docker-host/: deploy to any Linux box with Docker, over SSH.
+  tools/        init/ (rename + strip, run once), og/ (the social card's source).
 ```
 
 ## Quick start
@@ -28,7 +31,7 @@ Xcode CLT on macOS) — `prepare` compiles the SQLite amalgamation. See
 
 ```sh
 cd app
-prepare.bat        # once: clones odin-http, fetches htmx + SQLite    (./prepare.sh on Linux/macOS)
+prepare.bat        # once: odin-http submodule, htmx, SQLite          (./prepare.sh on Linux/macOS)
 run.bat            # builds and serves http://localhost:8080          (./run.sh elsewhere)
 ```
 
@@ -41,12 +44,16 @@ design notes.
    clone this one).
 2. **Rename it.** From the repo root:
    ```sh
-   odin run tools/init -- your-name --repo https://github.com/you/your-name
+   odin run tools/init -- your-name --repo https://github.com/you/your-name --site https://your.domain
    ```
    One pass rewrites the binary, the Fly app, the Docker image, the Docker-host deploy, the startup
-   banner, the test-package names, and the three brand constants in
-   [`app/src/views/brand.odin`](app/src/views/brand.odin). Run `odin run tools/init` with no args to
-   see the options (`--wordmark`, `--suffix`); delete `tools/init` once you're happy.
+   banner and the test-package names; the brand constants in
+   [`app/src/views/brand.odin`](app/src/views/brand.odin) (wordmark, title suffix, home title, repo,
+   site URL); and the favicon's label and the social card's source. It blanks the two search-engine
+   ownership tokens (a fork verifies its own site) and removes the template-only `minimal` CI job.
+   It applies every edit or none, and ends with what's left to do by hand. Run `odin run tools/init`
+   with no args to see the options (`--wordmark`, `--suffix`, `--repo`, `--site`, `--minimal`);
+   delete `tools/init` once you're happy.
 3. **Replace the demo with your domain.** What you **keep** vs. **strip**:
    - **Keep — the scaffolding:** the layered packages (`models` / `repository` / `services` /
      `views` / `controllers`), the SQLite layer + migrations, the theme system, the view/component
@@ -59,8 +66,16 @@ component) and the architecture tour in [app/README.md](app/README.md).
 
 Prefer to start from a blank slate? `odin run tools/init -- your-name --minimal` also strips the
 contacts/events demo down to a one-page **Notes** starter (the full stack over one entity), keeping
-the shell, theme, data layer, and test/deploy harness. To strip it by hand instead — or just to see
+the shell, theme, data layer, and test/deploy harness. It starts a fresh `CHANGELOG.md` and `TODO.md`,
+and deletes the Quick start's `app/data.db`, whose schema is the demo's. To strip it by hand instead — or just to see
 exactly what's demo vs. scaffold — follow [docs/STRIP.md](docs/STRIP.md).
+
+## Deploy
+
+The deployable is one binary in a slim container. [infra/PLAN.md](infra/PLAN.md) covers Fly.io (the
+`fly.toml` and the CI deploy job here) and its operator steps; [deploy/docker-host](deploy/docker-host)
+runs it on any Linux box with Docker, with the SQLite database on a persistent volume. Linux deploys
+need io_uring; see [infra/PLAN.md](infra/PLAN.md) → *io_uring platform requirement*.
 
 ## Tests
 
