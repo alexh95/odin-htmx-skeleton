@@ -31,12 +31,15 @@ test.describe('input limits', () => {
     if (await isDemo(request)) {
       const name = 'Long' + 'n'.repeat(120); // MAX_NAME is 100
       const res = await request.post('/contacts', { headers: form, data: `name=${name}&email=long@example.dev&role=Engineer` });
+      expect(res.status()).toBe(422);
       expect(await res.text()).toContain('at most 100 characters');
       const found = await (await request.get('/api/search?q=Longnnnn')).json();
       expect(found).toHaveLength(0);
     } else {
       const body = 'Long' + 'n'.repeat(520); // MAX_NOTE is 500
-      await request.post('/notes', { headers: form, data: `body=${body}` });
+      const res = await request.post('/notes', { headers: form, data: `body=${body}` });
+      expect(res.status()).toBe(422);
+      expect(await res.text()).toContain('at most 500 characters');
       expect(await (await request.get('/')).text()).not.toContain(body);
     }
   });

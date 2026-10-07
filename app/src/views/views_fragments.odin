@@ -204,8 +204,30 @@ view_contact_detail_frag :: proc(c: models.Contact, timeline: []models.Interacti
 	return strings.to_string(b)
 }
 
+// A drawer edit that failed validation (422): the header still shows the
+// stored contact, the form what the user typed, with the reason.
+view_contact_edit_rejected :: proc(stored, typed: models.Contact, msg: string) -> string {
+	b := strings.builder_make(context.temp_allocator)
+	detail_head(&b, stored, true)
+	detail_edit_form(&b, typed, msg)
+	w(&b, `</aside>`)
+	return strings.to_string(b)
+}
+
 @(private = "file")
 detail_aside :: proc(b: ^strings.Builder, c: models.Contact, timeline: []models.Interaction, related: []models.Contact, editing, static_anim: bool) {
+	detail_head(b, c, static_anim)
+	if editing {
+		detail_edit_form(b, c, "")
+	} else {
+		detail_view_body(b, c, timeline, related)
+	}
+	w(b, `</aside>`)
+}
+
+// Opens the <aside>; the caller closes it.
+@(private = "file")
+detail_head :: proc(b: ^strings.Builder, c: models.Contact, static_anim: bool) {
 	// drawer-static skips the slide-in so in-place swaps don't re-animate.
 	fmt.sbprintf(
 		b,
@@ -220,12 +242,6 @@ detail_aside :: proc(b: ^strings.Builder, c: models.Contact, timeline: []models.
 	w(b, `</p></div><button class="icon-btn detail-close" aria-label="Close" hx-get="/ui/clear" hx-target="#overlay" hx-swap="innerHTML swap:240ms">`)
 	icon(b, "plus")
 	w(b, `</button></header>`)
-	if editing {
-		detail_edit_form(b, c)
-	} else {
-		detail_view_body(b, c, timeline, related)
-	}
-	w(b, `</aside>`)
 }
 
 @(private = "file")
@@ -327,8 +343,9 @@ interaction_icon :: proc(kind: models.Event_Kind) -> string {
 	return "bolt"
 }
 
+// `problem` (if any) is shown above the buttons: why the last save was refused.
 @(private = "file")
-detail_edit_form :: proc(b: ^strings.Builder, c: models.Contact) {
+detail_edit_form :: proc(b: ^strings.Builder, c: models.Contact, problem: string) {
 	rn := models.ROLE_NAMES
 	sn := models.STATUS_NAMES
 	fmt.sbprintf(b, `<form class="detail-body detail-edit" hx-post="/contacts/%d" hx-target="closest .drawer-detail" hx-swap="outerHTML"><input type="hidden" name="view" value="detail"><input type="hidden" name="frag" value="1"><label class="field"><span>Name</span><input name="name" required maxlength="%d" value="`, c.id, services.MAX_NAME)
@@ -345,6 +362,11 @@ detail_edit_form :: proc(b: ^strings.Builder, c: models.Contact) {
 	}
 	w(b, `</select></label>`)
 	fmt.sbprintf(b, `<label class="field"><span>Engagement <b>%d</b></span><input name="score" type="range" min="0" max="100" value="%d" oninput="this.previousElementSibling.querySelector('b').textContent=this.value"></label>`, c.score, c.score)
+	if problem != "" {
+		w(b, `<p class="field-msg form-error" role="alert">`)
+		w(b, view_field_msg(false, problem))
+		w(b, `</p>`)
+	}
 	w(b, `<div class="detail-actions"><button class="btn btn-primary btn-sm" type="submit">`)
 	icon(b, "check")
 	w(b, `<span>Save</span></button>`)

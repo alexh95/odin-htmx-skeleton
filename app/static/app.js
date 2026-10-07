@@ -138,11 +138,17 @@ document.addEventListener("htmx:after:process", function (e) {
 // field's validation request can't trip it: ctx.sourceElement scopes the reset to
 // the submitting form. (That child-event leak was a real regression — the email
 // field on /forms validates as you type.)
+//
+// A refused submit is a 422 (>= 400), so it never resets: the input stays for
+// the user to fix. A success also empties the form's .form-error slot, where
+// hx-status:422 put the last refusal.
 document.addEventListener("htmx:after:request", function (e) {
   var ctx = e.detail && e.detail.ctx;
   if (!ctx || !ctx.response || ctx.response.status >= 400) return;
   var el = ctx.sourceElement;
-  if (el && el.matches && el.matches("form[data-reset-on-success]")) el.reset();
+  if (!el || !el.matches || !el.matches("form[data-reset-on-success]")) return;
+  el.reset();
+  el.querySelectorAll(".form-error").forEach(function (m) { m.innerHTML = ""; });
 }, true);
 
 // Dismiss the search dropdown on outside-click or Escape; Escape also closes

@@ -302,6 +302,26 @@ http.respond(res, http.Status.Not_Found)
   are still rendered) — it's a client-side win. A body swap re-creates `#toasts` / `#overlay` / the
   picker, so keep per-node JS state swap-safe (see the JS conventions).
 
+## Validation errors (422)
+
+A submit the server refuses answers **422 Unprocessable Content** with the reason as HTML, never a
+200. Two things follow, and together they keep the user's input:
+
+- **app.js resets a `form[data-reset-on-success]` only after a 2xx**, so a 422 leaves every field as
+  typed (and a success also empties the form's `.form-error` slot).
+- **htmx 4 swaps 4xx responses by default** (`noSwap` is only `[204, 304]`). If the error belongs where
+  a success would land (`/forms` → `#form-result`), nothing more is needed. If it belongs elsewhere,
+  route it with **`hx-status:422="target:#slot swap:innerHTML"`** on the form (the `/data` add form
+  and the minimal note form use a `<p class="field-msg form-error" id="…">` slot inside the form;
+  `hx-status:5xx` works the same for server errors). Status keys match exactly, then `42x`, then
+  `4xx`.
+- A form that re-renders itself (the drawer edit) answers 422 with **itself, filled with what was
+  typed**, plus the reason (`view_contact_edit_rejected`).
+
+Validation lives in `services` (`validate_contact`, `create_note`), returns plain messages, and caps
+every text field; the inputs carry the same `maxlength` and `required` so the browser stops first.
+Store failures are separate: `respond_store_error` (404 / 409 / 500).
+
 ## CSS conventions (`app/static/app.css`)
 
 - **Token-driven, two orthogonal axes.** `data-style` × `data-scheme` on `<html>` (6 styles, 23

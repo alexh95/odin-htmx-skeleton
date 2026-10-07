@@ -234,6 +234,16 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
 
 ### Fixed
+- **A refused form keeps what the user typed**
+  ([#17](https://github.com/alexh95/odin-htmx-skeleton/issues/17)). Validation errors came back as
+  200, so app.js's reset-on-success wiped every field of a rejected `/forms` submit. They are now
+  **422**: app.js still resets only after a 2xx, and htmx 4 swaps the 422 body where it belongs.
+  `/forms` shows the errors in `#form-result` as before; the `/data` add form routes them into an
+  inline slot with `hx-status:422`; a refused drawer edit comes back filled with what was typed, plus
+  the reason. The minimal starter's note form gets the same pattern (an error slot for 422 and 5xx)
+  instead of its silent empty 200. A success clears the slot. The `/forms` email field is now
+  `required` like the server's check, and a drawer edit with a blank name is refused instead of
+  silently ignored. `CLAUDE.md` documents the pattern. e2e: `validation.spec.ts` (demo and starter).
 - **Migrations are transactional and checked by name and hash, and demo rows only seed a store
   nobody owns** ([#21](https://github.com/alexh95/odin-htmx-skeleton/issues/21); also stops the
   [#26](https://github.com/alexh95/odin-htmx-skeleton/issues/26) crash from the runner side). Each
