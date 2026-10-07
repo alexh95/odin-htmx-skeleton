@@ -69,7 +69,7 @@ repo_update :: proc(id: int, name, email: string, role: models.Role, status: mod
 	defer sqlite.reset(q_update)
 	bind_text(q_update, 1, name);bind_text(q_update, 2, email)
 	sqlite.bind_int(q_update, 3, c.int(role));sqlite.bind_int(q_update, 4, c.int(status))
-	sqlite.bind_int(q_update, 5, c.int(score));sqlite.bind_int(q_update, 6, c.int(id))
+	sqlite.bind_int(q_update, 5, c.int(score));bind_id(q_update, 6, id)
 	if err := step_done(q_update); err != .None {
 		return {}, err
 	}
@@ -82,7 +82,7 @@ repo_update :: proc(id: int, name, email: string, role: models.Role, status: mod
 repo_set_status :: proc(id: int, status: models.Status) -> (models.Contact, Error) {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
 	defer sqlite.reset(q_set_status)
-	sqlite.bind_int(q_set_status, 1, c.int(status));sqlite.bind_int(q_set_status, 2, c.int(id))
+	sqlite.bind_int(q_set_status, 1, c.int(status));bind_id(q_set_status, 2, id)
 	if err := step_done(q_set_status); err != .None {
 		return {}, err
 	}
@@ -96,7 +96,7 @@ repo_set_status :: proc(id: int, status: models.Status) -> (models.Contact, Erro
 repo_delete :: proc(id: int) -> Error {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
 	defer sqlite.reset(q_delete)
-	sqlite.bind_int(q_delete, 1, c.int(id))
+	bind_id(q_delete, 1, id)
 	if err := step_done(q_delete); err != .None {
 		return err
 	}
@@ -108,7 +108,7 @@ repo_delete :: proc(id: int) -> Error {
 @(private = "file")
 scan_contact :: proc(st: sqlite.Stmt) -> models.Contact {
 	return models.Contact {
-		id     = int(sqlite.column_int(st, 0)),
+		id     = column_id(st, 0),
 		name   = clone_col(st, 1),
 		email  = clone_col(st, 2),
 		role   = models.Role(sqlite.column_int(st, 3)),
@@ -120,7 +120,7 @@ scan_contact :: proc(st: sqlite.Stmt) -> models.Contact {
 @(private = "file")
 get_unlocked :: proc(id: int) -> (models.Contact, Error) {
 	defer sqlite.reset(q_get)
-	sqlite.bind_int(q_get, 1, c.int(id))
+	bind_id(q_get, 1, id)
 	err: Error
 	if next_row(q_get, &err) {
 		return scan_contact(q_get), .None

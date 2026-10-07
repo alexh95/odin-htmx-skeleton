@@ -95,6 +95,26 @@ body_form :: proc(s: string) -> map[string]string {
 	return m
 }
 
+// A row id from a path capture. Rowids are 64-bit and positive. Not
+// strconv.parse_int: it wraps silently past 64 bits (18446744073709551617
+// parses as 1), and an ownership check on one id must not act on another.
+parse_id :: proc(s: string) -> (id: int, ok: bool) {
+	if s == "" {
+		return 0, false
+	}
+	for i in 0 ..< len(s) {
+		if s[i] < '0' || s[i] > '9' {
+			return 0, false
+		}
+		d := int(s[i] - '0')
+		if id > (max(int) - d) / 10 {
+			return 0, false
+		}
+		id = id * 10 + d
+	}
+	return id, id > 0
+}
+
 // '+'→space, then percent-decode; a malformed escape is kept as typed.
 form_decode :: proc(s: string) -> string {
 	if s == "" {
