@@ -12,8 +12,11 @@ From this directory (npm — isolated test-only tooling, never shipped):
 ```sh
 npm ci
 npx playwright install --with-deps chromium firefox webkit   # one-time: fetch browsers
-npm test                            # all three engines; add -- --project=chromium to narrow
+npm test                            # three engines + the api project; -- --project=chromium narrows
 ```
+
+Specs that never open a page (`events`, `persistence`: each starts its own server and talks HTTP)
+form the `api` project in `playwright.config.ts`, so they run once rather than once per engine.
 
 `global-setup.ts` runs `prepare` + builds `../app` once (with `-warnings-as-errors`), so a run
 needs `odin` **and a C toolchain** on `PATH` (prepare compiles SQLite). Then each Playwright
@@ -27,7 +30,8 @@ exported in your shell can't redirect the suite to another server or your `data.
 - `npm run report` — open the last HTML report.
 
 On CI the engines are sharded across runners inside Playwright's official Docker image (browsers
-+ OS deps + node/npm preinstalled), so there's no browser-install step there.
++ OS deps + node/npm preinstalled), so there's no browser-install step there. The chromium shard
+also runs the `api` project.
 
 ## Layout
 
@@ -44,8 +48,8 @@ tests/
                        slider --fill (regression), submit+reset
   crud.spec.ts         create/cycle/delete, 404, sort (+ injection regression), pagination, filters, detail drawer
   assets.spec.ts       embedded htmx, on-disk css, path-traversal 404, health, JSON API
-  events.spec.ts       events between contacts: deleting a contact cascades its interactions (FK)
-  persistence.spec.ts  data survives a process restart (a file-backed DB)
+  events.spec.ts       (api) events between contacts: deleting a contact cascades its interactions (FK)
+  persistence.spec.ts  (api) data survives a process restart (a file-backed DB)
 ```
 
 The regression tests pin bugs fixed earlier: the modal keeps its field on a
