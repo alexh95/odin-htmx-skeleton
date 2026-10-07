@@ -11,25 +11,8 @@ import "core:strings"
 // "component" is a proc that appends markup. Raw string literals (backticks) let
 // attribute quotes stand as-is. Everything builds in the request arena (temp
 // allocator) and is freed once the response is flushed. Every dynamic string
-// passes through esc() — the one defence against injected markup.
-
-w :: proc(b: ^strings.Builder, s: string) {
-	strings.write_string(b, s)
-}
-
-// HTML-escape text content. Not optional anywhere user input is echoed.
-esc :: proc(b: ^strings.Builder, s: string) {
-	for i in 0 ..< len(s) {
-		switch s[i] {
-		case '&': w(b, "&amp;")
-		case '<': w(b, "&lt;")
-		case '>': w(b, "&gt;")
-		case '"': w(b, "&#34;")
-		case '\'': w(b, "&#39;")
-		case: strings.write_byte(b, s[i])
-		}
-	}
-}
+// passes through esc() (json_esc in JSON) — the escaping boundary in html.odin,
+// the one defence against injected markup.
 
 // ---- icons --------------------------------------------------------------
 //
@@ -221,22 +204,24 @@ layout :: proc(title, active, description, content: string) -> string {
 	if active == "/" {
 		w(&b, `<script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebSite","name":"`)
-		esc(&b, BRAND_SUFFIX)
+		json_esc(&b, BRAND_SUFFIX)
 		w(&b, `","url":"`)
-		w(&b, SITE_URL)
+		json_esc(&b, SITE_URL)
 		w(&b, `/"}
 </script>
 `)
 	}
+	// Values in JSON-LD go through json_esc, not esc: entities aren't decoded
+	// inside <script>, so the HTML escaper would put "&amp;" into the JSON.
 	w(&b, `<script type="application/ld+json">
 {"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"`)
-	esc(&b, BRAND_SUFFIX)
+	json_esc(&b, BRAND_SUFFIX)
 	w(&b, `","description":"`)
-	esc(&b, description)
+	json_esc(&b, description)
 	w(&b, `","codeRepository":"`)
-	w(&b, BRAND_REPO)
+	json_esc(&b, BRAND_REPO)
 	w(&b, `","url":"`)
-	w(&b, SITE_URL)
+	json_esc(&b, SITE_URL)
 	w(&b, `/","programmingLanguage":["Odin","HTML","CSS","JavaScript"]}
 </script>
 </head>
@@ -272,9 +257,15 @@ layout :: proc(title, active, description, content: string) -> string {
 	return strings.to_string(b)
 }
 
-// Section header used at the top of every page body.
+// Section header used at the top of every page body. All three are text.
 page_head :: proc(b: ^strings.Builder, eyebrow, title, subtitle: string) {
-	fmt.sbprintf(b, `<header class="page-head"><p class="eyebrow">%s</p><h1>%s</h1><p class="lede">%s</p></header>`, eyebrow, title, subtitle)
+	w(b, `<header class="page-head"><p class="eyebrow">`)
+	esc(b, eyebrow)
+	w(b, `</p><h1>`)
+	esc(b, title)
+	w(b, `</h1><p class="lede">`)
+	esc(b, subtitle)
+	w(b, `</p></header>`)
 }
 
 // ---- home ---------------------------------------------------------------
