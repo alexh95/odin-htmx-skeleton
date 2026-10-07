@@ -8,6 +8,19 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Changed
+- **CI survives Ubuntu mirror outages, and no job can run for hours** (part of
+  [#36](https://github.com/alexh95/odin-htmx-skeleton/issues/36)). The three `apt-get install clang …`
+  steps failed CI three times on 2026-10-07, each before a single test ran. One hung for 4 min until it
+  was cancelled by hand; twice `azure.archive.ubuntu.com` (and once `security.ubuntu.com`) timed out
+  from the runner. They now go through one script, `.github/scripts/apt-install.sh`. It retries the
+  whole update+install up to 5 times with 20–100 s backoff, because `Acquire::Retries` alone only
+  retries one fetch within seconds. It uses `sudo` only when not root, so the host runner and the
+  Playwright containers share it. Every job also gets a `timeout-minutes` (20; 30 for the Fly deploy,
+  whose remote builder has stalled for about 10 min before), and each apt step gets 10. A hang now
+  fails in minutes instead of running to GitHub's 6 h default. Tested locally with stub
+  `apt-get`/`sudo`: an install that fails once is retried and succeeds, both as root and through sudo.
+
 ### Fixed
 - **Search highlighting could mark the wrong characters.** `write_highlighted` found matches in a
   lowercased copy of the text, then cut the original with that copy's offsets. Lowercasing can change
