@@ -1,0 +1,67 @@
+<!doctype html>
+<!--
+  The source of app/static/og.png, the 1200×630 social card every shared link
+  shows. `init` puts the new name, wordmark and domain in. Edit the rest here,
+  then re-render it with the Playwright the e2e suite already installs (no new
+  dependency), from the repo root:
+
+    cd e2e && npx playwright screenshot --viewport-size "1200, 630" \
+      "file://$(cd .. && pwd)/tools/og/og.html" ../app/static/og.png
+
+  (Git Bash on Windows: `pwd -W`, so the URL gets a drive letter.)
+
+  Plain HTML + CSS, so the text takes whatever sans-serif the machine has; the
+  shipped card was rendered on Linux, in DejaVu Sans. Rebuild after rendering:
+  og.png is embedded in the binary like every other asset.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Social card</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    font-family: "DejaVu Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: #f1f2f8;
+    background:
+      radial-gradient(680px 560px at 0% 0%, #4a37b8 0%, rgba(74, 55, 184, .5) 45%, transparent 100%),
+      radial-gradient(700px 520px at 100% 100%, #17606e 0%, rgba(23, 96, 110, .5) 45%, transparent 100%),
+      radial-gradient(600px 380px at 45% 100%, rgba(32, 44, 92, .7) 0%, transparent 100%),
+      #0b0d14;
+    padding: 72px 80px;
+  }
+  .brand { display: flex; align-items: center; gap: 18px; }
+  .mark {
+    width: 64px; height: 64px; border-radius: 14px;
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, #7c5cff, #22d3ee);
+  }
+  .name { font-size: 34px; font-weight: 700; letter-spacing: -.5px; }
+  .name b { color: #22d3ee; }
+  h1 { margin-top: 26px; font-size: 92px; line-height: 1.02; font-weight: 700; letter-spacing: -1px; }
+  h1 em {
+    font-style: normal;
+    background: linear-gradient(90deg, #a78bfa, #22d3ee);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  p { margin-top: 26px; max-width: 880px; font-size: 30px; line-height: 1.45; color: #9aa4c2; }
+  .chips { position: absolute; left: 80px; top: 508px; display: flex; gap: 14px; }
+  .chips span {
+    height: 50px; padding: 0 22px; border-radius: 25px;
+    display: flex; align-items: center;
+    font-size: 21px; color: #b6bdd2; background: #141a2a; border: 1px solid #262d42;
+  }
+  .chips .url { font-weight: 700; color: #fff; border: 0; background: linear-gradient(90deg, #7c5cff, #22d3ee); }
+</style>
+</head>
+<body>
+  <div class="brand">
+    <span class="mark"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg></span>
+    <span class="name">odin<b>·</b>htmx</span>
+  </div>
+  <h1>The <em>Odin + HTMX</em> skeleton</h1>
+  <p>Server-rendered HTML from one static binary. HTMX on the front, SQLite inside — no npm, no bundler, no framework.</p>
+  <div class="chips"><span class="url">odin-htmx.alexh95.com</span><span>Odin</span><span>HTMX 4</span><span>SQLite</span><span>single binary</span></div>
+</body>
+</html>

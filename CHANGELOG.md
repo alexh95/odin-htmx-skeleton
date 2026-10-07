@@ -8,7 +8,134 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **The minimal starter's write path and `/about` are in both suites**
+  ([#27](https://github.com/alexh95/odin-htmx-skeleton/issues/27)). `init --minimal` now also installs
+  a `POST /notes` load scenario (`notes.js`) and an `/about` e2e spec. The spec checks that the page
+  renders as the current nav item, that the nav reaches it with a boosted swap, and that its repository
+  link matches the JSON-LD. The starter's `pages.js` now loads `/about` as well as `/`.
+- **The social card has a source: `tools/og/og.html`**
+  ([#28](https://github.com/alexh95/odin-htmx-skeleton/issues/28)). `og.png` was a bare image showing
+  the upstream's name and domain, with no way to redraw it. The 1200×630 HTML recreates it, and its
+  header has the one-line re-render through the Playwright the e2e suite already installs
+  (`npx playwright screenshot`), so there's no new dependency. `init` writes the fork's wordmark,
+  name and domain into it.
+- **`init --minimal` starts the fork's own CHANGELOG and TODO**
+  ([#29](https://github.com/alexh95/odin-htmx-skeleton/issues/29)). The 700-line upstream changelog
+  and 260-line backlog were left in place, and `CLAUDE.md` tells an agent to work from that backlog.
+  They're replaced with short starters (`tools/init/minimal/`). The changelog records the template
+  release the fork started from, read from the upstream changelog. The TODO lists the remaining
+  make-it-yours steps.
+- **`load-tests/run.sh --strict`**
+  ([#40](https://github.com/alexh95/odin-htmx-skeleton/issues/40)). Without it the driver still records
+  a breached threshold and carries on (a sweep exists to find the knee). With it, the run lists the
+  failed `scenario@VUs` and exits 1, so it can gate. Checked: `P95=0.001 ./run.sh --quick --strict
+  static` exits 1, and exits 0 without `--strict`.
+- **`load-tests/parity.sh`** ([#40](https://github.com/alexh95/odin-htmx-skeleton/issues/40)) lists
+  every route in `routes.odin` and whether `e2e/tests/` and `load-tests/scenarios/` mention its path,
+  so the "both suites" rule can be checked rather than just stated. It's a text search, not coverage.
+  It reports and exits 0; `--strict` exits 1 on a gap, for when it can gate. Today it finds 26
+  literal routes: 6 with no e2e mention (the `/ui/*` fragments, reached by clicks), 14 with no load
+  scenario. On the minimal starter, 0 and 2 (`/healthz`, `/favicon.ico`).
+
+### Changed
+- **The README says what the test suites enforce**
+  ([#40](https://github.com/alexh95/odin-htmx-skeleton/issues/40)). It claimed both suites "gate CI".
+  CI runs e2e only; the load suite is local, so it says that now and points at `--strict`. The e2e
+  line gains `npx playwright install`.
+- **README and `docs/STRIP.md` match the code**
+  ([#33](https://github.com/alexh95/odin-htmx-skeleton/issues/33)). The README listed "three brand
+  constants" for `init` (it's five, plus two blanked tokens, the favicon and the card). It now shows
+  `--site` in the example and lists every option. It gains a **Deploy** section linking
+  `infra/PLAN.md` and `deploy/docker-host`, with the io_uring requirement, and the layout block lists
+  `infra/`, `deploy/` and `tools/`. `init`'s usage text now lists `--site`. `docs/STRIP.md`'s
+  keep-lists cover the 1.1.0 crawler contract: the SEO handlers and routes, `robots_txt`'s
+  demo-specific `Disallow` list, `og.png` and its source, `BRAND_HOME_TITLE`, and the generic
+  `seo.spec.ts`/`seo.js`. It also covers the CI `minimal` job and the stale `data.db`.
+- **Per-id load-test URLs are tagged with a route `name`**
+  ([#40](https://github.com/alexh95/odin-htmx-skeleton/issues/40)): `POST`/`DELETE /contacts/:id` in
+  `write.js` and `mixed.js`, and `GET /contacts/:id` in `detail.js`. Untagged, each id was its own k6
+  time series (100k–200k over a full run), and k6's memory grew on the machine the server shares.
+- **`deploy/apollo-11` is now `deploy/docker-host`, a generic self-host example**
+  ([#44](https://github.com/alexh95/odin-htmx-skeleton/issues/44)). It was the only deploy with
+  persistence, and it was wired to one home server: an ssh alias, `/mnt/fast-storage`, and an
+  external `npm` network. `deploy.sh` now takes `HOST` (required), plus `NAME`, `REMOTE_DIR`,
+  `HOST_PORT`, `VOLUME` and `PROXY_NET`, and writes them to an `.env` beside `compose.yaml`. The
+  reverse-proxy network is an opt-in overlay (`compose.proxy.yaml`). The container now stops on
+  SIGINT, the only signal the server shuts down cleanly on; as PID 1 it ignored Docker's SIGTERM
+  until the SIGKILL, skipping the WAL checkpoint. The README covers backups. `init` renames the
+  defaults. To keep an existing deployment's container and data, set `NAME`, `REMOTE_DIR`,
+  `PROXY_NET` and `VOLUME`. Compose named the old volume `<project>_<volume>`, so check
+  `docker volume ls`.
+- **Deploy docs cover the io_uring seccomp profile and a non-root image**
+  ([#44](https://github.com/alexh95/odin-htmx-skeleton/issues/44),
+  [#33](https://github.com/alexh95/odin-htmx-skeleton/issues/33)). `deploy/docker-host` ships
+  `docker/seccomp-io-uring.json` (Docker's default profile plus io_uring) when the repo has it and runs
+  the container under it, falling back to `seccomp=unconfined`. The README and `infra/PLAN.md` name
+  the profile. For an image that runs as UID 10001, `fly.toml`, `infra/PLAN.md` and the docker-host
+  README give the one-time `chown -R 10001:10001 /data` for a root-owned volume. On Fly, that's a
+  first deploy with the mount but no `DB_PATH`, then `fly ssh console`.
+- **`infra/PLAN.md` describes the repo as it is**
+  ([#33](https://github.com/alexh95/odin-htmx-skeleton/issues/33)). Gone: the on-disk `static/`, the
+  bookworm Dockerfile sketch, "prepare clones odin-http at latest", the stale odin-http/Odin pins,
+  and "CI smoke stands in for e2e". The operator steps use the name `init` sets and the current
+  repo instead of the upstream's. The deploy token gets a 90-day expiry (`-x 2160h`) and a rotation
+  note, instead of `-x 999999h`. New sections: the **io_uring platform requirement**, **Persistence
+  on Fly** (a volume is one machine's, so `fly scale count 2` means two databases; a deploy restarts
+  the machine), and rollback. `fly.toml` gains a commented `SITE_URL` and points at the volume
+  caveats.
+
+### Fixed
+- **A fork's e2e no longer fails on the blanked ownership tokens**
+  ([#24](https://github.com/alexh95/odin-htmx-skeleton/issues/24)). The `BingSiteAuth.xml` and
+  IndexNow tests decided whether to run by looking for `/data` in the sitemap, so after `init` blanked
+  both tokens they still ran and got 404. They now read `BING_SITE_AUTH` / `INDEXNOW_KEY` from
+  `brand.odin` and skip only when the token is empty; when one is set they also check the served
+  value against it. The `*.fly.dev` redirect test skips while `SITE_URL` is still an
+  `*.example.com` placeholder, the case #25 changes.
+- **`init` leaves almost nothing of the upstream's identity behind**
+  ([#28](https://github.com/alexh95/odin-htmx-skeleton/issues/28)). It now also rewrites
+  `BRAND_HOME_TITLE` (a "<name> — built with Odin + HTMX" stand-in), the JSON-LD code name, the
+  favicon's label, the social card source, the README's live-demo line (removed), the upstream's
+  canonical URL wherever the docs quote it, `app.css`'s header, `infra/PLAN.md`,
+  `load-tests/README.md` and the docker-host deploy. It rejects a backslash in the brand values (they
+  land in Odin string literals). The "Next" list names what only the fork can do: the home title, a
+  real `SITE_URL`, re-rendering `og.png`, the favicon artwork, the ownership tokens, the first deploy,
+  and the LICENSE notice. A closing read-only scan lists every file that still names the upstream.
+  `grep -rE 'odin-htmx|alexh95|apollo-11'` outside CHANGELOG/TODO/LICENSE/`tools/` after
+  `init acme-site` went from 39 lines in 12 files to 3 in 3; after `--minimal`, from 38 in 11 to 2
+  in 2. What's left is one measurement record in `RESULTS.md` and two lines in files this change
+  doesn't touch.
+- **`init` removes the template-only `minimal` CI job from the fork**
+  ([#24](https://github.com/alexh95/odin-htmx-skeleton/issues/24)). The job runs `tools/init` on the
+  checkout to keep the `--minimal` templates honest, so in a fork it failed as soon as `tools/init`
+  was deleted (as the README says to), or overwrote a minimal fork's own code. `deploy` needs every
+  job, so the deploy was blocked too. Both variants now delete the job and its comment block and drop
+  it from `deploy`'s `needs`. `init` fails, changing nothing, if it can't find the job or if
+  `ci.yml` still runs `tools/init` afterwards.
+- **A minimal fork's CI build job passes its smoke test**
+  ([#24](https://github.com/alexh95/odin-htmx-skeleton/issues/24)). The step curls `/api/search` and
+  `POST /contacts`, which the starter doesn't have, so every leg failed with "api/search returned
+  404". `init --minimal` swaps those lines for the starter's `/about` and `POST /notes`.
+- **The README's order of steps no longer crashes a minimal fork**
+  ([#26](https://github.com/alexh95/odin-htmx-skeleton/issues/26)). The Quick start's `run` creates
+  `app/data.db` with the demo's schema; after `init --minimal` the starter's migration runner counted
+  it as up to date and the app exited with `no such table: notes`. `init --minimal` now deletes
+  `app/data.db` and its `-wal`/`-shm` files (a dev store, reseeded on the next run) and says so before
+  asking to proceed. A database elsewhere (`DB_PATH`) is named in the "Next" list. The migration
+  check that would catch this at boot is #21.
+- **`./run.sh --quick` works in a minimal fork again**
+  ([#27](https://github.com/alexh95/odin-htmx-skeleton/issues/27)). The load driver kept a hard-coded
+  scenario list that `init --minimal` was meant to trim, but the line it matched had changed in 1.1.0,
+  so the trim silently missed and the run died at the first deleted scenario. `run.sh` now runs every
+  `scenarios/*.js` by default, so there is no list to keep in step.
+- **`init` fails loudly instead of skipping an edit that no longer applies**
+  ([#27](https://github.com/alexh95/odin-htmx-skeleton/issues/27)). It now plans every change in
+  memory (`tools/init/plan.odin`) and writes only if all of them apply; otherwise it lists each miss
+  and changes nothing. A targeted replacement must match. In the name-token pass, every listed file
+  must exist and every token must hit somewhere; a file left with nothing to rename is only noted. A
+  second run says the checkout is already renamed. An audit of every existing replacement found two misses: the `run.sh` scenario list
+  (above) and `app/README.md`, which was in the rename list with nothing to rename.
 
 ## [1.1.1] - 2026-10-07
 
