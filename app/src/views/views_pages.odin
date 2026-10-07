@@ -105,9 +105,9 @@ view_components :: proc() -> string {
 	section_open(&b, "Tabs", "Panels fetched from the server on demand.")
 	w(&b, `<div class="tabs">
     <div class="tablist" role="tablist">
-      <button class="tab" role="tab" aria-selected="true" onclick="selectTab(this)" hx-get="/ui/tab/overview" hx-target="#tabpanel">Overview</button>
-      <button class="tab" role="tab" onclick="selectTab(this)" hx-get="/ui/tab/activity" hx-target="#tabpanel">Activity</button>
-      <button class="tab" role="tab" onclick="selectTab(this)" hx-get="/ui/tab/security" hx-target="#tabpanel">Security</button>
+      <button class="tab" role="tab" aria-selected="true" hx-get="/ui/tab/overview" hx-target="#tabpanel">Overview</button>
+      <button class="tab" role="tab" aria-selected="false" hx-get="/ui/tab/activity" hx-target="#tabpanel">Activity</button>
+      <button class="tab" role="tab" aria-selected="false" hx-get="/ui/tab/security" hx-target="#tabpanel">Security</button>
     </div>
     <div id="tabpanel" class="tabpanel" role="tabpanel">`)
 	w(&b, tab_panel("overview"))
@@ -195,8 +195,7 @@ view_forms :: proc() -> string {
     </label>
     <label class="field">
       <span>Engagement <output class="out">60</output></span>
-      <input type="range" name="score" min="0" max="100" value="60"
-             oninput="this.previousElementSibling.querySelector('.out').value=this.value">
+      <input type="range" name="score" min="0" max="100" value="60">
     </label>
     <fieldset class="field span-2">
       <legend>Status</legend>
@@ -240,7 +239,7 @@ view_data :: proc(p: services.Page) -> string {
 	// Filter + add form sit outside the swapped region so they survive a reload
 	// of the table itself.
 	w(&b, `<div class="toolbar">
-    <form class="filter" role="search" onsubmit="return false">`)
+    <form class="filter" role="search">`)
 	icon(&b, "search")
 	w(&b, `<input type="search" name="q" placeholder="Filter contacts…" autocomplete="off" value="`)
 	esc(&b, p.q)

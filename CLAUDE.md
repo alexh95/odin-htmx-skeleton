@@ -186,6 +186,22 @@ oriented: solve the problem simply, once, and let small reusable procs do the wo
 - A page handler builds a content string and wraps it with `layout(title, active, content)`.
   Fragments return bare HTML (no layout).
 
+## Middleware (`controllers/middleware.odin`)
+
+Every request goes through **`controllers.front`**, installed once in `main.odin` and shared with
+`--minimal`. In order:
+
+1. **Security headers** on every response: a strict `Content-Security-Policy` (scripts from this
+   origin plus the hashed pre-paint script; no inline handlers; `style-src-attr 'unsafe-inline'`
+   only for the `style="--x:…"` attributes; `frame-ancestors 'none'`), `nosniff`,
+   `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`. A fork that needs a
+   third-party origin widens the one directive in `init_security`, nothing else.
+2. **`canonical_host`**: the `*.fly.dev` → `SITE_URL` 301 (see Crawlers below).
+3. **The body**, read before routing for any request that announces one, capped at `MAX_BODY`
+   (413 past it). Handlers read it with `request_form()`.
+
+A new cross-cutting rule (auth, a rate limit) belongs here, not in each handler.
+
 ## Allocator model (the #1 gotcha — get this right)
 
 odin-http gives each connection a growing arena as **`context.temp_allocator`**, freed *after*
@@ -352,9 +368,15 @@ Store failures are separate: `respond_store_error` (404 / 409 / 500).
 
 - Vanilla, no dependencies, small. HTMX drives interactions; JS only does what the server
   can't: theme persistence, toast lifecycle, tab selection state, slider fill, count-up.
-- **Delegated listeners** on `document` so dynamically swapped content is covered; re-init
-  swapped content on `htmx:after:process` (htmx 4's "content wired up" event). The file runs
-  `defer` (DOM is ready).
+- **No inline handlers, ever** (`onclick=`, `oninput=`, `onsubmit=` …): the Content-Security-Policy
+  refuses them, so they silently do nothing. Markup says what a click means with a `data-*`
+  attribute or a role (`data-pick-style`, `data-sw-style`, `role="tab"`, `.toast-x`,
+  `form[role="search"]`), and one **delegated listener** on `document` in app.js routes it — which
+  also covers content swapped in later. Re-init swapped content on `htmx:after:process` (htmx 4's
+  "content wired up" event). The file runs `defer` (DOM is ready). A click that must not bubble to a
+  closer behind it is a `hx-trigger="click from:self"` on the closer, not `stopPropagation()`.
+- **No new inline `<script>`.** The only one is `views.THEME_PREPAINT_JS`, admitted by its hash
+  (computed at boot, so editing the constant keeps the header right); anything else goes in app.js.
 - **Keep per-node state swap-safe** — a boosted nav swaps the whole `<body>`. Observe a stable
   ancestor (the toast retire-observer watches `document.body`, not the swapped `#toasts`), and make
   on-load init idempotent so `htmx:after:process` can re-run it after a swap (the count-up flags

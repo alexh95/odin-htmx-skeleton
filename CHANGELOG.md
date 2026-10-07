@@ -8,6 +8,22 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Added
+- **Security headers and a strict Content-Security-Policy on every response**
+  ([#19](https://github.com/alexh95/odin-htmx-skeleton/issues/19)). Responses carried only `date`,
+  `content-length` and `content-type`. `controllers.front` now sets `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` and a CSP whose
+  `script-src` is `'self'` plus the sha256 of the theme pre-paint script, with no `'unsafe-inline'`
+  (`style-src-attr` keeps it, for the components' `style="--x:…"` custom properties). The hash is
+  computed at boot from `views.THEME_PREPAINT_JS`, so editing the script keeps the header right. To
+  make that possible, the 56 inline `on*=` handlers on `/components` (theme picker, showroom, tabs,
+  toast dismiss, range outputs, search-form submits, drawer `stopPropagation`) are gone: app.js routes
+  clicks by `data-*` attribute or role from one delegated listener, the drawers' backdrops close on
+  `hx-trigger="click from:self"`, and slider outputs are `<output>` elements app.js keeps in step.
+  Both variants. e2e: `security.spec.ts` checks the headers on a page, an asset, `/healthz` and a 404,
+  that no page has an inline handler, that the hashed script runs, and that using the pages raises no
+  CSP violation.
+
 ### Changed
 - **The repository's SQLite plumbing is one shared file.** `repository/db.odin` holds the
   connection, lock, migration runner and bind/scan helpers, unchanged between the demo and the
