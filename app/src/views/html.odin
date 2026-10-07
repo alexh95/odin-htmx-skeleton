@@ -34,6 +34,13 @@ esc :: proc(b: ^strings.Builder, s: string) {
 	}
 }
 
+// Restores the saved theme before first paint, so the page never flashes the
+// default palette. It has to be inline (it must run before the stylesheet
+// applies), so the Content-Security-Policy admits it by its hash, computed from
+// this constant at boot (controllers.init_security): edit it here and the
+// header follows. Every other script is a file.
+THEME_PREPAINT_JS :: `try{var d=document.documentElement,s=localStorage.getItem('style'),c=localStorage.getItem('scheme');if(s)d.dataset.style=s;if(c)d.dataset.scheme=c;}catch(e){}`
+
 url_encode :: proc(s: string) -> string {
 	return net.percent_encode(s, context.temp_allocator)
 }

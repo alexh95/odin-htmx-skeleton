@@ -106,8 +106,10 @@ icon :: proc(b: ^strings.Builder, name: string) {
 //
 // Two orthogonal axes carried as data-attributes on <html>: `data-style` (the
 // treatment — Modern, …) and `data-scheme` (the palette within a style). Pure
-// presentation: the picker is static HTML, app.js applies + persists the choice
-// (localStorage), and the head pre-paint script restores it before first paint.
+// presentation: the picker is static HTML whose buttons app.js handles by their
+// data-pick-* attributes (no inline handlers: the CSP forbids them), applying +
+// persisting the choice (localStorage); the head pre-paint script restores it
+// before first paint.
 // No server endpoint, so it adds no surface to load-test. Phase C appends styles
 // and schemes to these tables and one CSS line per style to reveal its swatches.
 
@@ -178,8 +180,7 @@ theme_picker :: proc(b: ^strings.Builder) {
 	for s in STYLES {
 		fmt.sbprintf(
 			b,
-			`<button class="chip" type="button" data-pick-style="%s" aria-pressed="false" onclick="pickStyle('%s')">%s</button>`,
-			s.id,
+			`<button class="chip" type="button" data-pick-style="%s" aria-pressed="false">%s</button>`,
 			s.id,
 			s.label,
 		)
@@ -191,11 +192,10 @@ theme_picker :: proc(b: ^strings.Builder) {
 			if sc.style != s.id {continue}
 			fmt.sbprintf(
 				b,
-				`<button class="swatch" type="button" data-pick-scheme="%s" aria-pressed="false" title="%s" style="--sw:%s" onclick="pickScheme('%s')"></button>`,
+				`<button class="swatch" type="button" data-pick-scheme="%s" aria-pressed="false" title="%s" style="--sw:%s"></button>`,
 				sc.id,
 				sc.label,
 				sc.swatch,
-				sc.id,
 			)
 		}
 		w(b, `</div>`)
@@ -205,7 +205,8 @@ theme_picker :: proc(b: ^strings.Builder) {
 
 // The /components showroom: every style and scheme laid out at once, each swatch
 // a one-click jump to that exact style + scheme. The components below it re-skin
-// live (same data-style/data-scheme on <html>; setTheme applies + persists).
+// live (same data-style/data-scheme on <html>; app.js reads data-sw-* and
+// applies + persists).
 view_showroom :: proc(b: ^strings.Builder) {
 	fmt.sbprintf(
 		b,
@@ -219,14 +220,12 @@ view_showroom :: proc(b: ^strings.Builder) {
 			if sc.style != s.id {continue}
 			fmt.sbprintf(
 				b,
-				`<button class="swatch" type="button" style="--sw:%s" title="%s · %s" aria-label="%s %s" data-sw-style="%s" data-sw-scheme="%s" onclick="setTheme('%s','%s')"></button>`,
+				`<button class="swatch" type="button" style="--sw:%s" title="%s · %s" aria-label="%s %s" data-sw-style="%s" data-sw-scheme="%s"></button>`,
 				sc.swatch,
 				s.label,
 				sc.label,
 				s.label,
 				sc.label,
-				s.id,
-				sc.id,
 				s.id,
 				sc.id,
 			)
@@ -357,7 +356,9 @@ layout :: proc(title, active, description, content: string) -> string {
 <link rel="stylesheet" href="`)
 	w(&b, CSS_HREF)
 	w(&b, `">
-<script>try{var d=document.documentElement,s=localStorage.getItem('style'),c=localStorage.getItem('scheme');if(s)d.dataset.style=s;if(c)d.dataset.scheme=c;}catch(e){}</script>
+<script>`)
+	w(&b, THEME_PREPAINT_JS)
+	w(&b, `</script>
 <script src="`)
 	w(&b, HTMX_HREF)
 	w(&b, `" defer></script>
@@ -429,7 +430,7 @@ layout :: proc(title, active, description, content: string) -> string {
 		fmt.sbprintf(&b, `<span>%s</span></a>`, item.label)
 	}
 	w(&b, `</nav>
-  <form class="search" role="search" onsubmit="return false">`)
+  <form class="search" role="search">`)
 	icon(&b, "search")
 	w(&b, `<input type="search" name="q" placeholder="Search contacts…" autocomplete="off" aria-label="Search contacts"
        hx-get="/search" hx-trigger="keyup changed delay:250ms, search, focus" hx-target="#search-results" hx-swap="innerHTML">

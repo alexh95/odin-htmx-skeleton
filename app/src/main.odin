@@ -67,6 +67,7 @@ main :: proc() {
 		repository.repo_seed()
 	}
 	controllers.init_etags()
+	controllers.init_security()
 
 	router: http.Router
 	http.router_init(&router)

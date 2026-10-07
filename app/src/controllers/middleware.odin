@@ -1,5 +1,7 @@
 package controllers
 
+import "core:crypto/sha2"
+import "core:encoding/base64"
 import "core:net"
 import "core:strings"
 
@@ -11,11 +13,12 @@ import "../views"
 // One wrapper around the router (main.odin installs it). It is shared by the
 // demo and the `init --minimal` starter, so it stays entity-agnostic.
 //
-// In order: the *.fly.dev redirect (canonical_host), then the body of every
-// request that can carry one, read before routing and capped at MAX_BODY. Doing
-// that here rather than per handler means the cap holds for every route,
-// including the ones a fork adds, and a handler gets the parsed form
-// synchronously from request_form() instead of wiring its own async read.
+// In order: the security headers every response carries, the *.fly.dev
+// redirect (canonical_host), then the body of every request that can carry one,
+// read before routing and capped at MAX_BODY. Doing that here rather than per
+// handler means the cap holds for every route, including the ones a fork adds,
+// and a handler gets the parsed form synchronously from request_form() instead
+// of wiring its own async read.
 
 // Far above any form this app posts (the longest field is capped in services),
 // so it only ever stops abuse. A larger body is refused with 413 before a byte
@@ -24,6 +27,7 @@ MAX_BODY :: 64 * 1024
 
 front :: proc(handler: ^http.Handler, req: ^http.Request, res: ^http.Response) {
 	next := handler.next.(^http.Handler)
+	security_headers(res)
 	if canonical_host(req, res) {
 		return
 	}
@@ -59,6 +63,49 @@ request_form :: proc() -> map[string]string {
 		return make(map[string]string, context.temp_allocator)
 	}
 	return body_form((^string)(context.user_ptr)^)
+}
+
+// ---- security headers ---------------------------------------------------
+//
+// On every response, whatever produced it:
+// - a Content-Security-Policy that runs only this origin's script files plus
+//   the one inline script admitted by hash (views.THEME_PREPAINT_JS), so an
+//   injected <script> or on*= attribute doesn't execute. style-src-attr stays
+//   'unsafe-inline' for the style="--h:…" attributes the components set;
+//   <style> elements are still refused. Images allow data: for the CSS's inline
+//   SVG icons.
+// - nosniff, so a response is only ever used as the type it says it is;
+// - no framing (frame-ancestors, and X-Frame-Options for older browsers);
+// - the full Referer only within this origin.
+//
+// A fork that loads anything from elsewhere (fonts, analytics) widens the one
+// directive it needs, in init_security, and nothing else.
+
+@(private = "file") csp: string
+
+// Computed once at boot (main calls it, with a context for the allocation).
+init_security :: proc() {
+	sum: [sha2.DIGEST_SIZE_256]byte
+	ctx: sha2.Context_256
+	sha2.init_256(&ctx)
+	sha2.update(&ctx, transmute([]byte)string(views.THEME_PREPAINT_JS))
+	sha2.final(&ctx, sum[:])
+	csp = strings.concatenate(
+		{
+			"default-src 'self'; script-src 'self' 'sha256-",
+			base64.encode(sum[:]),
+			"'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; ",
+			"object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+		},
+	)
+}
+
+@(private = "file")
+security_headers :: proc(res: ^http.Response) {
+	http.headers_set(&res.headers, "content-security-policy", csp)
+	http.headers_set(&res.headers, "x-content-type-options", "nosniff")
+	http.headers_set(&res.headers, "x-frame-options", "DENY")
+	http.headers_set(&res.headers, "referrer-policy", "strict-origin-when-cross-origin")
 }
 
 // ---- canonical host -----------------------------------------------------
