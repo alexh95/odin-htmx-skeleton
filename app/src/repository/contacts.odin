@@ -14,9 +14,9 @@ import "core:sync"
 
 @(private = "file") q_list, q_get, q_create, q_update, q_cycle, q_delete, q_count, q_stats: sqlite.Stmt
 
-@(private = "file") SQL_LIST: cstring : "SELECT id,name,email,role,status,score FROM contacts ORDER BY id"
-@(private = "file") SQL_GET: cstring : "SELECT id,name,email,role,status,score FROM contacts WHERE id=? LIMIT 1"
-@(private = "file") SQL_CREATE: cstring : "INSERT INTO contacts(name,email,role,status,score) VALUES(?,?,?,?,?)"
+@(private = "file") SQL_LIST: cstring : "SELECT id,name,email,role,status,score,notes,notify FROM contacts ORDER BY id"
+@(private = "file") SQL_GET: cstring : "SELECT id,name,email,role,status,score,notes,notify FROM contacts WHERE id=? LIMIT 1"
+@(private = "file") SQL_CREATE: cstring : "INSERT INTO contacts(name,email,role,status,score,notes,notify) VALUES(?,?,?,?,?,?,?)"
 @(private = "file") SQL_UPDATE: cstring : "UPDATE contacts SET name=?,email=?,role=?,status=?,score=? WHERE id=?"
 // One statement, so two clicks at once advance the status twice instead of both
 // reading the same value and writing the same next one. ?2 is len(models.Status).
@@ -59,9 +59,9 @@ repo_get :: proc(id: int) -> (models.Contact, Error) {
 	return get_unlocked(id)
 }
 
-repo_create :: proc(name, email: string, role: models.Role, status: models.Status, score: int) -> (models.Contact, Error) {
+repo_create :: proc(name, email: string, role: models.Role, status: models.Status, score: int, notes: string, notify: bool) -> (models.Contact, Error) {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
-	id, err := create_unlocked(name, email, role, status, score)
+	id, err := create_unlocked(name, email, role, status, score, notes, notify)
 	if err != .None {
 		return {}, err
 	}
@@ -142,6 +142,8 @@ scan_contact :: proc(st: sqlite.Stmt) -> models.Contact {
 		role   = models.Role(sqlite.column_int(st, 3)),
 		status = models.Status(sqlite.column_int(st, 4)),
 		score  = int(sqlite.column_int(st, 5)),
+		notes  = clone_col(st, 6),
+		notify = sqlite.column_int(st, 7) != 0,
 	}
 }
 
@@ -157,11 +159,12 @@ get_unlocked :: proc(id: int) -> (models.Contact, Error) {
 }
 
 @(private = "file")
-create_unlocked :: proc(name, email: string, role: models.Role, status: models.Status, score: int) -> (int, Error) {
+create_unlocked :: proc(name, email: string, role: models.Role, status: models.Status, score: int, notes: string, notify: bool) -> (int, Error) {
 	defer sqlite.reset(q_create)
 	bind_text(q_create, 1, name);bind_text(q_create, 2, email)
 	sqlite.bind_int(q_create, 3, c.int(role));sqlite.bind_int(q_create, 4, c.int(status))
-	sqlite.bind_int(q_create, 5, c.int(score))
+	sqlite.bind_int(q_create, 5, c.int(score));bind_text(q_create, 6, notes)
+	sqlite.bind_int(q_create, 7, c.int(notify))
 	if err := step_done(q_create); err != .None {
 		return 0, err
 	}
@@ -203,7 +206,7 @@ seed_contacts :: proc() {
 		role := models.Role((i * 7 + 3) % len(models.Role))
 		status := models.Status(i % len(models.Status))
 		score := 35 + (i * 53) % 64
-		if _, err := create_unlocked(name, email, role, status, score); err != .None {
+		if _, err := create_unlocked(name, email, role, status, score, "", false); err != .None {
 			fatal("seed")
 		}
 	}

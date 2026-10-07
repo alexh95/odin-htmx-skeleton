@@ -243,12 +243,12 @@ contact_detail :: proc(id: int) -> (d: Detail, err: Store_Error) {
 
 // Trim + validate, then insert. A rejected contact comes back as per-field
 // messages (the user's to fix) and nothing is stored; a store failure comes
-// back as an error (the server's).
-create_contact :: proc(name, email: string, role: models.Role, status: models.Status, score: int) -> (models.Contact, []Field_Error, Store_Error) {
-	if errs := validate_contact(name, email); len(errs) > 0 {
+// back as an error (the server's). notes is optional: "" is stored as "".
+create_contact :: proc(name, email: string, role: models.Role, status: models.Status, score: int, notes := "", notify := false) -> (models.Contact, []Field_Error, Store_Error) {
+	if errs := validate_contact(name, email, notes); len(errs) > 0 {
 		return {}, errs, .None
 	}
-	c, err := repository.repo_create(strings.trim_space(name), strings.trim_space(email), role, status, clamp(score, 0, 100))
+	c, err := repository.repo_create(strings.trim_space(name), strings.trim_space(email), role, status, clamp(score, 0, 100), strings.trim_space(notes), notify)
 	return c, nil, err
 }
 
@@ -317,6 +317,7 @@ dashboard_stats :: proc() -> (s: Stats, err: Store_Error) {
 // The inputs carry the same numbers as `maxlength`, so the browser stops first.
 MAX_NAME :: 100
 MAX_EMAIL :: 254 // the longest address SMTP can carry (RFC 5321)
+MAX_NOTES :: 1000
 
 Field_Error :: struct {
 	field: string,
@@ -332,7 +333,7 @@ valid_email :: proc(s: string) -> bool {
 	return dot > at + 1 && dot < len(s) - 1
 }
 
-validate_contact :: proc(name, email: string) -> []Field_Error {
+validate_contact :: proc(name, email: string, notes := "") -> []Field_Error {
 	errs := make([dynamic]Field_Error, context.temp_allocator)
 	switch n := strings.trim_space(name); {
 	case n == "":
@@ -345,6 +346,9 @@ validate_contact :: proc(name, email: string) -> []Field_Error {
 		append(&errs, Field_Error{"email", fmt.tprintf("Email must be at most %d characters.", MAX_EMAIL)})
 	case !valid_email(e):
 		append(&errs, Field_Error{"email", "Enter a valid email address."})
+	}
+	if utf8.rune_count_in_string(strings.trim_space(notes)) > MAX_NOTES {
+		append(&errs, Field_Error{"notes", fmt.tprintf("Notes must be at most %d characters.", MAX_NOTES)})
 	}
 	return errs[:]
 }

@@ -11,11 +11,12 @@ import "core:sync"
 // repository knows SQL.
 
 // The schema, in order (see migrate in db.odin). #load'd so it rides inside
-// the binary. To grow it, add 0003_*.sql and list it here; never edit a file
+// the binary. To grow it, add 0004_*.sql and list it here; never edit a file
 // that has shipped, since every database records each one's hash.
 @(private = "file") MIGRATIONS := [?]Migration {
 	{"0001_init.sql", #load("migrations/0001_init.sql", string)},
 	{"0002_events.sql", #load("migrations/0002_events.sql", string)},
+	{"0003_contact_notes.sql", #load("migrations/0003_contact_notes.sql", string)},
 }
 
 // ---- lifecycle (called from main, around repo_seed) ---------------------

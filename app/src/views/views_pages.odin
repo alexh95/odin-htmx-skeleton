@@ -211,7 +211,9 @@ view_forms :: proc() -> string {
     </label>
     <label class="field span-2">
       <span>Notes</span>
-      <textarea name="notes" rows="3" placeholder="Anything worth remembering…"></textarea>
+      `)
+	fmt.sbprintf(&b, `<textarea name="notes" rows="3" maxlength="%d" placeholder="Anything worth remembering…"></textarea>`, services.MAX_NOTES)
+	w(&b, `
     </label>
   </div>
   <div class="form-actions">

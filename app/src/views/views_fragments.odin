@@ -268,7 +268,16 @@ detail_view_body :: proc(b: ^strings.Builder, c: models.Contact, timeline: []mod
 	role_chip(b, c.role)
 	status_badge(b, c.status)
 	fmt.sbprintf(b, `<span class="detail-score"><small class="muted">Engagement</small><div class="meter"><i style="width:%d%%"></i></div><strong>%d / 100</strong></span><span class="detail-rid">#%d</span>`, c.score, c.score, c.id)
-	w(b, `</div><section class="detail-section"><h3>Activity</h3>`)
+	if c.notify {
+		w(b, `<span class="tag">email updates</span>`)
+	}
+	w(b, `</div>`)
+	if c.notes != "" {
+		w(b, `<section class="detail-section"><h3>Notes</h3><p class="detail-notes">`)
+		esc(b, c.notes)
+		w(b, `</p></section>`)
+	}
+	w(b, `<section class="detail-section"><h3>Activity</h3>`)
 	if len(timeline) == 0 {
 		w(b, `<p class="muted detail-empty">No interactions yet.</p>`)
 	} else {
