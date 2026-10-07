@@ -8,7 +8,6 @@ import "core:time"
 
 import http "../../odin-http"
 import "../models"
-import "../repository"
 import "../services"
 import "../views"
 
@@ -61,7 +60,7 @@ page_dashboard :: proc(req: ^http.Request, res: ^http.Response) {
 		"Dashboard",
 		"/",
 		"A server-rendered web stack in one binary: an Odin backend renders the HTML, HTMX handles the interaction, SQLite holds the data. Click through the worked example.",
-		views.view_dashboard(),
+		views.view_dashboard(services.dashboard_stats()),
 	)
 }
 
@@ -132,10 +131,8 @@ api_search :: proc(req: ^http.Request, res: ^http.Response) {
 	rn := models.ROLE_NAMES
 	sn := models.STATUS_NAMES
 	out := make([dynamic]Contact_DTO, context.temp_allocator)
-	for c in repository.repo_list() {
-		if q == "" || services.contact_matches(c, q) {
-			append(&out, Contact_DTO{c.id, c.name, c.email, rn[c.role], sn[c.status], c.score})
-		}
+	for c in services.search_all(q) {
+		append(&out, Contact_DTO{c.id, c.name, c.email, rn[c.role], sn[c.status], c.score})
 	}
 	http.respond_json(res, out[:])
 }
@@ -155,7 +152,7 @@ frag_contacts :: proc(req: ^http.Request, res: ^http.Response) {
 // contacts, rendered as a drawer into #overlay.
 contact_detail :: proc(req: ^http.Request, res: ^http.Response) {
 	id := to_int(req.url_params[0])
-	c, ok := repository.repo_get(id)
+	c, ok := services.get_contact(id)
 	if !ok {
 		http.respond(res, http.Status.Not_Found)
 		return
@@ -172,17 +169,12 @@ contact_detail :: proc(req: ^http.Request, res: ^http.Response) {
 
 contacts_create :: proc(req: ^http.Request, res: ^http.Response) {
 	form := request_form()
-	name := form["name"]
-	email := form["email"]
-
-	errs := services.validate_contact(name, email)
+	role, _ := models.role_from(form["role"])
+	c, errs := services.create_contact(form["name"], form["email"], role, .Invited, 50)
 	if len(errs) > 0 {
 		http.respond_html(res, views.view_toast("error", errs[0].msg, true))
 		return
 	}
-
-	role, _ := models.role_from(form["role"])
-	c := repository.repo_create(strings.trim_space(name), strings.trim_space(email), role, .Invited, 50)
 
 	b := strings.builder_make(context.temp_allocator)
 	views.view_contact_row(&b, c, true)
@@ -202,24 +194,14 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 	ok: bool
 	edit_errs: []services.Field_Error
 	if action == "cycle" {
-		if cur, found := repository.repo_get(id); found {
-			next := models.Status((int(cur.status) + 1) % len(models.Status))
-			c, ok = repository.repo_set_status(id, next)
-		}
-	} else if name := strings.trim_space(form["name"]); name != "" {
+		c, ok = services.cycle_status(id)
+	} else if strings.trim_space(form["name"]) != "" {
 		// full edit from the detail drawer
-		email := strings.trim_space(form["email"])
-		edit_errs = services.validate_contact(name, email)
-		if len(edit_errs) == 0 {
-			role, _ := models.role_from(form["role"])
-			status, _ := models.status_from(form["status"])
-			score := clamp(to_int(form["score"]), 0, 100)
-			c, ok = repository.repo_update(id, name, email, role, status, score)
-		} else {
-			c, ok = repository.repo_get(id) // invalid (the form guards this, but be graceful)
-		}
+		role, _ := models.role_from(form["role"])
+		status, _ := models.status_from(form["status"])
+		c, ok, edit_errs = services.update_contact(id, form["name"], form["email"], role, status, to_int(form["score"]))
 	} else {
-		c, ok = repository.repo_get(id)
+		c, ok = services.get_contact(id)
 	}
 
 	if !ok {
@@ -252,7 +234,7 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 
 contacts_delete :: proc(req: ^http.Request, res: ^http.Response) {
 	id := to_int(req.url_params[0])
-	if !repository.repo_delete(id) {
+	if !services.delete_contact(id) {
 		http.respond(res, http.Status.Not_Found)
 		return
 	}
@@ -283,19 +265,13 @@ validate_email_field :: proc(req: ^http.Request, res: ^http.Response) {
 
 forms_submit :: proc(req: ^http.Request, res: ^http.Response) {
 	form := request_form()
-	name := form["name"]
-	email := form["email"]
-
-	errs := services.validate_contact(name, email)
+	role, _ := models.role_from(form["role"])
+	status, _ := models.status_from(form["status"])
+	c, errs := services.create_contact(form["name"], form["email"], role, status, to_int(form["score"]))
 	if len(errs) > 0 {
 		http.respond_html(res, views.view_form_errors(errs))
 		return
 	}
-
-	role, _ := models.role_from(form["role"])
-	status, _ := models.status_from(form["status"])
-	score := clamp(to_int(form["score"]), 0, 100)
-	c := repository.repo_create(strings.trim_space(name), strings.trim_space(email), role, status, score)
 
 	b := strings.builder_make(context.temp_allocator)
 	strings.write_string(&b, views.view_form_result(c))

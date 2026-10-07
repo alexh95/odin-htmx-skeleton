@@ -226,6 +226,12 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   connection, lock, migration runner and bind/scan helpers, unchanged between the demo and the
   `--minimal` starter; `repo.odin` keeps only the app's wiring (migrations, statements, seed). A fix
   to the plumbing now lands in both variants at once.
+- **Controllers and views reach the store only through services** (part of
+  [#33](https://github.com/alexh95/odin-htmx-skeleton/issues/33)). `CLAUDE.md` said "never touch
+  the store from a controller" while `controllers.odin` made ten `repository.*` calls and the
+  dashboard view read the table itself. `services` gains `get_contact`, `create_contact`,
+  `update_contact` (both validate), `cycle_status`, `delete_contact`, `search_all` and
+  `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
 
 ### Fixed
 - **Request bodies and text fields are size-limited**

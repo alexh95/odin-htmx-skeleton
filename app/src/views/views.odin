@@ -1,6 +1,6 @@
 package views
-import "../repository"
 import "../models"
+import "../services"
 
 import "core:fmt"
 import "core:net"
@@ -479,17 +479,7 @@ page_head :: proc(b: ^strings.Builder, eyebrow, title, subtitle: string) {
 
 // ---- dashboard ----------------------------------------------------------
 
-view_dashboard :: proc() -> string {
-	contacts := repository.repo_list()
-	total := len(contacts)
-	active, invited, score_sum := 0, 0, 0
-	for c in contacts {
-		if c.status == .Active {active += 1}
-		if c.status == .Invited {invited += 1}
-		score_sum += c.score
-	}
-	avg := total > 0 ? score_sum / total : 0
-
+view_dashboard :: proc(st: services.Stats) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	// The heading names the project, not the nav item. This is the one page a
 	// search engine shows for the site as a whole, and it reads the <h1> together
@@ -508,10 +498,10 @@ view_dashboard :: proc() -> string {
 		`<div class="block-head"><h2>Overview</h2><p class="muted">Live figures from the demo store, counted on the server.</p></div>`,
 	)
 	w(&b, `<section class="stat-grid">`)
-	stat_card(&b, "users", "Total contacts", total, "+4 this week", []int{6, 9, 7, 11, 10, 14, 13, 18}, "/data")
-	stat_card(&b, "check", "Active", active, "82% of base", []int{10, 11, 9, 12, 13, 12, 15, 16}, "/data?status=Active")
-	stat_card(&b, "bell", "Invited", invited, "pending", []int{3, 4, 2, 5, 4, 6, 5, 4}, "/data?status=Invited")
-	stat_card(&b, "bolt", "Avg. engagement", avg, "score / 100", []int{40, 52, 48, 60, 58, 66, 70, 74}, "/data?sort=score_desc")
+	stat_card(&b, "users", "Total contacts", st.total, "+4 this week", []int{6, 9, 7, 11, 10, 14, 13, 18}, "/data")
+	stat_card(&b, "check", "Active", st.active, "82% of base", []int{10, 11, 9, 12, 13, 12, 15, 16}, "/data?status=Active")
+	stat_card(&b, "bell", "Invited", st.invited, "pending", []int{3, 4, 2, 5, 4, 6, 5, 4}, "/data?status=Invited")
+	stat_card(&b, "bolt", "Avg. engagement", st.avg_score, "score / 100", []int{40, 52, 48, 60, 58, 66, 70, 74}, "/data?sort=score_desc")
 	w(&b, `</section>`)
 
 	// `block` only adds the section spacing `.split` has none of — the new prose
