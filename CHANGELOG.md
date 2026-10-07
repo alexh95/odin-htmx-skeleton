@@ -8,7 +8,16 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+- **Search highlighting could mark the wrong characters.** `write_highlighted` found matches in a
+  lowercased copy of the text, then cut the original with that copy's offsets. Lowercasing can change
+  a string's byte length: `İ` lowers to `i`, `ẞ` to `ß`, and an invalid UTF-8 byte to the 3-byte
+  U+FFFD. So searching `İ` marked `in`, and a stored `Straẞe` found by `straße` was marked as
+  `Straẞ`. It now walks the original text rune by rune, applying the same per-rune
+  `unicode.to_lower` that `services.contains_ci` matches with, so the marks cover exactly what the
+  search matched. e2e: two request-level cases in `search.spec.ts` cover a query and stored text whose
+  lowercase changes length; both failed before the fix. No load-test change: the endpoint and its cost
+  are the same.
 
 ## [1.1.0] - 2026-10-07
 

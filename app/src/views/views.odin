@@ -5,6 +5,8 @@ import "../models"
 import "core:fmt"
 import "core:net"
 import "core:strings"
+import "core:unicode"
+import "core:unicode/utf8"
 
 // ---- views --------------------------------------------------------------
 //
@@ -44,27 +46,51 @@ url_encode :: proc(s: string) -> string {
 
 // Escape text while wrapping each case-insensitive occurrence of q in <mark>.
 // Used by the search dropdown so the matched span lights up.
+//
+// Matching walks `text` itself, rune by rune, rather than searching a lowered
+// copy: lowering can change a string's byte length (İ → i, ẞ → ß, an invalid
+// byte → U+FFFD), so an offset found in the copy doesn't fit the original.
+// Per-rune unicode.to_lower is what strings.to_lower applies, so this marks
+// exactly what services.contains_ci matched.
 write_highlighted :: proc(b: ^strings.Builder, text, q: string) {
 	if q == "" {
 		esc(b, text)
 		return
 	}
-	lt := strings.to_lower(text, context.temp_allocator)
-	lq := strings.to_lower(q, context.temp_allocator)
-	start := 0
-	for start < len(text) {
-		idx := strings.index(lt[start:], lq)
-		if idx < 0 {
-			esc(b, text[start:])
-			return
+	start, i := 0, 0
+	for i < len(text) {
+		if n, ok := match_ci(text[i:], q); ok {
+			esc(b, text[start:i])
+			w(b, "<mark>")
+			esc(b, text[i:i + n])
+			w(b, "</mark>")
+			i += n
+			start = i
+			continue
 		}
-		at := start + idx
-		esc(b, text[start:at])
-		w(b, "<mark>")
-		esc(b, text[at:at + len(q)])
-		w(b, "</mark>")
-		start = at + len(q)
+		_, width := utf8.decode_rune_in_string(text[i:])
+		i += width
 	}
+	esc(b, text[start:])
+}
+
+// Byte length of the prefix of s that equals q case-insensitively, if any.
+@(private = "file")
+match_ci :: proc(s, q: string) -> (n: int, ok: bool) {
+	j := 0
+	for j < len(q) {
+		if n >= len(s) {
+			return 0, false
+		}
+		a, aw := utf8.decode_rune_in_string(s[n:])
+		c, cw := utf8.decode_rune_in_string(q[j:])
+		if unicode.to_lower(a) != unicode.to_lower(c) {
+			return 0, false
+		}
+		n += aw
+		j += cw
+	}
+	return n, true
 }
 
 // ---- icons --------------------------------------------------------------

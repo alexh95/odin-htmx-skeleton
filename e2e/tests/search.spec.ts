@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures';
-import type { Page } from '@playwright/test';
+import type { APIRequestContext, Page } from '@playwright/test';
 
 // The global active-search lives in the top bar (aria-label "Search contacts")
 // and swaps a results panel into #search-results. Its HTMX trigger is keyup, so
@@ -51,5 +51,38 @@ test.describe('active search', () => {
     // Matched by level so the target survives a rewording of the page copy.
     await page.getByRole('heading', { level: 1 }).click();
     await expect(page.locator(`${box} .search-panel`)).toHaveCount(0);
+  });
+});
+
+// Marks are measured in the original text. Lowering can change a string's byte
+// length (İ → i, ẞ → ß, an invalid byte → U+FFFD), so an offset taken from a
+// lowered copy marked the wrong characters.
+test.describe('search highlighting', () => {
+  const results = async (request: APIRequestContext, q: string) => {
+    const res = await request.get(`/search?q=${encodeURIComponent(q)}`);
+    expect(res.status()).toBe(200);
+    return res.text();
+  };
+
+  test('a query that shrinks when lowered marks the original span', async ({ request }) => {
+    expect(await results(request, 'Turİng')).toContain('<mark>Turing</mark>');
+    const dotted = await results(request, 'İ');
+    expect(dotted).toContain('Tur<mark>i</mark>ng');
+    expect(dotted).not.toContain('<mark>in</mark>');
+  });
+
+  test('stored text that changes length when lowered keeps its marks aligned', async ({ request }) => {
+    // Lower-case names sort after the seed, so other specs' first rows stay put.
+    const add = async (name: string) => {
+      const res = await request.post('/contacts', {
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        data: `name=${name}&email=zz@example.dev&role=0&status=1`,
+      });
+      expect(res.status()).toBe(200);
+    };
+    await add('zz%20Stra%E1%BA%9Ee'); // ẞ is 3 bytes, its lowercase ß is 2
+    await add('zz%FFhl'); // an invalid byte lowers to the 3-byte U+FFFD
+    expect(await results(request, 'straße')).toContain('<mark>Straẞe</mark>');
+    expect(await results(request, 'hl')).toContain('zz\uFFFD<mark>hl</mark>');
   });
 });
