@@ -24,6 +24,10 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   - **Timeouts:** apt steps now get 15 min and jobs 25.
   - **Tested** locally against stub `apt-get`s that accept only one of the two fallback mirrors,
     through the `APT_SOURCES` override.
+- **CI runs with a read-only token, and a new push to a PR cancels the old run** (rest of
+  [#36](https://github.com/alexh95/odin-htmx-skeleton/issues/36)). `permissions: contents: read` is set
+  for the whole workflow; no job needs more, the deploy included (it uses `FLY_API_TOKEN`). Branch
+  pushes get a concurrency group per run, so they are never cancelled or queued.
 
 ## [1.1.1] - 2026-10-07
 

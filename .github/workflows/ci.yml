@@ -6,6 +6,18 @@ on:
   pull_request:
     branches: [master]
 
+# Every job only reads the repo. Caches and artifacts go through the runner's own
+# token, and the deploy authenticates with FLY_API_TOKEN, so nothing needs more.
+permissions:
+  contents: read
+
+# A new push to a PR supersedes the checks still running on its old head. Pushes
+# to the branch get a group per run instead, so they never cancel or queue behind
+# each other: every merge runs to the end, deploy included.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # Same Odin release the Dockerfile pins, so CI builds what production builds.
 env:
   ODIN_VERSION: dev-2026-10
