@@ -15,7 +15,7 @@ import "core:time"
 
 @(private = "file") q_list, q_create, q_count: sqlite.Stmt
 
-@(private = "file") SQL_LIST: cstring : "SELECT id,body,at FROM notes ORDER BY id DESC"
+@(private = "file") SQL_LIST: cstring : "SELECT id,body,at FROM notes ORDER BY at DESC, id DESC"
 @(private = "file") SQL_CREATE: cstring : "INSERT INTO notes(body,at) VALUES(?,?)"
 @(private = "file") SQL_COUNT: cstring : "SELECT count(*) FROM notes"
 
@@ -78,14 +78,16 @@ count_notes :: proc() -> int {
 @(private)
 seed_notes :: proc() {
 	now := time.time_to_unix(time.now())
+	// Oldest first, an hour apart, so ids and times agree and the welcome note
+	// (the newest) tops the list.
 	samples := []string {
-		"Welcome — this is your minimal starter.",
-		"Edit app/src to build your thing; add tables beside notes.",
 		"Notes live in SQLite — see repository/notes.odin.",
+		"Edit app/src to build your thing; add tables beside notes.",
+		"Welcome — this is your minimal starter.",
 	}
 	for s, i in samples {
 		bind_text(q_create, 1, s)
-		sqlite.bind_int64(q_create, 2, now - i64(i) * 3600)
+		sqlite.bind_int64(q_create, 2, now - i64(len(samples) - 1 - i) * 3600)
 		err := step_done(q_create)
 		sqlite.reset(q_create)
 		if err != .None {
