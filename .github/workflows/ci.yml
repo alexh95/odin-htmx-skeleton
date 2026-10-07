@@ -259,6 +259,11 @@ jobs:
       fail-fast: false
       matrix:
         browser: [chromium, firefox, webkit]
+        include:
+          # The browser-less specs (playwright.config.ts's `api` project) run
+          # once, on one shard.
+          - browser: chromium
+            also: --project=api
     steps:
       - uses: actions/checkout@v7
         with:
@@ -291,7 +296,7 @@ jobs:
         run: cd e2e && npm ci
 
       - name: Run e2e
-        run: cd e2e && npx playwright test --project=${{ matrix.browser }}
+        run: cd e2e && npx playwright test --project=${{ matrix.browser }} ${{ matrix.also }}
         env:
           CI: 'true'
 
