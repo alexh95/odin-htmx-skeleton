@@ -1,60 +1,17 @@
 import { test as base, expect } from '@playwright/test';
-import { spawn, type ChildProcess } from 'node:child_process';
-import http from 'node:http';
-import path from 'node:path';
-import { appDirFrom } from './global-setup';
+import { startServer, stopServer, type Server } from './helpers/server';
 
-// One server per worker, on its own port, so each worker gets an isolated
-// in-memory store — that's what lets the suite run fully in parallel. The
-// binary is built once in global-setup.ts; here we only spawn it.
-async function waitForHealth(port: number, timeoutMs = 30_000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const ok = await new Promise<boolean>((resolve) => {
-      const req = http.get({ host: '127.0.0.1', port, path: '/healthz' }, (res) => {
-        res.resume();
-        resolve(res.statusCode === 200);
-      });
-      req.on('error', () => resolve(false));
-      req.setTimeout(500, () => {
-        req.destroy();
-        resolve(false);
-      });
-    });
-    if (ok) return;
-    await new Promise((r) => setTimeout(r, 150));
-  }
-  throw new Error(`server on :${port} did not become healthy in ${timeoutMs}ms`);
-}
-
-export const test = base.extend<object, { server: { port: number } }>({
+// One server per worker, each with its own in-memory store — that's what lets the
+// suite run fully in parallel. The binary is built once in global-setup.ts; here
+// we only start it (on a port the OS picks, see helpers/server.ts).
+export const test = base.extend<object, { server: Server }>({
   server: [
     async ({}, use, workerInfo) => {
-      const appDir = appDirFrom(workerInfo.config);
-      const isWin = process.platform === 'win32';
-      const bin = path.join(appDir, isWin ? 'bin\\demo.exe' : 'bin/demo');
-      const port = 8200 + workerInfo.parallelIndex; // bounded by worker count
-
-      // Capture output so a startup failure surfaces the server's own error
-      // (e.g. an io_uring/seccomp problem) instead of a bare health timeout.
-      const proc: ChildProcess = spawn(bin, [String(port)], { cwd: appDir });
-      let log = '';
-      proc.stdout?.on('data', (d) => (log += d));
-      proc.stderr?.on('data', (d) => (log += d));
-      let exited = '';
-      proc.on('exit', (code, sig) => (exited = `process exited early (code=${code}, signal=${sig})`));
-
+      const server = await startServer(workerInfo.config);
       try {
-        await waitForHealth(port);
-      } catch (e) {
-        proc.kill();
-        throw new Error(`${(e as Error).message}\n${exited}\n--- server output ---\n${log || '(none)'}`);
-      }
-
-      try {
-        await use({ port });
+        await use(server);
       } finally {
-        proc.kill();
+        await stopServer(server);
       }
     },
     { scope: 'worker' },
