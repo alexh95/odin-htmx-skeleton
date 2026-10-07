@@ -1,7 +1,7 @@
 # Optional local prod-parity run. Builds the same image Fly deploys, so you can
 # reproduce production on your machine — handy before a risky change or for
 # pointing load-tests at a prod-like container. Requires Docker; not needed for
-# day-to-day dev (use app/run.* for that).
+# day-to-day dev (use app/run.* for that). CI's docker job runs this file.
 #
 #   docker compose up --build      ->  http://localhost:8080
 services:

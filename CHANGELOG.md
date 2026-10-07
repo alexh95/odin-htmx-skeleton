@@ -8,6 +8,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Added
+- **CI builds and runs the Docker image on every PR** ([#37](https://github.com/alexh95/odin-htmx-skeleton/issues/37)).
+  Until now only Fly's builder built it, after the merge. The new `docker` job (host runner) starts
+  it through `compose.yaml` under the io_uring seccomp profile and waits for its `HEALTHCHECK`. It
+  then curls `/healthz` and `/`, checks it runs as UID 10001, and requires `docker stop` to exit 0 in
+  under 3 s. Last, it creates a DB on a fresh `/data` volume as that user.
+
 ### Changed
 - **CI's apt step switches to HTTPS mirrors when the runner's mirror won't answer** (part of
   [#36](https://github.com/alexh95/odin-htmx-skeleton/issues/36)). The 1.1.1 retry loop wasn't enough:
