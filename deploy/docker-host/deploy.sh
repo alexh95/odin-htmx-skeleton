@@ -51,12 +51,19 @@ tar czf - -C "$REPO" \
 echo "==> pushing compose files + settings"
 tar czf - -C "$HERE" compose.yaml compose.proxy.yaml \
   | remote_put 'tar xzf - -C /dest'
+# The seccomp profile that allows io_uring and nothing else beyond Docker's
+# default. Without it, compose.yaml falls back to seccomp=unconfined.
+SECCOMP="unconfined"
+if [ -f "$REPO/docker/seccomp-io-uring.json" ]; then
+  remote_put 'cat > /dest/seccomp-io-uring.json' < "$REPO/docker/seccomp-io-uring.json"
+  SECCOMP="seccomp-io-uring.json"   # relative to $REMOTE_DIR, where compose runs
+fi
 # Compose reads .env from the project dir, so a plain `docker compose logs` on
 # the host sees the same settings as this deploy.
 files="compose.yaml"
 [ -n "$PROXY_NET" ] && files="compose.yaml:compose.proxy.yaml"
-printf 'COMPOSE_PROJECT_NAME=%s\nCOMPOSE_FILE=%s\nNAME=%s\nHOST_PORT=%s\nVOLUME=%s\nPROXY_NET=%s\n' \
-    "$NAME" "$files" "$NAME" "$HOST_PORT" "$VOLUME" "$PROXY_NET" \
+printf 'COMPOSE_PROJECT_NAME=%s\nCOMPOSE_FILE=%s\nNAME=%s\nHOST_PORT=%s\nVOLUME=%s\nPROXY_NET=%s\nSECCOMP=%s\n' \
+    "$NAME" "$files" "$NAME" "$HOST_PORT" "$VOLUME" "$PROXY_NET" "$SECCOMP" \
   | remote_put 'cat > /dest/.env'
 
 echo "==> build + up (first build pulls Odin + clang, ~2-4 min)"

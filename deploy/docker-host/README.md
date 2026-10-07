@@ -32,9 +32,10 @@ workstation                         host
 - Linux with Docker and the compose plugin. The SSH user must be in the `docker` group; that's all
   the access the deploy needs (it writes files through a throwaway container, so no `sudo`).
 - **io_uring.** The server's event loop (odin-http on `core:nbio`) uses io_uring on Linux. Docker's
-  default seccomp profile blocks it, so `compose.yaml` runs the container with
-  `seccomp=unconfined`. The host kernel must allow io_uring too: see
-  [`../../infra/PLAN.md`](../../infra/PLAN.md) → *io_uring platform requirement*.
+  default seccomp profile blocks it. `deploy.sh` ships the repo's `docker/seccomp-io-uring.json`
+  (Docker's default profile plus the three io_uring syscalls) and runs the container under it; if
+  that file is missing it falls back to `seccomp=unconfined`. The host kernel must allow io_uring
+  too: see [`../../infra/PLAN.md`](../../infra/PLAN.md) → *io_uring platform requirement*.
 
 ## Deploy
 
@@ -61,9 +62,15 @@ host and prints the URL.
 ## Data
 
 `DB_PATH=/data/data.db` on the `$VOLUME` volume, so the database survives redeploys and restarts;
-migrations apply in order on boot. It's a live file (WAL mode), so copy it with the app stopped:
-`compose.yaml` stops it with SIGINT, the signal it shuts down cleanly on, which folds the WAL back
-into `data.db`. On the host, from `$REMOTE_DIR` (the volume is your `VOLUME`, if you set one):
+migrations apply in order on boot. To adopt a volume that already holds a database, set `VOLUME` to
+its exact name (`docker volume ls`). Set `DB_PATH=:memory:` in `compose.yaml` for an ephemeral,
+freshly-seeded store instead. [`../../docs/DATA.md`](../../docs/DATA.md) covers where the data layer
+goes from here.
+
+**Backups.** It's a live file (WAL mode), so copy it with the app stopped. `compose.yaml` stops it
+with SIGINT, the signal it shuts down cleanly on, which folds the WAL back into `data.db`. On the
+host, from `$REMOTE_DIR` (the volume is your `VOLUME`, if you set one), at the cost of a few seconds
+of downtime:
 
 ```sh
 docker compose stop
@@ -71,10 +78,14 @@ docker run --rm -v odin-htmx-skeleton-data:/data -v "$PWD":/out busybox sh -c 'c
 docker compose start
 ```
 
-That's a few seconds of downtime; [`../../docs/DATA.md`](../../docs/DATA.md) covers where the data
-layer goes from here. To adopt a volume that already holds a database, set `VOLUME` to its exact
-name (`docker volume ls`). Set `DB_PATH=:memory:` in `compose.yaml` for an ephemeral,
-freshly-seeded store instead.
+**Volume ownership.** When the image runs as a non-root user (the Dockerfile's `USER`, UID 10001),
+a new volume starts out owned by that user. A volume that an earlier, root-run image wrote needs a
+one-time chown before the new image can open the database. Run it on the host, with the container
+stopped, before deploying the new image:
+
+```sh
+docker run --rm -v odin-htmx-skeleton-data:/data debian:trixie-slim chown -R 10001:10001 /data
+```
 
 ## Behind a reverse proxy
 

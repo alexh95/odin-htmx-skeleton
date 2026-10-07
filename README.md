@@ -75,7 +75,9 @@ exactly what's demo vs. scaffold — follow [docs/STRIP.md](docs/STRIP.md).
 The deployable is one binary in a slim container. [infra/PLAN.md](infra/PLAN.md) covers Fly.io (the
 `fly.toml` and the CI deploy job here) and its operator steps; [deploy/docker-host](deploy/docker-host)
 runs it on any Linux box with Docker, with the SQLite database on a persistent volume. Linux deploys
-need io_uring; see [infra/PLAN.md](infra/PLAN.md) → *io_uring platform requirement*.
+need io_uring, which Docker's default seccomp profile blocks: run containers under
+`docker/seccomp-io-uring.json`, as `compose.yaml` does. See [infra/PLAN.md](infra/PLAN.md) →
+*io_uring platform requirement*.
 
 ## Tests
 
