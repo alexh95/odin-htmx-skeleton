@@ -52,15 +52,42 @@ render_page :: proc(res: ^http.Response, title, active, description, content: st
 	http.respond_html(res, views.layout(title, active, description, content))
 }
 
+// Answer a store failure the handler can't recover from. A missing row keeps
+// its plain 404. Anything else gets a status, and a body by kind of request:
+// htmx 4 swaps error responses too, so an htmx request gets only an
+// out-of-band toast (a response that is all OOB leaves its target alone), and
+// a page load gets an error page.
+respond_store_error :: proc(req: ^http.Request, res: ^http.Response, err: services.Store_Error) {
+	status := http.Status.Internal_Server_Error
+	msg := "Something went wrong on our side. Try again in a moment."
+	#partial switch err {
+	case .Not_Found:
+		http.respond(res, http.Status.Not_Found)
+		return
+	case .Constraint:
+		status, msg = .Conflict, "That change conflicts with what is already stored."
+	}
+	if http.headers_has(req.headers, "hx-request") {
+		http.respond_html(res, views.view_toast("error", msg, true), status)
+	} else {
+		http.respond_html(res, views.layout("Error", "", msg, views.view_error("That didn't work", msg)), status)
+	}
+}
+
 // ---- pages --------------------------------------------------------------
 
 page_dashboard :: proc(req: ^http.Request, res: ^http.Response) {
+	stats, err := services.dashboard_stats()
+	if err != .None {
+		respond_store_error(req, res, err)
+		return
+	}
 	render_page(
 		res,
 		"Dashboard",
 		"/",
 		"A server-rendered web stack in one binary: an Odin backend renders the HTML, HTMX handles the interaction, SQLite holds the data. Click through the worked example.",
-		views.view_dashboard(services.dashboard_stats()),
+		views.view_dashboard(stats),
 	)
 }
 
@@ -89,7 +116,11 @@ page_data :: proc(req: ^http.Request, res: ^http.Response) {
 	if sort == "" {
 		sort = "name"
 	}
-	p := services.service_page(query_get(req, "q"), query_get(req, "status"), sort, 1)
+	p, err := services.service_page(query_get(req, "q"), query_get(req, "status"), sort, 1)
+	if err != .None {
+		respond_store_error(req, res, err)
+		return
+	}
 	render_page(
 		res,
 		"Data & CRUD",
@@ -112,7 +143,13 @@ page_about :: proc(req: ^http.Request, res: ^http.Response) {
 // ---- search -------------------------------------------------------------
 
 frag_search :: proc(req: ^http.Request, res: ^http.Response) {
-	http.respond_html(res, views.view_search_results(query_get(req, "q")))
+	q := query_get(req, "q")
+	rows, err := services.service_search(strings.trim_space(q), services.SEARCH_LIMIT)
+	if err != .None {
+		respond_store_error(req, res, err)
+		return
+	}
+	http.respond_html(res, views.view_search_results(q, rows))
 }
 
 Contact_DTO :: struct {
@@ -130,8 +167,13 @@ api_search :: proc(req: ^http.Request, res: ^http.Response) {
 	q := strings.trim_space(query_get(req, "q"))
 	rn := models.ROLE_NAMES
 	sn := models.STATUS_NAMES
+	rows, err := services.search_all(q)
+	if err != .None {
+		respond_store_error(req, res, err)
+		return
+	}
 	out := make([dynamic]Contact_DTO, context.temp_allocator)
-	for c in services.search_all(q) {
+	for c in rows {
 		append(&out, Contact_DTO{c.id, c.name, c.email, rn[c.role], sn[c.status], c.score})
 	}
 	http.respond_json(res, out[:])
@@ -144,35 +186,40 @@ frag_contacts :: proc(req: ^http.Request, res: ^http.Response) {
 	if sort == "" {
 		sort = "name"
 	}
-	p := services.service_page(query_get(req, "q"), query_get(req, "status"), sort, query_int(req, "page", 1))
+	p, err := services.service_page(query_get(req, "q"), query_get(req, "status"), sort, query_int(req, "page", 1))
+	if err != .None {
+		respond_store_error(req, res, err)
+		return
+	}
 	http.respond_html(res, views.view_contacts_region(p))
 }
 
 // Drilldown: the full contact record + a derived activity trail + related
 // contacts, rendered as a drawer into #overlay.
 contact_detail :: proc(req: ^http.Request, res: ^http.Response) {
-	id := to_int(req.url_params[0])
-	c, ok := services.get_contact(id)
-	if !ok {
-		http.respond(res, http.Status.Not_Found)
+	d, err := services.contact_detail(to_int(req.url_params[0]))
+	if err != .None {
+		respond_store_error(req, res, err)
 		return
 	}
-	tl := services.service_timeline(c)
-	rel := services.service_related(c, 4)
 	// frag=1 → just the <aside> (in-place swap of an open drawer); edit=1 → edit form.
 	if query_get(req, "frag") == "1" {
-		http.respond_html(res, views.view_contact_detail_frag(c, tl, rel, query_get(req, "edit") == "1"))
+		http.respond_html(res, views.view_contact_detail_frag(d.contact, d.timeline, d.related, query_get(req, "edit") == "1"))
 	} else {
-		http.respond_html(res, views.view_contact_detail(c, tl, rel))
+		http.respond_html(res, views.view_contact_detail(d.contact, d.timeline, d.related))
 	}
 }
 
 contacts_create :: proc(req: ^http.Request, res: ^http.Response) {
 	form := request_form()
 	role, _ := models.role_from(form["role"])
-	c, errs := services.create_contact(form["name"], form["email"], role, .Invited, 50)
+	c, errs, err := services.create_contact(form["name"], form["email"], role, .Invited, 50)
 	if len(errs) > 0 {
 		http.respond_html(res, views.view_toast("error", errs[0].msg, true))
+		return
+	}
+	if err != .None {
+		respond_store_error(req, res, err)
 		return
 	}
 
@@ -191,21 +238,21 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 	is_detail := form["view"] == "detail"
 
 	c: models.Contact
-	ok: bool
+	err: services.Store_Error
 	edit_errs: []services.Field_Error
 	if action == "cycle" {
-		c, ok = services.cycle_status(id)
+		c, err = services.cycle_status(id)
 	} else if strings.trim_space(form["name"]) != "" {
 		// full edit from the detail drawer
 		role, _ := models.role_from(form["role"])
 		status, _ := models.status_from(form["status"])
-		c, ok, edit_errs = services.update_contact(id, form["name"], form["email"], role, status, to_int(form["score"]))
+		c, edit_errs, err = services.update_contact(id, form["name"], form["email"], role, status, to_int(form["score"]))
 	} else {
-		c, ok = services.get_contact(id)
+		c, err = services.get_contact(id)
 	}
 
-	if !ok {
-		http.respond(res, http.Status.Not_Found)
+	if err != .None {
+		respond_store_error(req, res, err)
 		return
 	}
 	if is_detail {
@@ -216,8 +263,13 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 		// querySelectorAll (which doesn't descend into templates). htmx 4's
 		// <hx-partial> is built for this — it becomes a <template> (so the <tr>
 		// survives parsing) that htmx explicitly processes into hx-target/hx-swap.
+		d, derr := services.contact_detail(c.id)
+		if derr != .None {
+			respond_store_error(req, res, derr)
+			return
+		}
 		b := strings.builder_make(context.temp_allocator)
-		strings.write_string(&b, views.view_contact_detail_frag(c, services.service_timeline(c), services.service_related(c, 4), false))
+		strings.write_string(&b, views.view_contact_detail_frag(d.contact, d.timeline, d.related, false))
 		fmt.sbprintf(&b, `<hx-partial hx-target="#contact-%d" hx-swap="outerHTML">`, c.id)
 		views.view_contact_row(&b, c, false)
 		strings.write_string(&b, `</hx-partial>`)
@@ -234,8 +286,8 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 
 contacts_delete :: proc(req: ^http.Request, res: ^http.Response) {
 	id := to_int(req.url_params[0])
-	if !services.delete_contact(id) {
-		http.respond(res, http.Status.Not_Found)
+	if err := services.delete_contact(id); err != .None {
+		respond_store_error(req, res, err)
 		return
 	}
 	// From the table row: empty body, the outerHTML swap removes the row. From the
@@ -267,9 +319,13 @@ forms_submit :: proc(req: ^http.Request, res: ^http.Response) {
 	form := request_form()
 	role, _ := models.role_from(form["role"])
 	status, _ := models.status_from(form["status"])
-	c, errs := services.create_contact(form["name"], form["email"], role, status, to_int(form["score"]))
+	c, errs, err := services.create_contact(form["name"], form["email"], role, status, to_int(form["score"]))
 	if len(errs) > 0 {
 		http.respond_html(res, views.view_form_errors(errs))
+		return
+	}
+	if err != .None {
+		respond_store_error(req, res, err)
 		return
 	}
 

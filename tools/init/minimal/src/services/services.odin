@@ -14,7 +14,11 @@ import "core:unicode/utf8"
 // http. Thin here on purpose — grow it as your domain does. The controllers call
 // this layer; this layer calls the repository.
 
-list_notes :: proc() -> []models.Note {
+// A store failure, passed up as a value for the controller to answer. Re-
+// exported so the controllers need not import the repository.
+Store_Error :: repository.Error
+
+list_notes :: proc() -> ([]models.Note, Store_Error) {
 	return repository.repo_list_notes()
 }
 
@@ -23,16 +27,18 @@ list_notes :: proc() -> []models.Note {
 // same number as `maxlength`.
 MAX_NOTE :: 500
 
-// Trim + validate, then persist. `problem` says why a note was rejected.
-create_note :: proc(body: string) -> (note: models.Note, problem: string) {
+// Trim + validate, then persist. `problem` says why the input was rejected
+// (the user's to fix); `err` is a store failure (the server's).
+create_note :: proc(body: string) -> (note: models.Note, problem: string, err: Store_Error) {
 	trimmed := strings.trim_space(body)
 	switch {
 	case trimmed == "":
-		return {}, "Write something first."
+		return {}, "Write something first.", .None
 	case utf8.rune_count_in_string(trimmed) > MAX_NOTE:
-		return {}, fmt.tprintf("A note is at most %d characters.", MAX_NOTE)
+		return {}, fmt.tprintf("A note is at most %d characters.", MAX_NOTE), .None
 	}
-	return repository.repo_create_note(trimmed), ""
+	note, err = repository.repo_create_note(trimmed)
+	return
 }
 
 // Relative-time label from a unix timestamp, for display.

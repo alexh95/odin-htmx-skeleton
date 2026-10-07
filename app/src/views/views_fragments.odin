@@ -353,14 +353,13 @@ detail_edit_form :: proc(b: ^strings.Builder, c: models.Contact) {
 
 // ---- search dropdown ----------------------------------------------------
 
-view_search_results :: proc(q: string) -> string {
+view_search_results :: proc(q: string, rows: []models.Contact) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	trimmed := strings.trim_space(q)
 	if trimmed == "" {
 		return "" // empty target collapses the dropdown
 	}
 
-	rows := services.service_search(trimmed, services.SEARCH_LIMIT)
 	if len(rows) == 0 {
 		w(&b, `<div class="search-panel"><p class="search-empty">No matches for “`)
 		esc(&b, trimmed)

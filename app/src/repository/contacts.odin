@@ -37,61 +37,70 @@ finalize_contacts :: proc() {
 	}
 }
 
-// ---- the contract (signatures unchanged) --------------------------------
+// ---- the contract ------------------------------------------------------
 
-repo_list :: proc() -> []models.Contact {
+repo_list :: proc() -> ([]models.Contact, Error) {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
 	defer sqlite.reset(q_list)
 	out := make([dynamic]models.Contact, context.temp_allocator)
-	for sqlite.step(q_list) == sqlite.ROW {
+	err: Error
+	for next_row(q_list, &err) {
 		append(&out, scan_contact(q_list))
 	}
-	return out[:]
+	return out[:], err
 }
 
-repo_get :: proc(id: int) -> (models.Contact, bool) {
+repo_get :: proc(id: int) -> (models.Contact, Error) {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
 	return get_unlocked(id)
 }
 
-repo_create :: proc(name, email: string, role: models.Role, status: models.Status, score: int) -> models.Contact {
+repo_create :: proc(name, email: string, role: models.Role, status: models.Status, score: int) -> (models.Contact, Error) {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
-	id := create_unlocked(name, email, role, status, score)
-	c, _ := get_unlocked(id) // read back as the temp-cloned snapshot, atomically
-	return c
+	id, err := create_unlocked(name, email, role, status, score)
+	if err != .None {
+		return {}, err
+	}
+	return get_unlocked(id) // read back as the temp-cloned snapshot, atomically
 }
 
-repo_update :: proc(id: int, name, email: string, role: models.Role, status: models.Status, score: int) -> (models.Contact, bool) {
+repo_update :: proc(id: int, name, email: string, role: models.Role, status: models.Status, score: int) -> (models.Contact, Error) {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
 	defer sqlite.reset(q_update)
 	bind_text(q_update, 1, name);bind_text(q_update, 2, email)
 	sqlite.bind_int(q_update, 3, c.int(role));sqlite.bind_int(q_update, 4, c.int(status))
 	sqlite.bind_int(q_update, 5, c.int(score));sqlite.bind_int(q_update, 6, c.int(id))
-	sqlite.step(q_update)
+	if err := step_done(q_update); err != .None {
+		return {}, err
+	}
 	if sqlite.changes(db) == 0 {
-		return {}, false
+		return {}, .Not_Found
 	}
 	return get_unlocked(id)
 }
 
-repo_set_status :: proc(id: int, status: models.Status) -> (models.Contact, bool) {
+repo_set_status :: proc(id: int, status: models.Status) -> (models.Contact, Error) {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
 	defer sqlite.reset(q_set_status)
 	sqlite.bind_int(q_set_status, 1, c.int(status));sqlite.bind_int(q_set_status, 2, c.int(id))
-	sqlite.step(q_set_status)
+	if err := step_done(q_set_status); err != .None {
+		return {}, err
+	}
 	if sqlite.changes(db) == 0 {
-		return {}, false
+		return {}, .Not_Found
 	}
 	return get_unlocked(id)
 }
 
 // Deleting a contact cascades to its events (events.*_id ON DELETE CASCADE).
-repo_delete :: proc(id: int) -> bool {
+repo_delete :: proc(id: int) -> Error {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
 	defer sqlite.reset(q_delete)
 	sqlite.bind_int(q_delete, 1, c.int(id))
-	sqlite.step(q_delete)
-	return sqlite.changes(db) > 0
+	if err := step_done(q_delete); err != .None {
+		return err
+	}
+	return sqlite.changes(db) > 0 ? .None : .Not_Found
 }
 
 // ---- internals (caller holds the lock) ----------------------------------
@@ -109,23 +118,26 @@ scan_contact :: proc(st: sqlite.Stmt) -> models.Contact {
 }
 
 @(private = "file")
-get_unlocked :: proc(id: int) -> (models.Contact, bool) {
+get_unlocked :: proc(id: int) -> (models.Contact, Error) {
 	defer sqlite.reset(q_get)
 	sqlite.bind_int(q_get, 1, c.int(id))
-	if sqlite.step(q_get) == sqlite.ROW {
-		return scan_contact(q_get), true
+	err: Error
+	if next_row(q_get, &err) {
+		return scan_contact(q_get), .None
 	}
-	return {}, false
+	return {}, err == .None ? .Not_Found : err
 }
 
 @(private = "file")
-create_unlocked :: proc(name, email: string, role: models.Role, status: models.Status, score: int) -> int {
+create_unlocked :: proc(name, email: string, role: models.Role, status: models.Status, score: int) -> (int, Error) {
 	defer sqlite.reset(q_create)
 	bind_text(q_create, 1, name);bind_text(q_create, 2, email)
 	sqlite.bind_int(q_create, 3, c.int(role));sqlite.bind_int(q_create, 4, c.int(status))
 	sqlite.bind_int(q_create, 5, c.int(score))
-	sqlite.step(q_create)
-	return int(sqlite.last_insert_rowid(db))
+	if err := step_done(q_create); err != .None {
+		return 0, err
+	}
+	return int(sqlite.last_insert_rowid(db)), .None
 }
 
 // Package-visible to repo_seed (repo.odin); caller holds the lock.
@@ -163,6 +175,8 @@ seed_contacts :: proc() {
 		role := models.Role((i * 7 + 3) % len(models.Role))
 		status := models.Status(i % len(models.Status))
 		score := 35 + (i * 53) % 64
-		create_unlocked(name, email, role, status, score)
+		if _, err := create_unlocked(name, email, role, status, score); err != .None {
+			fatal("seed")
+		}
 	}
 }

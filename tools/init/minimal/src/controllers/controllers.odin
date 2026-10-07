@@ -18,15 +18,26 @@ render_page :: proc(res: ^http.Response, title, active, description, content: st
 	http.respond_html(res, views.layout(title, active, description, content))
 }
 
+// A store failure the handler can't recover from: the details are in the log
+// (repository.step_done), the client gets a 500 and a plain message.
+respond_store_error :: proc(res: ^http.Response) {
+	http.respond_plain(res, "Something went wrong on our side. Try again in a moment.", .Internal_Server_Error)
+}
+
 // ---- pages --------------------------------------------------------------
 
 page_home :: proc(req: ^http.Request, res: ^http.Response) {
+	notes, err := services.list_notes()
+	if err != .None {
+		respond_store_error(res)
+		return
+	}
 	render_page(
 		res,
 		"Home",
 		"/",
 		"A minimal Odin + HTMX + SQLite starter: one page, one entity, over a single self-contained binary.",
-		views.view_home(services.list_notes()),
+		views.view_home(notes),
 	)
 }
 
@@ -43,9 +54,13 @@ page_about :: proc(req: ^http.Request, res: ^http.Response) {
 // The one write path. Append the new note's <li> to the list on success; an
 // empty note appends nothing (the input's `required` guards it client-side too).
 notes_create :: proc(req: ^http.Request, res: ^http.Response) {
-	note, problem := services.create_note(request_form()["body"])
+	note, problem, err := services.create_note(request_form()["body"])
 	if problem != "" {
 		http.respond_html(res, "")
+		return
+	}
+	if err != .None {
+		respond_store_error(res)
 		return
 	}
 	b := strings.builder_make(context.temp_allocator)

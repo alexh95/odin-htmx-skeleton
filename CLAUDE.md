@@ -66,6 +66,7 @@ prepare.bat   # once: fetch htmx + the SQLite amalgamation, compile sqlite    (.
 run.bat [port]   # build + serve (default 8080)                              (./run.sh elsewhere)
 
 odin build src -out:bin/demo.exe    # build only (entry package is src/); MUST be warning-free
+odin test src/repository            # the store's own tests (db_test.odin: binding, errors, migrations)
 ./bin/demo.exe 8080                 # run the built binary on a port
 ```
 

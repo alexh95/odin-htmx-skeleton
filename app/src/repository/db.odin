@@ -4,6 +4,7 @@ import "../sqlite"
 
 import "core:c"
 import "core:fmt"
+import "core:log"
 import "core:os"
 import "core:strings"
 import "core:sync"
@@ -32,6 +33,15 @@ import "core:sync"
 
 @(private) db: sqlite.DB
 @(private) lock: sync.RW_Mutex
+
+// What a store call can fail with, returned as a value for the layers above to
+// branch on. The SQLite message itself goes to the log, not to the client.
+Error :: enum {
+	None,
+	Not_Found, // no row with that id
+	Constraint, // the row broke a NOT NULL / UNIQUE / CHECK / FOREIGN KEY rule
+	Failed, // anything else: I/O, a lock held past busy_timeout, a full disk
+}
 
 @(private)
 db_open :: proc(path: string) {
@@ -79,9 +89,52 @@ prep :: proc(sql: cstring, out: ^sqlite.Stmt) {
 	}
 }
 
+// An empty Odin string has a nil data pointer, and SQLite binds a nil pointer
+// as NULL, which a NOT NULL column then rejects. Point at a real byte instead,
+// with length 0, so "" is stored as the empty text it is.
+@(private = "file") EMPTY := [1]u8{}
+
 @(private)
 bind_text :: proc(st: sqlite.Stmt, idx: c.int, s: string) {
-	sqlite.bind_text(st, idx, raw_data(s), c.int(len(s)), sqlite.TRANSIENT)
+	p := raw_data(s)
+	if p == nil {
+		p = &EMPTY[0]
+	}
+	sqlite.bind_text(st, idx, p, c.int(len(s)), sqlite.TRANSIENT)
+}
+
+// Run a write to completion. Anything but DONE is an error: last_insert_rowid
+// and changes() still describe the previous statement, so reading them after a
+// failed step hands back someone else's row.
+@(private)
+step_done :: proc(st: sqlite.Stmt) -> Error {
+	rc := sqlite.step(st)
+	if rc == sqlite.DONE {
+		return .None
+	}
+	return step_error(rc)
+}
+
+// Advance a read; false at the end of the rows or on an error, which lands in
+// err^. For `for next_row(st, &err) { ... }` loops that report how they ended.
+@(private)
+next_row :: proc(st: sqlite.Stmt, err: ^Error) -> bool {
+	switch rc := sqlite.step(st); rc {
+	case sqlite.ROW:
+		return true
+	case sqlite.DONE:
+		return false
+	case:
+		err^ = step_error(rc)
+		return false
+	}
+}
+
+@(private = "file")
+step_error :: proc(rc: c.int) -> Error {
+	log.errorf("sqlite step failed (%d): %s", rc, sqlite.errmsg(db))
+	// The low byte is the primary result code; the rest says which constraint.
+	return (rc & 0xff) == sqlite.CONSTRAINT ? .Constraint : .Failed
 }
 
 // Clone a text column into the request temp arena — never alias a stmt buffer.
@@ -108,8 +161,8 @@ csql :: proc(s: string) -> cstring {
 }
 
 // Startup/migration errors are unrecoverable (a broken DB at boot), so bail
-// loudly. Per-request statement steps are best-effort — a bad input shouldn't
-// take the server down — and surface as a not-found / empty result.
+// loudly. A failing step during a request is the caller's to handle: it comes
+// back as an Error (step_done / next_row) and the request fails, not the server.
 @(private)
 fatal :: proc(what: string) {
 	fmt.eprintfln("sqlite %s failed: %s", what, sqlite.errmsg(db))

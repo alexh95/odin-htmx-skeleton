@@ -2,7 +2,7 @@ package sqlite
 
 // ---- SQLite amalgamation binding ----------------------------------------
 //
-// ~15 foreign decls for the symbols the repository uses. The amalgamation is
+// ~20 foreign decls for the symbols the repository uses. The amalgamation is
 // fetched + compiled by prepare.* into app/vendor/sqlite/ (sqlite3.lib on
 // Windows, sqlite3.a on unix); the link block below points there. This is the
 // only place the C ABI is crossed.
@@ -28,10 +28,18 @@ when ODIN_OS == .Windows {
 DB :: distinct rawptr
 Stmt :: distinct rawptr
 
-// Result codes.
+// Result codes. Extended codes keep the primary one in their low byte.
 OK :: 0
+CONSTRAINT :: 19
 ROW :: 100
 DONE :: 101
+
+// column_type results.
+INTEGER :: 1
+FLOAT :: 2
+TEXT :: 3
+BLOB :: 4
+NULL :: 5
 
 // open_v2 flags.
 OPEN_READWRITE :: 0x00000002
@@ -50,10 +58,14 @@ foreign lib {
 	bind_text :: proc(stmt: Stmt, idx: c.int, text: [^]u8, nByte: c.int, destructor: rawptr) -> c.int ---
 	bind_int :: proc(stmt: Stmt, idx: c.int, val: c.int) -> c.int ---
 	bind_int64 :: proc(stmt: Stmt, idx: c.int, val: i64) -> c.int ---
+	bind_double :: proc(stmt: Stmt, idx: c.int, val: f64) -> c.int ---
+	bind_null :: proc(stmt: Stmt, idx: c.int) -> c.int ---
 	step :: proc(stmt: Stmt) -> c.int ---
 	reset :: proc(stmt: Stmt) -> c.int ---
 	column_int :: proc(stmt: Stmt, col: c.int) -> c.int ---
 	column_int64 :: proc(stmt: Stmt, col: c.int) -> i64 ---
+	column_double :: proc(stmt: Stmt, col: c.int) -> f64 ---
+	column_type :: proc(stmt: Stmt, col: c.int) -> c.int --- // INTEGER … NULL; tells NULL from 0 / ""
 	column_text :: proc(stmt: Stmt, col: c.int) -> cstring --- // NUL-terminated
 	finalize :: proc(stmt: Stmt) -> c.int ---
 	last_insert_rowid :: proc(db: DB) -> i64 ---
