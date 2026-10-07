@@ -42,6 +42,8 @@ jobs:
     # asset names have been irregular in the past (dev-2026-06 shipped a truncated
     # `...-dev-06` macOS name and an arch-less Windows name), so a version-only bump
     # can silently 404. dev-2026-10 is regular — verify the names on each bump.
+    # On a private fork, macOS minutes bill at 10x and Windows at 2x: to save
+    # them, drop that leg from `os:` and its `include:` entry.
     strategy:
       fail-fast: false
       matrix:
@@ -269,12 +271,28 @@ jobs:
         with:
           submodules: recursive
 
+      # Same key as the minimal job, so the two container jobs share one entry. The
+      # build job's can't be shared: actions/cache archives with zstd on the host
+      # but gzip here (the image has no zstd), and the format is part of the entry.
       - name: Cache Odin toolchain
         id: cache-odin
         uses: actions/cache@v6
         with:
           path: /opt/odin
           key: odin-${{ env.ODIN_VERSION }}
+
+      # prepare's outputs, so a shard doesn't spend about a minute compiling SQLite:
+      # on a hit, global-setup finds them current and skips prepare. The key hashes
+      # prepare.sh, which pins htmx and SQLite and holds the compile flags, plus
+      # the image's distro (the library is built against its glibc). The build job
+      # still runs prepare from scratch, so prepare itself stays tested.
+      - name: Cache prepare's outputs (htmx, compiled SQLite)
+        uses: actions/cache@v6
+        with:
+          path: |
+            app/static/htmx.min.js
+            app/vendor/sqlite
+          key: prepared-${{ hashFiles('app/prepare.sh') }}-jammy
 
       - name: Install Odin
         if: steps.cache-odin.outputs.cache-hit != 'true'
@@ -289,7 +307,8 @@ jobs:
         run: |
           echo "/opt/odin" >> "$GITHUB_PATH"
           # clang links Odin and compiles the SQLite amalgamation (prepare.sh);
-          # unzip + binutils(ar) extract and archive it. global-setup runs prepare.
+          # unzip + binutils(ar) extract and archive it, when global-setup has to
+          # run prepare (a cache miss).
           sh .github/scripts/apt-install.sh clang binutils unzip
 
       - name: Install e2e deps
