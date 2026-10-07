@@ -19,6 +19,8 @@ if "%PORT%"=="" set "PORT=8080"
 rem Local dev persists to .\data.db by default (gitignored); set DB_PATH=:memory:
 rem for an ephemeral, freshly-seeded store.
 if "%DB_PATH%"=="" set "DB_PATH=data.db"
+rem A file DB is only seeded when asked; a dev store wants the demo rows.
+if "%SEED%"=="" set "SEED=1"
 start "" "http://localhost:%PORT%"
 bin\demo.exe %*
 exit /b 0
