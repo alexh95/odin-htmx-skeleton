@@ -83,9 +83,10 @@ Rewrite `routes.odin` to register only your routes (keep `/healthz` and `/static
 
 Delete the demo specs under `e2e/tests/` and write your own against your pages (keep `fixtures.ts`,
 `global-setup.ts`, `helpers/`). Under `load-tests/scenarios/`, delete the contacts-specific ones
-(`api`, `detail`, `list`, `search`, `write`, `mixed`), point `pages.js` at your pages, and update
-`run.sh`'s default `SCENARIOS` list and its readiness-probe paths. Keep app / e2e / load **at par**
-as you build — see [`../CLAUDE.md`](../CLAUDE.md).
+(`api`, `detail`, `list`, `search`, `write`, `mixed`), point `pages.js` at your pages, and drop
+`/api/search` from `run.sh`'s optional bombardier baseline. `run.sh` runs every file in `scenarios/`,
+so there's no list to update. Keep app / e2e / load **at par** as you build — see
+[`../CLAUDE.md`](../CLAUDE.md).
 
 ### 5. Rename + docs
 

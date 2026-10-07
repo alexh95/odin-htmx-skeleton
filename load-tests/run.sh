@@ -6,7 +6,7 @@
 # every run into results/summary.md and prints the table.
 #
 # Usage:
-#   ./run.sh                       # default sweep (10,50,100 VUs) over all scenarios
+#   ./run.sh                       # default sweep (10,50,100 VUs) over scenarios/*.js
 #   ./run.sh --quick               # fast sanity: 20 VUs, short window
 #   ./run.sh --sweep               # full curve: 1,10,50,100,200,500 VUs
 #   ./run.sh --vus 1,100,500       # explicit VU levels
@@ -38,7 +38,15 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-[ -n "$SCENARIOS" ] || SCENARIOS="static seo pages list search api detail write mixed"
+# Default: every scenario on disk, so adding one is just adding the file (and a
+# fork's `init --minimal` has no list to keep in step with what it deleted).
+if [ -z "$SCENARIOS" ]; then
+  for f in scenarios/*.js; do
+    [ -f "$f" ] || continue
+    f="${f#scenarios/}"; SCENARIOS="$SCENARIOS ${f%.js}"
+  done
+  [ -n "$SCENARIOS" ] || { echo "no scenarios in $(pwd)/scenarios" >&2; exit 2; }
+fi
 
 # ---- locate k6 ----------------------------------------------------------
 K6="${K6:-}"

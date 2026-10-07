@@ -16,6 +16,11 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `brand.odin` and skip only when the token is empty; when one is set they also check the served
   value against it. The `*.fly.dev` redirect test skips while `SITE_URL` is still an
   `*.example.com` placeholder, the case #25 changes.
+- **`./run.sh --quick` works in a minimal fork again**
+  ([#27](https://github.com/alexh95/odin-htmx-skeleton/issues/27)). The load driver kept a hard-coded
+  scenario list that `init --minimal` was meant to trim, but the line it matched had changed in 1.1.0,
+  so the trim silently missed and the run died at the first deleted scenario. `run.sh` now runs every
+  `scenarios/*.js` by default, so there is no list to keep in step.
 
 ## [1.1.1] - 2026-10-07
 
