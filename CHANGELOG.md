@@ -222,6 +222,14 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   second run says the checkout is already renamed. An audit of every existing replacement found two misses: the `run.sh` scenario list
   (above) and `app/README.md`, which was in the rename list with nothing to rename.
 ### Fixed
+- **Request bodies and text fields are size-limited**
+  ([#13](https://github.com/alexh95/odin-htmx-skeleton/issues/13)). A 50 MB `name` used to be
+  stored and then re-sent by every page that listed it. A new `controllers.front` middleware
+  (`middleware.odin`, shared with `--minimal`) reads every body before routing, capped at 64 KiB:
+  past that it answers 413 without reading it. Handlers get the parsed form from `request_form()`,
+  so they are plain synchronous code. `validate_contact` caps names at 100 characters and emails at
+  254, the minimal starter caps a note at 500, and each input carries the same `maxlength`. e2e:
+  `limits.spec.ts`.
 - **The `--minimal` starter passes `odin check -vet`** (part of
   [#29](https://github.com/alexh95/odin-htmx-skeleton/issues/29)): `notes.odin` dropped an unused
   `import "core:c"`.

@@ -2,7 +2,6 @@ package controllers
 
 import "core:fmt"
 import "core:hash"
-import "core:net"
 import "core:strings"
 
 import http "../../odin-http"
@@ -14,38 +13,6 @@ import "../views"
 // The HTTP layer. Each handler parses the request, calls a service, renders a
 // view and responds. Nothing here knows how the store works; nothing in the
 // services knows it is being driven over HTTP.
-
-// Parse an application/x-www-form-urlencoded body into key→value. Decodes '+' as
-// space (htmx 4 sends spaces as '+', the form-encoding standard) and percent-
-// escapes, so a literal '+' sent as %2B still round-trips.
-@(private = "file")
-body_form :: proc(body: http.Body) -> map[string]string {
-	m := make(map[string]string, context.temp_allocator)
-	s := string(body)
-	for part in strings.split_by_byte_iterator(&s, '&') {
-		if part == "" {
-			continue
-		}
-		eq := strings.index_byte(part, '=')
-		key := eq < 0 ? part : part[:eq]
-		val := eq < 0 ? "" : part[eq + 1:]
-		m[decode(key)] = decode(val)
-	}
-	return m
-}
-
-@(private = "file")
-decode :: proc(s: string) -> string {
-	if s == "" {
-		return ""
-	}
-	t := s
-	if strings.index_byte(s, '+') >= 0 {
-		t, _ = strings.replace_all(s, "+", " ", context.temp_allocator)
-	}
-	dec, ok := net.percent_decode(t, context.temp_allocator)
-	return ok ? dec : t
-}
 
 render_page :: proc(res: ^http.Response, title, active, description, content: string) {
 	http.respond_html(res, views.layout(title, active, description, content))
@@ -76,21 +43,14 @@ page_about :: proc(req: ^http.Request, res: ^http.Response) {
 // The one write path. Append the new note's <li> to the list on success; an
 // empty note appends nothing (the input's `required` guards it client-side too).
 notes_create :: proc(req: ^http.Request, res: ^http.Response) {
-	http.body(req, -1, res, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
-		res := cast(^http.Response)user
-		if err != nil {
-			http.respond(res, http.Status.Bad_Request)
-			return
-		}
-		note, ok := services.create_note(body_form(body)["body"])
-		if !ok {
-			http.respond_html(res, "")
-			return
-		}
-		b := strings.builder_make(context.temp_allocator)
-		views.view_note_li(&b, note)
-		http.respond_html(res, strings.to_string(b))
-	})
+	note, problem := services.create_note(request_form()["body"])
+	if problem != "" {
+		http.respond_html(res, "")
+		return
+	}
+	b := strings.builder_make(context.temp_allocator)
+	views.view_note_li(&b, note)
+	http.respond_html(res, strings.to_string(b))
 }
 
 // ---- health -------------------------------------------------------------

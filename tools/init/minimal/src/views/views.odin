@@ -286,7 +286,7 @@ view_home :: proc(notes: []models.Note) -> string {
 	w(&b, `<section class="block"><article class="card">`)
 	// data-reset-on-success: app.js clears the form after its own 2xx submit.
 	w(&b, `<form class="add-note" hx-post="/notes" hx-target="#note-list" hx-swap="afterbegin" data-reset-on-success>`)
-	w(&b, `<input name="body" placeholder="Write a note…" required autocomplete="off" aria-label="Note">`)
+	fmt.sbprintf(&b, `<input name="body" placeholder="Write a note…" required maxlength="%d" autocomplete="off" aria-label="Note">`, services.MAX_NOTE)
 	w(&b, `<button class="btn btn-primary" type="submit">Add</button></form>`)
 	w(&b, `<ul class="note-list" id="note-list">`)
 	for n in notes {

@@ -186,8 +186,10 @@ the response is flushed.
 - **`context.allocator` stays the heap.** Anything that must outlive the request — i.e.
   everything stored in the repository — is `strings.clone`d into it. `repo_create`/`repo_update`
   clone; `repo_delete` frees. **Never put a temp-allocated string into the store.**
-- Body reads are async: `http.body(req, ...)` may defer. The `user_data` you pass must outlive
-  the call → allocate it with `new(T, context.temp_allocator)`, not on the stack.
+- **Handlers never read the body themselves.** `controllers.front` (`middleware.odin`) reads it
+  before routing, capped at `MAX_BODY` (64 KiB; a bigger body gets 413 unread), so a handler is
+  plain synchronous code that calls `request_form()`. `http.body` may defer to the event loop, which
+  is why `front` keeps its callback state in `new(T, context.temp_allocator)`, not on the stack.
 
 ## odin-http cheat sheet (verified against the cloned source)
 
@@ -215,11 +217,10 @@ req.url.path      // "/static/app.css"   (full path)
 req.url.query     // "q=foo&sort=name"   (raw, after '?'; see query_get helper)
 req.url_params    // []string  capture groups
 
-// body (async, form-encoded)
-http.body(req, -1, user_ptr, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
-    if err != nil { ... }                 // Body_Error is a #shared_nil union → != nil works
-    form, ok := http.body_url_encoded(body)   // map[string]string, percent-decoded
-})
+// body: already read (and size-capped) by controllers.front before routing
+form := request_form()        // map[string]string, '+'- and percent-decoded; empty for GET
+// (front's own read: http.body(req, MAX_BODY, user, proc(user, body, err) {...}); Body_Error is
+// a #shared_nil union → != nil works, and http.body_error_status(err) maps it to 413/400.)
 
 // responses
 http.respond_html(res, html, status = .OK)
@@ -273,8 +274,8 @@ http.respond(res, http.Status.Not_Found)
   swap modifier (see the drawer's Delete button in `views_fragments.odin`). Prefer that over the
   global `allowEmptySwapAfterOOB` config, so the safer default still holds everywhere else.
 - **Form bodies arrive `+`-encoded.** htmx 4 sends spaces as `+` (the form-encoding standard);
-  odin-http's `body_url_encoded` only percent-decodes, so parse POST bodies with the controllers'
-  `body_form` helper (it `+`→space-decodes like `query_decode`), never `http.body_url_encoded`.
+  odin-http's `body_url_encoded` only percent-decodes, so POST bodies go through `request_form()`
+  (it `+`→space-decodes via `form_decode`, like `query_get`), never `http.body_url_encoded`.
 - **Exit animations**: `hx-swap="outerHTML swap:220ms"` keeps the node around long enough for
   the `.htmx-swapping` CSS to play.
 - **Overlays** (modal/drawer) load into `#overlay` and close via `GET /ui/clear` (empty body).

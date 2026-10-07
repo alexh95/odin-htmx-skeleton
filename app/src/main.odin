@@ -88,7 +88,8 @@ main :: proc() {
 
 	fmt.printfln("odin-htmx-skeleton listening on http://%s:%d (%d threads)", host, port, opts.thread_count)
 	routes := http.router_handler(&router)
-	if err := http.listen_and_serve(&s, http.middleware_proc(&routes, canonical_host), endpoint, opts); err != nil {
+	front := http.middleware_proc(&routes, controllers.front)
+	if err := http.listen_and_serve(&s, http.middleware_proc(&front, canonical_host), endpoint, opts); err != nil {
 		fmt.eprintfln("server error: %v", err)
 		os.exit(1)
 	}

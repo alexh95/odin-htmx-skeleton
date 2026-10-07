@@ -2,7 +2,6 @@ package controllers
 
 import "core:fmt"
 import "core:hash"
-import "core:net"
 import "core:strconv"
 import "core:strings"
 import "core:time"
@@ -30,7 +29,7 @@ query_get :: proc(req: ^http.Request, key: string) -> string {
 		eq := strings.index_byte(part, '=')
 		k := eq < 0 ? part : part[:eq]
 		if k == key {
-			return query_decode(eq < 0 ? "" : part[eq + 1:])
+			return form_decode(eq < 0 ? "" : part[eq + 1:])
 		}
 	}
 	return ""
@@ -48,40 +47,6 @@ query_int :: proc(req: ^http.Request, key: string, fallback: int) -> int {
 to_int :: proc(s: string) -> int {
 	n, _ := strconv.parse_int(s, 10)
 	return n
-}
-
-@(private = "file")
-query_decode :: proc(s: string) -> string {
-	if s == "" {
-		return ""
-	}
-	t := s
-	if strings.index_byte(s, '+') >= 0 {
-		t, _ = strings.replace_all(s, "+", " ", context.temp_allocator)
-	}
-	dec, ok := net.percent_decode(t, context.temp_allocator)
-	return ok ? dec : t
-}
-
-// Parse an application/x-www-form-urlencoded body into key→value. Unlike
-// http.body_url_encoded, this decodes '+' as space — htmx 4 sends spaces as '+'
-// (the form-encoding standard) and odin-http's parser only percent-decodes. Uses
-// the same '+'-aware decode as query strings (query_decode), so a literal '+'
-// sent as %2B still round-trips.
-@(private = "file")
-body_form :: proc(body: http.Body) -> map[string]string {
-	m := make(map[string]string, context.temp_allocator)
-	s := string(body)
-	for part in strings.split_by_byte_iterator(&s, '&') {
-		if part == "" {
-			continue
-		}
-		eq := strings.index_byte(part, '=')
-		key := eq < 0 ? part : part[:eq]
-		val := eq < 0 ? "" : part[eq + 1:]
-		m[query_decode(key)] = query_decode(val)
-	}
-	return m
 }
 
 render_page :: proc(res: ^http.Response, title, active, description, content: string) {
@@ -205,109 +170,84 @@ contact_detail :: proc(req: ^http.Request, res: ^http.Response) {
 	}
 }
 
-// contacts_update is the only body handler that needs more than the response in
-// its callback (the row id from the path), so it threads this small struct through
-// http.body's user pointer — allocated in the request arena, so it outlives the
-// possibly-deferred callback. Handlers that need only the response pass `res`
-// itself as the user pointer (see contacts_create), the same way odin-http does.
-@(private = "file")
-Form_Ctx :: struct {
-	res: ^http.Response,
-	id:  int,
-}
-
 contacts_create :: proc(req: ^http.Request, res: ^http.Response) {
-	http.body(req, -1, res, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
-		res := cast(^http.Response)user
-		if err != nil {
-			http.respond(res, http.Status.Bad_Request)
-			return
-		}
-		form := body_form(body)
-		name := form["name"]
-		email := form["email"]
+	form := request_form()
+	name := form["name"]
+	email := form["email"]
 
-		errs := services.validate_contact(name, email)
-		if len(errs) > 0 {
-			http.respond_html(res, views.view_toast("error", errs[0].msg, true))
-			return
-		}
+	errs := services.validate_contact(name, email)
+	if len(errs) > 0 {
+		http.respond_html(res, views.view_toast("error", errs[0].msg, true))
+		return
+	}
 
-		role, _ := models.role_from(form["role"])
-		c := repository.repo_create(strings.trim_space(name), strings.trim_space(email), role, .Invited, 50)
+	role, _ := models.role_from(form["role"])
+	c := repository.repo_create(strings.trim_space(name), strings.trim_space(email), role, .Invited, 50)
 
-		b := strings.builder_make(context.temp_allocator)
-		views.view_contact_row(&b, c, true)
-		strings.write_string(&b, views.view_toast("success", "Contact added.", true))
-		http.respond_html(res, strings.to_string(b))
-	})
+	b := strings.builder_make(context.temp_allocator)
+	views.view_contact_row(&b, c, true)
+	strings.write_string(&b, views.view_toast("success", "Contact added.", true))
+	http.respond_html(res, strings.to_string(b))
 }
 
 contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
-	ctx := new(Form_Ctx, context.temp_allocator)
-	ctx.res = res
-	ctx.id = to_int(req.url_params[0])
-	http.body(req, -1, ctx, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
-		ctx := cast(^Form_Ctx)user
-		res := ctx.res
+	id := to_int(req.url_params[0])
+	form := request_form()
+	action := form["action"]
+	// view=detail → respond with the re-rendered detail drawer (the action came
+	// from the drawer); otherwise the table row.
+	is_detail := form["view"] == "detail"
 
-		form := body_form(body)
-		action := form["action"]
-		// view=detail → respond with the re-rendered detail drawer (the action came
-		// from the drawer); otherwise the table row.
-		is_detail := form["view"] == "detail"
-
-		c: models.Contact
-		ok: bool
-		edit_errs: []services.Field_Error
-		if action == "cycle" {
-			if cur, found := repository.repo_get(ctx.id); found {
-				next := models.Status((int(cur.status) + 1) % len(models.Status))
-				c, ok = repository.repo_set_status(ctx.id, next)
-			}
-		} else if name := strings.trim_space(form["name"]); name != "" {
-			// full edit from the detail drawer
-			email := strings.trim_space(form["email"])
-			edit_errs = services.validate_contact(name, email)
-			if len(edit_errs) == 0 {
-				role, _ := models.role_from(form["role"])
-				status, _ := models.status_from(form["status"])
-				score := clamp(to_int(form["score"]), 0, 100)
-				c, ok = repository.repo_update(ctx.id, name, email, role, status, score)
-			} else {
-				c, ok = repository.repo_get(ctx.id) // invalid (the form guards this, but be graceful)
-			}
+	c: models.Contact
+	ok: bool
+	edit_errs: []services.Field_Error
+	if action == "cycle" {
+		if cur, found := repository.repo_get(id); found {
+			next := models.Status((int(cur.status) + 1) % len(models.Status))
+			c, ok = repository.repo_set_status(id, next)
+		}
+	} else if name := strings.trim_space(form["name"]); name != "" {
+		// full edit from the detail drawer
+		email := strings.trim_space(form["email"])
+		edit_errs = services.validate_contact(name, email)
+		if len(edit_errs) == 0 {
+			role, _ := models.role_from(form["role"])
+			status, _ := models.status_from(form["status"])
+			score := clamp(to_int(form["score"]), 0, 100)
+			c, ok = repository.repo_update(id, name, email, role, status, score)
 		} else {
-			c, ok = repository.repo_get(ctx.id)
+			c, ok = repository.repo_get(id) // invalid (the form guards this, but be graceful)
 		}
+	} else {
+		c, ok = repository.repo_get(id)
+	}
 
-		if !ok {
-			http.respond(res, http.Status.Not_Found)
-			return
+	if !ok {
+		http.respond(res, http.Status.Not_Found)
+		return
+	}
+	if is_detail {
+		// the re-rendered drawer (main swap into the open drawer), plus a refresh of
+		// the table row behind it. A plain `hx-swap-oob` <tr> can't ride along: a
+		// response that starts with the non-table <aside> is body-parsed, which drops
+		// a trailing <tr>; and a <template> wrapper hides it from htmx's OOB
+		// querySelectorAll (which doesn't descend into templates). htmx 4's
+		// <hx-partial> is built for this — it becomes a <template> (so the <tr>
+		// survives parsing) that htmx explicitly processes into hx-target/hx-swap.
+		b := strings.builder_make(context.temp_allocator)
+		strings.write_string(&b, views.view_contact_detail_frag(c, services.service_timeline(c), services.service_related(c, 4), false))
+		fmt.sbprintf(&b, `<hx-partial hx-target="#contact-%d" hx-swap="outerHTML">`, c.id)
+		views.view_contact_row(&b, c, false)
+		strings.write_string(&b, `</hx-partial>`)
+		if len(edit_errs) > 0 {
+			strings.write_string(&b, views.view_toast("error", edit_errs[0].msg, true))
 		}
-		if is_detail {
-			// the re-rendered drawer (main swap into the open drawer), plus a refresh of
-			// the table row behind it. A plain `hx-swap-oob` <tr> can't ride along: a
-			// response that starts with the non-table <aside> is body-parsed, which drops
-			// a trailing <tr>; and a <template> wrapper hides it from htmx's OOB
-			// querySelectorAll (which doesn't descend into templates). htmx 4's
-			// <hx-partial> is built for this — it becomes a <template> (so the <tr>
-			// survives parsing) that htmx explicitly processes into hx-target/hx-swap.
-			b := strings.builder_make(context.temp_allocator)
-			strings.write_string(&b, views.view_contact_detail_frag(c, services.service_timeline(c), services.service_related(c, 4), false))
-			fmt.sbprintf(&b, `<hx-partial hx-target="#contact-%d" hx-swap="outerHTML">`, c.id)
-			views.view_contact_row(&b, c, false)
-			strings.write_string(&b, `</hx-partial>`)
-			if len(edit_errs) > 0 {
-				strings.write_string(&b, views.view_toast("error", edit_errs[0].msg, true))
-			}
-			http.respond_html(res, strings.to_string(b))
-		} else {
-			b := strings.builder_make(context.temp_allocator)
-			views.view_contact_row(&b, c, false)
-			http.respond_html(res, strings.to_string(b))
-		}
-	})
+		http.respond_html(res, strings.to_string(b))
+	} else {
+		b := strings.builder_make(context.temp_allocator)
+		views.view_contact_row(&b, c, false)
+		http.respond_html(res, strings.to_string(b))
+	}
 }
 
 contacts_delete :: proc(req: ^http.Request, res: ^http.Response) {
@@ -329,45 +269,38 @@ contacts_delete :: proc(req: ^http.Request, res: ^http.Response) {
 // ---- forms --------------------------------------------------------------
 
 validate_email_field :: proc(req: ^http.Request, res: ^http.Response) {
-	http.body(req, -1, res, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
-		res := cast(^http.Response)user
-		form := body_form(body)
-		email := strings.trim_space(form["email"])
-		if email == "" {
-			http.respond_html(res, "")
-			return
-		}
-		if services.valid_email(email) {
-			http.respond_html(res, views.view_field_msg(true, "Looks good."))
-		} else {
-			http.respond_html(res, views.view_field_msg(false, "That doesn't look like an email."))
-		}
-	})
+	email := strings.trim_space(request_form()["email"])
+	if email == "" {
+		http.respond_html(res, "")
+		return
+	}
+	if services.valid_email(email) {
+		http.respond_html(res, views.view_field_msg(true, "Looks good."))
+	} else {
+		http.respond_html(res, views.view_field_msg(false, "That doesn't look like an email."))
+	}
 }
 
 forms_submit :: proc(req: ^http.Request, res: ^http.Response) {
-	http.body(req, -1, res, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
-		res := cast(^http.Response)user
-		form := body_form(body)
-		name := form["name"]
-		email := form["email"]
+	form := request_form()
+	name := form["name"]
+	email := form["email"]
 
-		errs := services.validate_contact(name, email)
-		if len(errs) > 0 {
-			http.respond_html(res, views.view_form_errors(errs))
-			return
-		}
+	errs := services.validate_contact(name, email)
+	if len(errs) > 0 {
+		http.respond_html(res, views.view_form_errors(errs))
+		return
+	}
 
-		role, _ := models.role_from(form["role"])
-		status, _ := models.status_from(form["status"])
-		score := clamp(to_int(form["score"]), 0, 100)
-		c := repository.repo_create(strings.trim_space(name), strings.trim_space(email), role, status, score)
+	role, _ := models.role_from(form["role"])
+	status, _ := models.status_from(form["status"])
+	score := clamp(to_int(form["score"]), 0, 100)
+	c := repository.repo_create(strings.trim_space(name), strings.trim_space(email), role, status, score)
 
-		b := strings.builder_make(context.temp_allocator)
-		strings.write_string(&b, views.view_form_result(c))
-		strings.write_string(&b, views.view_toast("success", "Saved to the SQLite store.", true))
-		http.respond_html(res, strings.to_string(b))
-	})
+	b := strings.builder_make(context.temp_allocator)
+	strings.write_string(&b, views.view_form_result(c))
+	strings.write_string(&b, views.view_toast("success", "Saved to the SQLite store.", true))
+	http.respond_html(res, strings.to_string(b))
 }
 
 // ---- ui fragments -------------------------------------------------------
