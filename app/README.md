@@ -36,9 +36,10 @@ run.bat            # builds and serves on http://127.0.0.1:8080 (OPEN=1 also ope
 
 Pass a port to override the default: `run.bat 9000` / `./run.sh 9000`.
 
-`prepare` is idempotent — run it once; after that just `run`. The store is SQLite: `run`
-defaults `DB_PATH` to a local `data.db` (so your data persists); set `DB_PATH=:memory:` for
-an ephemeral, freshly-seeded store.
+`prepare` is idempotent — run it once; after that just `run` (it no longer needs the MSVC prompt
+once SQLite is compiled). The store is SQLite: `run` defaults `DB_PATH` to a local `data.db` (so your
+data persists) with `SEED=1` (the demo rows); set `DB_PATH=:memory:` for an ephemeral, freshly-seeded
+store. `OPEN=1 run.bat` also opens a browser tab.
 
 ## What's inside
 
@@ -67,7 +68,8 @@ curl -X DELETE 'http://127.0.0.1:8080/contacts/1'
 ## Architecture
 
 The backend is layered, each layer its own Odin **package** under `src/` (a directory is a
-package, so the compiler enforces the boundaries). Dependencies point one direction only:
+package; the compiler forbids import cycles, and the direction is kept by convention).
+Dependencies point one direction only:
 
 ```
 src/ (main + routes) → controllers → services → repository → models
@@ -77,9 +79,9 @@ src/ (main + routes) → controllers → services → repository → models
 | Package | Layer | Responsibility |
 |---------|-------|----------------|
 | `src/models/` | model | Domain types (`Contact`, `Role`, `Status`, `Event`, `Interaction`) |
-| `src/repository/` | repository | SQLite store + CRUD primitives, seeded on first boot (binds `src/sqlite/`) |
-| `src/services/` | service | Search, sort, paginate, validate — plain values, no HTTP |
-| `src/controllers/` | controller | The only layer that touches `odin-http`; embeds `htmx.min.js` via `#load` |
+| `src/repository/` | repository | SQLite store + CRUD primitives, migrations, `--backup` (binds `src/sqlite/`); demo rows seed only `:memory:` or `SEED=1` |
+| `src/services/` | service | Search, sort, paginate, validate — plain values and errors, no HTTP |
+| `src/controllers/` | controller | The only layer that handles HTTP: `middleware.odin` (security headers, CSRF guard, body cap, access log) + handlers; embeds the assets via `#load` |
 | `src/views/` | view | HTML assembled by procedures (no template engine) |
 | `src/` (`main.odin`, `routes.odin`) | entry | Seed, wire the route table, serve |
 
@@ -95,9 +97,16 @@ overridable with `THREADS`), so handlers execute concurrently. The store is ther
 by an `sync.RW_Mutex` — see the concurrency note in `repository/db.odin`.
 
 The store is **SQLite** (the amalgamation, compiled by `prepare` and statically linked). The
-seven `repo_*` procedures are the only code that touches storage; `DB_PATH` selects the
-backend (`:memory:` for an ephemeral seeded DB, or a file path to persist). See
-[`docs/DATA.md`](../docs/DATA.md) and [`docs/DATA_IMPL.md`](../docs/DATA_IMPL.md).
+`repo_*` procedures are the only code that touches storage, and they return their failures as
+values; `DB_PATH` selects the backend (`:memory:` for an ephemeral seeded DB, or a file path to
+persist). Back a live file DB up with `DB_PATH=data.db bin/demo --backup backup.db`; the restore
+runbook is in [`docs/DATA.md`](../docs/DATA.md#backup-and-restore-sqlite). See also
+[`docs/DATA_IMPL.md`](../docs/DATA_IMPL.md).
+
+Every response carries a strict Content-Security-Policy (no inline scripts or handlers, bar one
+hashed pre-paint script), `nosniff`, `X-Frame-Options: DENY` and a referrer policy; cross-site writes
+are refused; request bodies are capped at 64 KiB; and each request writes one access-log line
+(`LOG_LEVEL=warn` silences it). `/healthz` answers `ok` while the store does.
 
 ### Assets
 
@@ -122,6 +131,6 @@ downloads (htmx, the SQLite amalgamation).
 
 ## Notes / non-goals
 
-- Plain HTTP on localhost; no TLS. This is a proof of concept, not a production server.
+- Plain HTTP on loopback; no TLS (the platform terminates it in production: see `infra/PLAN.md`).
 - With `DB_PATH=:memory:` the dataset is seeded at boot and resets when the process exits;
   point `DB_PATH` at a file to persist it across restarts.

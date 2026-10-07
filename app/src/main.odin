@@ -13,7 +13,8 @@ import "views"
 
 // ---- entry --------------------------------------------------------------
 //
-// Seed the store, wire the routes, serve. Port resolves PORT env -> first arg
+// Set up logging, open (and maybe seed) the store, wire the routes, serve; or,
+// with --backup, copy the store and exit. Port resolves PORT env -> first arg
 // -> default (the platform injects PORT in a container). BIND_ALL switches the
 // listen address from loopback (the safe local default) to 0.0.0.0 so a
 // container host can route traffic in; locally we stay on loopback.
@@ -103,7 +104,7 @@ main :: proc() {
 	http.server_shutdown_on_interrupt(&s)
 
 	// N event-loop threads, one per core by default; the store is guarded by an
-	// RW_Mutex (see repository.odin) so handlers can run concurrently. THREADS
+	// RW_Mutex (see repository/db.odin) so handlers can run concurrently. THREADS
 	// overrides the count — load-tests sweep it (THREADS=1 reproduces the old
 	// single-thread baseline against the same binary).
 	opts := http.Default_Server_Opts
