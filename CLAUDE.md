@@ -120,7 +120,7 @@ src/ (main: main.odin, routes.odin) → controllers → services → repository 
 |------|-------|------|
 | `src/models/` | model | Types + enum label tables. No logic, no imports beyond `core`. |
 | `src/sqlite/` | binding | ~15 `foreign` decls for the SQLite amalgamation. The only C-ABI crossing. |
-| `src/repository/` | repository | Owns the SQLite store: `repo.odin` (connection/lock/migrations + helpers) + per-table files (`contacts.odin`, `events.odin`). Imports `models`, `sqlite`. |
+| `src/repository/` | repository | Owns the SQLite store: `db.odin` (connection/lock/migration runner + helpers, entity-agnostic and shared with `--minimal`), `repo.odin` (this app's migrations, statement wiring, seed) + per-table files (`contacts.odin`, `events.odin`). Imports `models`, `sqlite`. |
 | `src/services/` | service | Search/sort/paginate/validate. Plain values + errors, never HTTP. Imports `models`, `repository`. |
 | `src/views/` | view | HTML builders (a component is a proc writing into a `^strings.Builder`). Imports `models`, `services`/`repository`. |
 | `src/controllers/` | controller | **The only layer that imports `http`.** Parse → call service → render via `views.*` → respond. Embeds htmx via `#load`. |
@@ -136,7 +136,7 @@ overrides), so handlers run concurrently. The store is one SQLite connection gua
 `sync.RW_Mutex`. **v1 takes the lock *exclusively* for every op, reads included** — a single
 connection's prepared statements are shared mutable state, so concurrent shared-lock reads would
 corrupt each other (parallel reads return with per-thread WAL connections — `docs/DATA_IMPL.md` §4,
-and the note in `repository/repo.odin`). Because callers read a returned contact *after* the lock
+and the note in `repository/db.odin`). Because callers read a returned contact *after* the lock
 drops, the repository hands out **temp-arena snapshots** (columns cloned into the request arena via
 `clone_col`), never pointers into a statement buffer. If you touch the store, go through a `repo_*`
 proc.

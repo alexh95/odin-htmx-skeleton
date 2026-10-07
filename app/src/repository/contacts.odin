@@ -10,7 +10,7 @@ import "core:sync"
 // ---- contacts table -----------------------------------------------------
 //
 // The original entity. The seven repo_* (the storage contract) live here; the
-// shared connection/lock and the bind/scan/exec helpers come from repo.odin.
+// shared connection/lock and the bind/scan/exec helpers come from db.odin.
 
 @(private = "file") q_list, q_get, q_create, q_update, q_set_status, q_delete, q_count: sqlite.Stmt
 
