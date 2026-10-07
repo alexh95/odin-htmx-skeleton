@@ -11,7 +11,7 @@ export const handleSummary = summarize('detail');
 
 export default function () {
   const id = 1 + Math.floor(Math.random() * 20);
-  const res = http.get(`${BASE}/contacts/${id}`);
+  const res = http.get(`${BASE}/contacts/${id}`, { tags: { name: 'GET /contacts/:id' } });
   check(res, {
     'detail 200': (r) => r.status === 200,
     'detail is html': (r) => (r.headers['Content-Type'] || '').includes('html'),

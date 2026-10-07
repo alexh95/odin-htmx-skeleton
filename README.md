@@ -64,11 +64,14 @@ exactly what's demo vs. scaffold — follow [docs/STRIP.md](docs/STRIP.md).
 
 ## Tests
 
-Both suites are implemented and gate CI, kept at par with the app — every endpoint has a
-behaviour test *and* a load scenario.
+Two suites, meant to stay at par with the app: every endpoint gets a behaviour test *and* a load
+scenario.
 
-- **`e2e/`** — Playwright browser tests (Chromium/Firefox/WebKit). `cd e2e && npm ci && npm test`.
-- **`load-tests/`** — k6 throughput/latency suite. `cd load-tests && ./run.sh --quick`.
+- **`e2e/`** — Playwright browser tests (Chromium/Firefox/WebKit). CI runs them on every push and
+  PR. `cd e2e && npm ci && npx playwright install && npm test`.
+- **`load-tests/`** — k6 throughput/latency suite. It runs locally, not in CI: shared runners make
+  noisy benchmarks. `cd load-tests && ./run.sh --quick`; add `--strict` to exit non-zero on a
+  breached threshold.
 
 Each directory's `README.md` is the operating manual; its `PLAN.md` is the design rationale.
 

@@ -12,6 +12,7 @@
 #   ./run.sh --vus 1,100,500       # explicit VU levels
 #   ./run.sh static api            # only these scenarios
 #   ./run.sh --base https://host   # hit a remote target; skips build + local server
+#   ./run.sh --strict              # exit 1 if any run breaches its thresholds
 #
 # Env: K6 (k6 binary), DURATION (30s), WARMUP (5s), PORT_BASE (8090).
 set -eu
@@ -24,6 +25,7 @@ DURATION="${DURATION:-30s}"
 WARMUP="${WARMUP:-5s}"
 PORT_BASE="${PORT_BASE:-8090}"
 BASE=""              # set => external target, no local build/launch
+STRICT=""            # set => a breached threshold fails the whole run (exit 1)
 P95="${P95:-50}"; P99="${P99:-100}"
 
 while [ $# -gt 0 ]; do
@@ -33,6 +35,7 @@ while [ $# -gt 0 ]; do
     --vus)    shift; VUS="$1" ;;
     --duration) shift; DURATION="$1" ;;
     --base)   shift; BASE="$1" ;;
+    --strict) STRICT=1 ;;
     --*)      echo "unknown flag: $1" >&2; exit 2 ;;
     *)        SCENARIOS="$SCENARIOS $1" ;;
   esac
@@ -101,6 +104,7 @@ trap stop_server EXIT INT TERM
 
 # ---- run matrix ---------------------------------------------------------
 port=$PORT_BASE
+FAILED=""   # scenario@VUs of every run k6 failed (a breached threshold, or worse)
 for s in $SCENARIOS; do
   script="scenarios/$s.js"
   [ -f "$script" ] || { echo "no such scenario: $s" >&2; exit 2; }
@@ -119,7 +123,11 @@ for s in $SCENARIOS; do
       --env "P95=$P95" --env "P99=$P99" \
       --env "OUT=$RAW/${s}_${vus}.json" \
       --env "OUT_CSV=$RAW/${s}_${vus}.csv" \
-      "$script" || echo "  (thresholds breached at ${vus} VUs — recorded, continuing)"
+      "$script" || {
+        # Keep going either way: one breach shouldn't cost the rest of the table.
+        rc=$?; FAILED="$FAILED ${s}@${vus}"
+        echo "  (k6 exit $rc at ${vus} VUs: thresholds breached, or an error — recorded, continuing)"
+      }
 
     if [ -z "$BASE" ]; then stop_server; port=$((port + 1)); fi
   done
@@ -160,3 +168,10 @@ echo "================ summary ($SUMMARY) ================"
 cat "$SUMMARY"
 echo
 echo "raw per-run JSON + server logs in $RAW/"
+
+# Without --strict a breach is information (finding the knee is what a sweep is
+# for); with it, the run is a gate.
+if [ -n "$FAILED" ]; then
+  echo "failed runs:$FAILED"
+  [ -z "$STRICT" ] || exit 1
+fi

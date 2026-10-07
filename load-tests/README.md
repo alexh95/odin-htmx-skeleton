@@ -22,10 +22,19 @@ single-thread-ceiling investigation live in [`PLAN.md`](PLAN.md); this is the op
 ./run.sh --sweep                 # full curve: 1,10,50,100,200,500 VUs (the knee hunt)
 ./run.sh --vus 1,100,500 api     # explicit levels, one scenario
 ./run.sh --base https://odin-htmx-skeleton.fly.dev   # hit prod; skips build + local server
+./run.sh --quick --strict        # as a gate: exit 1 if any run breaches its thresholds
 ```
 
 `run.bat` takes the same arguments on Windows. Env overrides: `DURATION` (30s), `WARMUP` (5s),
 `P95`/`P99` (latency gate, ms), `PORT_BASE` (8090), `K6`, `BOMBARDIER`.
+
+With no scenario names it runs every `scenarios/*.js`, so a new scenario is just a new file.
+
+**What fails a run.** Each scenario's thresholds: under 1% failed requests and p95/p99 under
+`P95`/`P99` in the measured window (plus any scenario-specific check rate). A breach is reported and
+the sweep carries on. By default the driver still exits 0, because finding the knee is the point of
+a sweep; `--strict` makes any breached run exit 1. CI doesn't run this suite: shared runners measure
+the neighbours as much as the server (see `PLAN.md`).
 
 The driver builds the app `-o:speed`, then for **each scenario × VU level** launches a *fresh*
 server on its own port (clean `:memory:` SQLite store), waits on `/healthz`, runs a warmup +
