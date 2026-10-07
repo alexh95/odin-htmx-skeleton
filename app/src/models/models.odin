@@ -88,6 +88,21 @@ Interaction :: struct {
 	outgoing:   bool,
 }
 
+// ---- dashboard aggregates ------------------------------------------------
+//
+// The dashboard's numbers, counted by SQLite in one GROUP BY rather than by
+// loading every contact (repository.repo_contact_stats). by_score splits the
+// 0..100 engagement score into SCORE_BANDS equal bands, lowest first.
+
+SCORE_BANDS :: 8
+
+Contact_Stats :: struct {
+	by_status: [Status]int,
+	by_role:   [Role]int,
+	by_score:  [Status][SCORE_BANDS]int,
+	score_sum: int,
+}
+
 // Parse a label back to its enum value. Used when decoding form submissions;
 // an unknown string falls back to the zero value so a hand-crafted POST can't
 // crash a handler.

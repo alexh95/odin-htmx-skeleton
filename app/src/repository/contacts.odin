@@ -12,7 +12,7 @@ import "core:sync"
 // The original entity. The seven repo_* (the storage contract) live here; the
 // shared connection/lock and the bind/scan/exec helpers come from db.odin.
 
-@(private = "file") q_list, q_get, q_create, q_update, q_cycle, q_delete, q_count: sqlite.Stmt
+@(private = "file") q_list, q_get, q_create, q_update, q_cycle, q_delete, q_count, q_stats: sqlite.Stmt
 
 @(private = "file") SQL_LIST: cstring : "SELECT id,name,email,role,status,score FROM contacts ORDER BY id"
 @(private = "file") SQL_GET: cstring : "SELECT id,name,email,role,status,score FROM contacts WHERE id=? LIMIT 1"
@@ -23,18 +23,20 @@ import "core:sync"
 @(private = "file") SQL_CYCLE: cstring : "UPDATE contacts SET status=(status+1)%?2 WHERE id=?1"
 @(private = "file") SQL_DELETE: cstring : "DELETE FROM contacts WHERE id=?"
 @(private = "file") SQL_COUNT: cstring : "SELECT count(*) FROM contacts"
+// At most |Status| x |Role| x SCORE_BANDS rows, however big the table is.
+@(private = "file") SQL_STATS: cstring : "SELECT status, role, score*?1/101, count(*), sum(score) FROM contacts GROUP BY 1, 2, 3"
 
 @(private)
 prepare_contacts :: proc() {
 	prep(SQL_LIST, &q_list);prep(SQL_GET, &q_get)
 	prep(SQL_CREATE, &q_create);prep(SQL_UPDATE, &q_update)
 	prep(SQL_CYCLE, &q_cycle);prep(SQL_DELETE, &q_delete)
-	prep(SQL_COUNT, &q_count)
+	prep(SQL_COUNT, &q_count);prep(SQL_STATS, &q_stats)
 }
 
 @(private)
 finalize_contacts :: proc() {
-	for st in ([]sqlite.Stmt{q_list, q_get, q_create, q_update, q_cycle, q_delete, q_count}) {
+	for st in ([]sqlite.Stmt{q_list, q_get, q_create, q_update, q_cycle, q_delete, q_count, q_stats}) {
 		sqlite.finalize(st)
 	}
 }
@@ -104,6 +106,29 @@ repo_delete :: proc(id: int) -> Error {
 		return err
 	}
 	return sqlite.changes(db) > 0 ? .None : .Not_Found
+}
+
+// Counts by status and role, the score spread per status, and the score sum.
+repo_contact_stats :: proc() -> (models.Contact_Stats, Error) {
+	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+	defer sqlite.reset(q_stats)
+	sqlite.bind_int(q_stats, 1, models.SCORE_BANDS)
+	out: models.Contact_Stats
+	err: Error
+	for next_row(q_stats, &err) {
+		status := int(sqlite.column_int(q_stats, 0))
+		role := int(sqlite.column_int(q_stats, 1))
+		band := clamp(int(sqlite.column_int(q_stats, 2)), 0, models.SCORE_BANDS - 1)
+		n := int(sqlite.column_int64(q_stats, 3))
+		if status < 0 || status >= len(models.Status) || role < 0 || role >= len(models.Role) {
+			continue // a row from a newer enum than this binary; skip, don't index past the end
+		}
+		out.by_status[models.Status(status)] += n
+		out.by_role[models.Role(role)] += n
+		out.by_score[models.Status(status)][band] += n
+		out.score_sum += int(sqlite.column_int64(q_stats, 4))
+	}
+	return out, err
 }
 
 // ---- internals (caller holds the lock) ----------------------------------

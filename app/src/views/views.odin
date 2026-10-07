@@ -481,13 +481,13 @@ view_dashboard :: proc(st: services.Stats) -> string {
 
 	w(
 		&b,
-		`<div class="block-head"><h2>Overview</h2><p class="muted">Live figures from the demo store, counted on the server.</p></div>`,
+		`<div class="block-head"><h2>Overview</h2><p class="muted">Live figures from the demo store, counted by SQLite. Each line is a spread, not a trend: contacts per role, then engagement scores from low to high.</p></div>`,
 	)
 	w(&b, `<section class="stat-grid">`)
-	stat_card(&b, "users", "Total contacts", st.total, "+4 this week", []int{6, 9, 7, 11, 10, 14, 13, 18}, "/data")
-	stat_card(&b, "check", "Active", st.active, "82% of base", []int{10, 11, 9, 12, 13, 12, 15, 16}, "/data?status=Active")
-	stat_card(&b, "bell", "Invited", st.invited, "pending", []int{3, 4, 2, 5, 4, 6, 5, 4}, "/data?status=Invited")
-	stat_card(&b, "bolt", "Avg. engagement", st.avg_score, "score / 100", []int{40, 52, 48, 60, 58, 66, 70, 74}, "/data?sort=score_desc")
+	stat_card(&b, "users", "Total contacts", st.total, fmt.tprintf("%d roles", len(st.by_role)), st.by_role, "/data")
+	stat_card(&b, "check", "Active", st.active, fmt.tprintf("%d%% of all", st.active_pct), st.spread_active, "/data?status=Active")
+	stat_card(&b, "bell", "Invited", st.invited, fmt.tprintf("%d%% of all", st.invited_pct), st.spread_invited, "/data?status=Invited")
+	stat_card(&b, "bolt", "Avg. engagement", st.avg_score, "score / 100", st.spread, "/data?sort=score_desc")
 	w(&b, `</section>`)
 
 	// `block` only adds the section spacing `.split` has none of — the new prose
@@ -546,7 +546,6 @@ stat_card :: proc(b: ^strings.Builder, ic, label: string, value: int, delta: str
 	w(b, `</span></div>`)
 	fmt.sbprintf(b, `<div class="stat-value" data-count="%d">%d</div>`, value, value)
 	w(b, `<div class="stat-foot"><span class="stat-delta">`)
-	icon(b, "arrow")
 	esc(b, delta)
 	w(b, `</span>`)
 	sparkline(b, spark)
