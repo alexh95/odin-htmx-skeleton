@@ -251,8 +251,6 @@ commit :: proc() {
 				os.exit(1)
 			}
 			fmt.printfln("  removed  %s", c.path)
-			// Only succeeds once the directory is empty (e2e/helpers/, say).
-			_ = os.remove(os.dir(c.path))
 		case c.wrote, c.appended, c.edits > 0:
 			if err := os.write_entire_file(c.path, c.content); err != nil {
 				fmt.eprintfln("  ERROR writing %s: %v", c.path, err)

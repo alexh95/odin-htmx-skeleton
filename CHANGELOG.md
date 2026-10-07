@@ -110,8 +110,7 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   and 260-line backlog were left in place, and `CLAUDE.md` tells an agent to work from that backlog.
   They're replaced with short starters (`tools/init/minimal/`). The changelog records the template
   release the fork started from, read from the upstream changelog. The TODO lists the remaining
-  make-it-yours steps. `--minimal` also deletes `e2e/helpers/server.ts` when nothing it keeps
-  imports it (today only the deleted persistence and events specs do).
+  make-it-yours steps.
 - **`load-tests/run.sh --strict`**
   ([#40](https://github.com/alexh95/odin-htmx-skeleton/issues/40)). Without it the driver still records
   a breached threshold and carries on (a sweep exists to find the knee). With it, the run lists the
@@ -137,8 +136,7 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `infra/`, `deploy/` and `tools/`. `init`'s usage text now lists `--site`. `docs/STRIP.md`'s
   keep-lists cover the 1.1.0 crawler contract: the SEO handlers and routes, `robots_txt`'s
   demo-specific `Disallow` list, `og.png` and its source, `BRAND_HOME_TITLE`, and the generic
-  `seo.spec.ts`/`seo.js`. It also marks `helpers/server.ts` as demo-only and covers the CI `minimal`
-  job and the stale `data.db`.
+  `seo.spec.ts`/`seo.js`. It also covers the CI `minimal` job and the stale `data.db`.
 - **Per-id load-test URLs are tagged with a route `name`**
   ([#40](https://github.com/alexh95/odin-htmx-skeleton/issues/40)): `POST`/`DELETE /contacts/:id` in
   `write.js` and `mixed.js`, and `GET /contacts/:id` in `detail.js`. Untagged, each id was its own k6
