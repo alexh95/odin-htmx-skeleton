@@ -23,7 +23,17 @@ MIN_CSS :: #load("minimal/notes.css", string)
 MIN_E2E :: #load("minimal/e2e/home.spec.ts", string)
 MIN_PAGES :: #load("minimal/load/pages.js", string)
 
+// The local dev database app/run.* default to. It holds the demo's tables at
+// the demo's migration count, so the starter's migration runner would count
+// them as applied and boot into "no such table: notes". It's disposable: the
+// next run creates and seeds a fresh one.
+DEV_DB :: [?]string{"app/data.db", "app/data.db-wal", "app/data.db-shm"}
+
 strip_to_minimal :: proc(opt: Options) {
+	for f in DEV_DB {
+		remove_if_present(f)
+	}
+
 	// 1. Delete the demo — domain + pages, and the specs/scenarios that cover them.
 	demo := []string {
 		"app/src/repository/contacts.odin",
