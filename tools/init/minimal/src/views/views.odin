@@ -34,8 +34,9 @@ icon :: proc(b: ^strings.Builder, name: string) {
 //
 // Two orthogonal axes carried as data-attributes on <html>: `data-style` (the
 // treatment) and `data-scheme` (the palette). Pure presentation: the picker is
-// static HTML, app.js applies + persists the choice (localStorage), and the head
-// pre-paint script restores it before first paint. No server endpoint.
+// static HTML whose buttons app.js handles by their data-pick-* attributes (no
+// inline handlers: the CSP forbids them), applying + persisting the choice
+// (localStorage); the head pre-paint script restores it before first paint.
 
 @(private = "file")
 Style_Opt :: struct {
@@ -95,14 +96,14 @@ theme_picker :: proc(b: ^strings.Builder) {
 	icon(b, "palette")
 	w(b, `</summary><div class="picker-panel"><p class="picker-head">Style</p><div class="picker-styles">`)
 	for s in STYLES {
-		fmt.sbprintf(b, `<button class="chip" type="button" data-pick-style="%s" aria-pressed="false" onclick="pickStyle('%s')">%s</button>`, s.id, s.id, s.label)
+		fmt.sbprintf(b, `<button class="chip" type="button" data-pick-style="%s" aria-pressed="false">%s</button>`, s.id, s.label)
 	}
 	w(b, `</div><p class="picker-head">Scheme</p>`)
 	for s in STYLES {
 		fmt.sbprintf(b, `<div class="picker-schemes" data-for="%s">`, s.id)
 		for sc in SCHEMES {
 			if sc.style != s.id {continue}
-			fmt.sbprintf(b, `<button class="swatch" type="button" data-pick-scheme="%s" aria-pressed="false" title="%s" style="--sw:%s" onclick="pickScheme('%s')"></button>`, sc.id, sc.label, sc.swatch, sc.id)
+			fmt.sbprintf(b, `<button class="swatch" type="button" data-pick-scheme="%s" aria-pressed="false" title="%s" style="--sw:%s"></button>`, sc.id, sc.label, sc.swatch)
 		}
 		w(b, `</div>`)
 	}
@@ -186,7 +187,9 @@ layout :: proc(title, active, description, content: string) -> string {
 <link rel="stylesheet" href="`)
 	w(&b, CSS_HREF)
 	w(&b, `">
-<script>try{var d=document.documentElement,s=localStorage.getItem('style'),c=localStorage.getItem('scheme');if(s)d.dataset.style=s;if(c)d.dataset.scheme=c;}catch(e){}</script>
+<script>`)
+	w(&b, THEME_PREPAINT_JS)
+	w(&b, `</script>
 <script src="`)
 	w(&b, HTMX_HREF)
 	w(&b, `" defer></script>

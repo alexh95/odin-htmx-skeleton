@@ -192,7 +192,9 @@ view_contact_row :: proc(b: ^strings.Builder, c: models.Contact, fresh: bool) {
 // `.drawer-detail` so the backdrop doesn't re-animate.
 view_contact_detail :: proc(c: models.Contact, timeline: []models.Interaction, related: []models.Contact) -> string {
 	b := strings.builder_make(context.temp_allocator)
-	w(&b, `<div class="backdrop" hx-get="/ui/clear" hx-target="#overlay" hx-swap="innerHTML swap:240ms">`)
+	// from:self: only a click on the backdrop itself closes it, not one that
+	// bubbles up from inside the drawer.
+	w(&b, `<div class="backdrop" hx-get="/ui/clear" hx-trigger="click from:self" hx-target="#overlay" hx-swap="innerHTML swap:240ms">`)
 	detail_aside(&b, c, timeline, related, false, false)
 	w(&b, `</div>`)
 	return strings.to_string(b)
@@ -231,7 +233,7 @@ detail_head :: proc(b: ^strings.Builder, c: models.Contact, static_anim: bool) {
 	// drawer-static skips the slide-in so in-place swaps don't re-animate.
 	fmt.sbprintf(
 		b,
-		`<aside class="drawer drawer-detail%s" role="dialog" aria-modal="true" aria-label="Contact detail" onclick="event.stopPropagation()"><header class="drawer-head detail-head">`,
+		`<aside class="drawer drawer-detail%s" role="dialog" aria-modal="true" aria-label="Contact detail"><header class="drawer-head detail-head">`,
 		static_anim ? " drawer-static" : "",
 	)
 	avatar(b, c)
@@ -361,7 +363,7 @@ detail_edit_form :: proc(b: ^strings.Builder, c: models.Contact, problem: string
 		fmt.sbprintf(b, `<option%s>%s</option>`, st == c.status ? " selected" : "", name)
 	}
 	w(b, `</select></label>`)
-	fmt.sbprintf(b, `<label class="field"><span>Engagement <b>%d</b></span><input name="score" type="range" min="0" max="100" value="%d" oninput="this.previousElementSibling.querySelector('b').textContent=this.value"></label>`, c.score, c.score)
+	fmt.sbprintf(b, `<label class="field"><span>Engagement <output>%d</output></span><input name="score" type="range" min="0" max="100" value="%d"></label>`, c.score, c.score)
 	if problem != "" {
 		w(b, `<p class="field-msg form-error" role="alert">`)
 		w(b, view_field_msg(false, problem))
@@ -454,8 +456,8 @@ view_modal :: proc() -> string {
 
 view_drawer :: proc() -> string {
 	b := strings.builder_make(context.temp_allocator)
-	w(&b, `<div class="backdrop" hx-get="/ui/clear" hx-target="#overlay" hx-swap="innerHTML swap:240ms">
-  <aside class="drawer" role="dialog" aria-modal="true" aria-label="Settings" onclick="event.stopPropagation()">
+	w(&b, `<div class="backdrop" hx-get="/ui/clear" hx-trigger="click from:self" hx-target="#overlay" hx-swap="innerHTML swap:240ms">
+  <aside class="drawer" role="dialog" aria-modal="true" aria-label="Settings">
     <header class="drawer-head"><h2>Workspace</h2>
       <button class="icon-btn" aria-label="Close" hx-get="/ui/clear" hx-target="#overlay" hx-swap="innerHTML swap:240ms">`)
 	icon(&b, "plus")
@@ -499,7 +501,7 @@ view_toast :: proc(kind, message: string, oob: bool) -> string {
 	icon(&b, ic)
 	w(&b, `</span><p>`)
 	esc(&b, message)
-	w(&b, `</p><button class="toast-x" aria-label="Dismiss" onclick="dismissToast(this)">×</button></div>`)
+	w(&b, `</p><button class="toast-x" type="button" aria-label="Dismiss">×</button></div>`)
 	if oob {
 		w(&b, `</div>`)
 	}

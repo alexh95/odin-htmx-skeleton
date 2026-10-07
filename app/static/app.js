@@ -2,6 +2,11 @@
 // covers the few things the server can't: the theme picker, retiring toasts,
 // and a couple of presentation flourishes. No dependencies.
 
+// No inline handlers anywhere: the Content-Security-Policy forbids them (only
+// this file and htmx run). Markup names what a click means with a data-*
+// attribute or a role, and the one delegated listener below routes it, which
+// also covers content htmx swaps in later.
+
 // Theme picker — two axes on <html>: data-style (treatment) and data-scheme
 // (palette). Pure presentation; persisted so the head pre-paint script can
 // restore the choice before first paint. No server round-trip.
@@ -104,7 +109,8 @@ function countUp() {
 
 // Range sliders: paint the filled portion to match the value. The fill is a
 // background sized by the --fill custom property (see app.css), updated here as
-// the thumb moves. Delegated, so it covers sliders swapped in by HTMX too.
+// the thumb moves, along with the <output> in the slider's label if it has one.
+// Delegated, so it covers sliders swapped in by HTMX too.
 function fillRange(el) {
   var min = parseFloat(el.min);
   var max = parseFloat(el.max);
@@ -119,7 +125,10 @@ function initRanges(root) {
 }
 
 document.addEventListener("input", function (e) {
-  if (e.target.matches && e.target.matches('input[type="range"]')) fillRange(e.target);
+  if (!e.target.matches || !e.target.matches('input[type="range"]')) return;
+  fillRange(e.target);
+  var out = e.target.closest("label") && e.target.closest("label").querySelector("output");
+  if (out) out.value = e.target.value;
 });
 // htmx 4 fires htmx:after:process when it wires up new content (initial load and
 // every swap, boosted navigation included). Re-fill range sliders inside it (e.g.
@@ -151,14 +160,29 @@ document.addEventListener("htmx:after:request", function (e) {
   el.querySelectorAll(".form-error").forEach(function (m) { m.innerHTML = ""; });
 }, true);
 
-// Dismiss the search dropdown on outside-click or Escape; Escape also closes
-// any open overlay.
+// Clicks: the picker and showroom buttons, tabs and toast dismissal, by what
+// they carry. Then dismiss the search dropdown and the picker on an outside
+// click (Escape does too, below).
 document.addEventListener("click", function (e) {
+  var t = e.target.closest ? e.target : e.target.parentElement;
+  var b;
+  if ((b = t.closest("[data-pick-style]"))) pickStyle(b.dataset.pickStyle);
+  else if ((b = t.closest("[data-pick-scheme]"))) pickScheme(b.dataset.pickScheme);
+  else if ((b = t.closest("[data-sw-style]"))) setTheme(b.dataset.swStyle, b.dataset.swScheme);
+  else if ((b = t.closest('[role="tab"]'))) selectTab(b);
+  else if ((b = t.closest(".toast-x"))) dismissToast(b);
+
   var search = document.querySelector(".search");
   var box = document.getElementById("search-results");
   if (search && box && !search.contains(e.target)) box.innerHTML = "";
   var picker = document.querySelector(".picker[open]");
   if (picker && !picker.contains(e.target)) picker.removeAttribute("open");
+});
+
+// The search and filter boxes are live (htmx fires on keyup); Enter must not
+// also submit the form and navigate away.
+document.addEventListener("submit", function (e) {
+  if (e.target.matches('form[role="search"]')) e.preventDefault();
 });
 
 document.addEventListener("keydown", function (e) {
