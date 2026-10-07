@@ -3,7 +3,6 @@ package repository
 import "../models"
 import "../sqlite"
 
-import "core:c"
 import "core:sync"
 import "core:time"
 

@@ -8,7 +8,10 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+- **The `--minimal` starter passes `odin check -vet`** (part of
+  [#29](https://github.com/alexh95/odin-htmx-skeleton/issues/29)): `notes.odin` dropped an unused
+  `import "core:c"`.
 
 ## [1.1.1] - 2026-10-07
 
