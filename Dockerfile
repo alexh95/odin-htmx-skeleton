@@ -16,7 +16,7 @@ FROM debian:trixie-slim AS build
 
 # Pin the toolchain so image builds are reproducible. Bump deliberately: the
 # SHA-256 is the release's published digest of the linux-amd64 tarball, the same
-# one ci.yml pins.
+# one ci.yml pins (.github/scripts/check-pins.sh fails CI if they drift apart).
 ARG ODIN_VERSION=dev-2026-10
 ARG ODIN_SHA256=c3c8b095621fd0c75f7f73e3a0829f1b4d45324225f20ba11ed8dc4da310a8ab
 

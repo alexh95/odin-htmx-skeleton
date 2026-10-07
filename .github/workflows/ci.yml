@@ -24,6 +24,8 @@ concurrency:
 # ODIN_SHA256 is the release's published digest of the linux-amd64 tarball (the
 # one the e2e containers and the Dockerfile download); the build matrix pins one
 # per asset. Downloads are checked against them, like htmx and SQLite in prepare.
+# .github/scripts/check-pins.sh fails the build if these, the matrix asset names
+# and the Dockerfile disagree.
 env:
   ODIN_VERSION: dev-2026-10
   ODIN_SHA256: c3c8b095621fd0c75f7f73e3a0829f1b4d45324225f20ba11ed8dc4da310a8ab
@@ -41,7 +43,8 @@ jobs:
     # core:nbio). Each leg names its own asset rather than templating one: upstream
     # asset names have been irregular in the past (dev-2026-06 shipped a truncated
     # `...-dev-06` macOS name and an arch-less Windows name), so a version-only bump
-    # can silently 404. dev-2026-10 is regular — verify the names on each bump.
+    # can silently 404. dev-2026-10 is regular — verify the names on each bump
+    # (check-pins.sh catches a name left on the old version, not a renamed asset).
     # On a private fork, macOS minutes bill at 10x and Windows at 2x: to save
     # them, drop that leg from `os:` and its `include:` entry.
     strategy:
@@ -72,6 +75,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           submodules: recursive   # odin-http is a pinned submodule
+
+      # A bump that misses one of the places a pin lives fails here, first.
+      - name: Version pins agree (Odin, Playwright)
+        if: runner.os == 'Linux'
+        run: sh .github/scripts/check-pins.sh
 
       - name: Cache Odin toolchain
         id: cache-odin
@@ -243,7 +251,7 @@ jobs:
   # browsers + their OS deps + node/npm — so there's no per-run browser install
   # (the biggest, most variable cost, ~30-60s for webkit). global-setup still
   # builds the app, so each shard adds odin + clang. Keep the image tag in step
-  # with @playwright/test in e2e/package-lock.json.
+  # with @playwright/test in e2e/package-lock.json (check-pins.sh enforces it).
   e2e:
     name: E2E (${{ matrix.browser }})
     runs-on: ubuntu-latest

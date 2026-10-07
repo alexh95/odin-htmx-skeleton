@@ -14,6 +14,12 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   it through `compose.yaml` under the io_uring seccomp profile and waits for its `HEALTHCHECK`. It
   then curls `/healthz` and `/`, checks it runs as UID 10001, and requires `docker stop` to exit 0 in
   under 3 s. Last, it creates a DB on a fresh `/data` volume as that user.
+- **CI checks that the version pins agree** (part of
+  [#44](https://github.com/alexh95/odin-htmx-skeleton/issues/44)). `.github/scripts/check-pins.sh`,
+  run first in the build job's Linux leg, fails if the `Dockerfile`'s `ODIN_VERSION`/`ODIN_SHA256`,
+  `ci.yml`'s env, the three matrix asset names and the linux digest disagree. It also fails if a
+  Playwright image tag differs from `@playwright/test` in `e2e/package-lock.json`. Sweeps used to
+  check these by hand.
 
 ### Changed
 - **CI's apt step switches to HTTPS mirrors when the runner's mirror won't answer** (part of
