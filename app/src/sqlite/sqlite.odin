@@ -24,9 +24,12 @@ when ODIN_OS == .Windows {
 	}
 }
 
-// Opaque handles.
+// Opaque handles. Context and Value are what a function defined in Odin and
+// called from SQL (create_function_v2) receives.
 DB :: distinct rawptr
 Stmt :: distinct rawptr
+Context :: distinct rawptr
+Value :: distinct rawptr
 
 // Result codes. Extended codes keep the primary one in their low byte.
 OK :: 0
@@ -44,6 +47,13 @@ NULL :: 5
 // open_v2 flags.
 OPEN_READWRITE :: 0x00000002
 OPEN_CREATE :: 0x00000004
+
+// create_function_v2 flags: the text encoding the function receives, and that
+// its result depends only on its arguments (so SQLite may use it in an index).
+UTF8 :: 1
+DETERMINISTIC :: 0x000000800
+
+Scalar_Func :: #type proc "c" (ctx: Context, argc: c.int, argv: [^]Value)
 
 // SQLITE_TRANSIENT (-1): tell SQLite to copy the bound bytes, so a temp-arena
 // string need not outlive the bind. (bind_text's destructor arg is pointer-sized;
@@ -72,4 +82,8 @@ foreign lib {
 	changes :: proc(db: DB) -> c.int ---
 	close :: proc(db: DB) -> c.int ---
 	errmsg :: proc(db: DB) -> cstring ---
+	create_function_v2 :: proc(db: DB, name: cstring, nargs: c.int, flags: c.int, app: rawptr, xfunc: Scalar_Func, xstep: rawptr, xfinal: rawptr, destroy: rawptr) -> c.int ---
+	value_text :: proc(v: Value) -> [^]u8 --- // call before value_bytes
+	value_bytes :: proc(v: Value) -> c.int ---
+	result_int :: proc(ctx: Context, v: c.int) ---
 }

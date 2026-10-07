@@ -15,7 +15,7 @@ import "core:time"
 
 @(private = "file") q_list, q_create, q_count: sqlite.Stmt
 
-@(private = "file") SQL_LIST: cstring : "SELECT id,body,at FROM notes ORDER BY at DESC, id DESC"
+@(private = "file") SQL_LIST: cstring : "SELECT id,body,at FROM notes ORDER BY at DESC, id DESC LIMIT ?1"
 @(private = "file") SQL_CREATE: cstring : "INSERT INTO notes(body,at) VALUES(?,?)"
 @(private = "file") SQL_COUNT: cstring : "SELECT count(*) FROM notes"
 
@@ -33,10 +33,12 @@ finalize_notes :: proc() {
 	sqlite.finalize(q_count)
 }
 
-// Newest first.
-repo_list_notes :: proc() -> ([]models.Note, Error) {
+// The newest `limit` notes, newest first. SQLite sorts and stops; only those
+// rows are copied out, so the cost follows `limit`, not the table.
+repo_list_notes :: proc(limit: int) -> ([]models.Note, Error) {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
 	defer sqlite.reset(q_list)
+	sqlite.bind_int64(q_list, 1, i64(limit))
 	out := make([dynamic]models.Note, context.temp_allocator)
 	err: Error
 	for next_row(q_list, &err) {

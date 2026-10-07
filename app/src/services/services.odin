@@ -13,10 +13,12 @@ import "core:unicode/utf8"
 // Business logic over the repository: search, sort, paginate, validate. This
 // layer returns plain values and never touches http. The list controls all
 // funnel through service_page so the table fragment, the page, and any future
-// caller share one definition of "what the user is looking at".
+// caller share one definition of "what the user is looking at". The work
+// itself (filter, sort, page, count) runs in SQL; this layer decides what to ask.
 
 PAGE_SIZE :: 7
 SEARCH_LIMIT :: 6 // results shown in the nav search dropdown
+API_LIMIT :: 100 // results /api/search returns at most; a client narrows q for more
 
 // A store failure, passed up as a value for the controller to answer (404, 409
 // or 500). Re-exported so the controllers need not import the repository.
@@ -37,102 +39,59 @@ Page :: struct {
 	sort:        string,
 }
 
-// Case-insensitive substring test. Lower-cases both sides into the request
-// arena; cheap, and the arena is wiped after the response is sent.
+// Case-insensitive substring test, rune by rune: the one definition is the
+// repository's, which SQLite also runs as contains_ci() inside every list query.
 contains_ci :: proc(haystack, needle: string) -> bool {
-	if needle == "" {
-		return true
-	}
-	h := strings.to_lower(haystack, context.temp_allocator)
-	n := strings.to_lower(needle, context.temp_allocator)
-	return strings.contains(h, n)
+	return repository.contains_ci(haystack, needle)
 }
 
-contact_matches :: proc(c: models.Contact, q: string) -> bool {
-	if q == "" {
-		return true
-	}
-	role := models.ROLE_NAMES
-	status := models.STATUS_NAMES
-	return(
-		contains_ci(c.name, q) ||
-		contains_ci(c.email, q) ||
-		contains_ci(role[c.role], q) ||
-		contains_ci(status[c.status], q) \
-	)
-}
-
-// A list view: filter by q, sort by a "key" or "key_desc" string, then slice
-// out one page. Everything is built in the request arena.
-service_page :: proc(q, status, sort: string, page: int) -> (Page, Store_Error) {
-	sn := models.STATUS_NAMES
-	all, err := repository.repo_list()
-	if err != .None {
-		return {}, err
-	}
-	filtered := make([dynamic]models.Contact, context.temp_allocator)
-	for c in all {
-		if !contact_matches(c, q) {
-			continue
+// What a list request asks the store for: q against the name and email (done
+// in SQL), and against the role and status labels, which are fixed, so worked
+// out here as bitmasks; plus the quick-filter's status, if any.
+contact_filter :: proc(q, status: string) -> repository.Contact_Filter {
+	f := repository.Contact_Filter{q = strings.trim_space(q), status = -1}
+	if f.q != "" {
+		for name, r in models.ROLE_NAMES {
+			if contains_ci(name, f.q) {f.role_mask |= 1 << u32(r)}
 		}
-		if status != "" && status != "all" && sn[c.status] != status {
-			continue
+		for name, s in models.STATUS_NAMES {
+			if contains_ci(name, f.q) {f.status_mask |= 1 << u32(s)}
 		}
-		append(&filtered, c)
 	}
-
-	sort_contacts(filtered[:], sort)
-
-	total := len(filtered)
-	total_pages := max(1, (total + PAGE_SIZE - 1) / PAGE_SIZE)
-	p := clamp(page, 1, total_pages)
-
-	start := min((p - 1) * PAGE_SIZE, total)
-	end := min(start + PAGE_SIZE, total)
-
-	return Page {
-		rows = filtered[start:end],
-		page = p,
-		total_pages = total_pages,
-		total = total,
-		q = q,
-		status = status,
-		sort = sort,
-	}, .None
+	if st, ok := models.status_from(status); ok {
+		f.status = int(st)
+	}
+	return f
 }
 
-// Sort ascending by the chosen key, then reverse for "_desc". Reversing after
-// the fact keeps one comparator per key instead of one per (key, direction).
-sort_contacts :: proc(rows: []models.Contact, sort: string) {
-	key := sort
-	desc := false
+// A list view: filter by q and status, sort by a "key" or "key_desc" string,
+// and fetch one page of it, clamped to the pages there are.
+service_page :: proc(q, status, sort: string, page: int) -> (p: Page, err: Store_Error) {
+	f := contact_filter(q, status)
+	key, desc := parse_sort(sort)
+	p.total = repository.repo_filter_count(f) or_return
+	p.total_pages = max(1, (p.total + PAGE_SIZE - 1) / PAGE_SIZE)
+	p.page = clamp(page, 1, p.total_pages)
+	p.rows = repository.repo_page(f, key, desc, PAGE_SIZE, (p.page - 1) * PAGE_SIZE) or_return
+	p.q, p.status, p.sort = q, status, sort
+	return
+}
+
+// "score_desc" → (.Score, true). Anything unrecognised sorts by name.
+parse_sort :: proc(sort: string) -> (key: repository.Contact_Sort, desc: bool) {
+	name := sort
 	if strings.has_suffix(sort, "_desc") {
 		desc = true
-		key = sort[:len(sort) - len("_desc")]
+		name = sort[:len(sort) - len("_desc")]
 	}
-
-	switch key {
-	case "email":
-		slice.sort_by(rows, proc(a, b: models.Contact) -> bool { return a.email < b.email })
-	case "role":
-		slice.sort_by(rows, proc(a, b: models.Contact) -> bool {
-			names := models.ROLE_NAMES
-			return names[a.role] < names[b.role]
-		})
-	case "status":
-		slice.sort_by(rows, proc(a, b: models.Contact) -> bool {
-			names := models.STATUS_NAMES
-			return names[a.status] < names[b.status]
-		})
-	case "score":
-		slice.sort_by(rows, proc(a, b: models.Contact) -> bool { return a.score < b.score })
-	case: // "name" and anything unrecognised
-		slice.sort_by(rows, proc(a, b: models.Contact) -> bool { return a.name < b.name })
+	switch name {
+	case "email": key = .Email
+	case "role": key = .Role
+	case "status": key = .Status
+	case "score": key = .Score
+	case: key = .Name
 	}
-
-	if desc {
-		slice.reverse(rows)
-	}
+	return
 }
 
 // Flip a sort key for a column header click: first click ascending, second
@@ -144,33 +103,18 @@ next_sort :: proc(current, column: string) -> string {
 	return column
 }
 
-// Every match for the JSON API; an empty query lists everyone.
+// The JSON API's matches, at most API_LIMIT, in id order; an empty query lists
+// everyone (the first API_LIMIT of them).
 search_all :: proc(q: string) -> ([]models.Contact, Store_Error) {
-	all, err := repository.repo_list()
-	out := make([dynamic]models.Contact, context.temp_allocator)
-	for c in all {
-		if contact_matches(c, q) {
-			append(&out, c)
-		}
-	}
-	return out[:], err
+	return repository.repo_match(contact_filter(q, ""), API_LIMIT)
 }
 
+// The nav dropdown's first `limit` matches; nothing for an empty query.
 service_search :: proc(q: string, limit: int) -> ([]models.Contact, Store_Error) {
-	out := make([dynamic]models.Contact, context.temp_allocator)
 	if strings.trim_space(q) == "" {
-		return out[:], .None
+		return {}, .None
 	}
-	all, err := repository.repo_list()
-	for c in all {
-		if contact_matches(c, q) {
-			append(&out, c)
-			if len(out) >= limit {
-				break
-			}
-		}
-	}
-	return out[:], err
+	return repository.repo_match(contact_filter(q, ""), limit)
 }
 
 // ---- detail view: interaction timeline + related ------------------------
@@ -202,20 +146,7 @@ time_ago :: proc(at: i64) -> string {
 }
 
 service_related :: proc(c: models.Contact, limit: int) -> ([]models.Contact, Store_Error) {
-	all, err := repository.repo_list()
-	out := make([dynamic]models.Contact, context.temp_allocator)
-	for other in all {
-		if other.id == c.id {
-			continue
-		}
-		if other.role == c.role {
-			append(&out, other)
-			if len(out) >= limit {
-				break
-			}
-		}
-	}
-	return out[:], err
+	return repository.repo_related(c.id, c.role, limit)
 }
 
 // ---- contacts: reads and writes ------------------------------------------

@@ -2,6 +2,7 @@ package repository
 
 import "../sqlite"
 
+import "base:runtime"
 import "core:c"
 import "core:crypto/sha2"
 import "core:encoding/hex"
@@ -10,6 +11,8 @@ import "core:log"
 import "core:os"
 import "core:strings"
 import "core:sync"
+import "core:unicode"
+import "core:unicode/utf8"
 
 // ---- SQLite plumbing (entity-agnostic) ----------------------------------
 //
@@ -55,6 +58,77 @@ db_open :: proc(path: string) {
 	exec("PRAGMA busy_timeout=5000;") // wait, don't fail, on a brief write lock
 	exec("PRAGMA foreign_keys=ON;") // ON DELETE CASCADE and friends are off without it
 	exec("PRAGMA synchronous=NORMAL;") // safe under WAL, much faster than FULL
+	if sqlite.create_function_v2(db, "contains_ci", 2, sqlite.UTF8 | sqlite.DETERMINISTIC, nil, sql_contains_ci, nil, nil, nil) != sqlite.OK {
+		fatal("create_function")
+	}
+}
+
+// ---- search: contains_ci ------------------------------------------------
+//
+// Whether needle occurs in haystack, ignoring case rune by rune (unicode.to_lower,
+// as strings.to_lower lowers), so "turİng" finds "Turing" and "straße" finds
+// "Straẞe". views.write_highlighted marks with the same per-rune rule. Walks the
+// original text, so it allocates nothing.
+//
+// Registered with SQLite as contains_ci(text, q): a query filters inside the
+// database, and only the rows it keeps are copied out. SQLite's own LIKE folds
+// ASCII only, which would quietly change what a search finds.
+contains_ci :: proc(haystack, needle: string) -> bool {
+	if needle == "" {
+		return true
+	}
+	for i := 0; i < len(haystack); {
+		if prefix_ci(haystack[i:], needle) {
+			return true
+		}
+		_, w := utf8.decode_rune_in_string(haystack[i:])
+		i += w
+	}
+	return false
+}
+
+@(private = "file")
+prefix_ci :: proc(s, prefix: string) -> bool {
+	i, j := 0, 0
+	for j < len(prefix) {
+		if i >= len(s) {
+			return false
+		}
+		// ASCII on both sides (most text, and every e-mail) without the rune
+		// decode and the table lookups: SQLite runs this for every row a list
+		// query examines, so it is the inner loop of a search.
+		if x, y := s[i], prefix[j]; x < utf8.RUNE_SELF && y < utf8.RUNE_SELF {
+			if x != y && ascii_lower(x) != ascii_lower(y) {
+				return false
+			}
+			i += 1
+			j += 1
+			continue
+		}
+		a, aw := utf8.decode_rune_in_string(s[i:])
+		b, bw := utf8.decode_rune_in_string(prefix[j:])
+		if unicode.to_lower(a) != unicode.to_lower(b) {
+			return false
+		}
+		i += aw
+		j += bw
+	}
+	return true
+}
+
+@(private = "file")
+ascii_lower :: #force_inline proc "contextless" (c: u8) -> u8 {
+	return c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c
+}
+
+@(private = "file")
+sql_contains_ci :: proc "c" (ctx: sqlite.Context, argc: c.int, argv: [^]sqlite.Value) {
+	context = runtime.default_context()
+	text :: proc(v: sqlite.Value) -> string {
+		p := sqlite.value_text(v) // NULL for an SQL NULL
+		return p == nil ? "" : string(p[:sqlite.value_bytes(v)])
+	}
+	sqlite.result_int(ctx, contains_ci(text(argv[0]), text(argv[1])) ? 1 : 0)
 }
 
 // Checkpoints the WAL on a file DB. Runs after the server loop returns, so no

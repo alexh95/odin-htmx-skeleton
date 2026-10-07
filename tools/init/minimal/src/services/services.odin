@@ -23,8 +23,12 @@ store_ok :: proc() -> bool {
 	return repository.repo_ping()
 }
 
+// How many notes the home page lists: the newest. A list that grows without a
+// bound makes every page view slower than the last.
+NOTES_SHOWN :: 50
+
 list_notes :: proc() -> ([]models.Note, Store_Error) {
-	return repository.repo_list_notes()
+	return repository.repo_list_notes(NOTES_SHOWN)
 }
 
 // The longest note, in characters. Small enough that one request can't park
