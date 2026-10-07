@@ -20,6 +20,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   header has the one-line re-render through the Playwright the e2e suite already installs
   (`npx playwright screenshot`), so there's no new dependency. `init` writes the fork's wordmark,
   name and domain into it.
+- **`init --minimal` starts the fork's own CHANGELOG and TODO**
+  ([#29](https://github.com/alexh95/odin-htmx-skeleton/issues/29)). The 700-line upstream changelog
+  and 260-line backlog were left in place, and `CLAUDE.md` tells an agent to work from that backlog.
+  They're replaced with short starters (`tools/init/minimal/`). The changelog records the template
+  release the fork started from, read from the upstream changelog. The TODO lists the remaining
+  make-it-yours steps. `--minimal` also deletes `e2e/helpers/server.ts`, which only the deleted
+  persistence and events specs used.
 
 ### Changed
 - **`deploy/apollo-11` is now `deploy/docker-host`, a generic self-host example**
