@@ -197,7 +197,12 @@ Every request goes through **`controllers.front`**, installed once in `main.odin
    `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`. A fork that needs a
    third-party origin widens the one directive in `init_security`, nothing else.
 2. **`canonical_host`**: the `*.fly.dev` → `SITE_URL` 301 (see Crawlers below).
-3. **The body**, read before routing for any request that announces one, capped at `MAX_BODY`
+3. **`same_origin`**, the cross-site write guard: a POST/PUT/PATCH/DELETE whose `Sec-Fetch-Site` is
+   anything but `same-origin`/`none`, or (from a browser too old to send that) whose `Origin` isn't
+   this host, gets 403 before its body is read. No header at all means not a browser (curl, k6, the
+   e2e API calls) and passes, so it doesn't demand `HX-Request`. When a fork adds a session cookie,
+   mark it `SameSite=Lax`; a per-session token on top is only for browsers older than both headers.
+4. **The body**, read before routing for any request that announces one, capped at `MAX_BODY`
    (413 past it). Handlers read it with `request_form()`.
 
 A new cross-cutting rule (auth, a rate limit) belongs here, not in each handler.
