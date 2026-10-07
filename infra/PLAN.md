@@ -54,10 +54,11 @@ platform reports a crash loop rather than a clear error. Check before choosing a
 
 - **The kernel** must have io_uring enabled. Any current distribution kernel does, unless a
   hardening policy turns it off (`sysctl kernel.io_uring_disabled`: `0` allows it).
-- **Containers**: Docker's default seccomp profile blocks the `io_uring_*` syscalls. Run with
-  `--security-opt seccomp=unconfined` (what CI's container jobs and `deploy/docker-host` do), or with
-  a custom profile that allows `io_uring_setup`, `io_uring_enter` and `io_uring_register`. Other
-  runtimes' default profiles (containerd under Kubernetes, for example) may block them too.
+- **Containers**: Docker's default seccomp profile blocks the `io_uring_*` syscalls. Run under
+  `docker/seccomp-io-uring.json`, Docker's default profile plus `io_uring_setup`, `io_uring_enter`
+  and `io_uring_register` (`--security-opt seccomp=docker/seccomp-io-uring.json`; `compose.yaml` and
+  `deploy/docker-host` use it), or as a blunt fallback with `seccomp=unconfined`. Other runtimes'
+  default profiles (containerd under Kubernetes, for example) may block them too.
 - **Sandboxed platforms** that reimplement syscalls (gVisor-based ones, for example) may not
   implement io_uring.
 - **Fly.io** runs each machine as a Firecracker microVM with its own kernel, so it works as is.
@@ -81,6 +82,10 @@ from the seed. To keep data, put the database on a Fly volume (the commented `[m
   overlap two machines on one volume.
 - Create the volume **before** uncommenting `[mounts]`: a mount that names a missing volume fails
   the deploy.
+- **Ownership.** Fly mounts a volume owned by root. If the image runs as a non-root user (the
+  Dockerfile's `USER`, UID 10001), deploy once with `[mounts]` but `DB_PATH` still unset (the app
+  stays on `:memory:` and boots), run `fly ssh console -C "chown -R 10001:10001 /data"`, then set
+  `DB_PATH` and deploy again. A volume an earlier root-run image wrote needs the same chown.
 
 ## Where e2e runs
 

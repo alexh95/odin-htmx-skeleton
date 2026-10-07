@@ -18,12 +18,13 @@ services:
     # skipping the close that checkpoints the WAL into data.db.
     stop_signal: SIGINT
     # odin-http's nbio uses io_uring on Linux, and Docker's default seccomp
-    # profile blocks the io_uring_* syscalls — without this the server aborts at
-    # startup (acquire_thread_event_loop assertion). Same fix as CI. For a
-    # tighter setup, swap this for a custom profile that allowlists io_uring
-    # setup/enter/register instead of disabling seccomp wholesale.
+    # profile blocks the io_uring_* syscalls — without an allowance the server
+    # aborts at startup (acquire_thread_event_loop assertion). deploy.sh ships
+    # the repo's docker/seccomp-io-uring.json (Docker's default profile plus
+    # io_uring) and points SECCOMP at it; without that file it falls back to
+    # disabling seccomp, as CI's container jobs do.
     security_opt:
-      - seccomp=unconfined
+      - seccomp=${SECCOMP:-unconfined}
     environment:
       - PORT=8080
       - BIND_ALL=1
@@ -37,6 +38,8 @@ services:
       # THREADS defaults to the core count. THREADS=1 reproduces the
       # single-thread baseline for an on-server before/after.
       # - THREADS=4
+    # A volume created by an image that runs as UID 10001 starts out owned by
+    # it. One that root wrote first needs a one-time chown (see the README).
     volumes:
       - data:/data   # data.db + -wal/-shm; back it up (docs/DATA.md)
     ports:

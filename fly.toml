@@ -27,6 +27,9 @@ primary_region = "fra"
 # [mounts]
 #   source      = "odin_data"
 #   destination = "/data"
+# Fly mounts a volume owned by root. If the image runs as a non-root user (the
+# Dockerfile's USER, UID 10001), deploy once with [mounts] but DB_PATH still
+# unset, run `fly ssh console -C "chown -R 10001:10001 /data"`, then set DB_PATH.
 
 [http_service]
   internal_port       = 8080

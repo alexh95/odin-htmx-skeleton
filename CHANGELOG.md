@@ -67,6 +67,14 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   defaults. To keep an existing deployment's container and data, set `NAME`, `REMOTE_DIR`,
   `PROXY_NET` and `VOLUME`. Compose named the old volume `<project>_<volume>`, so check
   `docker volume ls`.
+- **Deploy docs cover the io_uring seccomp profile and a non-root image**
+  ([#44](https://github.com/alexh95/odin-htmx-skeleton/issues/44),
+  [#33](https://github.com/alexh95/odin-htmx-skeleton/issues/33)). `deploy/docker-host` ships
+  `docker/seccomp-io-uring.json` (Docker's default profile plus io_uring) when the repo has it and runs
+  the container under it, falling back to `seccomp=unconfined`. The README and `infra/PLAN.md` name
+  the profile. For an image that runs as UID 10001, `fly.toml`, `infra/PLAN.md` and the docker-host
+  README give the one-time `chown -R 10001:10001 /data` for a root-owned volume. On Fly, that's a
+  first deploy with the mount but no `DB_PATH`, then `fly ssh console`.
 - **`infra/PLAN.md` describes the repo as it is**
   ([#33](https://github.com/alexh95/odin-htmx-skeleton/issues/33)). Gone: the on-disk `static/`, the
   bookworm Dockerfile sketch, "prepare clones odin-http at latest", the stale odin-http/Odin pins,
