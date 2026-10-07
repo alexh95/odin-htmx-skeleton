@@ -221,6 +221,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   must exist and every token must hit somewhere; a file left with nothing to rename is only noted. A
   second run says the checkout is already renamed. An audit of every existing replacement found two misses: the `run.sh` scenario list
   (above) and `app/README.md`, which was in the rename list with nothing to rename.
+- **Cross-site writes are refused** ([#18](https://github.com/alexh95/odin-htmx-skeleton/issues/18)).
+  A POST from any site could edit a contact; the first fork to add a cookie session would have
+  inherited forgeable writes. `controllers.front` now answers 403 to a write whose `Sec-Fetch-Site`
+  isn't `same-origin`/`none`, or, from a browser too old to send it, whose `Origin` isn't this host.
+  A request with neither header isn't a browser and passes, so curl, k6 and the e2e API calls keep
+  working; for that reason the guard doesn't require `HX-Request`. `CLAUDE.md` says how a fork
+  extends it once it has sessions. e2e: three cases in `security.spec.ts`.
 - **Security headers and a strict Content-Security-Policy on every response**
   ([#19](https://github.com/alexh95/odin-htmx-skeleton/issues/19)). Responses carried only `date`,
   `content-length` and `content-type`. `controllers.front` now sets `X-Content-Type-Options: nosniff`,

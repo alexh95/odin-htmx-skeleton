@@ -14,11 +14,12 @@ import "../views"
 // demo and the `init --minimal` starter, so it stays entity-agnostic.
 //
 // In order: the security headers every response carries, the *.fly.dev
-// redirect (canonical_host), then the body of every request that can carry one,
-// read before routing and capped at MAX_BODY. Doing that here rather than per
-// handler means the cap holds for every route, including the ones a fork adds,
-// and a handler gets the parsed form synchronously from request_form() instead
-// of wiring its own async read.
+// redirect (canonical_host), the cross-site guard on writes (same_origin), then
+// the body of every request that can carry one, read before routing and capped
+// at MAX_BODY. Doing that here rather than per handler means the cap and the
+// guard hold for every route, including the ones a fork adds, and a handler gets
+// the parsed form synchronously from request_form() instead of wiring its own
+// async read.
 
 // Far above any form this app posts (the longest field is capped in services),
 // so it only ever stops abuse. A larger body is refused with 413 before a byte
@@ -29,6 +30,10 @@ front :: proc(handler: ^http.Handler, req: ^http.Request, res: ^http.Response) {
 	next := handler.next.(^http.Handler)
 	security_headers(res)
 	if canonical_host(req, res) {
+		return
+	}
+	if !same_origin(req) {
+		http.respond_plain(res, "Cross-site request refused.", .Forbidden)
 		return
 	}
 	if !has_body(req) {
@@ -106,6 +111,43 @@ security_headers :: proc(res: ^http.Response) {
 	http.headers_set(&res.headers, "x-content-type-options", "nosniff")
 	http.headers_set(&res.headers, "x-frame-options", "DENY")
 	http.headers_set(&res.headers, "referrer-policy", "strict-origin-when-cross-origin")
+}
+
+// ---- cross-site request guard -------------------------------------------
+//
+// A write (any method but GET/HEAD/OPTIONS) must come from this site's own
+// pages. Browsers say where a request comes from: Sec-Fetch-Site on every
+// request since 2023, Origin on every POST long before that. A request that is
+// cross-site by either is refused with 403, before its body is read.
+//
+// A request with neither header isn't from a browser (curl, k6, a server-side
+// client), so it can't be a forgery riding a user's cookies, and passes. That
+// is also why this doesn't demand htmx's HX-Request header: it would refuse
+// every non-browser client without stopping any browser attack the two checks
+// above don't. The demo has no sessions yet; the first fork that adds a cookie
+// gets this for free, and should still mark it SameSite=Lax. A per-session
+// token on top only matters for browsers older than both headers.
+@(private = "file")
+same_origin :: proc(req: ^http.Request) -> bool {
+	#partial switch req.line.(http.Requestline).method {
+	case .Get, .Head, .Options:
+		return true
+	}
+	if site, ok := http.headers_get(req.headers, "sec-fetch-site"); ok {
+		// "none" is the user's own action: a typed URL, a bookmark.
+		return site == "same-origin" || site == "none"
+	}
+	origin, has_origin := http.headers_get(req.headers, "origin")
+	if !has_origin {
+		return true
+	}
+	// Origin is scheme://host[:port]; compare its host[:port] with Host, which
+	// TLS-terminating proxies (Fly, Cloudflare) pass through unchanged.
+	host, _ := http.headers_get(req.headers, "host")
+	if i := strings.index(origin, "://"); i >= 0 {
+		origin = origin[i + 3:]
+	}
+	return host != "" && strings.equal_fold(origin, host)
 }
 
 // ---- canonical host -----------------------------------------------------

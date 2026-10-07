@@ -22,6 +22,48 @@ async function watchCsp(page: Page) {
 }
 const violations = (page: Page) => page.evaluate(() => (window as any).__csp as string[]);
 
+// Writes must come from the site's own pages. Browsers say where a request
+// comes from (Sec-Fetch-Site, Origin); one that is cross-site by either is
+// refused before its body is read. A client that sends neither isn't a browser
+// (these API calls, curl, k6) and passes.
+test.describe('cross-site write guard', () => {
+  const form = { 'content-type': 'application/x-www-form-urlencoded' };
+
+  test('a cross-site or same-site-but-other-origin write is refused', async ({ request }) => {
+    for (const site of ['cross-site', 'same-site']) {
+      const res = await request.post('/', { headers: { ...form, 'Sec-Fetch-Site': site }, data: 'x=1' });
+      expect(res.status(), site).toBe(403);
+    }
+    // An older browser without Sec-Fetch-Site still sends Origin.
+    const res = await request.post('/', { headers: { ...form, Origin: 'https://evil.example' }, data: 'x=1' });
+    expect(res.status()).toBe(403);
+    // Reads are never refused, whoever asks.
+    expect((await request.get('/', { headers: { 'Sec-Fetch-Site': 'cross-site' } })).status()).toBe(200);
+  });
+
+  test('a forged write changes nothing', async ({ request }) => {
+    const demo = (await request.get('/data')).status() === 200;
+    const [path, data, probe] = demo
+      ? ['/contacts', 'name=Forged+Row&email=forged@example.dev', '/api/search?q=Forged']
+      : ['/notes', 'body=Forged+note', '/'];
+    const res = await request.post(path, {
+      headers: { ...form, 'Sec-Fetch-Site': 'cross-site', Origin: 'https://evil.example' },
+      data,
+    });
+    expect(res.status()).toBe(403);
+    expect(await (await request.get(probe)).text()).not.toContain('Forged');
+  });
+
+  test('a same-origin write passes', async ({ request, baseURL }) => {
+    const demo = (await request.get('/data')).status() === 200;
+    const [path, data] = demo ? ['/contacts', 'name=Same+Origin&email=same@example.dev'] : ['/notes', 'body=Same+origin'];
+    for (const headers of [{ 'Sec-Fetch-Site': 'same-origin' }, { Origin: baseURL! }, {}]) {
+      const res = await request.post(path, { headers: { ...form, ...headers }, data });
+      expect(res.status(), JSON.stringify(headers)).toBe(200);
+    }
+  });
+});
+
 test.describe('security headers', () => {
   test('every kind of response carries them', async ({ request }) => {
     for (const path of ['/', '/static/app.css', '/healthz', '/no-such-page']) {
