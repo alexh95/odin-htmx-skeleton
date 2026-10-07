@@ -23,7 +23,8 @@ export default function () {
     );
     check(created, { 'create 200': (r) => r.status === 200 });
     const m = ID.exec(created.body || '');
-    if (m) http.del(`${BASE}/contacts/${m[1]}`, null, { tags: { op: 'write' } });
+    // `name` folds the per-id URLs into one series (see write.js).
+    if (m) http.del(`${BASE}/contacts/${m[1]}`, null, { tags: { op: 'write', name: 'DELETE /contacts/:id' } });
   } else if (roll < 0.45) {
     const r = http.get(`${BASE}/`, { tags: { op: 'page' } });
     check(r, { 'home 200': (x) => x.status === 200 });

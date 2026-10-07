@@ -11,24 +11,24 @@ package main
 //
 // <new-name> is the machine name (lower-case letters, digits, dashes; starts
 // with a letter), e.g. `acme-crm`. It becomes the binary, the Fly app, the
-// Docker image, the apollo-11 service, the startup banner, and the package
-// names. --wordmark / --suffix / --repo / --site set the four brand constants the
-// layout reads (see app/src/views/brand.odin); sensible defaults are derived
-// from <new-name>. --minimal additionally strips the contacts/events demo down
-// to a one-page starter (see strip.odin).
+// Docker image, the docker-host container + volume, the startup banner, and the
+// package names. --wordmark / --suffix / --repo / --site set the brand constants
+// the layout reads (see app/src/views/brand.odin), the social card's source and
+// the favicon's label; sensible defaults are derived from <new-name>. --minimal
+// additionally strips the contacts/events demo down to a one-page starter (see
+// strip.odin).
 //
 // The tool is itself an Odin program — the skeleton's own tooling stays on the
 // stack it teaches. It edits a fixed set of files (no directory walk), so what
-// it touches is auditable right here.
+// it touches is auditable right here. Every edit is planned in memory and must
+// apply before anything is written (see plan.odin): init either does all of
+// it or, naming each miss, none of it. Only the closing report walks the tree,
+// read-only, to list what still names the upstream.
 
 import "core:fmt"
 import "core:os"
+import "core:slice"
 import "core:strings"
-
-// A literal find/replace. Applied in order, so list the most specific first.
-Repl :: struct {
-	old, new: string,
-}
 
 Options :: struct {
 	name:     string,
@@ -42,6 +42,23 @@ Options :: struct {
 
 main :: proc() {
 	opt := parse_args(os.args[1:])
+	if !os.exists("tools/init/main.odin") {
+		fatal("run it from the repo root: every path it edits is relative to there")
+	}
+	// A second run would trip over every edit the first one made. Say so plainly
+	// instead of listing them all.
+	if brand, err := os.read_entire_file("app/src/views/brand.odin", context.allocator);
+	   err == nil && !strings.contains(string(brand), UPSTREAM_BRAND_REPO) {
+		fatal("this checkout is already renamed (brand.odin's BRAND_REPO isn't the upstream's); init runs once, on a fresh copy of the template")
+	}
+
+	// Plan first (read-only), so a checkout init no longer fits fails before
+	// the prompt rather than after it.
+	rename(opt)
+	if opt.minimal {
+		strip_to_minimal(opt)
+	}
+	check()
 
 	fmt.printfln("Rename this skeleton to %q:", opt.name)
 	fmt.printfln("  binary / Fly app / image / service : %s", opt.name)
@@ -51,6 +68,9 @@ main :: proc() {
 	fmt.printfln("  canonical site URL (SEO tags)      : %s", opt.site)
 	if opt.minimal {
 		fmt.println("  + strip the contacts/events demo to a minimal one-page starter")
+		if os.exists(DEV_DB[0]) {
+			fmt.printfln("  + delete %s (+ -wal/-shm): the demo's local database, which the starter can't migrate", DEV_DB[0])
+		}
 	}
 	fmt.println()
 
@@ -59,37 +79,171 @@ main :: proc() {
 		os.exit(0)
 	}
 
-	fmt.println("Renaming:")
-	rename(opt)
-	if opt.minimal {
-		fmt.println("Stripping the demo to a minimal starter:")
-		strip_to_minimal(opt)
-	}
+	fmt.println("Applying:")
+	commit()
 
 	fmt.println()
 	fmt.println("Done. Next:")
 	fmt.println("  - review the diff (git diff), then build: cd app && ./run.sh   (run.bat on Windows)")
-	fmt.println("  - the brand wordmark/suffix/repo/site live in app/src/views/brand.odin — tweak to taste")
-	fmt.println("  - SITE_URL drives the canonical tags and /sitemap.xml; point it at your real domain")
-	fmt.println("  - CHANGELOG.md / TODO.md / load-tests/RESULTS.md describe the example; prune them")
+	fmt.println("  - app/src/views/brand.odin: BRAND_HOME_TITLE is a stand-in tagline; write the site's own")
+	fmt.println("    (~60 chars, it's the search-result title). The wordmark/suffix/repo live there too")
+	fmt.printfln("  - SITE_URL is %s: point it at your real domain (brand.odin, or SITE_URL in fly.toml)", opt.site)
+	fmt.println("  - app/static/og.png, the social card, is still the upstream's: re-render it from")
+	fmt.println("    tools/og/og.html (which now carries your name; the command is in the file)")
+	fmt.println("  - app/static/favicon.svg + favicon.ico are the upstream's mark: redraw them when you have one")
+	fmt.println("  - BING_SITE_AUTH / INDEXNOW_KEY are blank, so their routes 404 until you verify your site")
+	fmt.println("  - deploy: infra/PLAN.md → Operator steps (Fly), or deploy/docker-host (any Docker host)")
+	fmt.println("  - LICENSE is the upstream's zlib notice, which stays in source copies; add your own")
+	fmt.println("    copyright for your changes")
+	if opt.minimal {
+		fmt.println("  - CHANGELOG.md and TODO.md are new (TODO.md keeps this list); load-tests/RESULTS.md")
+		fmt.println("    still holds the demo's numbers")
+		fmt.println("  - if DB_PATH points at a database other than app/data.db, delete that too: it has the demo's schema")
+	} else {
+		fmt.println("  - CHANGELOG.md / TODO.md / load-tests/RESULTS.md describe the example; prune them")
+	}
 	fmt.println("  - once you're happy, delete tools/init (a one-time step) and commit")
+	report_leftovers()
+	if len(notes) > 0 {
+		fmt.println()
+		fmt.println("Notes for tools/init itself (harmless to this run):")
+		for n in notes {
+			fmt.printfln("  - %s", n)
+		}
+	}
+}
+
+// ---- leftovers ----------------------------------------------------------
+//
+// What still names the upstream once init is done: history it shouldn't
+// rewrite (CHANGELOG, LICENSE), and anything the fixed file list doesn't know
+// about. Listed rather than guessed at, so nothing is found by surprise later.
+
+UPSTREAM_MARKS :: [?]string{"odin-htmx", "alexh95", "apollo-11"}
+
+report_leftovers :: proc() {
+	Hit :: struct {
+		path:  string,
+		lines: int,
+	}
+	hits: [dynamic]Hit
+	root, _ := os.get_working_directory(context.allocator)
+	w := os.walker_create(".")
+	defer os.walker_destroy(&w)
+	for info in os.walker_walk(&w) {
+		if _, err := os.walker_error(&w); err != nil {
+			continue
+		}
+		rel, _ := strings.replace_all(strings.trim_prefix(info.fullpath, root), `\`, "/")
+		rel = strings.trim_prefix(strings.trim_left(rel, "/"), "./")
+		if info.type == .Directory {
+			switch info.name {
+			case ".git", "node_modules", "odin-http", "bin", "vendor", "results", "playwright-report", "test-results":
+				os.walker_skip_dir(&w)
+			}
+			if rel == "tools/init" {
+				os.walker_skip_dir(&w)
+			}
+			continue
+		}
+		data, err := os.read_entire_file(info.fullpath, context.temp_allocator)
+		if err != nil || strings.index_byte(string(data), 0) >= 0 { // binary: og.png etc. are in the Next list
+			continue
+		}
+		n := 0
+		s := string(data)
+		for line in strings.split_lines_iterator(&s) {
+			for m in UPSTREAM_MARKS {
+				if strings.contains(line, m) {
+					n += 1
+					break
+				}
+			}
+		}
+		if n > 0 {
+			append(&hits, Hit{strings.clone(rel), n})
+		}
+		free_all(context.temp_allocator)
+	}
+	if len(hits) == 0 {
+		return
+	}
+	slice.sort_by(hits[:], proc(a, b: Hit) -> bool {return a.path < b.path})
+	fmt.println()
+	fmt.println("Still naming the upstream (history to keep, or yours to edit):")
+	for h in hits {
+		fmt.printfln("  %-38s %d line%s", h.path, h.lines, h.lines == 1 ? "" : "s")
+	}
+}
+
+xml_escape :: proc(s: string) -> string {
+	t, _ := strings.replace_all(s, "&", "&amp;")
+	t, _ = strings.replace_all(t, "<", "&lt;")
+	t, _ = strings.replace_all(t, ">", "&gt;")
+	return t
+}
+
+// "https://acme.example.com/" -> "acme.example.com", for the card's domain pill.
+host_of :: proc(url: string) -> string {
+	h := url
+	if i := strings.index(h, "://"); i >= 0 {
+		h = h[i + 3:]
+	}
+	return strings.trim_right(h, "/")
 }
 
 // ---- rename -------------------------------------------------------------
 
+UPSTREAM_BRAND_REPO :: `BRAND_REPO :: "https://github.com/alexh95/odin-htmx-skeleton"`
+
 rename :: proc(opt: Options) {
 	name := opt.name
+	suffix := xml_escape(opt.suffix)
+
+	// Lines the token pass below would only half-rewrite, so they go first.
+	edit(
+		"README.md",
+		[]Repl {
+			// The upstream's own live instance: a fork has none yet.
+			{"**Live demo: [odin-htmx.alexh95.com](https://odin-htmx.alexh95.com/)** — the whole thing, served by\none ~3 MB binary on a shared-cpu-1x machine.\n\n", ""},
+		},
+	)
+	edit(
+		"app/src/views/views.odin",
+		[]Repl {
+			// JSON-LD names the code "<suffix> skeleton"; a fork's code isn't one.
+			{"w(&b, ` skeleton\",\"description\":\"`)", "w(&b, `\",\"description\":\"`)"},
+		},
+	)
+	edit(
+		"app/static/favicon.svg",
+		[]Repl {
+			{`aria-label="odin-htmx"`, strings.concatenate({`aria-label="`, suffix, `"`})},
+			{`<title>odin · htmx</title>`, strings.concatenate({`<title>`, suffix, `</title>`})},
+		},
+	)
+	// The social card's source: the fork re-renders og.png from it (see the file).
+	edit(
+		"tools/og/og.html",
+		[]Repl {
+			{`<span class="name">odin<b>·</b>htmx</span>`, strings.concatenate({`<span class="name">`, opt.wordmark, `</span>`})},
+			{`<h1>The <em>Odin + HTMX</em> skeleton</h1>`, strings.concatenate({`<h1><em>`, suffix, `</em></h1>`})},
+			{`<span class="url">odin-htmx.alexh95.com</span>`, strings.concatenate({`<span class="url">`, host_of(opt.site), `</span>`})},
+		},
+	)
 
 	// The name shows up two ways: as the app/machine name (`odin-htmx-skeleton` is
 	// the Fly app, the banner and the README; `odin-htmx-e2e` the test package) and
 	// as the binary (`demo`). These tokens are specific enough to replace literally
-	// without touching prose.
+	// without touching prose. The canonical origin rides along: docs that quote
+	// the upstream's should quote the fork's.
 	std := []Repl {
 		{"demo.exe", strings.concatenate({name, ".exe"})}, // before bin/demo, so bin\demo.exe (Windows) is caught
 		{"bin/demo", strings.concatenate({"bin/", name})},
 		{"/app/demo", strings.concatenate({"/app/", name})},
 		{"odin-htmx-skeleton", name},
 		{"odin-htmx-e2e", strings.concatenate({name, "-e2e"})},
+		{"https://odin-htmx.alexh95.com", opt.site},
 	}
 	std_files := []string {
 		"fly.toml",
@@ -97,27 +251,40 @@ rename :: proc(opt: Options) {
 		".github/workflows/ci.yml",
 		"app/run.sh",
 		"app/run.bat",
+		"app/static/app.css",
 		"load-tests/run.sh",
-		"e2e/fixtures.ts",
+		"load-tests/README.md",
 		"e2e/global-setup.ts",
-		"e2e/helpers/server.ts",
 		"e2e/package.json",
 		"e2e/package-lock.json",
 		"app/src/main.odin",
 		"README.md",
-		"app/README.md",
 		"CLAUDE.md",
+		"infra/PLAN.md",
+		"deploy/docker-host/deploy.sh",
+		"deploy/docker-host/compose.yaml",
+		"deploy/docker-host/README.md",
 	}
+	hits := make([]int, len(std))
 	for f in std_files {
-		edit(f, std)
+		sweep(f, std, hits)
 	}
 
-	// apollo-11's compose refers to the service by the bare `odin-htmx` (service /
-	// image / container / volume names), so it needs that extra token.
-	apollo := make([dynamic]Repl)
-	append(&apollo, ..std)
-	append(&apollo, Repl{"odin-htmx", name}) // also rewrites odin-htmx-data -> <name>-data
-	edit("deploy/apollo-11/docker-compose.yml", apollo[:])
+	for n, k in hits {
+		if n == 0 {
+			problem("no file names %q any more; drop it from rename's tokens", std[k].old)
+		}
+	}
+
+	// The `minimal` CI job runs tools/init on the checkout to keep the --minimal
+	// templates honest. That's the template's concern, not the fork's: a fork
+	// deletes tools/init (and a minimal fork that grows past the Notes starter
+	// would be overwritten by it), so either way the job would turn its CI red
+	// and block the deploy that `needs` it.
+	drop_job(".github/workflows/ci.yml", "minimal")
+	if i := load(".github/workflows/ci.yml"); i >= 0 && strings.contains(changes[i].content, "tools/init") {
+		problem(".github/workflows/ci.yml: still runs tools/init, which a fork deletes")
+	}
 
 	// brand.odin holds the site-identity constants; rewrite each whole line so the
 	// repo URL's `odin-htmx-skeleton` isn't caught by the token pass above.
@@ -126,7 +293,13 @@ rename :: proc(opt: Options) {
 		[]Repl {
 			{`BRAND_WORDMARK :: "odin<b>·</b>htmx"`, strings.concatenate({`BRAND_WORDMARK :: "`, opt.wordmark, `"`})},
 			{`BRAND_SUFFIX :: "Odin + HTMX"`, strings.concatenate({`BRAND_SUFFIX :: "`, opt.suffix, `"`})},
-			{`BRAND_REPO :: "https://github.com/alexh95/odin-htmx-skeleton"`, strings.concatenate({`BRAND_REPO :: "`, opt.repo, `"`})},
+			// A stand-in: the home <title> is the site's search-result title, and
+			// saying what the fork is takes the fork (the Next list asks).
+			{
+				`BRAND_HOME_TITLE :: "Odin + HTMX skeleton — server-rendered HTML, one binary"`,
+				strings.concatenate({`BRAND_HOME_TITLE :: "`, opt.suffix, ` — built with Odin + HTMX"`}),
+			},
+			{UPSTREAM_BRAND_REPO, strings.concatenate({`BRAND_REPO :: "`, opt.repo, `"`})},
 			{`SITE_URL := "https://odin-htmx.alexh95.com"`, strings.concatenate({`SITE_URL := "`, opt.site, `"`})},
 			// Blanked, never rewritten: a search-engine ownership token proves *this*
 			// deployment is ours. A fork serving it would be advertising a stranger's
@@ -135,32 +308,6 @@ rename :: proc(opt: Options) {
 			{`INDEXNOW_KEY :: "e826b40f813548d2bd2e94885e506dfa"`, `INDEXNOW_KEY :: ""`},
 		},
 	)
-}
-
-// Read a file, apply the replacements, write it back if anything changed.
-edit :: proc(path: string, repls: []Repl) {
-	data, rerr := os.read_entire_file(path, context.allocator)
-	if rerr != nil {
-		fmt.printfln("  %-38s (skipped — not found)", path)
-		return
-	}
-	s := string(data)
-	total := 0
-	for r in repls {
-		c := strings.count(s, r.old)
-		if c > 0 {
-			s, _ = strings.replace_all(s, r.old, r.new)
-			total += c
-		}
-	}
-	if total == 0 {
-		return
-	}
-	if werr := os.write_entire_file(path, s); werr != nil {
-		fmt.eprintfln("  ERROR writing %s: %v", path, werr)
-		os.exit(1)
-	}
-	fmt.printfln("  %-38s %d edit%s", path, total, total == 1 ? "" : "s")
 }
 
 // ---- args ---------------------------------------------------------------
@@ -202,11 +349,12 @@ parse_args :: proc(args: []string) -> Options {
 	if !valid_name(opt.name) {
 		fatal("<new-name> must be lower-case letters, digits and dashes, starting with a letter (e.g. acme-crm)")
 	}
-	if strings.contains(opt.wordmark, `"`) ||
-	   strings.contains(opt.suffix, `"`) ||
-	   strings.contains(opt.repo, `"`) ||
-	   strings.contains(opt.site, `"`) {
-		fatal(`--wordmark / --suffix / --repo / --site cannot contain a double-quote`)
+	// They land inside Odin string literals, where either would end or escape it.
+	if strings.contains_any(opt.wordmark, `"\`) ||
+	   strings.contains_any(opt.suffix, `"\`) ||
+	   strings.contains_any(opt.repo, `"\`) ||
+	   strings.contains_any(opt.site, `"\`) {
+		fatal(`--wordmark / --suffix / --repo / --site cannot contain a double-quote or a backslash`)
 	}
 	// Defaults derived from the name.
 	if opt.wordmark == "" {
@@ -267,11 +415,12 @@ confirm :: proc(prompt: string) -> bool {
 }
 
 usage :: proc() {
-	fmt.eprintln("usage: odin run tools/init -- <new-name> [--wordmark W] [--suffix S] [--repo URL] [--yes]")
+	fmt.eprintln("usage: odin run tools/init -- <new-name> [--wordmark W] [--suffix S] [--repo URL] [--site URL] [--minimal] [--yes]")
 	fmt.eprintln("  <new-name>   lower-case machine name, e.g. acme-crm")
 	fmt.eprintln("  --wordmark   topbar wordmark (inline HTML ok); default: <new-name>")
 	fmt.eprintln("  --suffix     <title> suffix; default: Title Case of <new-name>")
 	fmt.eprintln("  --repo       GitHub URL for the About page; default: a placeholder")
+	fmt.eprintln("  --site       canonical origin (canonical tags, sitemap); default: https://<new-name>.example.com")
 	fmt.eprintln("  --minimal    also strip the demo to a one-page starter")
 	fmt.eprintln("  --yes, -y    skip the confirmation prompt")
 	os.exit(2)

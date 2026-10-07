@@ -1,20 +1,74 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import http from 'node:http';
+import net from 'node:net';
 import path from 'node:path';
 import type { FullConfig } from '@playwright/test';
-import { appDirFrom } from '../global-setup';
+import { appDirFrom, BIN } from '../global-setup';
 
-// Helpers for tests that manage their OWN server process (a dedicated DB),
-// instead of the shared per-worker :memory: server in fixtures.ts. Used by the
-// persistence (file DB across a restart) and events-cascade (isolated :memory:)
-// specs. The binary is built once in global-setup.ts.
+// Starts and talks to the server under test. fixtures.ts gives each worker one;
+// specs that need their own (a file DB, a store they may wreck) start one here.
+// The binary is built once in global-setup.ts.
 
+// `output` is everything the server has printed so far, start-up banner included
+// (a listener attached after startServer returns would miss that).
+export type Server = { port: number; proc: ChildProcess; output: () => string };
 export type Resp = { status: number; body: string };
 
-export function spawnServer(config: FullConfig, port: number, env: NodeJS.ProcessEnv = {}): ChildProcess {
+// A port nothing listens on, picked by the OS. A fixed base can't promise that:
+// two runs at once collide, and on Windows a second server binds a taken port
+// without an error while the first keeps answering, so a stale build gets tested.
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.on('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const { port } = probe.address() as net.AddressInfo;
+      probe.close(() => resolve(port));
+    });
+  });
+}
+
+// The env is pinned, not inherited: the server prefers PORT over argv, and an
+// exported DB_PATH would aim the suite's deletes at a real database. An empty
+// BIND_ALL/SITE_URL reads as unset, so the server stays on loopback with its
+// built-in canonical origin. `env` overrides (a spec's own DB_PATH).
+export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {}): Promise<Server> {
   const appDir = appDirFrom(config);
-  const bin = path.join(appDir, process.platform === 'win32' ? 'bin\\demo.exe' : 'bin/demo');
-  return spawn(bin, [], { cwd: appDir, env: { ...process.env, PORT: String(port), ...env } });
+  const port = await freePort();
+  const proc = spawn(path.join(appDir, BIN), [], {
+    cwd: appDir,
+    env: { ...process.env, PORT: String(port), DB_PATH: ':memory:', BIND_ALL: '', SITE_URL: '', ...env },
+  });
+  // Kept so a failed start shows the server's own error (an io_uring/seccomp
+  // abort, a DB it can't open) instead of a bare health timeout.
+  let log = '';
+  proc.stdout?.on('data', (d) => (log += d));
+  proc.stderr?.on('data', (d) => (log += d));
+
+  const deadline = Date.now() + 20_000;
+  while (proc.exitCode === null && proc.signalCode === null && Date.now() < deadline) {
+    try {
+      if ((await get(port, '/healthz')).status === 200) return { port, proc, output: () => log };
+    } catch { /* not listening yet */ }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  const why = proc.exitCode !== null || proc.signalCode !== null
+    ? `exited early (code=${proc.exitCode}, signal=${proc.signalCode})`
+    : 'did not become healthy in 20 s';
+  proc.kill();
+  throw new Error(`server on :${port} ${why}\n--- server output ---\n${log || '(none)'}`);
+}
+
+export function stopServer({ proc }: Server): Promise<void> {
+  return new Promise((resolve) => {
+    if (proc.exitCode !== null || proc.signalCode !== null) return resolve();
+    const giveUp = setTimeout(resolve, 3000); // so cleanup never hangs
+    proc.once('exit', () => {
+      clearTimeout(giveUp);
+      resolve();
+    });
+    proc.kill();
+  });
 }
 
 function request(opts: http.RequestOptions, body?: string): Promise<Resp> {
@@ -40,21 +94,3 @@ export const post = (port: number, p: string, form: string) =>
     },
     form,
   );
-
-export async function waitHealthy(port: number, timeoutMs = 30_000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try { if ((await get(port, '/healthz')).status === 200) return; } catch { /* not up yet */ }
-    await new Promise((r) => setTimeout(r, 150));
-  }
-  throw new Error(`server on :${port} did not become healthy`);
-}
-
-export function stop(proc: ChildProcess): Promise<void> {
-  return new Promise((resolve) => {
-    if (proc.exitCode !== null) return resolve();
-    proc.on('exit', () => resolve());
-    proc.kill();
-    setTimeout(resolve, 3000); // fallback so cleanup never hangs
-  });
-}

@@ -4,7 +4,8 @@ import http "../odin-http"
 import "controllers"
 
 // The whole route table in one place. Specific patterns are registered before
-// catch-alls (the /static handler is last).
+// catch-alls (the /static handler, then the fallback) because the router takes
+// the first match in registration order.
 build_router :: proc(r: ^http.Router) {
 	http.route_get(r, "/healthz", http.handler(controllers.health)) // platform liveness probe
 
@@ -23,4 +24,8 @@ build_router :: proc(r: ^http.Router) {
 
 	// assets: all embedded into the binary, served from memory
 	http.route_get(r, "/static/(.+)", http.handler(controllers.serve_static))
+
+	// everything else: 405 (+ Allow) for a path another method serves, else 404.
+	// Last, because it matches every path.
+	http.route_all(r, ".*", controllers.fallback(r))
 }

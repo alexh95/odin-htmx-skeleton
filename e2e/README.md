@@ -12,39 +12,50 @@ From this directory (npm — isolated test-only tooling, never shipped):
 ```sh
 npm ci
 npx playwright install --with-deps chromium firefox webkit   # one-time: fetch browsers
-npm test                            # all three engines; add -- --project=chromium to narrow
+npm test                            # three engines + the api project; -- --project=chromium narrows
 ```
 
-`global-setup.ts` runs `prepare` + builds `../app` once (with `-warnings-as-errors`), so a run
-needs `odin` **and a C toolchain** on `PATH` (prepare compiles SQLite). Then each Playwright
-**worker spawns its own server** on its own port (`8200 + parallelIndex`, see `fixtures.ts`) with
-an **isolated `:memory:` SQLite store** — which is what lets the suite run **fully in parallel**
-across workers and the three browser engines.
+Specs that never open a page (`events`, `persistence`: each starts its own server and talks HTTP)
+form the `api` project in `playwright.config.ts`, so they run once rather than once per engine.
+
+`global-setup.ts` builds `../app` once (with `-warnings-as-errors`). It runs `prepare` first only
+when prepare's outputs are missing or don't match its pins, so a run needs `odin` (and its
+linker), plus **a C toolchain** whenever prepare has work to do (it compiles SQLite; on Windows,
+that means an x64 Native Tools prompt). A prepare failure stops the run. Then each Playwright
+**worker spawns its own server** on a port the OS picks, with an **isolated `:memory:` SQLite
+store** — which is what lets the suite run **fully in parallel** across workers and the three
+browser engines. The server's env is pinned (`helpers/server.ts`), so a `PORT` or `DB_PATH`
+exported in your shell can't redirect the suite to another server or your `data.db`.
 
 - `npm run test:ui` — interactive runner.
 - `npm run test:headed` — watch it drive a real browser.
 - `npm run report` — open the last HTML report.
 
 On CI the engines are sharded across runners inside Playwright's official Docker image (browsers
-+ OS deps + node/npm preinstalled), so there's no browser-install step there.
++ OS deps + node/npm preinstalled), so there's no browser-install step there. The chromium shard
+also runs the `api` project.
 
 ## Layout
 
 ```
-global-setup.ts        runs prepare + builds the app binary once (-warnings-as-errors)
+global-setup.ts        runs prepare if needed + builds the app binary once (-warnings-as-errors)
 fixtures.ts            per-worker server (own port + isolated :memory: store) → parallel
-helpers/server.ts      spawn/get/post/del/health for specs that manage their own server
+helpers/server.ts      starts a server (free port, pinned env, fails fast with its output) + get/post/del
 tests/
   navigation.spec.ts   dashboard + stat-card drill-through, routing + aria-current, ping, theme + showroom,
                        view transitions on boosted nav only (regression)
   search.spec.ts       active search: highlight, navigate, collapse, Escape/outside-click
-  components.spec.ts    tabs, accordion, toasts, modal (regression), drawer
+  components.spec.ts   tabs, accordion, toasts, modal (regression), drawer
   forms.spec.ts        email validation, field-persist (regression), click during a swap (regression),
                        slider --fill (regression), submit+reset
   crud.spec.ts         create/cycle/delete, 404, sort (+ injection regression), pagination, filters, detail drawer
-  assets.spec.ts       embedded htmx, on-disk css, path-traversal 404, health, JSON API
-  events.spec.ts       events between contacts: deleting a contact cascades its interactions (FK)
-  persistence.spec.ts  data survives a process restart (a file-backed DB)
+  assets.spec.ts       embedded htmx + css, caching (ETag/304, fingerprinted URLs), path-traversal 404,
+                       health, JSON API
+  responsive.spec.ts   no horizontal overflow at 390px on each nav page
+  seo.spec.ts          crawler contract: robots, sitemap, canonical + social tags, JSON-LD, favicon,
+                       *.fly.dev redirect
+  events.spec.ts       (api) events between contacts: deleting a contact cascades its interactions (FK)
+  persistence.spec.ts  (api) data survives a process restart (a file-backed DB)
 ```
 
 The regression tests pin bugs fixed earlier: the modal keeps its field on a

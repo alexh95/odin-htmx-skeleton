@@ -2,7 +2,6 @@ package controllers
 
 import "core:fmt"
 import "core:hash"
-import "core:net"
 import "core:strings"
 
 import http "../../odin-http"
@@ -15,51 +14,30 @@ import "../views"
 // view and responds. Nothing here knows how the store works; nothing in the
 // services knows it is being driven over HTTP.
 
-// Parse an application/x-www-form-urlencoded body into key→value. Decodes '+' as
-// space (htmx 4 sends spaces as '+', the form-encoding standard) and percent-
-// escapes, so a literal '+' sent as %2B still round-trips.
-@(private = "file")
-body_form :: proc(body: http.Body) -> map[string]string {
-	m := make(map[string]string, context.temp_allocator)
-	s := string(body)
-	for part in strings.split_by_byte_iterator(&s, '&') {
-		if part == "" {
-			continue
-		}
-		eq := strings.index_byte(part, '=')
-		key := eq < 0 ? part : part[:eq]
-		val := eq < 0 ? "" : part[eq + 1:]
-		m[decode(key)] = decode(val)
-	}
-	return m
-}
-
-@(private = "file")
-decode :: proc(s: string) -> string {
-	if s == "" {
-		return ""
-	}
-	t := s
-	if strings.index_byte(s, '+') >= 0 {
-		t, _ = strings.replace_all(s, "+", " ", context.temp_allocator)
-	}
-	dec, ok := net.percent_decode(t, context.temp_allocator)
-	return ok ? dec : t
-}
-
 render_page :: proc(res: ^http.Response, title, active, description, content: string) {
-	http.respond_html(res, views.layout(title, active, description, content))
+	respond_html(res, views.layout(title, active, description, content))
+}
+
+// A store failure the handler can't recover from: the details are in the log
+// (repository.step_done), the client gets a 500 and a plain message.
+respond_store_error :: proc(res: ^http.Response) {
+	respond_plain(res, "Something went wrong on our side. Try again in a moment.", .Internal_Server_Error)
 }
 
 // ---- pages --------------------------------------------------------------
 
 page_home :: proc(req: ^http.Request, res: ^http.Response) {
+	notes, err := services.list_notes()
+	if err != .None {
+		respond_store_error(res)
+		return
+	}
 	render_page(
 		res,
 		"Home",
 		"/",
 		"A minimal Odin + HTMX + SQLite starter: one page, one entity, over a single self-contained binary.",
-		views.view_home(services.list_notes()),
+		views.view_home(notes),
 	)
 }
 
@@ -73,31 +51,35 @@ page_about :: proc(req: ^http.Request, res: ^http.Response) {
 	)
 }
 
-// The one write path. Append the new note's <li> to the list on success; an
-// empty note appends nothing (the input's `required` guards it client-side too).
+// The one write path. Append the new note's <li> to the list on success. A
+// refused note is a 422 with the reason: the form's hx-status:422 routes it to
+// its error slot, and app.js resets a form only after a 2xx, so the input stays.
 notes_create :: proc(req: ^http.Request, res: ^http.Response) {
-	http.body(req, -1, res, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
-		res := cast(^http.Response)user
-		if err != nil {
-			http.respond(res, http.Status.Bad_Request)
-			return
-		}
-		note, ok := services.create_note(body_form(body)["body"])
-		if !ok {
-			http.respond_html(res, "")
-			return
-		}
-		b := strings.builder_make(context.temp_allocator)
-		views.view_note_li(&b, note)
-		http.respond_html(res, strings.to_string(b))
-	})
+	note, problem, err := services.create_note(request_form()["body"])
+	if problem != "" {
+		respond_html(res, views.view_form_error(problem), .Unprocessable_Content)
+		return
+	}
+	if err != .None {
+		respond_store_error(res)
+		return
+	}
+	b := strings.builder_make(context.temp_allocator)
+	views.view_note_li(&b, note)
+	respond_html(res, strings.to_string(b))
 }
 
 // ---- health -------------------------------------------------------------
 
-// Liveness probe for the platform. Cheap, no allocations, 200 while up.
+// Health probe for the platform: 200 "ok" while the process is up and its store
+// answers, 503 when it doesn't. The build is in the x-version header (set for
+// every response by the middleware). Cheap: one SELECT 1.
 health :: proc(req: ^http.Request, res: ^http.Response) {
-	http.respond_plain(res, "ok")
+	if !services.store_ok() {
+		respond_plain(res, "store unavailable", .Service_Unavailable)
+		return
+	}
+	respond_plain(res, "ok")
 }
 
 // ---- seo ----------------------------------------------------------------
@@ -118,7 +100,7 @@ Allow: /
 Sitemap: `)
 	strings.write_string(&b, views.SITE_URL)
 	strings.write_string(&b, "/sitemap.xml\n")
-	http.respond_plain(res, strings.to_string(b))
+	respond_plain(res, strings.to_string(b))
 }
 
 sitemap_xml :: proc(req: ^http.Request, res: ^http.Response) {

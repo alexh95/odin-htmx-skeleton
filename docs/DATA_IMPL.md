@@ -1,7 +1,7 @@
 # Implementing the data layer in Odin (SQLite)
 
 > **Status: implemented.** This was the plan; it now ships. The store is SQLite, bound as the
-> amalgamation in `src/sqlite/` and implemented across `src/repository/` (`repo.odin` + `contacts.odin` + `events.odin`), selected by
+> amalgamation in `src/sqlite/` and implemented across `src/repository/` (`db.odin` + `repo.odin` + `contacts.odin` + `events.odin`), selected by
 > `DB_PATH` (`:memory:` default for tests/dev, a file in prod). The notes below describe the
 > shipped design; a few specifics differ from the original draft and are flagged inline.
 
@@ -11,8 +11,8 @@ the repository.
 
 ## 0. The contract to preserve
 
-The `src/repository/` package is the only code that touches storage. The rest of the app speaks
-in `models.Contact` and calls exactly these procedures:
+The `src/repository/` package is the only code that touches storage, and only `services` calls
+it. This was the contract when SQLite went in:
 
 ```odin
 repo_list   :: proc() -> []models.Contact
@@ -23,6 +23,12 @@ repo_set_status :: proc(id: int, status: models.Status) -> (models.Contact, bool
 repo_delete :: proc(id: int) -> bool
 repo_seed   :: proc()
 ```
+
+> **Since then** every proc returns a `repository.Error` (`.None`/`.Not_Found`/`.Constraint`/
+> `.Failed`) instead of a bool or nothing, because a failed `step()` used to be invisible (and
+> `last_insert_rowid` then named the previous row); `repo_set_status` became the single-statement
+> `repo_cycle_status`; `repo_create` takes `notes`/`notify`; and the dashboard reads
+> `repo_contact_stats`, one `GROUP BY`. Read `contacts.odin` for the current list.
 
 **The whole job is to reimplement these seven over SQLite.** Services, views, controllers, e2e, and
 load-tests do not change. Two invariants must hold exactly as today:
@@ -84,6 +90,11 @@ Enums map to their integer value (`int(role)`), so the DB stays in lockstep with
 lookup table; the label tables (`ROLE_NAMES`) remain the single source of truth for display. A
 `schema_version` table + a tiny apply-on-boot loop runs any migration whose number exceeds the
 stored version. `#load` the `.sql` files at compile time so they ride inside the binary.
+
+> **As shipped**, each migration runs in one transaction with the `schema_version` row that records
+> it (so a failure leaves the schema untouched and names the file), and the row records the file's
+> name and sha256: an applied migration that was edited, renamed or is unknown to the binary stops
+> the boot with a message, rather than being skipped because the version count matched.
 
 ## 3. Connection lifecycle + pragmas
 
@@ -174,13 +185,29 @@ returning `sqlite3_changes(db) > 0`; `repo_seed` = the same loop as today, writi
 inside `scan_contact`. Nothing returned points into a statement's buffer, so a later `step`/`reset`
 on another thread can't pull the rug out — exactly the guarantee `snapshot()` gives today.
 
-## 6. Filtering/sorting: push it down (optional, later)
+## 6. Filtering/sorting: pushed down (done)
 
-Today `service_page` filters/sorts in Odin over the full list. With SQLite you *can* push `q`/status
-filtering and sort into SQL (`WHERE … LIKE ? AND status=? ORDER BY …`) and only fetch one page. Not
-required for correctness — the in-Odin path keeps working over `repo_list` — but it's the natural
-next optimization once the dataset outgrows "fits in a slice." Keep it behind the same
-`service_page` signature so nothing above notices.
+`service_page` used to load every contact into Odin and filter, sort and slice there, under the
+store's exclusive lock: at 20k contacts that was 60-260 ms a request, and the response grew with the
+table (a 400 KB pager, a 2.2 MB API answer). It now asks SQL for exactly one page:
+
+- **Filter**: `WHERE (status = ?) AND (q matches a role/status label OR contains_ci(name, ?) OR
+  contains_ci(email, ?))`. `contains_ci` is an Odin function registered with SQLite (`db.odin`),
+  not `LIKE`: SQLite's case folding is ASCII-only, and the search must keep matching per-rune
+  `unicode.to_lower` (`İ`, `ẞ`), which the highlighting relies on. The fixed role/status labels are
+  matched in Odin into bitmasks.
+- **Sort**: one prepared statement per key and direction (`ORDER BY` can't be bound); role and
+  status sort by label via a `CASE` derived from the label tables; `id` breaks ties.
+- **Page and count**: `LIMIT/OFFSET` plus a `count(*)` with the same filter. The pager shows a
+  window, the search dropdown and `/api/search` take a `LIMIT`, the related list too, and the
+  dashboard is one `GROUP BY`.
+
+Measured with one client at 20k contacts (`load-tests/scenarios/scale.js` drives the same paths
+under load): `/data` 63 → 2 ms, a deep filtered sorted page 107 → 16 ms, a search keystroke that
+matches nothing 259 → 18 ms, `/api/search` 213 → 1 ms, the detail drawer 14 → <1 ms. A substring
+search is still a scan (~1 µs a row, in SQLite); an FTS5 index would make it proportional to the
+matches, at the price of SQLite's folding rules. And it all still runs under the one exclusive lock,
+so concurrent readers queue: §4's per-thread connections are the next step.
 
 ## 7. Build, deploy, ops
 
@@ -190,11 +217,12 @@ next optimization once the dataset outgrows "fits in a slice." Keep it behind th
   (Windows uses MSVC `cl`/`lib` + PowerShell `Expand-Archive`). The runtime image carries nothing —
   sqlite is statically linked into the binary.
 - **Deploy**: the binary needs a writable path for `data.db` *only when `DB_PATH` points at a file*.
-  apollo-11 mounts a named docker volume at `/data` and sets `DB_PATH=/data/data.db` (durable across
-  redeploys). On Fly, leaving `DB_PATH` unset keeps `:memory:` (the live demo reseeds each deploy);
+  The Docker-host deploy (`deploy/docker-host`) mounts a named volume at `/data` and sets
+  `DB_PATH=/data/data.db` (durable across redeploys). On Fly, leaving `DB_PATH` unset keeps `:memory:` (the live demo reseeds each deploy);
   to persist, `fly volumes create`, add `[mounts]` + `DB_PATH` to `fly.toml` (operator step — a
-  `[mounts]` referencing a missing volume fails the deploy). Back up = copy the file (or `VACUUM
-  INTO`).
+  `[mounts]` referencing a missing volume fails the deploy). Back up with `<bin> --backup <file>`
+  (`VACUUM INTO`, safe beside the running server) — never by copying `data.db`, whose recent commits
+  may still be in `data.db-wal`. The restore runbook is in [`DATA.md`](DATA.md#backup-and-restore-sqlite).
 - **The store no longer resets per process** — so e2e/load, which rely on a clean fixture, should
   point at an ephemeral DB (`:memory:` or a temp file deleted per run). Wire this via the existing
   `PORT`/env pattern: `DB_PATH=:memory:` for tests, a real path in prod. `repo_seed` still runs at

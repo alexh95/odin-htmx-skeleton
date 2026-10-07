@@ -43,26 +43,27 @@ finalize_events :: proc() {
 }
 
 // The detail drawer's activity feed: real interactions, other party resolved.
-event_timeline :: proc(contact_id: int) -> []models.Interaction {
+event_timeline :: proc(contact_id: int) -> ([]models.Interaction, Error) {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
 	defer sqlite.reset(q_timeline)
-	sqlite.bind_int(q_timeline, 1, c.int(contact_id))
+	bind_id(q_timeline, 1, contact_id)
 	out := make([dynamic]models.Interaction, context.temp_allocator)
-	for sqlite.step(q_timeline) == sqlite.ROW {
+	err: Error
+	for next_row(q_timeline, &err) {
 		append(
 			&out,
 			models.Interaction {
-				id = int(sqlite.column_int(q_timeline, 0)),
+				id = column_id(q_timeline, 0),
 				kind = models.Event_Kind(sqlite.column_int(q_timeline, 1)),
 				at = sqlite.column_int64(q_timeline, 2),
 				note = clone_col(q_timeline, 3),
-				other_id = int(sqlite.column_int(q_timeline, 4)),
+				other_id = column_id(q_timeline, 4),
 				other_name = clone_col(q_timeline, 5),
 				outgoing = sqlite.column_int(q_timeline, 6) != 0,
 			},
 		)
 	}
-	return out[:]
+	return out[:], err
 }
 
 // ---- internals (caller holds the lock) ----------------------------------
@@ -77,14 +78,14 @@ count_events :: proc() -> int {
 }
 
 @(private = "file")
-create_event :: proc(actor_id, target_id: int, kind: models.Event_Kind, at: i64, note: string) {
+create_event :: proc(actor_id, target_id: int, kind: models.Event_Kind, at: i64, note: string) -> Error {
 	defer sqlite.reset(q_event_create)
-	sqlite.bind_int(q_event_create, 1, c.int(actor_id))
-	sqlite.bind_int(q_event_create, 2, c.int(target_id))
+	bind_id(q_event_create, 1, actor_id)
+	bind_id(q_event_create, 2, target_id)
 	sqlite.bind_int(q_event_create, 3, c.int(kind))
 	sqlite.bind_int64(q_event_create, 4, at)
 	bind_text(q_event_create, 5, note)
-	sqlite.step(q_event_create)
+	return step_done(q_event_create)
 }
 
 // Deterministic interactions among whatever contacts exist (adapts to the seeded
@@ -96,7 +97,7 @@ seed_events :: proc() {
 	st: sqlite.Stmt
 	prep("SELECT id FROM contacts ORDER BY id", &st)
 	for sqlite.step(st) == sqlite.ROW {
-		append(&ids, int(sqlite.column_int(st, 0)))
+		append(&ids, column_id(st, 0))
 	}
 	sqlite.finalize(st)
 	n := len(ids)
@@ -123,7 +124,9 @@ seed_events :: proc() {
 			kind := kinds[(i + k) % len(kinds)]
 			at := now - i64(2 + (i * 7 + k * 13) % 200) * DAY
 			note := notes[(i + k) % len(notes)]
-			create_event(ids[i], tgt, kind, at, note)
+			if create_event(ids[i], tgt, kind, at, note) != .None {
+				fatal("seed")
+			}
 		}
 	}
 }

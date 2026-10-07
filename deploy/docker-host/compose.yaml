@@ -1,0 +1,52 @@
+# The app on a plain Docker host, deployed by deploy.sh.
+#
+# Built ON the host from ./src (synced by deploy.sh). The repo Dockerfile is
+# self-contained: it fetches a pinned Odin + htmx + SQLite and produces a single
+# static binary, so the host needs nothing but Docker.
+#
+# deploy.sh writes the variables below into .env beside this file; the defaults
+# only matter if you run compose by hand without one.
+services:
+  app:
+    build:
+      context: ./src
+    image: ${NAME:-odin-htmx-skeleton}:local
+    container_name: ${NAME:-odin-htmx-skeleton}
+    restart: unless-stopped
+    # The server shuts down cleanly on SIGINT only (odin-http's handler), and as
+    # PID 1 it would ignore docker's default SIGTERM until the SIGKILL 10 s later,
+    # skipping the close that checkpoints the WAL into data.db.
+    stop_signal: SIGINT
+    # odin-http's nbio uses io_uring on Linux, and Docker's default seccomp
+    # profile blocks the io_uring_* syscalls — without an allowance the server
+    # aborts at startup (acquire_thread_event_loop assertion). deploy.sh ships
+    # the repo's docker/seccomp-io-uring.json (Docker's default profile plus
+    # io_uring) and points SECCOMP at it; without that file it falls back to
+    # disabling seccomp, as CI's container jobs do.
+    security_opt:
+      - seccomp=${SECCOMP:-unconfined}
+    environment:
+      - PORT=8080
+      - BIND_ALL=1
+      # SQLite persists to the mounted volume below; survives redeploys and
+      # restarts (migrations apply in order on boot). Set :memory: for an
+      # ephemeral, freshly-seeded store instead.
+      - DB_PATH=/data/data.db
+      # The canonical origin for canonical tags + the sitemap, if this host
+      # serves the public site (see app/src/views/brand.odin).
+      # - SITE_URL=https://www.example.com
+      # THREADS defaults to the core count. THREADS=1 reproduces the
+      # single-thread baseline for an on-server before/after.
+      # - THREADS=4
+    # A volume created by an image that runs as UID 10001 starts out owned by
+    # it. One that root wrote first needs a one-time chown (see the README).
+    volumes:
+      - data:/data   # data.db + -wal/-shm; back it up (docs/DATA.md)
+    ports:
+      - "${HOST_PORT:-8090}:8080"   # direct access, e.g. for two-host load tests
+
+volumes:
+  data:
+    # Named explicitly so it doesn't depend on the compose project name, and so
+    # an existing volume can be adopted by setting VOLUME.
+    name: ${VOLUME:-odin-htmx-skeleton-data}

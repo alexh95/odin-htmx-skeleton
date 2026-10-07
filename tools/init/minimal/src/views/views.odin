@@ -11,25 +11,8 @@ import "core:strings"
 // "component" is a proc that appends markup. Raw string literals (backticks) let
 // attribute quotes stand as-is. Everything builds in the request arena (temp
 // allocator) and is freed once the response is flushed. Every dynamic string
-// passes through esc() — the one defence against injected markup.
-
-w :: proc(b: ^strings.Builder, s: string) {
-	strings.write_string(b, s)
-}
-
-// HTML-escape text content. Not optional anywhere user input is echoed.
-esc :: proc(b: ^strings.Builder, s: string) {
-	for i in 0 ..< len(s) {
-		switch s[i] {
-		case '&': w(b, "&amp;")
-		case '<': w(b, "&lt;")
-		case '>': w(b, "&gt;")
-		case '"': w(b, "&#34;")
-		case '\'': w(b, "&#39;")
-		case: strings.write_byte(b, s[i])
-		}
-	}
-}
+// passes through esc() (json_esc in JSON) — the escaping boundary in html.odin,
+// the one defence against injected markup.
 
 // ---- icons --------------------------------------------------------------
 //
@@ -51,8 +34,9 @@ icon :: proc(b: ^strings.Builder, name: string) {
 //
 // Two orthogonal axes carried as data-attributes on <html>: `data-style` (the
 // treatment) and `data-scheme` (the palette). Pure presentation: the picker is
-// static HTML, app.js applies + persists the choice (localStorage), and the head
-// pre-paint script restores it before first paint. No server endpoint.
+// static HTML whose buttons app.js handles by their data-pick-* attributes (no
+// inline handlers: the CSP forbids them), applying + persisting the choice
+// (localStorage); the head pre-paint script restores it before first paint.
 
 @(private = "file")
 Style_Opt :: struct {
@@ -112,14 +96,14 @@ theme_picker :: proc(b: ^strings.Builder) {
 	icon(b, "palette")
 	w(b, `</summary><div class="picker-panel"><p class="picker-head">Style</p><div class="picker-styles">`)
 	for s in STYLES {
-		fmt.sbprintf(b, `<button class="chip" type="button" data-pick-style="%s" aria-pressed="false" onclick="pickStyle('%s')">%s</button>`, s.id, s.id, s.label)
+		fmt.sbprintf(b, `<button class="chip" type="button" data-pick-style="%s" aria-pressed="false">%s</button>`, s.id, s.label)
 	}
 	w(b, `</div><p class="picker-head">Scheme</p>`)
 	for s in STYLES {
 		fmt.sbprintf(b, `<div class="picker-schemes" data-for="%s">`, s.id)
 		for sc in SCHEMES {
 			if sc.style != s.id {continue}
-			fmt.sbprintf(b, `<button class="swatch" type="button" data-pick-scheme="%s" aria-pressed="false" title="%s" style="--sw:%s" onclick="pickScheme('%s')"></button>`, sc.id, sc.label, sc.swatch, sc.id)
+			fmt.sbprintf(b, `<button class="swatch" type="button" data-pick-scheme="%s" aria-pressed="false" title="%s" style="--sw:%s"></button>`, sc.id, sc.label, sc.swatch)
 		}
 		w(b, `</div>`)
 	}
@@ -203,7 +187,9 @@ layout :: proc(title, active, description, content: string) -> string {
 <link rel="stylesheet" href="`)
 	w(&b, CSS_HREF)
 	w(&b, `">
-<script>try{var d=document.documentElement,s=localStorage.getItem('style'),c=localStorage.getItem('scheme');if(s)d.dataset.style=s;if(c)d.dataset.scheme=c;}catch(e){}</script>
+<script>`)
+	w(&b, THEME_PREPAINT_JS)
+	w(&b, `</script>
 <script src="`)
 	w(&b, HTMX_HREF)
 	w(&b, `" defer></script>
@@ -221,22 +207,24 @@ layout :: proc(title, active, description, content: string) -> string {
 	if active == "/" {
 		w(&b, `<script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebSite","name":"`)
-		esc(&b, BRAND_SUFFIX)
+		json_esc(&b, BRAND_SUFFIX)
 		w(&b, `","url":"`)
-		w(&b, SITE_URL)
+		json_esc(&b, SITE_URL)
 		w(&b, `/"}
 </script>
 `)
 	}
+	// Values in JSON-LD go through json_esc, not esc: entities aren't decoded
+	// inside <script>, so the HTML escaper would put "&amp;" into the JSON.
 	w(&b, `<script type="application/ld+json">
 {"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"`)
-	esc(&b, BRAND_SUFFIX)
+	json_esc(&b, BRAND_SUFFIX)
 	w(&b, `","description":"`)
-	esc(&b, description)
+	json_esc(&b, description)
 	w(&b, `","codeRepository":"`)
-	w(&b, BRAND_REPO)
+	json_esc(&b, BRAND_REPO)
 	w(&b, `","url":"`)
-	w(&b, SITE_URL)
+	json_esc(&b, SITE_URL)
 	w(&b, `/","programmingLanguage":["Odin","HTML","CSS","JavaScript"]}
 </script>
 </head>
@@ -272,9 +260,15 @@ layout :: proc(title, active, description, content: string) -> string {
 	return strings.to_string(b)
 }
 
-// Section header used at the top of every page body.
+// Section header used at the top of every page body. All three are text.
 page_head :: proc(b: ^strings.Builder, eyebrow, title, subtitle: string) {
-	fmt.sbprintf(b, `<header class="page-head"><p class="eyebrow">%s</p><h1>%s</h1><p class="lede">%s</p></header>`, eyebrow, title, subtitle)
+	w(b, `<header class="page-head"><p class="eyebrow">`)
+	esc(b, eyebrow)
+	w(b, `</p><h1>`)
+	esc(b, title)
+	w(b, `</h1><p class="lede">`)
+	esc(b, subtitle)
+	w(b, `</p></header>`)
 }
 
 // ---- home ---------------------------------------------------------------
@@ -284,15 +278,27 @@ view_home :: proc(notes: []models.Note) -> string {
 	page_head(&b, "Starter", "Your app", "A minimal Odin + HTMX + SQLite page. Add a note — it's stored in SQLite and appended over one request. Replace this with your own.")
 
 	w(&b, `<section class="block"><article class="card">`)
-	// data-reset-on-success: app.js clears the form after its own 2xx submit.
-	w(&b, `<form class="add-note" hx-post="/notes" hx-target="#note-list" hx-swap="afterbegin" data-reset-on-success>`)
-	w(&b, `<input name="body" placeholder="Write a note…" required autocomplete="off" aria-label="Note">`)
-	w(&b, `<button class="btn btn-primary" type="submit">Add</button></form>`)
+	// data-reset-on-success: app.js clears the form after its own 2xx submit. A
+	// refused note (422) or a server error (5xx) is routed by hx-status into the
+	// form's error slot instead of the list, and leaves the input alone.
+	w(&b, `<form class="add-note" hx-post="/notes" hx-target="#note-list" hx-swap="afterbegin" data-reset-on-success
+      hx-status:422="target:#note-error swap:innerHTML" hx-status:5xx="target:#note-error swap:innerHTML">`)
+	fmt.sbprintf(&b, `<input name="body" placeholder="Write a note…" required maxlength="%d" autocomplete="off" aria-label="Note">`, services.MAX_NOTE)
+	w(&b, `<button class="btn btn-primary" type="submit">Add</button><p class="field-msg form-error" id="note-error" role="alert"></p></form>`)
 	w(&b, `<ul class="note-list" id="note-list">`)
 	for n in notes {
 		view_note_li(&b, n)
 	}
 	w(&b, `</ul></article></section>`)
+	return strings.to_string(b)
+}
+
+// Why a submit was refused, for the form's error slot.
+view_form_error :: proc(msg: string) -> string {
+	b := strings.builder_make(context.temp_allocator)
+	w(&b, `<span class="msg msg-err">`)
+	esc(&b, msg)
+	w(&b, `</span>`)
 	return strings.to_string(b)
 }
 

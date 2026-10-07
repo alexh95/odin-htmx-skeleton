@@ -1,9 +1,8 @@
 package views
-import "../repository"
 import "../models"
+import "../services"
 
 import "core:fmt"
-import "core:net"
 import "core:strings"
 import "core:unicode"
 import "core:unicode/utf8"
@@ -17,32 +16,9 @@ import "core:unicode/utf8"
 // and is freed once the response is flushed.
 //
 // Two rules keep this honest:
-//   - every dynamic string passes through esc() (or url_encode for hrefs),
+//   - every dynamic string passes through esc() (or url_encode for hrefs, or
+//     json_esc in JSON) — the escaping boundary lives in html.odin,
 //   - structural chrome (nav, badges, avatars, icons) lives in one proc each.
-
-w :: proc(b: ^strings.Builder, s: string) {
-	strings.write_string(b, s)
-}
-
-// HTML-escape text content. The only defence against an injected '<' from a
-// search box or a contact name, so it is not optional anywhere user input is
-// echoed.
-esc :: proc(b: ^strings.Builder, s: string) {
-	for i in 0 ..< len(s) {
-		switch s[i] {
-		case '&': w(b, "&amp;")
-		case '<': w(b, "&lt;")
-		case '>': w(b, "&gt;")
-		case '"': w(b, "&#34;")
-		case '\'': w(b, "&#39;")
-		case: strings.write_byte(b, s[i])
-		}
-	}
-}
-
-url_encode :: proc(s: string) -> string {
-	return net.percent_encode(s, context.temp_allocator)
-}
 
 // Escape text while wrapping each case-insensitive occurrence of q in <mark>.
 // Used by the search dropdown so the matched span lights up.
@@ -130,8 +106,10 @@ icon :: proc(b: ^strings.Builder, name: string) {
 //
 // Two orthogonal axes carried as data-attributes on <html>: `data-style` (the
 // treatment — Modern, …) and `data-scheme` (the palette within a style). Pure
-// presentation: the picker is static HTML, app.js applies + persists the choice
-// (localStorage), and the head pre-paint script restores it before first paint.
+// presentation: the picker is static HTML whose buttons app.js handles by their
+// data-pick-* attributes (no inline handlers: the CSP forbids them), applying +
+// persisting the choice (localStorage); the head pre-paint script restores it
+// before first paint.
 // No server endpoint, so it adds no surface to load-test. Phase C appends styles
 // and schemes to these tables and one CSS line per style to reveal its swatches.
 
@@ -202,8 +180,7 @@ theme_picker :: proc(b: ^strings.Builder) {
 	for s in STYLES {
 		fmt.sbprintf(
 			b,
-			`<button class="chip" type="button" data-pick-style="%s" aria-pressed="false" onclick="pickStyle('%s')">%s</button>`,
-			s.id,
+			`<button class="chip" type="button" data-pick-style="%s" aria-pressed="false">%s</button>`,
 			s.id,
 			s.label,
 		)
@@ -215,11 +192,10 @@ theme_picker :: proc(b: ^strings.Builder) {
 			if sc.style != s.id {continue}
 			fmt.sbprintf(
 				b,
-				`<button class="swatch" type="button" data-pick-scheme="%s" aria-pressed="false" title="%s" style="--sw:%s" onclick="pickScheme('%s')"></button>`,
+				`<button class="swatch" type="button" data-pick-scheme="%s" aria-pressed="false" title="%s" style="--sw:%s"></button>`,
 				sc.id,
 				sc.label,
 				sc.swatch,
-				sc.id,
 			)
 		}
 		w(b, `</div>`)
@@ -229,7 +205,8 @@ theme_picker :: proc(b: ^strings.Builder) {
 
 // The /components showroom: every style and scheme laid out at once, each swatch
 // a one-click jump to that exact style + scheme. The components below it re-skin
-// live (same data-style/data-scheme on <html>; setTheme applies + persists).
+// live (same data-style/data-scheme on <html>; app.js reads data-sw-* and
+// applies + persists).
 view_showroom :: proc(b: ^strings.Builder) {
 	fmt.sbprintf(
 		b,
@@ -243,14 +220,12 @@ view_showroom :: proc(b: ^strings.Builder) {
 			if sc.style != s.id {continue}
 			fmt.sbprintf(
 				b,
-				`<button class="swatch" type="button" style="--sw:%s" title="%s · %s" aria-label="%s %s" data-sw-style="%s" data-sw-scheme="%s" onclick="setTheme('%s','%s')"></button>`,
+				`<button class="swatch" type="button" style="--sw:%s" title="%s · %s" aria-label="%s %s" data-sw-style="%s" data-sw-scheme="%s"></button>`,
 				sc.swatch,
 				s.label,
 				sc.label,
 				s.label,
 				sc.label,
-				s.id,
-				sc.id,
 				s.id,
 				sc.id,
 			)
@@ -279,19 +254,26 @@ role_chip :: proc(b: ^strings.Builder, r: models.Role) {
 }
 
 // Avatar from initials, hue derived from the id so each contact keeps a stable
-// colour across re-renders.
+// colour across re-renders. The initials are the first character of the first
+// two words: whole runes, not bytes (the É of "Émile" is two), and escaped like
+// any other text, because a name is user input.
 avatar :: proc(b: ^strings.Builder, c: models.Contact) {
-	hue := (c.id * 47) % 360
-	init: [2]u8
+	fmt.sbprintf(b, `<span class="avatar" style="--h:%d">`, (c.id % 360) * 47 % 360)
 	n := 0
-	for i in 0 ..< len(c.name) {
-		ch := c.name[i]
-		if (i == 0 || c.name[i - 1] == ' ') && ch != ' ' && n < 2 {
-			init[n] = ch
+	word_start := true
+	for r in c.name {
+		if r == ' ' {
+			word_start = true
+			continue
+		}
+		if word_start && n < 2 {
+			enc, size := utf8.encode_rune(r) // an invalid byte comes back as a valid U+FFFD
+			esc(b, string(enc[:size]))
 			n += 1
 		}
+		word_start = false
 	}
-	fmt.sbprintf(b, `<span class="avatar" style="--h:%d">%s</span>`, hue, string(init[:n]))
+	w(b, `</span>`)
 }
 
 // ---- layout -------------------------------------------------------------
@@ -374,7 +356,9 @@ layout :: proc(title, active, description, content: string) -> string {
 <link rel="stylesheet" href="`)
 	w(&b, CSS_HREF)
 	w(&b, `">
-<script>try{var d=document.documentElement,s=localStorage.getItem('style'),c=localStorage.getItem('scheme');if(s)d.dataset.style=s;if(c)d.dataset.scheme=c;}catch(e){}</script>
+<script>`)
+	w(&b, THEME_PREPAINT_JS)
+	w(&b, `</script>
 <script src="`)
 	w(&b, HTMX_HREF)
 	w(&b, `" defer></script>
@@ -387,28 +371,30 @@ layout :: proc(title, active, description, content: string) -> string {
 `)
 	// The site name a search engine prints above the result. Without this it is
 	// derived from the hostname — which for a subdomain means the bare registrable
-	// name ("alexh95"), not the project. Google reads WebSite only from the home
+	// name (the "example" of app.example.com), not the project. Google reads WebSite only from the home
 	// page, hence the guard, and `name` matches og:site_name on purpose: agreeing
 	// signals are what makes it pick ours over the fallback.
 	if active == "/" {
 		w(&b, `<script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebSite","name":"`)
-		esc(&b, BRAND_SUFFIX)
+		json_esc(&b, BRAND_SUFFIX)
 		w(&b, `","url":"`)
-		w(&b, SITE_URL)
+		json_esc(&b, SITE_URL)
 		w(&b, `/"}
 </script>
 `)
 	}
+	// Values in JSON-LD go through json_esc, not esc: entities aren't decoded
+	// inside <script>, so the HTML escaper would put "&amp;" into the JSON.
 	w(&b, `<script type="application/ld+json">
 {"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"`)
-	esc(&b, BRAND_SUFFIX)
+	json_esc(&b, BRAND_SUFFIX)
 	w(&b, ` skeleton","description":"`)
-	esc(&b, description)
+	json_esc(&b, description)
 	w(&b, `","codeRepository":"`)
-	w(&b, BRAND_REPO)
+	json_esc(&b, BRAND_REPO)
 	w(&b, `","url":"`)
-	w(&b, SITE_URL)
+	json_esc(&b, SITE_URL)
 	w(&b, `/","programmingLanguage":["Odin","HTML","CSS","JavaScript"]}
 </script>
 </head>
@@ -444,7 +430,7 @@ layout :: proc(title, active, description, content: string) -> string {
 		fmt.sbprintf(&b, `<span>%s</span></a>`, item.label)
 	}
 	w(&b, `</nav>
-  <form class="search" role="search" onsubmit="return false">`)
+  <form class="search" role="search">`)
 	icon(&b, "search")
 	w(&b, `<input type="search" name="q" placeholder="Search contacts…" autocomplete="off" aria-label="Search contacts"
        hx-get="/search" hx-trigger="keyup changed delay:250ms, search, focus" hx-target="#search-results" hx-swap="innerHTML">
@@ -466,30 +452,20 @@ layout :: proc(title, active, description, content: string) -> string {
 	return strings.to_string(b)
 }
 
-// Section header used at the top of every page body.
+// Section header used at the top of every page body. All three are text.
 page_head :: proc(b: ^strings.Builder, eyebrow, title, subtitle: string) {
-	fmt.sbprintf(
-		b,
-		`<header class="page-head"><p class="eyebrow">%s</p><h1>%s</h1><p class="lede">%s</p></header>`,
-		eyebrow,
-		title,
-		subtitle,
-	)
+	w(b, `<header class="page-head"><p class="eyebrow">`)
+	esc(b, eyebrow)
+	w(b, `</p><h1>`)
+	esc(b, title)
+	w(b, `</h1><p class="lede">`)
+	esc(b, subtitle)
+	w(b, `</p></header>`)
 }
 
 // ---- dashboard ----------------------------------------------------------
 
-view_dashboard :: proc() -> string {
-	contacts := repository.repo_list()
-	total := len(contacts)
-	active, invited, score_sum := 0, 0, 0
-	for c in contacts {
-		if c.status == .Active {active += 1}
-		if c.status == .Invited {invited += 1}
-		score_sum += c.score
-	}
-	avg := total > 0 ? score_sum / total : 0
-
+view_dashboard :: proc(st: services.Stats) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	// The heading names the project, not the nav item. This is the one page a
 	// search engine shows for the site as a whole, and it reads the <h1> together
@@ -505,13 +481,13 @@ view_dashboard :: proc() -> string {
 
 	w(
 		&b,
-		`<div class="block-head"><h2>Overview</h2><p class="muted">Live figures from the demo store, counted on the server.</p></div>`,
+		`<div class="block-head"><h2>Overview</h2><p class="muted">Live figures from the demo store, counted by SQLite. Each line is a spread, not a trend: contacts per role, then engagement scores from low to high.</p></div>`,
 	)
 	w(&b, `<section class="stat-grid">`)
-	stat_card(&b, "users", "Total contacts", total, "+4 this week", []int{6, 9, 7, 11, 10, 14, 13, 18}, "/data")
-	stat_card(&b, "check", "Active", active, "82% of base", []int{10, 11, 9, 12, 13, 12, 15, 16}, "/data?status=Active")
-	stat_card(&b, "bell", "Invited", invited, "pending", []int{3, 4, 2, 5, 4, 6, 5, 4}, "/data?status=Invited")
-	stat_card(&b, "bolt", "Avg. engagement", avg, "score / 100", []int{40, 52, 48, 60, 58, 66, 70, 74}, "/data?sort=score_desc")
+	stat_card(&b, "users", "Total contacts", st.total, fmt.tprintf("%d roles", len(st.by_role)), st.by_role, "/data")
+	stat_card(&b, "check", "Active", st.active, fmt.tprintf("%d%% of all", st.active_pct), st.spread_active, "/data?status=Active")
+	stat_card(&b, "bell", "Invited", st.invited, fmt.tprintf("%d%% of all", st.invited_pct), st.spread_invited, "/data?status=Invited")
+	stat_card(&b, "bolt", "Avg. engagement", st.avg_score, "score / 100", st.spread, "/data?sort=score_desc")
 	w(&b, `</section>`)
 
 	// `block` only adds the section spacing `.split` has none of — the new prose
@@ -557,17 +533,21 @@ view_dashboard :: proc() -> string {
 // drills into the working tool, tying the console's pages together.
 stat_card :: proc(b: ^strings.Builder, ic, label: string, value: int, delta: string, spark: []int, href := "") {
 	if href != "" {
-		fmt.sbprintf(b, `<a class="stat stat-link" href="%s">`, href)
+		w(b, `<a class="stat stat-link" href="`)
+		esc(b, href)
+		w(b, `">`)
 	} else {
 		w(b, `<article class="stat">`)
 	}
 	w(b, `<div class="stat-top"><span class="stat-icon">`)
 	icon(b, ic)
-	fmt.sbprintf(b, `</span><span class="stat-label">%s</span></div>`, label)
+	w(b, `</span><span class="stat-label">`)
+	esc(b, label)
+	w(b, `</span></div>`)
 	fmt.sbprintf(b, `<div class="stat-value" data-count="%d">%d</div>`, value, value)
 	w(b, `<div class="stat-foot"><span class="stat-delta">`)
-	icon(b, "arrow")
-	fmt.sbprintf(b, `%s</span>`, delta)
+	esc(b, delta)
+	w(b, `</span>`)
 	sparkline(b, spark)
 	w(b, href != "" ? `</div></a>` : `</div></article>`)
 }
@@ -596,7 +576,13 @@ sparkline :: proc(b: ^strings.Builder, pts: []int) {
 
 @(private = "file")
 link_tile :: proc(b: ^strings.Builder, href, ic, title, desc: string) {
-	fmt.sbprintf(b, `<a class="tile" href="%s"><span class="tile-icon">`, href)
+	w(b, `<a class="tile" href="`)
+	esc(b, href)
+	w(b, `"><span class="tile-icon">`)
 	icon(b, ic)
-	fmt.sbprintf(b, `</span><div><strong>%s</strong><p>%s</p></div></a>`, title, desc)
+	w(b, `</span><div><strong>`)
+	esc(b, title)
+	w(b, `</strong><p>`)
+	esc(b, desc)
+	w(b, `</p></div></a>`)
 }

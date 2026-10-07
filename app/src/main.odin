@@ -1,10 +1,10 @@
 package main
 
 import "core:fmt"
+import "core:log"
 import "core:net"
 import "core:os"
 import "core:strconv"
-import "core:strings"
 
 import http "../odin-http"
 import "controllers"
@@ -13,7 +13,8 @@ import "views"
 
 // ---- entry --------------------------------------------------------------
 //
-// Seed the store, wire the routes, serve. Port resolves PORT env -> first arg
+// Set up logging, open (and maybe seed) the store, wire the routes, serve; or,
+// with --backup, copy the store and exit. Port resolves PORT env -> first arg
 // -> default (the platform injects PORT in a container). BIND_ALL switches the
 // listen address from loopback (the safe local default) to 0.0.0.0 so a
 // container host can route traffic in; locally we stay on loopback.
@@ -22,6 +23,27 @@ DEFAULT_PORT :: 8080
 
 main :: proc() {
 	env: [64]u8
+
+	// Odin's default logger discards everything, odin-http's own warnings
+	// included, so install a real one before anything can log. The server's
+	// threads are started with this context, so they inherit it. LOG_LEVEL
+	// (debug|info|warn|error) sets the floor; at warn the access log is off.
+	level := log.Level.Info
+	switch v, _ := os.lookup_env(env[:], "LOG_LEVEL"); v {
+	case "debug":
+		level = .Debug
+	case "warn", "warning":
+		level = .Warning
+	case "error":
+		level = .Error
+	}
+	context.logger = log.create_console_logger(level, {.Level, .Date, .Time, .Terminal_Color})
+
+	// `<bin> --backup <path>`: write a consistent copy of DB_PATH to <path> and
+	// exit, beside a running server or not (repository.repo_backup).
+	if len(os.args) > 1 && os.args[1] == "--backup" {
+		os.exit(backup(os.args[2:]))
+	}
 
 	port := DEFAULT_PORT
 	if v, _ := os.lookup_env(env[:], "PORT"); v != "" {
@@ -34,8 +56,11 @@ main :: proc() {
 		}
 	}
 
+	// The banner prints 127.0.0.1, not localhost: the server listens on IPv4
+	// loopback only, and "localhost" tries ::1 first, which on Windows costs about
+	// 200 ms per request before falling back.
 	address := net.IP4_Loopback
-	host := "localhost"
+	host := "127.0.0.1"
 	if v, _ := os.lookup_env(env[:], "BIND_ALL"); v != "" {
 		address = net.IP4_Any
 		host = "0.0.0.0"
@@ -45,21 +70,30 @@ main :: proc() {
 	// default (a real in-RAM SQLite, seeded fresh per boot, gone on exit — the
 	// isolation the e2e/load suites rely on); a real file path persists (prod sets
 	// it to a mounted volume). repo_open must run before repo_seed.
+	//
+	// Demo rows go only into a store nobody owns yet: :memory:, or a file when
+	// SEED=1 asks (run.* sets it for local dev). A production table emptied on
+	// purpose must not come back full of samples on the next deploy.
 	db_path := os.get_env("DB_PATH", context.allocator)
 	if db_path == "" {
 		db_path = ":memory:"
 	}
 	// SITE_URL names the canonical origin used by the canonical/og:url tags, the
-	// sitemap, and the redirect below. A fork sets it in the environment instead
-	// of editing brand.odin.
+	// sitemap, and the *.fly.dev redirect. A fork sets it in the environment
+	// instead of editing brand.odin. A placeholder origin leaves the redirect off
+	// (see controllers.canonical_host).
 	if v := os.get_env("SITE_URL", context.allocator); v != "" {
 		views.SITE_URL = v
 	}
+	controllers.canonical_redirect = !controllers.placeholder_origin(views.SITE_URL)
 
 	repository.repo_open(db_path)
 	defer repository.repo_close() // runs after the server loop returns (clean shutdown)
-	repository.repo_seed()
+	if seed, _ := os.lookup_env(env[:], "SEED"); db_path == ":memory:" || seed == "1" {
+		repository.repo_seed()
+	}
 	controllers.init_etags()
+	controllers.init_security()
 
 	router: http.Router
 	http.router_init(&router)
@@ -70,7 +104,7 @@ main :: proc() {
 	http.server_shutdown_on_interrupt(&s)
 
 	// N event-loop threads, one per core by default; the store is guarded by an
-	// RW_Mutex (see repository.odin) so handlers can run concurrently. THREADS
+	// RW_Mutex (see repository/db.odin) so handlers can run concurrently. THREADS
 	// overrides the count — load-tests sweep it (THREADS=1 reproduces the old
 	// single-thread baseline against the same binary).
 	opts := http.Default_Server_Opts
@@ -87,37 +121,24 @@ main :: proc() {
 	}
 
 	fmt.printfln("odin-htmx-skeleton listening on http://%s:%d (%d threads)", host, port, opts.thread_count)
+	log.infof("version %s, store %s, site %s", controllers.VERSION, db_path, views.SITE_URL)
 	routes := http.router_handler(&router)
-	if err := http.listen_and_serve(&s, http.middleware_proc(&routes, canonical_host), endpoint, opts); err != nil {
+	if err := http.listen_and_serve(&s, http.middleware_proc(&routes, controllers.front), endpoint, opts); err != nil {
 		fmt.eprintfln("server error: %v", err)
 		os.exit(1)
 	}
 }
 
-// The platform hostname serves the very same app as the custom domain, so a
-// crawler that finds both indexes the site twice and splits its ranking signals.
-// A 301 collapses them onto views.SITE_URL and passes the accumulated authority
-// along with it — a canonical tag alone only hints, and only to search engines.
-//
-// Scoped to *.fly.dev rather than "any host that isn't canonical": localhost and
-// a LAN IP have to keep working for development, and a future domain must not
-// start bouncing the moment DNS points at it. /healthz is exempt regardless —
-// Fly's own health check calls it, and a probe that follows a redirect off-host
-// would fail the deploy rather than the request.
-canonical_host :: proc(handler: ^http.Handler, req: ^http.Request, res: ^http.Response) {
-	next := handler.next.(^http.Handler)
-	host, _ := http.headers_get(req.headers, "host")
-	if req.url.path != "/healthz" && strings.has_suffix(host, ".fly.dev") {
-		target := strings.concatenate(
-			{views.SITE_URL, req.url.path},
-			context.temp_allocator,
-		)
-		if req.url.query != "" {
-			target = strings.concatenate({target, "?", req.url.query}, context.temp_allocator)
-		}
-		http.headers_set(&res.headers, "location", target)
-		http.respond(res, http.Status.Moved_Permanently)
-		return
+backup :: proc(args: []string) -> int {
+	db_path := os.get_env("DB_PATH", context.temp_allocator)
+	if len(args) != 1 || db_path == "" || db_path == ":memory:" {
+		fmt.eprintln("usage: DB_PATH=<live db> <bin> --backup <new file>   (DB_PATH must be a file)")
+		return 2
 	}
-	next.handle(next, req, res)
+	if problem := repository.repo_backup(db_path, args[0]); problem != "" {
+		fmt.eprintfln("backup: %s", problem)
+		return 1
+	}
+	fmt.printfln("backup: %s -> %s", db_path, args[0])
+	return 0
 }
