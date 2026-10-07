@@ -190,6 +190,10 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   job, so the deploy was blocked too. Both variants now delete the job and its comment block and drop
   it from `deploy`'s `needs`. `init` fails, changing nothing, if it can't find the job or if
   `ci.yml` still runs `tools/init` afterwards.
+- **A minimal fork's CI build job passes its smoke test**
+  ([#24](https://github.com/alexh95/odin-htmx-skeleton/issues/24)). The step curls `/api/search` and
+  `POST /contacts`, which the starter doesn't have, so every leg failed with "api/search returned
+  404". `init --minimal` swaps those lines for the starter's `/about` and `POST /notes`.
 - **The README's order of steps no longer crashes a minimal fork**
   ([#26](https://github.com/alexh95/odin-htmx-skeleton/issues/26)). The Quick start's `run` creates
   `app/data.db` with the demo's schema; after `init --minimal` the starter's migration runner counted

@@ -35,6 +35,15 @@ MIN_TODO :: #load("minimal/TODO.md", string)
 // next run creates and seeds a fresh one.
 DEV_DB :: [?]string{"app/data.db", "app/data.db-wal", "app/data.db-shm"}
 
+// The tail of ci.yml's "Smoke test the binary" step, and what it becomes: the
+// starter's read and write paths in place of the demo's.
+SMOKE_DEMO :: `code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8099/api/search?q=a")
+          test "$code" = "200" || { echo "api/search returned $code"; exit 1; }
+          curl -fsS -X POST "http://127.0.0.1:8099/contacts" \
+            --data 'name=CI Smoke&email=ci@example.com&role=0&status=1' -o /dev/null`
+SMOKE_MINIMAL :: `curl -fsS "http://127.0.0.1:8099/about"                     -o /dev/null
+          curl -fsS -X POST "http://127.0.0.1:8099/notes" --data 'body=CI+smoke' -o /dev/null`
+
 strip_to_minimal :: proc(opt: Options) {
 	for f in DEV_DB {
 		remove_if_present(f)
@@ -86,13 +95,15 @@ strip_to_minimal :: proc(opt: Options) {
 	append_to("app/static/app.css", MIN_CSS)
 
 	// 4. The load driver runs whatever scenarios are left; only its optional
-	//    bombardier baseline names a demo path.
+	//    bombardier baseline names a demo path. CI's build-job smoke test hits
+	//    two demo routes the starter doesn't have, so it gets the starter's.
 	edit(
 		"load-tests/run.sh",
 		[]Repl {
 			{`for path in /static/app.css /api/search?q=a /; do`, `for path in /static/app.css /; do`},
 		},
 	)
+	edit(".github/workflows/ci.yml", []Repl{{SMOKE_DEMO, SMOKE_MINIMAL}})
 
 	// 5. A fresh changelog and backlog. The upstream's are its own history and
 	//    to-do list, and CLAUDE.md tells an agent to work from TODO.md. The new
