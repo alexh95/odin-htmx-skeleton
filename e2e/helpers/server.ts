@@ -9,7 +9,9 @@ import { appDirFrom, BIN } from '../global-setup';
 // specs that need their own (a file DB, a store they may wreck) start one here.
 // The binary is built once in global-setup.ts.
 
-export type Server = { port: number; proc: ChildProcess };
+// `output` is everything the server has printed so far, start-up banner included
+// (a listener attached after startServer returns would miss that).
+export type Server = { port: number; proc: ChildProcess; output: () => string };
 export type Resp = { status: number; body: string };
 
 // A port nothing listens on, picked by the OS. A fixed base can't promise that:
@@ -46,7 +48,7 @@ export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {
   const deadline = Date.now() + 20_000;
   while (proc.exitCode === null && proc.signalCode === null && Date.now() < deadline) {
     try {
-      if ((await get(port, '/healthz')).status === 200) return { port, proc };
+      if ((await get(port, '/healthz')).status === 200) return { port, proc, output: () => log };
     } catch { /* not listening yet */ }
     await new Promise((r) => setTimeout(r, 100));
   }

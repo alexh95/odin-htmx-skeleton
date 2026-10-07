@@ -13,7 +13,19 @@ import { options as build, summarize } from '../lib/options.js';
 // the filtering, sorting, paging and counting done in SQL the numbers stay in
 // the same range; when every request loaded the whole table into Odin they grew
 // about a hundredfold (#14).
-export const options = Object.assign(build(), { setupTimeout: '300s' });
+//
+// Its latency budget is its own, not the suite's 50 ms: at 20k rows every request
+// still queues on the store's one exclusive lock, so p95 sits near a second under
+// 20 VUs either way (the per-request win shows with one client). The loose bound
+// catches a collapse (timeouts, a scan per keystroke again) and keeps
+// `run.sh --strict` usable. Tighten it once reads get their own connections
+// (TODO.md).
+const P95 = __ENV.SCALE_P95 || '3000';
+const P99 = __ENV.SCALE_P99 || '6000';
+export const options = Object.assign(
+  build({ 'http_req_duration{phase:load}': [`p(95)<${P95}`, `p(99)<${P99}`] }),
+  { setupTimeout: '300s' },
+);
 export const handleSummary = summarize('scale');
 
 const ROWS = parseInt(__ENV.SCALE_ROWS || '20000', 10);

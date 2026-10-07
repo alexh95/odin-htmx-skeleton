@@ -83,7 +83,10 @@ mkdir -p "$RAW"
 # ---- server lifecycle helpers -------------------------------------------
 SRV_PID=""
 start_server() { # $1 = port
-  "$BIN" "$1" >"$RAW/server_$1.log" 2>&1 &
+  # PORT is set, not just passed: the server prefers an exported PORT over argv.
+  # LOG_LEVEL=warn drops the access log (~9% of throughput) so numbers stay
+  # comparable with runs before it existed; export LOG_LEVEL=info to keep it.
+  PORT="$1" LOG_LEVEL="${LOG_LEVEL:-warn}" "$BIN" "$1" >"$RAW/server_$1.log" 2>&1 &
   SRV_PID=$!
   # wait for /healthz (up to ~10s)
   i=0

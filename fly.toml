@@ -14,8 +14,10 @@ primary_region = "fra"
   PORT     = "8080"
   BIND_ALL = "1"
   # SITE_URL is the canonical origin: the canonical/og tags, the sitemap, and
-  # where the app redirects *.fly.dev requests (see canonical_host in main.odin).
-  # Set it once a domain serves the app; the built-in default is in brand.odin.
+  # where the app redirects *.fly.dev requests (see canonical_host in
+  # controllers/middleware.odin). Set it once a domain serves the app; the
+  # built-in default is in brand.odin. A placeholder (*.example.com and the
+  # like) never redirects, so a fork can deploy before it has a domain.
   # SITE_URL = "https://app.example.com"
   # DB_PATH is unset → SQLite ":memory:" (the demo reseeds on each deploy). To
   # persist, create a volume and uncomment both this and the [mounts] block below:

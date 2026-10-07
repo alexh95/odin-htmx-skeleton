@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures';
-import { spawnServer, waitHealthy, get, stop } from '../helpers/server';
+import { startServer, stopServer, get } from '../helpers/server';
 
 // What an operator gets from the binary: a version on every response, a health
 // check that covers the store, and one access-log line per request. Shared by
@@ -15,19 +15,14 @@ test.describe('operations', () => {
   });
 
   test('a request writes one access-log line', async () => {
-    const port = 8400 + test.info().parallelIndex;
-    const proc = spawnServer(test.info().config, port);
-    let out = '';
-    proc.stdout?.on('data', (d) => (out += d));
-    proc.stderr?.on('data', (d) => (out += d));
+    const srv = await startServer(test.info().config);
     try {
-      await waitHealthy(port);
-      await get(port, '/about?q=not-logged');
-      await expect.poll(() => out).toMatch(/GET \/about 200 \d+\.\d+ms/);
-      expect(out).not.toContain('not-logged'); // the query can hold what a user typed
-      expect(out).toMatch(/version \S+, store :memory:/);
+      await get(srv.port, '/about?q=not-logged');
+      await expect.poll(srv.output).toMatch(/GET \/about 200 \d+\.\d+ms/);
+      expect(srv.output()).not.toContain('not-logged'); // the query can hold what a user typed
+      expect(srv.output()).toMatch(/version \S+, store :memory:/);
     } finally {
-      await stop(proc);
+      await stopServer(srv);
     }
   });
 });
