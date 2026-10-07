@@ -78,7 +78,8 @@ toolchain is now required** (MSVC Build Tools on Windows — run from an *x64 Na
 `PORT`) for containers — the deploy path (`Dockerfile`, `fly.toml`, `.github/workflows/ci.yml`,
 `infra/PLAN.md`).
 
-Verify with curl for contracts, and a browser (preview/headless pointed at `localhost`) for
+Verify with curl for contracts, and a browser (preview/headless pointed at `127.0.0.1` — the server
+binds IPv4 loopback only, so `localhost` can stall on `::1` first) for
 anything HTMX actually swaps or animates. The store is SQLite, chosen by `DB_PATH`: `:memory:`
 (a fresh seeded store per process — the test/CI default) or a file path that persists (`run.*`
 default to a local `data.db`, with `SEED=1` so it gets the demo rows; a file DB is never seeded

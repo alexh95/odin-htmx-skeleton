@@ -27,7 +27,7 @@ requirement (its libraries are also what Odin links against — on Windows with 
 ```sh
 # Windows
 prepare.bat        # one-time: clones odin-http, downloads htmx.min.js, fetches + compiles SQLite
-run.bat            # builds and serves on http://localhost:8080
+run.bat            # builds and serves on http://127.0.0.1:8080 (OPEN=1 also opens a browser tab)
 
 # Linux / macOS
 ./prepare.sh
@@ -54,14 +54,14 @@ Search lives in the top bar (debounced HTMX active-search) and is also exposed a
 JSON endpoint that has nothing to do with HTMX:
 
 ```sh
-curl 'http://localhost:8080/api/search?q=grace'
+curl 'http://127.0.0.1:8080/api/search?q=grace'
 ```
 
 CRUD runs over real HTTP verbs — exercise it directly:
 
 ```sh
-curl -X POST   'http://localhost:8080/contacts' -d 'name=Test User&email=t@example.dev&role=Sales'
-curl -X DELETE 'http://localhost:8080/contacts/1'
+curl -X POST   'http://127.0.0.1:8080/contacts' -d 'name=Test User&email=t@example.dev&role=Sales'
+curl -X DELETE 'http://127.0.0.1:8080/contacts/1'
 ```
 
 ## Architecture
