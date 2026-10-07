@@ -13,8 +13,7 @@ sense* — and when it honestly doesn't need to.
 
 The whole point of the layered design is that the datasource is swappable without touching anything
 above it. **the `src/repository/` package (`db.odin` + `repo.odin` + `contacts.odin` + `events.odin`) is the only code that touches storage.** Everything
-else speaks in `models.Contact` and calls `repo_list / repo_get / repo_create / repo_update /
-repo_delete`. Swapping backends = reimplementing those procedures. Services, views, controllers,
+else speaks in `models.Contact` and reaches the `repo_*` procs through `services`. Swapping backends = reimplementing those procedures. Services, views, controllers,
 and the entire HTTP surface stay byte-for-byte identical.
 
 So this is not a rewrite — it lives behind a contract that already holds.

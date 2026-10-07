@@ -5,11 +5,12 @@ and gotchas that aren't obvious from the source and that are expensive to redisc
 
 ## What this is
 
-A web app showcasing an **Odin** backend rendering HTML with **HTMX** on the front end — evolving
-into a flagship internal admin console with a multi-style theme library. **Read
-[`PHILOSOPHY.md`](PHILOSOPHY.md) first** — it's the why, and changes must stay in line with it.
-[`docs/USE_CASES.md`](docs/USE_CASES.md) says what the stack is for (and the flagship direction);
-[`docs/DATA.md`](docs/DATA.md) is the path past the in-memory POC.
+A **starter skeleton** for server-rendered web apps: an **Odin** backend rendering HTML, with
+**HTMX** on the front end and SQLite as the store, in one binary. The contacts/events console it
+ships is the *worked example* that proves the patterns, not a product to finish; a fork strips it
+(`init --minimal`) and keeps the scaffolding. **Read [`PHILOSOPHY.md`](PHILOSOPHY.md) first** —
+it's the why, and changes must stay in line with it. [`docs/USE_CASES.md`](docs/USE_CASES.md) says
+what the stack is for; [`docs/DATA.md`](docs/DATA.md) covers the store, its limits, and backups.
 
 ```
 odin-htmx-skeleton/
@@ -66,9 +67,27 @@ prepare.bat   # once: fetch htmx + the SQLite amalgamation, compile sqlite    (.
 run.bat [port]   # build + serve (default 8080)                              (./run.sh elsewhere)
 
 odin build src -out:bin/demo.exe    # build only (entry package is src/); MUST be warning-free
+odin check src -vet -warnings-as-errors   # what CI's build holds you to, plus vet
 odin test src/repository            # the store's own tests (db_test.odin: binding, errors, migrations)
+odin test src/views                 # the escaping boundary's tests (html_test.odin)
 ./bin/demo.exe 8080                 # run the built binary on a port
+DB_PATH=data.db ./bin/demo.exe --backup backup.db   # consistent copy of a live DB, then exit
 ```
+
+The binary reads its whole configuration from the environment:
+
+| Variable | Default | What it does |
+|---|---|---|
+| `PORT` | first argument, else `8080` | Listen port. |
+| `BIND_ALL` | unset (loopback) | Any value listens on `0.0.0.0`: containers only. |
+| `DB_PATH` | `:memory:` | SQLite file to persist to; `:memory:` is fresh per process. |
+| `SEED` | unset | `1` seeds the demo rows into an empty file DB (`:memory:` always is). |
+| `SITE_URL` | `views.SITE_URL` (brand.odin) | Canonical origin: tags, sitemap, the fly.dev redirect. |
+| `THREADS` | one per core | Event-loop threads. |
+| `LOG_LEVEL` | `info` | `debug`/`info`/`warn`/`error`; `warn` silences the access log. |
+| `OPEN` | unset | `run.*` only: `1` opens a browser tab. |
+
+The build version is not an env var: `-define:VERSION=…` (default `dev`), sent as `x-version`.
 
 odin-http is a **pinned git submodule** (`app/odin-http`); after a fresh clone run
 `git submodule update --init` (or `git clone --recurse-submodules`). `prepare.*` fetches htmx and
@@ -110,9 +129,11 @@ framework or a server). All three are pinned and vendored/compiled into the one 
 
 ## Architecture — strict layering
 
-Each layer is its own Odin **package** under `app/src/` (a directory = a package), so the
-boundaries are enforced by the compiler, not just convention. Dependencies point one direction
-only; an illegal shortcut won't compile (or would create an import cycle).
+Each layer is its own Odin **package** under `app/src/` (a directory = a package). Dependencies
+point one direction only. The compiler enforces part of that: packages can't import each other in
+a cycle, so a repository that reached back into the views wouldn't build. The *direction* itself
+is a convention, kept by review and by the import lists: controllers and views import `services`,
+never `repository`; nothing below the controllers imports odin-http.
 
 ```
 src/ (main: main.odin, routes.odin) → controllers → services → repository → models
@@ -122,11 +143,11 @@ src/ (main: main.odin, routes.odin) → controllers → services → repository 
 | Package (dir) | Layer | Rule |
 |------|-------|------|
 | `src/models/` | model | Types + enum label tables. No logic, no imports beyond `core`. |
-| `src/sqlite/` | binding | ~15 `foreign` decls for the SQLite amalgamation. The only C-ABI crossing. |
+| `src/sqlite/` | binding | ~20 `foreign` decls for the SQLite amalgamation (text, int, int64, double, NULL; `column_type` to tell NULL from 0/""). The only C-ABI crossing. |
 | `src/repository/` | repository | Owns the SQLite store: `db.odin` (connection/lock/migration runner + helpers, entity-agnostic and shared with `--minimal`), `repo.odin` (this app's migrations, statement wiring, seed) + per-table files (`contacts.odin`, `events.odin`). Imports `models`, `sqlite`. |
 | `src/services/` | service | Search/sort/paginate/validate. Plain values + errors, never HTTP. Imports `models`, `repository`. |
 | `src/views/` | view | HTML builders (a component is a proc writing into a `^strings.Builder`). Imports `models`, `services` — never `repository`: a page gets its data as a parameter. |
-| `src/controllers/` | controller | **The only layer that imports `http`.** Parse → call service → render via `views.*` → respond. Embeds htmx via `#load`. |
+| `src/controllers/` | controller | **The only layer that handles HTTP** (`main` imports odin-http only to start the server). Parse → call service → render via `views.*` → respond. `middleware.odin` is what every request passes through; embeds the assets via `#load`. |
 | `src/` (`package main`) | entry + wiring | `main.odin` seeds + serves, installing `controllers.front` (the one middleware: `controllers/middleware.odin`); `routes.odin` is the route table. Imports `controllers` (+ `repository` for the seed, `views` for `SITE_URL`). |
 
 Cross-package calls are qualified: `repository.repo_list()`, `services.service_page()`,
@@ -142,7 +163,15 @@ corrupt each other (parallel reads return with per-thread WAL connections — `d
 and the note in `repository/db.odin`). Because callers read a returned contact *after* the lock
 drops, the repository hands out **temp-arena snapshots** (columns cloned into the request arena via
 `clone_col`), never pointers into a statement buffer. If you touch the store, go through a `repo_*`
-proc.
+proc, reached from a service.
+
+**Store procs return their failures as values.** Writes run through `step_done` and reads through
+`next_row`, which log SQLite's message and return a `repository.Error`
+(`.None`/`.Not_Found`/`.Constraint`/`.Failed`; services re-export it as `Store_Error`). Never call
+`sqlite.step` and then read `last_insert_rowid` or `changes()` unchecked: after a failed step they
+describe the *previous* statement. Bind with the helpers: `bind_text` (stores `""` as `""`, not NULL),
+`bind_id`/`column_id` (ids are 64-bit; `c.int` is 32), `sqlite.bind_null`/`bind_double`. A
+controller answers an error with `respond_store_error` (404 / 409 / 500).
 
 ## Code aesthetics (Odin)
 
@@ -224,9 +253,12 @@ the response is flushed.
 
 - **Build all response HTML in the temp allocator** (`strings.builder_make(context.temp_allocator)`,
   `fmt.tprintf`, etc.). It lives exactly long enough and costs nothing to free.
-- **`context.allocator` stays the heap.** Anything that must outlive the request — i.e.
-  everything stored in the repository — is `strings.clone`d into it. `repo_create`/`repo_update`
-  clone; `repo_delete` frees. **Never put a temp-allocated string into the store.**
+- **The data lives in SQLite, not in the heap.** SQLite copies what you bind (`bind_text` passes
+  `SQLITE_TRANSIENT`), so a temp-arena string is fine to write, and what the repository hands back is
+  a snapshot cloned into the request arena. Nothing per request touches `context.allocator`. The
+  one rule: **never keep a returned string past the request** (in a global, a cache); clone it
+  into `context.allocator` first if you must. `context.allocator` is for what lives as long as the
+  process: the ETags, the CSP, the fingerprinted asset names, computed once at boot.
 - **Handlers never read the body themselves.** `controllers.front` (`middleware.odin`) reads it
   before routing, capped at `MAX_BODY` (64 KiB; a bigger body gets 413 unread), so a handler is
   plain synchronous code that calls `request_form()`. `http.body` may defer to the event loop, which
@@ -403,7 +435,11 @@ Store failures are separate: `respond_store_error` (404 / 409 / 500).
 
 ## Odin gotchas (discovered here)
 
-- `strconv.atoi` is deprecated → `strconv.parse_int(s, 10)`.
+- `strconv.atoi` is deprecated → `strconv.parse_int(s, 10)`. But `parse_int` wraps silently past 64
+  bits (`"18446744073709551617"` → `1`, ok=true): parse anything that names a row with `parse_id`.
+- `*_test.odin` files compile into every `odin build` too (only `odin test` runs them), so a test
+  file must build in both the demo and `--minimal`. The test runner fails a test that logs at
+  `.Error`; silence an expected one with `context.logger = log.nil_logger()`.
 - `len(EnumType)` is valid (member count). Iterate enumerated arrays as `for value, key in ARR`.
 - `make([dynamic]T, context.temp_allocator)` is valid (allocator as the 2nd arg).
 - Ternary `cond ? a : b` exists; use it for small attribute choices.
@@ -411,6 +447,22 @@ Store failures are separate: `respond_store_error` (404 / 409 / 500).
 
 ## Recipes
 
+- **New table / entity** (say `tasks`):
+  1. `models.odin`: the `Task` struct (and any enum + its label table).
+  2. `repository/migrations/000N_tasks.sql`: the `CREATE TABLE` (plain SQL, no `BEGIN`/`COMMIT`:
+     the runner wraps it), and list it in `MIGRATIONS` in `repo.odin`. Never edit a migration that
+     has shipped; add the next one (the boot refuses a changed hash).
+  3. `repository/tasks.odin`, copying `notes.odin` / `contacts.odin`: each statement is a file-private
+     `q_x: sqlite.Stmt` plus a `SQL_X: cstring`, prepared in `prepare_tasks` and freed in
+     `finalize_tasks`; call both from `repo_open`/`repo_close`. Each `repo_*` takes the lock, binds,
+     runs `step_done`/`next_row`, and returns `(value, Error)`.
+  4. Seed, if it's demo data: a `seed_tasks` under `repo_seed`, run only for `:memory:`/`SEED=1`.
+  5. `services`: validation (with a length cap on every text field) and the calls the controllers
+     make; then views, controllers and routes as for a page or fragment below.
+  6. Tests: an e2e spec in `e2e/tests/` (the fixtures give each worker its own `:memory:` server, so
+     `page`/`request` need no setup; make the rows your test acts on, since the store is shared by
+     the worker's other specs), and a k6 scenario in `load-tests/scenarios/` copying `list.js`
+     (`options` + `summarize` from `lib/options.js`). Both are picked up with no wiring.
 - **New page**: add `view_x()` in `src/views/` → `page_x` controller calling
   `render_page(res, "Title", "/x", desc, views.view_x())` → `route_get` in `routes.odin` → a nav
   entry in `NAV` (`src/views/views.odin`) if it's top-level. The `NAV` entry also puts the page in
@@ -418,8 +470,11 @@ Store failures are separate: `respond_store_error` (404 / 409 / 500).
   Add e2e + load scenarios. Changelog.
 - **New fragment/endpoint**: `view_*` returning bare HTML → controller → route. If it mutates,
   go through a service → repository proc; never touch the store from a controller or a view (both
-  import only `services`, which is where validation and error mapping live). Escape all
-  input. Add e2e + load scenarios. Changelog.
+  import only `services`, which is where validation and error mapping live). A handler reads its
+  form with `request_form()` (already size-capped and CSRF-checked by the middleware), answers
+  refused input with 422 (see "Validation errors"), and parses path ids with `parse_id`. Escape all
+  input. If it's a fragment, add it to `robots.txt`'s Disallow list. Add e2e + load scenarios.
+  Changelog.
 - **New component**: a proc writing into `^strings.Builder` + a token-driven CSS block. Reuse
   `icon`, `esc`, `w`. Add it to the `/components` gallery.
 ```

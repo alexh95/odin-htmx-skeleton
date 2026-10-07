@@ -11,8 +11,8 @@ the repository.
 
 ## 0. The contract to preserve
 
-The `src/repository/` package is the only code that touches storage. The rest of the app speaks
-in `models.Contact` and calls exactly these procedures:
+The `src/repository/` package is the only code that touches storage, and only `services` calls
+it. This was the contract when SQLite went in:
 
 ```odin
 repo_list   :: proc() -> []models.Contact
@@ -23,6 +23,12 @@ repo_set_status :: proc(id: int, status: models.Status) -> (models.Contact, bool
 repo_delete :: proc(id: int) -> bool
 repo_seed   :: proc()
 ```
+
+> **Since then** every proc returns a `repository.Error` (`.None`/`.Not_Found`/`.Constraint`/
+> `.Failed`) instead of a bool or nothing, because a failed `step()` used to be invisible (and
+> `last_insert_rowid` then named the previous row); `repo_set_status` became the single-statement
+> `repo_cycle_status`; `repo_create` takes `notes`/`notify`; and the dashboard reads
+> `repo_contact_stats`, one `GROUP BY`. Read `contacts.odin` for the current list.
 
 **The whole job is to reimplement these seven over SQLite.** Services, views, controllers, e2e, and
 load-tests do not change. Two invariants must hold exactly as today:
@@ -84,6 +90,11 @@ Enums map to their integer value (`int(role)`), so the DB stays in lockstep with
 lookup table; the label tables (`ROLE_NAMES`) remain the single source of truth for display. A
 `schema_version` table + a tiny apply-on-boot loop runs any migration whose number exceeds the
 stored version. `#load` the `.sql` files at compile time so they ride inside the binary.
+
+> **As shipped**, each migration runs in one transaction with the `schema_version` row that records
+> it (so a failure leaves the schema untouched and names the file), and the row records the file's
+> name and sha256: an applied migration that was edited, renamed or is unknown to the binary stops
+> the boot with a message, rather than being skipped because the version count matched.
 
 ## 3. Connection lifecycle + pragmas
 
