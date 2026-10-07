@@ -660,6 +660,7 @@ fieldset { border: none; padding: 0; margin: 0; display: flex; flex-direction: c
 .detail-score .meter { width: 84px; }
 .detail-rid { margin-left: auto; color: var(--faint); font-family: var(--mono); font-size: .8rem; }
 .detail-section h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); margin-bottom: 13px; }
+.detail-notes { margin: 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .timeline { list-style: none; margin: 0; padding: 0; }
 .timeline li { display: flex; gap: 12px; padding-bottom: 16px; position: relative; }

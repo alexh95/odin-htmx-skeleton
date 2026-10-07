@@ -54,6 +54,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
 
 ### Fixed
+- **`/forms` stores the notes and the email-updates switch it posts** (part of
+  [#23](https://github.com/alexh95/odin-htmx-skeleton/issues/23); the e2e half of
+  [#15](https://github.com/alexh95/odin-htmx-skeleton/issues/15)). `forms_submit` silently dropped
+  both. Migration `0003_contact_notes.sql` adds `notes TEXT NOT NULL DEFAULT ''` and `notify`;
+  `create_contact` stores them (notes capped at 1000 characters, `maxlength` to match), the drawer
+  shows them, and `/api/search` returns them. Empty notes are the optional text field #15 was about:
+  `writes.spec.ts` submits one and reads it back as `""`.
 - **The dashboard shows only what the store says** (part of
   [#23](https://github.com/alexh95/odin-htmx-skeleton/issues/23) and
   [#14](https://github.com/alexh95/odin-htmx-skeleton/issues/14)). "+4 this week" and "82% of base"
