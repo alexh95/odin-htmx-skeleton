@@ -43,12 +43,13 @@ finalize_events :: proc() {
 }
 
 // The detail drawer's activity feed: real interactions, other party resolved.
-event_timeline :: proc(contact_id: int) -> []models.Interaction {
+event_timeline :: proc(contact_id: int) -> ([]models.Interaction, Error) {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
 	defer sqlite.reset(q_timeline)
 	sqlite.bind_int(q_timeline, 1, c.int(contact_id))
 	out := make([dynamic]models.Interaction, context.temp_allocator)
-	for sqlite.step(q_timeline) == sqlite.ROW {
+	err: Error
+	for next_row(q_timeline, &err) {
 		append(
 			&out,
 			models.Interaction {
@@ -62,7 +63,7 @@ event_timeline :: proc(contact_id: int) -> []models.Interaction {
 			},
 		)
 	}
-	return out[:]
+	return out[:], err
 }
 
 // ---- internals (caller holds the lock) ----------------------------------
@@ -77,14 +78,14 @@ count_events :: proc() -> int {
 }
 
 @(private = "file")
-create_event :: proc(actor_id, target_id: int, kind: models.Event_Kind, at: i64, note: string) {
+create_event :: proc(actor_id, target_id: int, kind: models.Event_Kind, at: i64, note: string) -> Error {
 	defer sqlite.reset(q_event_create)
 	sqlite.bind_int(q_event_create, 1, c.int(actor_id))
 	sqlite.bind_int(q_event_create, 2, c.int(target_id))
 	sqlite.bind_int(q_event_create, 3, c.int(kind))
 	sqlite.bind_int64(q_event_create, 4, at)
 	bind_text(q_event_create, 5, note)
-	sqlite.step(q_event_create)
+	return step_done(q_event_create)
 }
 
 // Deterministic interactions among whatever contacts exist (adapts to the seeded
@@ -123,7 +124,9 @@ seed_events :: proc() {
 			kind := kinds[(i + k) % len(kinds)]
 			at := now - i64(2 + (i * 7 + k * 13) % 200) * DAY
 			note := notes[(i + k) % len(notes)]
-			create_event(ids[i], tgt, kind, at, note)
+			if create_event(ids[i], tgt, kind, at, note) != .None {
+				fatal("seed")
+			}
 		}
 	}
 }

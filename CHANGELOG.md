@@ -21,6 +21,18 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
 
 ### Fixed
+- **Store errors are no longer ignored, and empty strings are stored as `""`**
+  ([#15](https://github.com/alexh95/odin-htmx-skeleton/issues/15)). `bind_text` passed a nil pointer
+  for `""`, which SQLite binds as NULL, so a `NOT NULL` text column rejected it; and no `step()`
+  result was checked, so a failed insert returned the *previous* row's id as if it were the new one.
+  `bind_text` now points at a real zero-length buffer. Writes go through `step_done` and reads
+  through `next_row`, which log SQLite's message and return a `repository.Error`
+  (`Not_Found`/`Constraint`/`Failed`). It travels up through `services` (re-exported as
+  `Store_Error`) to the controllers, where `respond_store_error` answers 404, 409 or 500: an
+  out-of-band toast for htmx, an error page otherwise. The minimal starter does the same with a plain
+  500. The binding gains `bind_null`, `bind_double`, `column_double` and `column_type`. Tested by
+  `app/src/repository/db_test.odin` (`odin test src/repository`): `""` round-trips as text, and a
+  failed write returns `Constraint`, not a stale row.
 - **Request bodies and text fields are size-limited**
   ([#13](https://github.com/alexh95/odin-htmx-skeleton/issues/13)). A 50 MB `name` used to be
   stored and then re-sent by every page that listed it. A new `controllers.front` middleware
