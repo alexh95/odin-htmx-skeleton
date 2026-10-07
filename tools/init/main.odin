@@ -19,16 +19,13 @@ package main
 //
 // The tool is itself an Odin program — the skeleton's own tooling stays on the
 // stack it teaches. It edits a fixed set of files (no directory walk), so what
-// it touches is auditable right here.
+// it touches is auditable right here. Every edit is planned in memory and must
+// apply before anything is written (see plan.odin): init either does all of
+// it or, naming each miss, none of it.
 
 import "core:fmt"
 import "core:os"
 import "core:strings"
-
-// A literal find/replace. Applied in order, so list the most specific first.
-Repl :: struct {
-	old, new: string,
-}
 
 Options :: struct {
 	name:     string,
@@ -42,6 +39,23 @@ Options :: struct {
 
 main :: proc() {
 	opt := parse_args(os.args[1:])
+	if !os.exists("tools/init/main.odin") {
+		fatal("run it from the repo root: every path it edits is relative to there")
+	}
+	// A second run would trip over every edit the first one made. Say so plainly
+	// instead of listing them all.
+	if brand, err := os.read_entire_file("app/src/views/brand.odin", context.allocator);
+	   err == nil && !strings.contains(string(brand), UPSTREAM_BRAND_REPO) {
+		fatal("this checkout is already renamed (brand.odin's BRAND_REPO isn't the upstream's); init runs once, on a fresh copy of the template")
+	}
+
+	// Plan first (read-only), so a checkout init no longer fits fails before
+	// the prompt rather than after it.
+	rename(opt)
+	if opt.minimal {
+		strip_to_minimal(opt)
+	}
+	check()
 
 	fmt.printfln("Rename this skeleton to %q:", opt.name)
 	fmt.printfln("  binary / Fly app / image / service : %s", opt.name)
@@ -59,12 +73,8 @@ main :: proc() {
 		os.exit(0)
 	}
 
-	fmt.println("Renaming:")
-	rename(opt)
-	if opt.minimal {
-		fmt.println("Stripping the demo to a minimal starter:")
-		strip_to_minimal(opt)
-	}
+	fmt.println("Applying:")
+	commit()
 
 	fmt.println()
 	fmt.println("Done. Next:")
@@ -76,6 +86,8 @@ main :: proc() {
 }
 
 // ---- rename -------------------------------------------------------------
+
+UPSTREAM_BRAND_REPO :: `BRAND_REPO :: "https://github.com/alexh95/odin-htmx-skeleton"`
 
 rename :: proc(opt: Options) {
 	name := opt.name
@@ -105,11 +117,11 @@ rename :: proc(opt: Options) {
 		"e2e/package-lock.json",
 		"app/src/main.odin",
 		"README.md",
-		"app/README.md",
 		"CLAUDE.md",
 	}
+	hits := make([]int, len(std))
 	for f in std_files {
-		edit(f, std)
+		sweep(f, std, hits)
 	}
 
 	// apollo-11's compose refers to the service by the bare `odin-htmx` (service /
@@ -117,7 +129,13 @@ rename :: proc(opt: Options) {
 	apollo := make([dynamic]Repl)
 	append(&apollo, ..std)
 	append(&apollo, Repl{"odin-htmx", name}) // also rewrites odin-htmx-data -> <name>-data
-	edit("deploy/apollo-11/docker-compose.yml", apollo[:])
+	sweep("deploy/apollo-11/docker-compose.yml", apollo[:], make([]int, len(apollo)))
+
+	for n, k in hits {
+		if n == 0 {
+			problem("no file names %q any more; drop it from rename's tokens", std[k].old)
+		}
+	}
 
 	// brand.odin holds the site-identity constants; rewrite each whole line so the
 	// repo URL's `odin-htmx-skeleton` isn't caught by the token pass above.
@@ -126,7 +144,7 @@ rename :: proc(opt: Options) {
 		[]Repl {
 			{`BRAND_WORDMARK :: "odin<b>·</b>htmx"`, strings.concatenate({`BRAND_WORDMARK :: "`, opt.wordmark, `"`})},
 			{`BRAND_SUFFIX :: "Odin + HTMX"`, strings.concatenate({`BRAND_SUFFIX :: "`, opt.suffix, `"`})},
-			{`BRAND_REPO :: "https://github.com/alexh95/odin-htmx-skeleton"`, strings.concatenate({`BRAND_REPO :: "`, opt.repo, `"`})},
+			{UPSTREAM_BRAND_REPO, strings.concatenate({`BRAND_REPO :: "`, opt.repo, `"`})},
 			{`SITE_URL := "https://odin-htmx.alexh95.com"`, strings.concatenate({`SITE_URL := "`, opt.site, `"`})},
 			// Blanked, never rewritten: a search-engine ownership token proves *this*
 			// deployment is ours. A fork serving it would be advertising a stranger's
@@ -135,32 +153,6 @@ rename :: proc(opt: Options) {
 			{`INDEXNOW_KEY :: "e826b40f813548d2bd2e94885e506dfa"`, `INDEXNOW_KEY :: ""`},
 		},
 	)
-}
-
-// Read a file, apply the replacements, write it back if anything changed.
-edit :: proc(path: string, repls: []Repl) {
-	data, rerr := os.read_entire_file(path, context.allocator)
-	if rerr != nil {
-		fmt.printfln("  %-38s (skipped — not found)", path)
-		return
-	}
-	s := string(data)
-	total := 0
-	for r in repls {
-		c := strings.count(s, r.old)
-		if c > 0 {
-			s, _ = strings.replace_all(s, r.old, r.new)
-			total += c
-		}
-	}
-	if total == 0 {
-		return
-	}
-	if werr := os.write_entire_file(path, s); werr != nil {
-		fmt.eprintfln("  ERROR writing %s: %v", path, werr)
-		os.exit(1)
-	}
-	fmt.printfln("  %-38s %d edit%s", path, total, total == 1 ? "" : "s")
 }
 
 // ---- args ---------------------------------------------------------------
