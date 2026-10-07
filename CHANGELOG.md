@@ -88,6 +88,11 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   the build could link a stale SQLite or fail later with a less useful error. It now skips `prepare`
   when htmx, the SQLite stamp and a newer library already match `prepare.sh`'s pins, so a re-run on
   Windows needs no MSVC prompt. When `prepare` does run, its failure stops the suite.
+- **Stale notes in the e2e docs, `ci.yml` and the `Dockerfile`** (part of
+  [#33](https://github.com/alexh95/odin-htmx-skeleton/issues/33)). `e2e/PLAN.md` described 31 tests in
+  six files run by a `serve.mjs` launcher, and its CI section described a browser install the CI
+  doesn't do. `e2e/README.md` left out `seo` and `responsive`. Both said CSS is served from disk.
+  The `Dockerfile` header spoke of on-disk static assets, and `ci.yml` of "the planned SQLite layer".
 
 ## [1.1.1] - 2026-10-07
 

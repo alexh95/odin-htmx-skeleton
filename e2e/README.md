@@ -45,11 +45,15 @@ tests/
   navigation.spec.ts   dashboard + stat-card drill-through, routing + aria-current, ping, theme + showroom,
                        view transitions on boosted nav only (regression)
   search.spec.ts       active search: highlight, navigate, collapse, Escape/outside-click
-  components.spec.ts    tabs, accordion, toasts, modal (regression), drawer
+  components.spec.ts   tabs, accordion, toasts, modal (regression), drawer
   forms.spec.ts        email validation, field-persist (regression), click during a swap (regression),
                        slider --fill (regression), submit+reset
   crud.spec.ts         create/cycle/delete, 404, sort (+ injection regression), pagination, filters, detail drawer
-  assets.spec.ts       embedded htmx, on-disk css, path-traversal 404, health, JSON API
+  assets.spec.ts       embedded htmx + css, caching (ETag/304, fingerprinted URLs), path-traversal 404,
+                       health, JSON API
+  responsive.spec.ts   no horizontal overflow at 390px on each nav page
+  seo.spec.ts          crawler contract: robots, sitemap, canonical + social tags, JSON-LD, favicon,
+                       *.fly.dev redirect
   events.spec.ts       (api) events between contacts: deleting a contact cascades its interactions (FK)
   persistence.spec.ts  (api) data survives a process restart (a file-backed DB)
 ```

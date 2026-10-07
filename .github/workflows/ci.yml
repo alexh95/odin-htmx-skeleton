@@ -160,8 +160,7 @@ jobs:
 
       # One smoke script for all three: shell bash everywhere (git-bash is on the
       # Windows runner, and MSYS resolves ./bin/demo to demo.exe). DB_PATH=:memory:
-      # keeps it forward-compatible with the planned SQLite layer (no CI volume);
-      # it's a harmless no-op against the current in-memory store.
+      # gives it a throwaway SQLite store, so the smoke's write needs no volume.
       - name: Smoke test the binary
         shell: bash
         env:

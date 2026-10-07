@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 #
-# Two stages: build the self-contained binary, then ship it with the on-disk
-# static assets on a slim glibc base. The runtime image carries no toolchain.
+# Two stages: build the self-contained binary, then ship it alone on a slim glibc
+# base. Every static asset is embedded in it, so the runtime image carries no
+# toolchain and no asset files.
 #
 # Running it needs Linux io_uring, which Docker's default seccomp profile blocks
 # (since 25.0): start it with docker/seccomp-io-uring.json, as compose.yaml does,
@@ -35,7 +36,8 @@ RUN curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSI
 ENV PATH="/opt/odin:${PATH}"
 
 # Only the app dir is needed to build. odin-http rides in via its submodule
-# (already in the build context), so prepare just fetches htmx for #load.
+# (already in the build context), so prepare only fetches htmx and SQLite (both
+# pinned by SHA-256) and compiles SQLite.
 COPY app /src/app
 WORKDIR /src/app
 # Invoke via `sh` (not ./) so the build doesn't depend on the exec bit, which a
