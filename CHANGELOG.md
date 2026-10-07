@@ -15,6 +15,19 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   renders as the current nav item, that the nav reaches it with a boosted swap, and that its repository
   link matches the JSON-LD. The starter's `pages.js` now loads `/about` as well as `/`.
 
+### Changed
+- **`deploy/apollo-11` is now `deploy/docker-host`, a generic self-host example**
+  ([#44](https://github.com/alexh95/odin-htmx-skeleton/issues/44)). It was the only deploy with
+  persistence, and it was wired to one home server: an ssh alias, `/mnt/fast-storage`, and an
+  external `npm` network. `deploy.sh` now takes `HOST` (required), plus `NAME`, `REMOTE_DIR`,
+  `HOST_PORT`, `VOLUME` and `PROXY_NET`, and writes them to an `.env` beside `compose.yaml`. The
+  reverse-proxy network is an opt-in overlay (`compose.proxy.yaml`). The container now stops on
+  SIGINT, the only signal the server shuts down cleanly on; as PID 1 it ignored Docker's SIGTERM
+  until the SIGKILL, skipping the WAL checkpoint. The README covers backups. `init` renames the
+  defaults. To keep an existing deployment's container and data, set `NAME`, `REMOTE_DIR`,
+  `PROXY_NET` and `VOLUME`. Compose named the old volume `<project>_<volume>`, so check
+  `docker volume ls`.
+
 ### Fixed
 - **A fork's e2e no longer fails on the blanked ownership tokens**
   ([#24](https://github.com/alexh95/odin-htmx-skeleton/issues/24)). The `BingSiteAuth.xml` and

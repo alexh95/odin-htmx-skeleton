@@ -1,0 +1,13 @@
+# Layered over compose.yaml when PROXY_NET is set (deploy.sh puts both in
+# COMPOSE_FILE): joins an existing docker network, so a reverse proxy on it
+# (nginx-proxy-manager, Caddy, Traefik) reaches the app by container name as
+# ${NAME}:8080. The published port stays, for direct access.
+services:
+  app:
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    name: ${PROXY_NET}
+    external: true
