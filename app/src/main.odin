@@ -55,8 +55,11 @@ main :: proc() {
 		}
 	}
 
+	// The banner prints 127.0.0.1, not localhost: the server listens on IPv4
+	// loopback only, and "localhost" tries ::1 first, which on Windows costs about
+	// 200 ms per request before falling back.
 	address := net.IP4_Loopback
-	host := "localhost"
+	host := "127.0.0.1"
 	if v, _ := os.lookup_env(env[:], "BIND_ALL"); v != "" {
 		address = net.IP4_Any
 		host = "0.0.0.0"

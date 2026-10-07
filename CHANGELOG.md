@@ -63,6 +63,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
 
 ### Fixed
+- **Windows dev-loop papercuts** (part of
+  [#35](https://github.com/alexh95/odin-htmx-skeleton/issues/35)). The server printed (and `run.bat`
+  opened) `http://localhost`, but listens on IPv4 loopback only, so each request first tried `::1`:
+  about 200 ms against 1.6 ms for `127.0.0.1`. The banner, the run scripts and the docs now say
+  `127.0.0.1`. `run.bat` and `run.sh` no longer open a browser tab on every run (`OPEN=1` asks for
+  one). And `run.bat` checks whether `bin\demo.exe` is held by a server still running from an
+  earlier run, saying so instead of letting the linker fail with "don't have access to write".
 - **`prepare.bat` re-runs cleanly outside the MSVC dev shell**
   ([#31](https://github.com/alexh95/odin-htmx-skeleton/issues/31)). It looked for `cl` before checking
   whether anything needed compiling, so every re-run from a plain shell failed with the Build Tools
