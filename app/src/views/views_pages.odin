@@ -10,14 +10,14 @@ import "core:strings"
 // These build the static structure of each page. The interactive bits hang off
 // HTMX attributes that point at the fragment handlers in controllers.odin.
 
+// Both are text.
 @(private = "file")
 section_open :: proc(b: ^strings.Builder, title, desc: string) {
-	fmt.sbprintf(
-		b,
-		`<section class="block"><div class="block-head"><h2>%s</h2><p class="muted">%s</p></div>`,
-		title,
-		desc,
-	)
+	w(b, `<section class="block"><div class="block-head"><h2>`)
+	esc(b, title)
+	w(b, `</h2><p class="muted">`)
+	esc(b, desc)
+	w(b, `</p></div>`)
 }
 
 @(private = "file")
@@ -115,7 +115,7 @@ view_components :: proc() -> string {
   </div></section>`)
 
 	// Accordion (native details/summary)
-	section_open(&b, "Accordion", "Built on &lt;details&gt; — semantic and keyboard-friendly.")
+	section_open(&b, "Accordion", "Built on <details> — semantic and keyboard-friendly.")
 	w(&b, `<div class="demo col accordion">`)
 	acc_item(&b, "What is HTMX doing here?", "Every interactive panel on this page is a server fragment swapped in over a single request. No client state, no build step.", true)
 	acc_item(&b, "Where does the markup come from?", "Odin procedures write HTML into a string builder. A component is just a proc — this accordion item is one.", false)
@@ -143,10 +143,13 @@ status_badge_demo :: proc(b: ^strings.Builder) {
 
 @(private = "file")
 acc_item :: proc(b: ^strings.Builder, q, a: string, open: bool) {
-	op := open ? " open" : ""
-	fmt.sbprintf(b, `<details class="acc"%s><summary><span>%s</span>`, op, q)
+	w(b, open ? `<details class="acc" open><summary><span>` : `<details class="acc"><summary><span>`)
+	esc(b, q)
+	w(b, `</span>`)
 	icon(b, "plus")
-	fmt.sbprintf(b, `</summary><div class="acc-body"><p>%s</p></div></details>`, a)
+	w(b, `</summary><div class="acc-body"><p>`)
+	esc(b, a)
+	w(b, `</p></div></details>`)
 }
 
 // ---- forms --------------------------------------------------------------
@@ -230,7 +233,7 @@ view_data :: proc(p: services.Page) -> string {
 	page_head(
 		&b,
 		"Data",
-		"Data &amp; CRUD",
+		"Data & CRUD",
 		"A live table over a SQLite store: filter, sort and paginate, plus create, update and delete.",
 	)
 
