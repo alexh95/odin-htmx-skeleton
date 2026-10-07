@@ -7,8 +7,8 @@ import "controllers"
 import "views"
 
 // The whole route table in one place. Specific patterns are registered before
-// catch-alls (e.g. the embedded htmx route before the on-disk /static handler)
-// because the router takes the first match in registration order.
+// catch-alls (the /static handler, then the fallback) because the router takes
+// the first match in registration order.
 build_router :: proc(r: ^http.Router) {
 	// controllers.health (platform liveness probe)
 	http.route_get(r, "/healthz", http.handler(controllers.health))
@@ -63,4 +63,8 @@ build_router :: proc(r: ^http.Router) {
 
 	// assets: all embedded into the binary, served from memory
 	http.route_get(r, "/static/(.+)", http.handler(controllers.serve_static))
+
+	// everything else: 405 (+ Allow) for a path another method serves, else 404.
+	// Last, because it matches every path.
+	http.route_all(r, ".*", controllers.fallback(r))
 }

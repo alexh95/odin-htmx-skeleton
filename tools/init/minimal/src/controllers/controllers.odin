@@ -15,13 +15,13 @@ import "../views"
 // services knows it is being driven over HTTP.
 
 render_page :: proc(res: ^http.Response, title, active, description, content: string) {
-	http.respond_html(res, views.layout(title, active, description, content))
+	respond_html(res, views.layout(title, active, description, content))
 }
 
 // A store failure the handler can't recover from: the details are in the log
 // (repository.step_done), the client gets a 500 and a plain message.
 respond_store_error :: proc(res: ^http.Response) {
-	http.respond_plain(res, "Something went wrong on our side. Try again in a moment.", .Internal_Server_Error)
+	respond_plain(res, "Something went wrong on our side. Try again in a moment.", .Internal_Server_Error)
 }
 
 // ---- pages --------------------------------------------------------------
@@ -57,7 +57,7 @@ page_about :: proc(req: ^http.Request, res: ^http.Response) {
 notes_create :: proc(req: ^http.Request, res: ^http.Response) {
 	note, problem, err := services.create_note(request_form()["body"])
 	if problem != "" {
-		http.respond_html(res, views.view_form_error(problem), .Unprocessable_Content)
+		respond_html(res, views.view_form_error(problem), .Unprocessable_Content)
 		return
 	}
 	if err != .None {
@@ -66,7 +66,7 @@ notes_create :: proc(req: ^http.Request, res: ^http.Response) {
 	}
 	b := strings.builder_make(context.temp_allocator)
 	views.view_note_li(&b, note)
-	http.respond_html(res, strings.to_string(b))
+	respond_html(res, strings.to_string(b))
 }
 
 // ---- health -------------------------------------------------------------
@@ -76,10 +76,10 @@ notes_create :: proc(req: ^http.Request, res: ^http.Response) {
 // every response by the middleware). Cheap: one SELECT 1.
 health :: proc(req: ^http.Request, res: ^http.Response) {
 	if !services.store_ok() {
-		http.respond_plain(res, "store unavailable", .Service_Unavailable)
+		respond_plain(res, "store unavailable", .Service_Unavailable)
 		return
 	}
-	http.respond_plain(res, "ok")
+	respond_plain(res, "ok")
 }
 
 // ---- seo ----------------------------------------------------------------
@@ -100,7 +100,7 @@ Allow: /
 Sitemap: `)
 	strings.write_string(&b, views.SITE_URL)
 	strings.write_string(&b, "/sitemap.xml\n")
-	http.respond_plain(res, strings.to_string(b))
+	respond_plain(res, strings.to_string(b))
 }
 
 sitemap_xml :: proc(req: ^http.Request, res: ^http.Response) {

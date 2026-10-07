@@ -4,7 +4,9 @@ import "core:crypto/sha2"
 import "core:encoding/base64"
 import "core:log"
 import "core:net"
+import "core:slice"
 import "core:strings"
+import "core:text/match"
 import "core:time"
 
 import http "../../odin-http"
@@ -42,7 +44,7 @@ front :: proc(handler: ^http.Handler, req: ^http.Request, res: ^http.Response) {
 		return
 	}
 	if !same_origin(req) {
-		http.respond_plain(res, "Cross-site request refused.", .Forbidden)
+		respond_plain(res, "Cross-site request refused.", .Forbidden)
 		access_log(req, res, start)
 		return
 	}
@@ -82,6 +84,71 @@ access_log :: proc(req: ^http.Request, res: ^http.Response, start: time.Tick) {
 	method := req.is_head ? "HEAD" : http.method_string(req.line.(http.Requestline).method)
 	ms := time.duration_milliseconds(time.tick_since(start))
 	log.infof("%s %s %d %.2fms", method, req.url.path, int(res.status), ms)
+}
+
+// ---- responses ----------------------------------------------------------
+//
+// odin-http names text types without a charset ("text/html"); the pages say
+// UTF-8 in a <meta>, but the header is what a client reads first. Use these,
+// not http.respond_html / http.respond_plain.
+
+respond_html :: proc(res: ^http.Response, html: string, status := http.Status.OK) {
+	respond_text(res, "text/html; charset=utf-8", html, status)
+}
+
+respond_plain :: proc(res: ^http.Response, text: string, status := http.Status.OK) {
+	respond_text(res, "text/plain; charset=utf-8", text, status)
+}
+
+@(private = "file")
+respond_text :: proc(res: ^http.Response, content_type, body: string, status: http.Status) {
+	res.status = status
+	http.headers_set_content_type(&res.headers, content_type)
+	http.body_set(res, body)
+	http.respond(res)
+}
+
+// A 404 a person might be looking at gets the site's own page; an htmx or API
+// request gets a bare 404, since a page would be swapped into a fragment.
+not_found :: proc(req: ^http.Request, res: ^http.Response) {
+	if http.headers_has(req.headers, "hx-request") {
+		http.respond(res, http.Status.Not_Found)
+		return
+	}
+	msg := "There is nothing at this address. It may have moved, or never existed."
+	respond_html(res, views.layout("Not found", "", msg, views.view_error("Page not found", msg)), .Not_Found)
+}
+
+// The route of last resort, registered after every other (routes.odin). A path
+// another method serves is a 405 naming the methods that do (Allow); anything
+// else is a 404.
+fallback :: proc(router: ^http.Router) -> http.Handler {
+	h: http.Handler
+	h.user_data = router
+	h.handle = proc(h: ^http.Handler, req: ^http.Request, res: ^http.Response) {
+		router := (^http.Router)(h.user_data)
+		allow := make([dynamic]string, context.temp_allocator)
+		caps: [match.MAX_CAPTURES]match.Match
+		for method, routes in router.routes {
+			for route in routes {
+				if n, err := match.find_aux(req.url.path, route.pattern, 0, true, &caps); err == .OK && n > 0 {
+					append(&allow, http.method_string(method))
+					if method == .Get {
+						append(&allow, "HEAD") // odin-http answers HEAD with the GET route
+					}
+					break
+				}
+			}
+		}
+		if len(allow) == 0 {
+			not_found(req, res)
+			return
+		}
+		slice.sort(allow[:]) // map order isn't stable; a header should be
+		http.headers_set(&res.headers, "allow", strings.join(allow[:], ", ", context.temp_allocator))
+		respond_plain(res, "Method not allowed.", .Method_Not_Allowed)
+	}
+	return h
 }
 
 // The current request's form fields, '+'- and percent-decoded. Empty for a
