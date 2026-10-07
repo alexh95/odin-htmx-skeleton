@@ -185,13 +185,29 @@ returning `sqlite3_changes(db) > 0`; `repo_seed` = the same loop as today, writi
 inside `scan_contact`. Nothing returned points into a statement's buffer, so a later `step`/`reset`
 on another thread can't pull the rug out — exactly the guarantee `snapshot()` gives today.
 
-## 6. Filtering/sorting: push it down (optional, later)
+## 6. Filtering/sorting: pushed down (done)
 
-Today `service_page` filters/sorts in Odin over the full list. With SQLite you *can* push `q`/status
-filtering and sort into SQL (`WHERE … LIKE ? AND status=? ORDER BY …`) and only fetch one page. Not
-required for correctness — the in-Odin path keeps working over `repo_list` — but it's the natural
-next optimization once the dataset outgrows "fits in a slice." Keep it behind the same
-`service_page` signature so nothing above notices.
+`service_page` used to load every contact into Odin and filter, sort and slice there, under the
+store's exclusive lock: at 20k contacts that was 60-260 ms a request, and the response grew with the
+table (a 400 KB pager, a 2.2 MB API answer). It now asks SQL for exactly one page:
+
+- **Filter**: `WHERE (status = ?) AND (q matches a role/status label OR contains_ci(name, ?) OR
+  contains_ci(email, ?))`. `contains_ci` is an Odin function registered with SQLite (`db.odin`),
+  not `LIKE`: SQLite's case folding is ASCII-only, and the search must keep matching per-rune
+  `unicode.to_lower` (`İ`, `ẞ`), which the highlighting relies on. The fixed role/status labels are
+  matched in Odin into bitmasks.
+- **Sort**: one prepared statement per key and direction (`ORDER BY` can't be bound); role and
+  status sort by label via a `CASE` derived from the label tables; `id` breaks ties.
+- **Page and count**: `LIMIT/OFFSET` plus a `count(*)` with the same filter. The pager shows a
+  window, the search dropdown and `/api/search` take a `LIMIT`, the related list too, and the
+  dashboard is one `GROUP BY`.
+
+Measured with one client at 20k contacts (`load-tests/scenarios/scale.js` drives the same paths
+under load): `/data` 63 → 2 ms, a deep filtered sorted page 107 → 16 ms, a search keystroke that
+matches nothing 259 → 18 ms, `/api/search` 213 → 1 ms, the detail drawer 14 → <1 ms. A substring
+search is still a scan (~1 µs a row, in SQLite); an FTS5 index would make it proportional to the
+matches, at the price of SQLite's folding rules. And it all still runs under the one exclusive lock,
+so concurrent readers queue: §4's per-thread connections are the next step.
 
 ## 7. Build, deploy, ops
 

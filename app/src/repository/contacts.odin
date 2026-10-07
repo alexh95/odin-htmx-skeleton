@@ -4,18 +4,28 @@ import "../models"
 import "../sqlite"
 
 import "core:c"
+import "core:fmt"
+import "core:slice"
 import "core:strings"
 import "core:sync"
 
 // ---- contacts table -----------------------------------------------------
 //
-// The original entity. The seven repo_* (the storage contract) live here; the
-// shared connection/lock and the bind/scan/exec helpers come from db.odin.
+// The original entity. The repo_* (the storage contract) live here; the shared
+// connection/lock and the bind/scan/exec helpers come from db.odin.
+//
+// Every list is filtered, sorted, paged and counted by SQLite, and only the
+// rows asked for are copied out: the cost of a request follows the page size,
+// not the table. (Loading the whole table into Odin to do it took a 20k-row
+// table to ~100-260 ms a request, under the global lock.)
 
-@(private = "file") q_list, q_get, q_create, q_update, q_cycle, q_delete, q_count, q_stats: sqlite.Stmt
+@(private = "file") q_get, q_create, q_update, q_cycle, q_delete, q_count, q_stats: sqlite.Stmt
+@(private = "file") q_match, q_filter_count, q_related: sqlite.Stmt
+// One prepared statement per sort key and direction: ORDER BY can't be bound.
+@(private = "file") q_page: [Contact_Sort][2]sqlite.Stmt
 
-@(private = "file") SQL_LIST: cstring : "SELECT id,name,email,role,status,score,notes,notify FROM contacts ORDER BY id"
-@(private = "file") SQL_GET: cstring : "SELECT id,name,email,role,status,score,notes,notify FROM contacts WHERE id=? LIMIT 1"
+@(private = "file") COLUMNS :: "id,name,email,role,status,score,notes,notify"
+@(private = "file") SQL_GET: cstring : "SELECT " + COLUMNS + " FROM contacts WHERE id=? LIMIT 1"
 @(private = "file") SQL_CREATE: cstring : "INSERT INTO contacts(name,email,role,status,score,notes,notify) VALUES(?,?,?,?,?,?,?)"
 @(private = "file") SQL_UPDATE: cstring : "UPDATE contacts SET name=?,email=?,role=?,status=?,score=? WHERE id=?"
 // One statement, so two clicks at once advance the status twice instead of both
@@ -25,33 +35,135 @@ import "core:sync"
 @(private = "file") SQL_COUNT: cstring : "SELECT count(*) FROM contacts"
 // At most |Status| x |Role| x SCORE_BANDS rows, however big the table is.
 @(private = "file") SQL_STATS: cstring : "SELECT status, role, score*?1/101, count(*), sum(score) FROM contacts GROUP BY 1, 2, 3"
+@(private = "file") SQL_RELATED: cstring : "SELECT " + COLUMNS + " FROM contacts WHERE role=?1 AND id<>?2 ORDER BY id LIMIT ?3"
+
+// The table's filter, the same in every list query: one status (?4), or -1 for
+// any; and q (?1) in a role (?2) or status (?3) label, which the caller works
+// out as a bitmask, or in the name or the email (contains_ci, registered in
+// db.odin).
+// The cheap tests come first: SQLite evaluates them left to right.
+@(private = "file") WHERE :: `WHERE (?4 < 0 OR status = ?4) AND (?1 = '' OR (?2 >> role) & 1 OR (?3 >> status) & 1 OR contains_ci(name, ?1) OR contains_ci(email, ?1))`
+@(private = "file") SQL_MATCH: cstring : "SELECT " + COLUMNS + " FROM contacts " + WHERE + " ORDER BY id LIMIT ?5"
+@(private = "file") SQL_FILTER_COUNT: cstring : "SELECT count(*) FROM contacts " + WHERE
+
+Contact_Filter :: struct {
+	q:           string,
+	role_mask:   u32, // bit r set: role r's label matches q
+	status_mask: u32, // bit s set: status s's label matches q
+	status:      int, // only this status; -1 for any
+}
+
+Contact_Sort :: enum {
+	Name,
+	Email,
+	Role, // by label, A→Z, as the column shows it
+	Status, // by label, A→Z
+	Score,
+}
 
 @(private)
 prepare_contacts :: proc() {
-	prep(SQL_LIST, &q_list);prep(SQL_GET, &q_get)
+	prep(SQL_GET, &q_get)
 	prep(SQL_CREATE, &q_create);prep(SQL_UPDATE, &q_update)
 	prep(SQL_CYCLE, &q_cycle);prep(SQL_DELETE, &q_delete)
 	prep(SQL_COUNT, &q_count);prep(SQL_STATS, &q_stats)
+	prep(SQL_MATCH, &q_match);prep(SQL_FILTER_COUNT, &q_filter_count);prep(SQL_RELATED, &q_related)
+	for &by_dir, key in q_page {
+		for &st, desc in by_dir {
+			// id breaks ties, so a page boundary never splits equal rows unpredictably.
+			dir := desc == 1 ? "DESC" : "ASC"
+			sql := fmt.tprintf("SELECT %s FROM contacts %s ORDER BY %s %s, id %s LIMIT ?5 OFFSET ?6", COLUMNS, WHERE, order_by(key), dir, dir)
+			prep(csql(sql), &st)
+		}
+	}
 }
 
 @(private)
 finalize_contacts :: proc() {
-	for st in ([]sqlite.Stmt{q_list, q_get, q_create, q_update, q_cycle, q_delete, q_count, q_stats}) {
+	for st in ([]sqlite.Stmt{q_get, q_create, q_update, q_cycle, q_delete, q_count, q_stats, q_match, q_filter_count, q_related}) {
 		sqlite.finalize(st)
 	}
+	for by_dir in q_page {
+		for st in by_dir {
+			sqlite.finalize(st)
+		}
+	}
+}
+
+// The ORDER BY expression for a sort key. Role and status are stored as their
+// enum value but shown by label, so they sort by the label's rank, a CASE
+// derived from the label tables rather than written out.
+@(private = "file")
+order_by :: proc(key: Contact_Sort) -> string {
+	rank :: proc(column: string, labels: []string) -> string {
+		b := strings.builder_make(context.temp_allocator)
+		fmt.sbprintf(&b, "CASE %s", column)
+		for v, i in labels {
+			r := 0 // the label's place in A→Z order: how many labels sort before it
+			for other in labels {
+				if other < v {r += 1}
+			}
+			fmt.sbprintf(&b, " WHEN %d THEN %d", i, r)
+		}
+		strings.write_string(&b, " END")
+		return strings.to_string(b)
+	}
+	switch key {
+	case .Name:
+		return "name"
+	case .Email:
+		return "email"
+	case .Score:
+		return "score"
+	case .Role:
+		names := models.ROLE_NAMES
+		return rank("role", slice.enumerated_array(&names))
+	case .Status:
+		names := models.STATUS_NAMES
+		return rank("status", slice.enumerated_array(&names))
+	}
+	return "id"
 }
 
 // ---- the contract ------------------------------------------------------
 
-repo_list :: proc() -> ([]models.Contact, Error) {
+// One page of the filtered table, sorted by key, and how many rows match.
+repo_page :: proc(f: Contact_Filter, key: Contact_Sort, desc: bool, limit, offset: int) -> (rows: []models.Contact, err: Error) {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
-	defer sqlite.reset(q_list)
-	out := make([dynamic]models.Contact, context.temp_allocator)
+	st := q_page[key][desc ? 1 : 0]
+	defer sqlite.reset(st)
+	bind_filter(st, f)
+	sqlite.bind_int64(st, 5, i64(limit));sqlite.bind_int64(st, 6, i64(offset))
+	return collect(st)
+}
+
+repo_filter_count :: proc(f: Contact_Filter) -> (int, Error) {
+	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+	defer sqlite.reset(q_filter_count)
+	bind_filter(q_filter_count, f)
 	err: Error
-	for next_row(q_list, &err) {
-		append(&out, scan_contact(q_list))
+	if next_row(q_filter_count, &err) {
+		return int(sqlite.column_int64(q_filter_count, 0)), .None
 	}
-	return out[:], err
+	return 0, err
+}
+
+// The first `limit` matches in id order: the search dropdown and the JSON API.
+repo_match :: proc(f: Contact_Filter, limit: int) -> ([]models.Contact, Error) {
+	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+	defer sqlite.reset(q_match)
+	bind_filter(q_match, f)
+	sqlite.bind_int64(q_match, 5, i64(limit))
+	return collect(q_match)
+}
+
+// Others with the same role as contact `id`, in id order.
+repo_related :: proc(id: int, role: models.Role, limit: int) -> ([]models.Contact, Error) {
+	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+	defer sqlite.reset(q_related)
+	sqlite.bind_int(q_related, 1, c.int(role));bind_id(q_related, 2, id)
+	sqlite.bind_int64(q_related, 3, i64(limit))
+	return collect(q_related)
 }
 
 repo_get :: proc(id: int) -> (models.Contact, Error) {
@@ -132,6 +244,23 @@ repo_contact_stats :: proc() -> (models.Contact_Stats, Error) {
 }
 
 // ---- internals (caller holds the lock) ----------------------------------
+
+@(private = "file")
+bind_filter :: proc(st: sqlite.Stmt, f: Contact_Filter) {
+	bind_text(st, 1, f.q)
+	sqlite.bind_int64(st, 2, i64(f.role_mask));sqlite.bind_int64(st, 3, i64(f.status_mask))
+	sqlite.bind_int(st, 4, c.int(f.status))
+}
+
+@(private = "file")
+collect :: proc(st: sqlite.Stmt) -> ([]models.Contact, Error) {
+	out := make([dynamic]models.Contact, context.temp_allocator)
+	err: Error
+	for next_row(st, &err) {
+		append(&out, scan_contact(st))
+	}
+	return out[:], err
+}
 
 @(private = "file")
 scan_contact :: proc(st: sqlite.Stmt) -> models.Contact {

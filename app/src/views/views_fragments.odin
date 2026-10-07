@@ -89,6 +89,11 @@ sort_th :: proc(b: ^strings.Builder, p: services.Page, column, label: string) {
 	)
 }
 
+// Prev, the first and last pages, the current one with PAGER_WINDOW either
+// side, and a gap (…) for what's skipped. A button for every page was 2,864 of
+// them at 20k rows: 400 KB of pager for one table.
+PAGER_WINDOW :: 2
+
 @(private = "file")
 pager :: proc(b: ^strings.Builder, p: services.Page) {
 	if p.total_pages <= 1 {
@@ -96,7 +101,15 @@ pager :: proc(b: ^strings.Builder, p: services.Page) {
 	}
 	w(b, `<nav class="pager" aria-label="Pagination">`)
 	page_btn(b, p, p.page - 1, "‹ Prev", p.page <= 1)
+	shown := 0
 	for n in 1 ..= p.total_pages {
+		if n != 1 && n != p.total_pages && abs(n - p.page) > PAGER_WINDOW {
+			continue
+		}
+		if n > shown + 1 {
+			w(b, `<span class="page-gap" aria-hidden="true">…</span>`)
+		}
+		shown = n
 		if n == p.page {
 			fmt.sbprintf(b, `<button class="page is-current" aria-current="page">%d</button>`, n)
 			continue
