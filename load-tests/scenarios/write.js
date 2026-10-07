@@ -18,6 +18,12 @@ export const handleSummary = summarize('write');
 
 const ID = /hx-delete="\/contacts\/(\d+)"/;
 
+// Per-id URLs share one `name` per route. Untagged, every id is its own time
+// series, and k6's memory grows with them on the machine it shares with the
+// server under test.
+const EDIT = { name: 'POST /contacts/:id' };
+const DELETE = { name: 'DELETE /contacts/:id' };
+
 export default function () {
   const created = http.post(
     `${BASE}/contacts`,
@@ -34,10 +40,10 @@ export default function () {
   const edited = http.post(
     `${BASE}/contacts/${id}`,
     { name: `Edited ${__VU}-${__ITER}`, email: `ed${__VU}.${__ITER}@example.com`, role: 'Manager', status: 'Active', score: '70' },
-    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, tags: EDIT },
   );
   check(edited, { 'edit 200': (r) => r.status === 200 }, { kind: 'roundtrip' });
 
-  const del = http.del(`${BASE}/contacts/${id}`);
+  const del = http.del(`${BASE}/contacts/${id}`, null, { tags: DELETE });
   check(del, { 'delete 200': (r) => r.status === 200 }, { kind: 'roundtrip' });
 }

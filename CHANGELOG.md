@@ -28,7 +28,21 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   make-it-yours steps. `--minimal` also deletes `e2e/helpers/server.ts`, which only the deleted
   persistence and events specs used.
 
+- **`load-tests/run.sh --strict`**
+  ([#40](https://github.com/alexh95/odin-htmx-skeleton/issues/40)). Without it the driver still records
+  a breached threshold and carries on (a sweep exists to find the knee). With it, the run lists the
+  failed `scenario@VUs` and exits 1, so it can gate. Checked: `P95=0.001 ./run.sh --quick --strict
+  static` exits 1, and exits 0 without `--strict`.
+
 ### Changed
+- **The README says what the test suites enforce**
+  ([#40](https://github.com/alexh95/odin-htmx-skeleton/issues/40)). It claimed both suites "gate CI".
+  CI runs e2e only; the load suite is local, so it says that now and points at `--strict`. The e2e
+  line gains `npx playwright install`.
+- **Per-id load-test URLs are tagged with a route `name`**
+  ([#40](https://github.com/alexh95/odin-htmx-skeleton/issues/40)): `POST`/`DELETE /contacts/:id` in
+  `write.js` and `mixed.js`, and `GET /contacts/:id` in `detail.js`. Untagged, each id was its own k6
+  time series (100k–200k over a full run), and k6's memory grew on the machine the server shares.
 - **`deploy/apollo-11` is now `deploy/docker-host`, a generic self-host example**
   ([#44](https://github.com/alexh95/odin-htmx-skeleton/issues/44)). It was the only deploy with
   persistence, and it was wired to one home server: an ssh alias, `/mnt/fast-storage`, and an
