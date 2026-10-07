@@ -10,14 +10,14 @@ import "core:strings"
 // These build the static structure of each page. The interactive bits hang off
 // HTMX attributes that point at the fragment handlers in controllers.odin.
 
+// Both are text.
 @(private = "file")
 section_open :: proc(b: ^strings.Builder, title, desc: string) {
-	fmt.sbprintf(
-		b,
-		`<section class="block"><div class="block-head"><h2>%s</h2><p class="muted">%s</p></div>`,
-		title,
-		desc,
-	)
+	w(b, `<section class="block"><div class="block-head"><h2>`)
+	esc(b, title)
+	w(b, `</h2><p class="muted">`)
+	esc(b, desc)
+	w(b, `</p></div>`)
 }
 
 @(private = "file")
@@ -105,9 +105,9 @@ view_components :: proc() -> string {
 	section_open(&b, "Tabs", "Panels fetched from the server on demand.")
 	w(&b, `<div class="tabs">
     <div class="tablist" role="tablist">
-      <button class="tab" role="tab" aria-selected="true" onclick="selectTab(this)" hx-get="/ui/tab/overview" hx-target="#tabpanel">Overview</button>
-      <button class="tab" role="tab" onclick="selectTab(this)" hx-get="/ui/tab/activity" hx-target="#tabpanel">Activity</button>
-      <button class="tab" role="tab" onclick="selectTab(this)" hx-get="/ui/tab/security" hx-target="#tabpanel">Security</button>
+      <button class="tab" role="tab" aria-selected="true" hx-get="/ui/tab/overview" hx-target="#tabpanel">Overview</button>
+      <button class="tab" role="tab" aria-selected="false" hx-get="/ui/tab/activity" hx-target="#tabpanel">Activity</button>
+      <button class="tab" role="tab" aria-selected="false" hx-get="/ui/tab/security" hx-target="#tabpanel">Security</button>
     </div>
     <div id="tabpanel" class="tabpanel" role="tabpanel">`)
 	w(&b, tab_panel("overview"))
@@ -115,7 +115,7 @@ view_components :: proc() -> string {
   </div></section>`)
 
 	// Accordion (native details/summary)
-	section_open(&b, "Accordion", "Built on &lt;details&gt; — semantic and keyboard-friendly.")
+	section_open(&b, "Accordion", "Built on <details> — semantic and keyboard-friendly.")
 	w(&b, `<div class="demo col accordion">`)
 	acc_item(&b, "What is HTMX doing here?", "Every interactive panel on this page is a server fragment swapped in over a single request. No client state, no build step.", true)
 	acc_item(&b, "Where does the markup come from?", "Odin procedures write HTML into a string builder. A component is just a proc — this accordion item is one.", false)
@@ -143,10 +143,13 @@ status_badge_demo :: proc(b: ^strings.Builder) {
 
 @(private = "file")
 acc_item :: proc(b: ^strings.Builder, q, a: string, open: bool) {
-	op := open ? " open" : ""
-	fmt.sbprintf(b, `<details class="acc"%s><summary><span>%s</span>`, op, q)
+	w(b, open ? `<details class="acc" open><summary><span>` : `<details class="acc"><summary><span>`)
+	esc(b, q)
+	w(b, `</span>`)
 	icon(b, "plus")
-	fmt.sbprintf(b, `</summary><div class="acc-body"><p>%s</p></div></details>`, a)
+	w(b, `</summary><div class="acc-body"><p>`)
+	esc(b, a)
+	w(b, `</p></div></details>`)
 }
 
 // ---- forms --------------------------------------------------------------
@@ -162,17 +165,24 @@ view_forms :: proc() -> string {
 
 	// data-reset-on-success: app.js resets the form after its OWN successful submit.
 	// Scoped there to this form's request (ctx.sourceElement), so the email field's
-	// inline validation can't trip the reset and wipe what the user just typed.
+	// inline validation can't trip the reset and wipe what the user just typed. A
+	// refused submit is a 422, which lands in #form-result like a success and
+	// leaves the fields alone, so it needs no hx-status of its own.
 	w(&b, `<form class="form card" hx-post="/forms/submit" hx-target="#form-result" hx-swap="innerHTML"
         data-reset-on-success>
   <div class="form-grid">
     <label class="field">
       <span>Full name</span>
-      <input name="name" placeholder="Grace Hopper" required>
+      `)
+	// maxlength mirrors the server's limits, so the browser stops at the same place.
+	fmt.sbprintf(&b, `<input name="name" placeholder="Grace Hopper" required maxlength="%d">`, services.MAX_NAME)
+	w(&b, `
     </label>
     <label class="field">
       <span>Email</span>
-      <input name="email" type="email" placeholder="grace@example.dev" autocomplete="off"
+      `)
+	fmt.sbprintf(&b, `<input name="email" type="email" placeholder="grace@example.dev" autocomplete="off" required maxlength="%d"`, services.MAX_EMAIL)
+	w(&b, `
              hx-post="/validate/email" hx-trigger="change, keyup changed delay:400ms"
              hx-target="next .field-msg" hx-swap="innerHTML">
       <p class="field-msg"></p>
@@ -185,8 +195,7 @@ view_forms :: proc() -> string {
     </label>
     <label class="field">
       <span>Engagement <output class="out">60</output></span>
-      <input type="range" name="score" min="0" max="100" value="60"
-             oninput="this.previousElementSibling.querySelector('.out').value=this.value">
+      <input type="range" name="score" min="0" max="100" value="60">
     </label>
     <fieldset class="field span-2">
       <legend>Status</legend>
@@ -202,7 +211,9 @@ view_forms :: proc() -> string {
     </label>
     <label class="field span-2">
       <span>Notes</span>
-      <textarea name="notes" rows="3" placeholder="Anything worth remembering…"></textarea>
+      `)
+	fmt.sbprintf(&b, `<textarea name="notes" rows="3" maxlength="%d" placeholder="Anything worth remembering…"></textarea>`, services.MAX_NOTES)
+	w(&b, `
     </label>
   </div>
   <div class="form-actions">
@@ -223,14 +234,14 @@ view_data :: proc(p: services.Page) -> string {
 	page_head(
 		&b,
 		"Data",
-		"Data &amp; CRUD",
+		"Data & CRUD",
 		"A live table over a SQLite store: filter, sort and paginate, plus create, update and delete.",
 	)
 
 	// Filter + add form sit outside the swapped region so they survive a reload
 	// of the table itself.
 	w(&b, `<div class="toolbar">
-    <form class="filter" role="search" onsubmit="return false">`)
+    <form class="filter" role="search">`)
 	icon(&b, "search")
 	w(&b, `<input type="search" name="q" placeholder="Filter contacts…" autocomplete="off" value="`)
 	esc(&b, p.q)
@@ -242,13 +253,16 @@ view_data :: proc(p: services.Page) -> string {
 	icon(&b, "plus")
 	w(&b, `<span>New contact</span></summary>
       <form class="add-form card" hx-post="/contacts" hx-target="#contact-tbody" hx-swap="beforeend"
-            data-reset-on-success>
-        <input name="name" placeholder="Full name" required aria-label="Name">
-        <input name="email" type="email" placeholder="email@example.dev" required aria-label="Email">
+            hx-status:422="target:#add-error swap:innerHTML" data-reset-on-success>
+        `)
+	fmt.sbprintf(&b, `<input name="name" placeholder="Full name" required maxlength="%d" aria-label="Name">`, services.MAX_NAME)
+	fmt.sbprintf(&b, `<input name="email" type="email" placeholder="email@example.dev" required maxlength="%d" aria-label="Email">`, services.MAX_EMAIL)
+	w(&b, `
         <select name="role" aria-label="Role">`)
 	role_options(&b, .Engineer)
 	w(&b, `</select>
         <button class="btn btn-accent" type="submit">Add</button>
+        <p class="field-msg form-error" id="add-error" role="alert"></p>
       </form>
     </details>
   </div>`)

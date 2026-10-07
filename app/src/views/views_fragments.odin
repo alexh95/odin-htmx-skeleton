@@ -89,6 +89,11 @@ sort_th :: proc(b: ^strings.Builder, p: services.Page, column, label: string) {
 	)
 }
 
+// Prev, the first and last pages, the current one with PAGER_WINDOW either
+// side, and a gap (…) for what's skipped. A button for every page was 2,864 of
+// them at 20k rows: 400 KB of pager for one table.
+PAGER_WINDOW :: 2
+
 @(private = "file")
 pager :: proc(b: ^strings.Builder, p: services.Page) {
 	if p.total_pages <= 1 {
@@ -96,7 +101,15 @@ pager :: proc(b: ^strings.Builder, p: services.Page) {
 	}
 	w(b, `<nav class="pager" aria-label="Pagination">`)
 	page_btn(b, p, p.page - 1, "‹ Prev", p.page <= 1)
+	shown := 0
 	for n in 1 ..= p.total_pages {
+		if n != 1 && n != p.total_pages && abs(n - p.page) > PAGER_WINDOW {
+			continue
+		}
+		if n > shown + 1 {
+			w(b, `<span class="page-gap" aria-hidden="true">…</span>`)
+		}
+		shown = n
 		if n == p.page {
 			fmt.sbprintf(b, `<button class="page is-current" aria-current="page">%d</button>`, n)
 			continue
@@ -192,7 +205,9 @@ view_contact_row :: proc(b: ^strings.Builder, c: models.Contact, fresh: bool) {
 // `.drawer-detail` so the backdrop doesn't re-animate.
 view_contact_detail :: proc(c: models.Contact, timeline: []models.Interaction, related: []models.Contact) -> string {
 	b := strings.builder_make(context.temp_allocator)
-	w(&b, `<div class="backdrop" hx-get="/ui/clear" hx-target="#overlay" hx-swap="innerHTML swap:240ms">`)
+	// from:self: only a click on the backdrop itself closes it, not one that
+	// bubbles up from inside the drawer.
+	w(&b, `<div class="backdrop" hx-get="/ui/clear" hx-trigger="click from:self" hx-target="#overlay" hx-swap="innerHTML swap:240ms">`)
 	detail_aside(&b, c, timeline, related, false, false)
 	w(&b, `</div>`)
 	return strings.to_string(b)
@@ -204,12 +219,34 @@ view_contact_detail_frag :: proc(c: models.Contact, timeline: []models.Interacti
 	return strings.to_string(b)
 }
 
+// A drawer edit that failed validation (422): the header still shows the
+// stored contact, the form what the user typed, with the reason.
+view_contact_edit_rejected :: proc(stored, typed: models.Contact, msg: string) -> string {
+	b := strings.builder_make(context.temp_allocator)
+	detail_head(&b, stored, true)
+	detail_edit_form(&b, typed, msg)
+	w(&b, `</aside>`)
+	return strings.to_string(b)
+}
+
 @(private = "file")
 detail_aside :: proc(b: ^strings.Builder, c: models.Contact, timeline: []models.Interaction, related: []models.Contact, editing, static_anim: bool) {
+	detail_head(b, c, static_anim)
+	if editing {
+		detail_edit_form(b, c, "")
+	} else {
+		detail_view_body(b, c, timeline, related)
+	}
+	w(b, `</aside>`)
+}
+
+// Opens the <aside>; the caller closes it.
+@(private = "file")
+detail_head :: proc(b: ^strings.Builder, c: models.Contact, static_anim: bool) {
 	// drawer-static skips the slide-in so in-place swaps don't re-animate.
 	fmt.sbprintf(
 		b,
-		`<aside class="drawer drawer-detail%s" role="dialog" aria-modal="true" aria-label="Contact detail" onclick="event.stopPropagation()"><header class="drawer-head detail-head">`,
+		`<aside class="drawer drawer-detail%s" role="dialog" aria-modal="true" aria-label="Contact detail"><header class="drawer-head detail-head">`,
 		static_anim ? " drawer-static" : "",
 	)
 	avatar(b, c)
@@ -220,12 +257,6 @@ detail_aside :: proc(b: ^strings.Builder, c: models.Contact, timeline: []models.
 	w(b, `</p></div><button class="icon-btn detail-close" aria-label="Close" hx-get="/ui/clear" hx-target="#overlay" hx-swap="innerHTML swap:240ms">`)
 	icon(b, "plus")
 	w(b, `</button></header>`)
-	if editing {
-		detail_edit_form(b, c)
-	} else {
-		detail_view_body(b, c, timeline, related)
-	}
-	w(b, `</aside>`)
 }
 
 @(private = "file")
@@ -250,7 +281,16 @@ detail_view_body :: proc(b: ^strings.Builder, c: models.Contact, timeline: []mod
 	role_chip(b, c.role)
 	status_badge(b, c.status)
 	fmt.sbprintf(b, `<span class="detail-score"><small class="muted">Engagement</small><div class="meter"><i style="width:%d%%"></i></div><strong>%d / 100</strong></span><span class="detail-rid">#%d</span>`, c.score, c.score, c.id)
-	w(b, `</div><section class="detail-section"><h3>Activity</h3>`)
+	if c.notify {
+		w(b, `<span class="tag">email updates</span>`)
+	}
+	w(b, `</div>`)
+	if c.notes != "" {
+		w(b, `<section class="detail-section"><h3>Notes</h3><p class="detail-notes">`)
+		esc(b, c.notes)
+		w(b, `</p></section>`)
+	}
+	w(b, `<section class="detail-section"><h3>Activity</h3>`)
 	if len(timeline) == 0 {
 		w(b, `<p class="muted detail-empty">No interactions yet.</p>`)
 	} else {
@@ -327,15 +367,16 @@ interaction_icon :: proc(kind: models.Event_Kind) -> string {
 	return "bolt"
 }
 
+// `problem` (if any) is shown above the buttons: why the last save was refused.
 @(private = "file")
-detail_edit_form :: proc(b: ^strings.Builder, c: models.Contact) {
+detail_edit_form :: proc(b: ^strings.Builder, c: models.Contact, problem: string) {
 	rn := models.ROLE_NAMES
 	sn := models.STATUS_NAMES
-	fmt.sbprintf(b, `<form class="detail-body detail-edit" hx-post="/contacts/%d" hx-target="closest .drawer-detail" hx-swap="outerHTML"><input type="hidden" name="view" value="detail"><input type="hidden" name="frag" value="1"><label class="field"><span>Name</span><input name="name" value="`, c.id)
+	fmt.sbprintf(b, `<form class="detail-body detail-edit" hx-post="/contacts/%d" hx-target="closest .drawer-detail" hx-swap="outerHTML"><input type="hidden" name="view" value="detail"><input type="hidden" name="frag" value="1"><label class="field"><span>Name</span><input name="name" required maxlength="%d" value="`, c.id, services.MAX_NAME)
 	esc(b, c.name)
-	w(b, `" required></label><label class="field"><span>Email</span><input name="email" type="email" value="`)
+	fmt.sbprintf(b, `"></label><label class="field"><span>Email</span><input name="email" type="email" required maxlength="%d" value="`, services.MAX_EMAIL)
 	esc(b, c.email)
-	w(b, `" required></label><label class="field"><span>Role</span><select name="role">`)
+	w(b, `"></label><label class="field"><span>Role</span><select name="role">`)
 	for name, r in rn {
 		fmt.sbprintf(b, `<option%s>%s</option>`, r == c.role ? " selected" : "", name)
 	}
@@ -344,7 +385,12 @@ detail_edit_form :: proc(b: ^strings.Builder, c: models.Contact) {
 		fmt.sbprintf(b, `<option%s>%s</option>`, st == c.status ? " selected" : "", name)
 	}
 	w(b, `</select></label>`)
-	fmt.sbprintf(b, `<label class="field"><span>Engagement <b>%d</b></span><input name="score" type="range" min="0" max="100" value="%d" oninput="this.previousElementSibling.querySelector('b').textContent=this.value"></label>`, c.score, c.score)
+	fmt.sbprintf(b, `<label class="field"><span>Engagement <output>%d</output></span><input name="score" type="range" min="0" max="100" value="%d"></label>`, c.score, c.score)
+	if problem != "" {
+		w(b, `<p class="field-msg form-error" role="alert">`)
+		w(b, view_field_msg(false, problem))
+		w(b, `</p>`)
+	}
 	w(b, `<div class="detail-actions"><button class="btn btn-primary btn-sm" type="submit">`)
 	icon(b, "check")
 	w(b, `<span>Save</span></button>`)
@@ -353,14 +399,13 @@ detail_edit_form :: proc(b: ^strings.Builder, c: models.Contact) {
 
 // ---- search dropdown ----------------------------------------------------
 
-view_search_results :: proc(q: string) -> string {
+view_search_results :: proc(q: string, rows: []models.Contact) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	trimmed := strings.trim_space(q)
 	if trimmed == "" {
 		return "" // empty target collapses the dropdown
 	}
 
-	rows := services.service_search(trimmed, services.SEARCH_LIMIT)
 	if len(rows) == 0 {
 		w(&b, `<div class="search-panel"><p class="search-empty">No matches for “`)
 		esc(&b, trimmed)
@@ -433,8 +478,8 @@ view_modal :: proc() -> string {
 
 view_drawer :: proc() -> string {
 	b := strings.builder_make(context.temp_allocator)
-	w(&b, `<div class="backdrop" hx-get="/ui/clear" hx-target="#overlay" hx-swap="innerHTML swap:240ms">
-  <aside class="drawer" role="dialog" aria-modal="true" aria-label="Settings" onclick="event.stopPropagation()">
+	w(&b, `<div class="backdrop" hx-get="/ui/clear" hx-trigger="click from:self" hx-target="#overlay" hx-swap="innerHTML swap:240ms">
+  <aside class="drawer" role="dialog" aria-modal="true" aria-label="Settings">
     <header class="drawer-head"><h2>Workspace</h2>
       <button class="icon-btn" aria-label="Close" hx-get="/ui/clear" hx-target="#overlay" hx-swap="innerHTML swap:240ms">`)
 	icon(&b, "plus")
@@ -478,7 +523,7 @@ view_toast :: proc(kind, message: string, oob: bool) -> string {
 	icon(&b, ic)
 	w(&b, `</span><p>`)
 	esc(&b, message)
-	w(&b, `</p><button class="toast-x" aria-label="Dismiss" onclick="dismissToast(this)">×</button></div>`)
+	w(&b, `</p><button class="toast-x" type="button" aria-label="Dismiss">×</button></div>`)
 	if oob {
 		w(&b, `</div>`)
 	}

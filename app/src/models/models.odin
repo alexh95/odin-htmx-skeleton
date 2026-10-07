@@ -28,6 +28,8 @@ Contact :: struct {
 	role:   Role,
 	status: Status,
 	score:  int, // 0..100 engagement, drives a progress bar in the table
+	notes:  string, // optional; "" when none
+	notify: bool, // wants email about account activity
 }
 
 ROLE_NAMES :: [Role]string {
@@ -86,6 +88,21 @@ Interaction :: struct {
 	other_id:   int,
 	other_name: string,
 	outgoing:   bool,
+}
+
+// ---- dashboard aggregates ------------------------------------------------
+//
+// The dashboard's numbers, counted by SQLite in one GROUP BY rather than by
+// loading every contact (repository.repo_contact_stats). by_score splits the
+// 0..100 engagement score into SCORE_BANDS equal bands, lowest first.
+
+SCORE_BANDS :: 8
+
+Contact_Stats :: struct {
+	by_status: [Status]int,
+	by_role:   [Role]int,
+	by_score:  [Status][SCORE_BANDS]int,
+	score_sum: int,
 }
 
 // Parse a label back to its enum value. Used when decoding form submissions;

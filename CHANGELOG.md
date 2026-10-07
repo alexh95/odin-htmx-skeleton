@@ -8,7 +8,204 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **`<bin> --backup <file>`: a safe online backup, and a restore runbook**
+  ([#34](https://github.com/alexh95/odin-htmx-skeleton/issues/34)). A fork with a persistent
+  `DB_PATH` had no backup path, and the docs advised "a file copy", which can lose committed
+  transactions still in `data.db-wal`. `DB_PATH=<live db> <bin> --backup <file>` writes a consistent
+  copy with `VACUUM INTO` from its own connection, beside the running server, and refuses to
+  overwrite a file. `docs/DATA.md` gains the backup and restore runbook (Fly and Docker commands,
+  scheduling, deleting the stale `-wal`/`-shm` on restore, the one-machine-per-volume limit), and
+  `DATA_IMPL.md` drops the file-copy advice. e2e: `backup.spec.ts` backs up under a live server, and
+  restores by booting on the copy.
+- **Logging, an access log and a build version**
+  ([#20](https://github.com/alexh95/odin-htmx-skeleton/issues/20)). `context.logger` was never set, so
+  Odin's no-op default swallowed every one of odin-http's warnings and errors, and nothing recorded a
+  request. `main` now installs a console logger (`LOG_LEVEL=debug|info|warn|error`, default `info`)
+  before anything runs, and the server threads inherit it. The middleware writes one line per request
+  (`GET /about 200 0.19ms`: method, path without the query, status, time). Every response carries
+  `x-version` from `-define:VERSION=…` (default `dev`), also logged at boot. `/healthz` now checks the
+  store with a `SELECT 1` and answers 503 when it fails; its body is still exactly `ok`. Measured with
+  `./run.sh --quick pages static`: about 21.3k rps on `pages` with the access log against 23.5k with
+  `LOG_LEVEL=warn` (k6 at 20 VUs; `static` within noise). e2e: `ops.spec.ts`.
+- **Cross-site writes are refused** ([#18](https://github.com/alexh95/odin-htmx-skeleton/issues/18)).
+  A POST from any site could edit a contact; the first fork to add a cookie session would have
+  inherited forgeable writes. `controllers.front` now answers 403 to a write whose `Sec-Fetch-Site`
+  isn't `same-origin`/`none`, or, from a browser too old to send it, whose `Origin` isn't this host.
+  A request with neither header isn't a browser and passes, so curl, k6 and the e2e API calls keep
+  working; for that reason the guard doesn't require `HX-Request`. `CLAUDE.md` says how a fork
+  extends it once it has sessions. e2e: three cases in `security.spec.ts`.
+- **Security headers and a strict Content-Security-Policy on every response**
+  ([#19](https://github.com/alexh95/odin-htmx-skeleton/issues/19)). Responses carried only `date`,
+  `content-length` and `content-type`. `controllers.front` now sets `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` and a CSP whose
+  `script-src` is `'self'` plus the sha256 of the theme pre-paint script, with no `'unsafe-inline'`
+  (`style-src-attr` keeps it, for the components' `style="--x:…"` custom properties). The hash is
+  computed at boot from `views.THEME_PREPAINT_JS`, so editing the script keeps the header right. To
+  make that possible, the 56 inline `on*=` handlers on `/components` (theme picker, showroom, tabs,
+  toast dismiss, range outputs, search-form submits, drawer `stopPropagation`) are gone: app.js routes
+  clicks by `data-*` attribute or role from one delegated listener, the drawers' backdrops close on
+  `hx-trigger="click from:self"`, and slider outputs are `<output>` elements app.js keeps in step.
+  Both variants. e2e: `security.spec.ts` checks the headers on a page, an asset, `/healthz` and a 404,
+  that no page has an inline handler, that the hashed script runs, and that using the pages raises no
+  CSP violation.
+
+### Changed
+- **`CLAUDE.md` matches the code, and covers what a fork does first** (part of
+  [#32](https://github.com/alexh95/odin-htmx-skeleton/issues/32) and
+  [#33](https://github.com/alexh95/odin-htmx-skeleton/issues/33)). New: a "New table / entity"
+  recipe (migration, statements in four places, seed, tests), a "Validation errors (422)" section,
+  the middleware, escaping, store-error and backup rules, a table of every environment variable, and
+  pointers to where a new e2e spec and k6 scenario go. Corrected: the allocator section described
+  the old in-memory store (`repo_delete` frees); "boundaries enforced by the compiler" (it only
+  forbids cycles); the "flagship admin console" framing (it's a starter); stale comments in
+  `main.odin` ("repository.odin") and `routes.odin` ("on-disk" static files). `app/README.md` and
+  `docs/DATA_IMPL.md` follow.
+- **The repository's SQLite plumbing is one shared file.** `repository/db.odin` holds the
+  connection, lock, migration runner and bind/scan helpers, unchanged between the demo and the
+  `--minimal` starter; `repo.odin` keeps only the app's wiring (migrations, statements, seed). A fix
+  to the plumbing now lands in both variants at once.
+- **Controllers and views reach the store only through services** (part of
+  [#33](https://github.com/alexh95/odin-htmx-skeleton/issues/33)). `CLAUDE.md` said "never touch
+  the store from a controller" while `controllers.odin` made ten `repository.*` calls and the
+  dashboard view read the table itself. `services` gains `get_contact`, `create_contact`,
+  `update_contact` (both validate), `cycle_status`, `delete_contact`, `search_all` and
+  `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
+
+### Fixed
+- **Lists are filtered, sorted, paged and counted in SQL**
+  ([#14](https://github.com/alexh95/odin-htmx-skeleton/issues/14), partly). Every list request loaded
+  the whole table into Odin under the store's lock, so latency and response size grew with the
+  table. The table, the search dropdown, `/api/search` and the related list now run as SQL with
+  `WHERE`/`ORDER BY`/`LIMIT`/`OFFSET` and a `count(*)`: one prepared statement per sort key, and a
+  `contains_ci` SQL function written in Odin, so search keeps its per-rune Unicode matching (`LIKE`
+  folds ASCII only). The pager shows a window (1 2 3 … 12) instead of a button per page, and
+  `/api/search` returns at most 100 rows. The starter's note list is capped at the newest 50. With one
+  client at 20k contacts: `/data` 63 → 2 ms, a deep filtered page 107 → 16 ms, a search miss 259 →
+  18 ms, `/api/search` 213 → 1 ms. Still open: search is a scan (~1 µs a row), and everything runs
+  under one exclusive lock, so at 20 concurrent users on 20k rows the new `scale` k6 scenario still
+  shows p95 1.2 s (1.7 s before). Role/status sorts now break ties by id. e2e: `paging.spec.ts`; load:
+  `scenarios/scale.js`.
+- **Windows dev-loop papercuts** (part of
+  [#35](https://github.com/alexh95/odin-htmx-skeleton/issues/35)). The server printed (and `run.bat`
+  opened) `http://localhost`, but listens on IPv4 loopback only, so each request first tried `::1`:
+  about 200 ms against 1.6 ms for `127.0.0.1`. The banner, the run scripts and the docs now say
+  `127.0.0.1`. `run.bat` and `run.sh` no longer open a browser tab on every run (`OPEN=1` asks for
+  one). And `run.bat` checks whether `bin\demo.exe` is held by a server still running from an
+  earlier run, saying so instead of letting the linker fail with "don't have access to write".
+- **`prepare.bat` re-runs cleanly outside the MSVC dev shell**
+  ([#31](https://github.com/alexh95/odin-htmx-skeleton/issues/31)). It looked for `cl` before checking
+  whether anything needed compiling, so every re-run from a plain shell failed with the Build Tools
+  banner even with `sqlite3.lib` built (and e2e's global-setup printed it on every run). `cl` is now
+  looked for only when the lib is missing or stale, and `prepare.sh` does the same for clang/gcc. A
+  failing `cl` or `lib` now stops the script: the old `( popd ^& goto :fail )` escaped the `&`, so
+  the `goto` never ran.
+- **Visual defaults: bare checkboxes, the starter's note list**
+  ([#30](https://github.com/alexh95/odin-htmx-skeleton/issues/30)). The global
+  `input, select, textarea { width: 100% }` stretched a bare checkbox to about 815 px; it now skips
+  checkboxes and radios, inside `:where()` so `input[type="range"]` still wins. In the `--minimal`
+  starter the note list lost its 40 px browser indent, and the seed now runs oldest to newest and the
+  list orders by time, so "Welcome…" (the newest) is on top instead of at the bottom. e2e:
+  `styles.spec.ts`.
+- **`/forms` stores the notes and the email-updates switch it posts** (part of
+  [#23](https://github.com/alexh95/odin-htmx-skeleton/issues/23); the e2e half of
+  [#15](https://github.com/alexh95/odin-htmx-skeleton/issues/15)). `forms_submit` silently dropped
+  both. Migration `0003_contact_notes.sql` adds `notes TEXT NOT NULL DEFAULT ''` and `notify`;
+  `create_contact` stores them (notes capped at 1000 characters, `maxlength` to match), the drawer
+  shows them, and `/api/search` returns them. Empty notes are the optional text field #15 was about:
+  `writes.spec.ts` submits one and reads it back as `""`.
+- **The dashboard shows only what the store says** (part of
+  [#23](https://github.com/alexh95/odin-htmx-skeleton/issues/23) and
+  [#14](https://github.com/alexh95/odin-htmx-skeleton/issues/14)). "+4 this week" and "82% of base"
+  sat beside live counts, over made-up sparklines. The cards now come from one aggregate query
+  (`repo_contact_stats`: a `GROUP BY` of status, role and score band, so its cost doesn't grow with
+  the table) instead of loading every contact: shares are computed ("35% of all"), and each sparkline
+  is a real distribution (contacts per role; engagement scores, low to high), with the misleading
+  up-arrow gone. e2e: `dashboard.spec.ts`.
+- **Cycling a status can't lose a step** (part of
+  [#23](https://github.com/alexh95/odin-htmx-skeleton/issues/23)). It read the status and wrote the
+  next one under two separate lock acquisitions, so two clicks at once could both write the same
+  value. It is now one statement, `UPDATE contacts SET status=(status+1)%?2 WHERE id=?1`
+  (`repo_cycle_status`, replacing `repo_set_status`). e2e: `writes.spec.ts` cycles one contact 31
+  times at once.
+- **A wrong method is a 405, an unknown page a real 404 page, and text says it's UTF-8** (part of
+  [#23](https://github.com/alexh95/odin-htmx-skeleton/issues/23)). `PUT /contacts/1` was a 404, an
+  unknown URL an empty 404, and `content-type: text/html` named no charset. A last-resort route
+  (`controllers.fallback`, registered by both variants' `routes.odin`) answers 405 with an `Allow`
+  header when another method serves the path, and otherwise `not_found`: the site's 404 page in the
+  layout for a browser, a bare 404 for htmx (whose body would be swapped into a fragment). Missing
+  contacts and unparsable ids use the same `not_found`. HTML and plain-text responses go through
+  `respond_html`/`respond_plain`, which add `; charset=utf-8`. The error-page body, `view_error`, is
+  shared by both variants (`views/errors.odin`). e2e: `routing.spec.ts`.
+- **A fork on `*.fly.dev` is served instead of redirected to a placeholder domain**
+  ([#25](https://github.com/alexh95/odin-htmx-skeleton/issues/25)). `canonical_host` 301'd every
+  `*.fly.dev` request to `SITE_URL`, which `init` sets to `https://<name>.example.com` until the fork
+  has a domain, so a fresh deploy sent every visitor to a site that doesn't exist while the exempt
+  health check kept the deploy green. The redirect is now off while `SITE_URL` is a reserved example
+  or test name (RFC 2606/6761: `example.com/.net/.org`, `.example`, `.test`, `.invalid`,
+  `.localhost`). `canonical_host` moves into `controllers/middleware.odin`. e2e: `canonical.spec.ts`
+  boots servers with a real and two placeholder origins.
+- **Escaping gaps closed** ([#22](https://github.com/alexh95/odin-htmx-skeleton/issues/22)). Avatar
+  initials were cut byte by byte and written raw: a name starting with `<` broke the row's DOM, and
+  every non-ASCII initial (the `É` of "Émile") rendered as half a character. They are now whole runes,
+  escaped. `page_head`, `section_open`, `acc_item`, `link_tile` and `stat_card` (and the starter's
+  `page_head`) wrote their text arguments raw, so the first fork to pass a stored value to a heading
+  had stored XSS; they now escape them, and the one pre-escaped caller (`"Data &amp; CRUD"`) passes
+  plain text. JSON-LD used the HTML escaper; it now uses a JSON string escaper, `json_esc`. `w`, `esc`,
+  `url_encode` and `json_esc` live in one shared file, `views/html.odin`. Tests: `escaping.spec.ts`
+  (avatars) and `views/html_test.odin` (`page_head` with hostile text, `json_esc`).
+- **A refused form keeps what the user typed**
+  ([#17](https://github.com/alexh95/odin-htmx-skeleton/issues/17)). Validation errors came back as
+  200, so app.js's reset-on-success wiped every field of a rejected `/forms` submit. They are now
+  **422**: app.js still resets only after a 2xx, and htmx 4 swaps the 422 body where it belongs.
+  `/forms` shows the errors in `#form-result` as before; the `/data` add form routes them into an
+  inline slot with `hx-status:422`; a refused drawer edit comes back filled with what was typed, plus
+  the reason. The minimal starter's note form gets the same pattern (an error slot for 422 and 5xx)
+  instead of its silent empty 200. A success clears the slot. The `/forms` email field is now
+  `required` like the server's check, and a drawer edit with a blank name is refused instead of
+  silently ignored. `CLAUDE.md` documents the pattern. e2e: `validation.spec.ts` (demo and starter).
+- **Migrations are transactional and checked by name and hash, and demo rows only seed a store
+  nobody owns** ([#21](https://github.com/alexh95/odin-htmx-skeleton/issues/21); also stops the
+  [#26](https://github.com/alexh95/odin-htmx-skeleton/issues/26) crash from the runner side). Each
+  migration now runs in one transaction with the `schema_version` row that records it, so a failure
+  halfway leaves the schema untouched and the boot names the file. `schema_version` gains `name`
+  and `hash` (sha256), checked against the binary's list at every boot: an edited, renamed or unknown
+  migration stops the boot with a message saying what to do, where the old count-only runner skipped
+  it. That is what crashed the `--minimal` starter on a demo `data.db` with "no such table: notes".
+  Databases from 1.1 are adopted in place. `MIGRATIONS` entries are now `{name, sql}` pairs. Demo rows
+  seed only `:memory:`, or a file DB when `SEED=1` (`run.*` sets it for local dev), so an emptied
+  production table stays empty. Tested in `db_test.odin`: rollback, an edited and an unknown
+  migration, and adopting a 1.1 database.
+- **Ids are 64-bit, and a bad id is a 404**
+  ([#16](https://github.com/alexh95/odin-htmx-skeleton/issues/16)). Ids were bound and read as
+  32-bit `c.int`, and `to_int` ignored parse failures, so `GET /contacts/4294967297` returned
+  contact #1 and `DELETE /contacts/4294967298` deleted #2. The repository binds and reads ids with
+  `bind_id`/`column_id` (int64), and the controllers parse path ids with `parse_id`, which rejects
+  zero, non-digits and anything past 64 bits (`strconv.parse_int` wraps silently). e2e:
+  `ids.spec.ts`.
+- **Store errors are no longer ignored, and empty strings are stored as `""`**
+  ([#15](https://github.com/alexh95/odin-htmx-skeleton/issues/15)). `bind_text` passed a nil pointer
+  for `""`, which SQLite binds as NULL, so a `NOT NULL` text column rejected it; and no `step()`
+  result was checked, so a failed insert returned the *previous* row's id as if it were the new one.
+  `bind_text` now points at a real zero-length buffer. Writes go through `step_done` and reads
+  through `next_row`, which log SQLite's message and return a `repository.Error`
+  (`Not_Found`/`Constraint`/`Failed`). It travels up through `services` (re-exported as
+  `Store_Error`) to the controllers, where `respond_store_error` answers 404, 409 or 500: an
+  out-of-band toast for htmx, an error page otherwise. The minimal starter does the same with a plain
+  500. The binding gains `bind_null`, `bind_double`, `column_double` and `column_type`. Tested by
+  `app/src/repository/db_test.odin` (`odin test src/repository`): `""` round-trips as text, and a
+  failed write returns `Constraint`, not a stale row.
+- **Request bodies and text fields are size-limited**
+  ([#13](https://github.com/alexh95/odin-htmx-skeleton/issues/13)). A 50 MB `name` used to be
+  stored and then re-sent by every page that listed it. A new `controllers.front` middleware
+  (`middleware.odin`, shared with `--minimal`) reads every body before routing, capped at 64 KiB:
+  past that it answers 413 without reading it. Handlers get the parsed form from `request_form()`,
+  so they are plain synchronous code. `validate_contact` caps names at 100 characters and emails at
+  254, the minimal starter caps a note at 500, and each input carries the same `maxlength`. e2e:
+  `limits.spec.ts`.
+- **The `--minimal` starter passes `odin check -vet`** (part of
+  [#29](https://github.com/alexh95/odin-htmx-skeleton/issues/29)): `notes.odin` dropped an unused
+  `import "core:c"`.
 
 ## [1.1.1] - 2026-10-07
 

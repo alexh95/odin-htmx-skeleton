@@ -2,7 +2,7 @@ package sqlite
 
 // ---- SQLite amalgamation binding ----------------------------------------
 //
-// ~15 foreign decls for the symbols the repository uses. The amalgamation is
+// ~20 foreign decls for the symbols the repository uses. The amalgamation is
 // fetched + compiled by prepare.* into app/vendor/sqlite/ (sqlite3.lib on
 // Windows, sqlite3.a on unix); the link block below points there. This is the
 // only place the C ABI is crossed.
@@ -24,18 +24,36 @@ when ODIN_OS == .Windows {
 	}
 }
 
-// Opaque handles.
+// Opaque handles. Context and Value are what a function defined in Odin and
+// called from SQL (create_function_v2) receives.
 DB :: distinct rawptr
 Stmt :: distinct rawptr
+Context :: distinct rawptr
+Value :: distinct rawptr
 
-// Result codes.
+// Result codes. Extended codes keep the primary one in their low byte.
 OK :: 0
+CONSTRAINT :: 19
 ROW :: 100
 DONE :: 101
+
+// column_type results.
+INTEGER :: 1
+FLOAT :: 2
+TEXT :: 3
+BLOB :: 4
+NULL :: 5
 
 // open_v2 flags.
 OPEN_READWRITE :: 0x00000002
 OPEN_CREATE :: 0x00000004
+
+// create_function_v2 flags: the text encoding the function receives, and that
+// its result depends only on its arguments (so SQLite may use it in an index).
+UTF8 :: 1
+DETERMINISTIC :: 0x000000800
+
+Scalar_Func :: #type proc "c" (ctx: Context, argc: c.int, argv: [^]Value)
 
 // SQLITE_TRANSIENT (-1): tell SQLite to copy the bound bytes, so a temp-arena
 // string need not outlive the bind. (bind_text's destructor arg is pointer-sized;
@@ -50,14 +68,22 @@ foreign lib {
 	bind_text :: proc(stmt: Stmt, idx: c.int, text: [^]u8, nByte: c.int, destructor: rawptr) -> c.int ---
 	bind_int :: proc(stmt: Stmt, idx: c.int, val: c.int) -> c.int ---
 	bind_int64 :: proc(stmt: Stmt, idx: c.int, val: i64) -> c.int ---
+	bind_double :: proc(stmt: Stmt, idx: c.int, val: f64) -> c.int ---
+	bind_null :: proc(stmt: Stmt, idx: c.int) -> c.int ---
 	step :: proc(stmt: Stmt) -> c.int ---
 	reset :: proc(stmt: Stmt) -> c.int ---
 	column_int :: proc(stmt: Stmt, col: c.int) -> c.int ---
 	column_int64 :: proc(stmt: Stmt, col: c.int) -> i64 ---
+	column_double :: proc(stmt: Stmt, col: c.int) -> f64 ---
+	column_type :: proc(stmt: Stmt, col: c.int) -> c.int --- // INTEGER … NULL; tells NULL from 0 / ""
 	column_text :: proc(stmt: Stmt, col: c.int) -> cstring --- // NUL-terminated
 	finalize :: proc(stmt: Stmt) -> c.int ---
 	last_insert_rowid :: proc(db: DB) -> i64 ---
 	changes :: proc(db: DB) -> c.int ---
 	close :: proc(db: DB) -> c.int ---
 	errmsg :: proc(db: DB) -> cstring ---
+	create_function_v2 :: proc(db: DB, name: cstring, nargs: c.int, flags: c.int, app: rawptr, xfunc: Scalar_Func, xstep: rawptr, xfinal: rawptr, destroy: rawptr) -> c.int ---
+	value_text :: proc(v: Value) -> [^]u8 --- // call before value_bytes
+	value_bytes :: proc(v: Value) -> c.int ---
+	result_int :: proc(ctx: Context, v: c.int) ---
 }
