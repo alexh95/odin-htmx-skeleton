@@ -14,8 +14,11 @@
 # binary links against is the glibc it runs on.
 FROM debian:trixie-slim AS build
 
-# Pin the toolchain so image builds are reproducible. Bump deliberately.
+# Pin the toolchain so image builds are reproducible. Bump deliberately: the
+# SHA-256 is the release's published digest of the linux-amd64 tarball, the same
+# one ci.yml pins.
 ARG ODIN_VERSION=dev-2026-10
+ARG ODIN_SHA256=c3c8b095621fd0c75f7f73e3a0829f1b4d45324225f20ba11ed8dc4da310a8ab
 
 # clang is the linker driver and also compiles the SQLite amalgamation (prepare.sh);
 # unzip extracts it and binutils (ar) archives it into sqlite3.a. The Odin release
@@ -25,6 +28,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-linux-amd64-${ODIN_VERSION}.tar.gz" -o /tmp/odin.tar.gz \
+ && echo "${ODIN_SHA256}  /tmp/odin.tar.gz" | sha256sum -c - \
  && mkdir -p /opt/odin \
  && tar -xzf /tmp/odin.tar.gz -C /opt/odin --strip-components=1 \
  && rm /tmp/odin.tar.gz

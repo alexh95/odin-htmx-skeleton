@@ -21,8 +21,12 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Same Odin release the Dockerfile pins, so CI builds what production builds.
+# ODIN_SHA256 is the release's published digest of the linux-amd64 tarball (the
+# one the e2e containers and the Dockerfile download); the build matrix pins one
+# per asset. Downloads are checked against them, like htmx and SQLite in prepare.
 env:
   ODIN_VERSION: dev-2026-10
+  ODIN_SHA256: c3c8b095621fd0c75f7f73e3a0829f1b4d45324225f20ba11ed8dc4da310a8ab
 
 jobs:
   build:
@@ -45,17 +49,20 @@ jobs:
         include:
           - os: ubuntu-latest
             odin_asset: odin-linux-amd64-dev-2026-10.tar.gz
+            odin_sha256: c3c8b095621fd0c75f7f73e3a0829f1b4d45324225f20ba11ed8dc4da310a8ab
             odin_dir: /opt/odin
             exe: ''
           - os: macos-latest
             # arm64 build (macos-latest has been Apple Silicon since macos-14).
             odin_asset: odin-macos-arm64-dev-2026-10.tar.gz
+            odin_sha256: b276c6ac87c3eea17446a6ca9080089b6e9f492057fb773591775ee49d92a1cf
             odin_dir: /opt/odin
             exe: ''
           - os: windows-latest
             # Unpacks to a top-level dist/ (odin.exe + LLVM-C.dll live there
             # together) — verified for this release.
             odin_asset: odin-windows-amd64-dev-2026-10.zip
+            odin_sha256: b6b2e426a8b6f147b74ec7e18bef8df27cf40fe16193159df7ca09a0cc0c2011
             odin_dir: C:\odin
             # Odin won't infer the extension on Windows; -out: needs it spelled out.
             exe: '.exe'
@@ -69,8 +76,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ matrix.odin_dir }}
-          # runner.os in the key so the three OSes don't share one cache entry.
-          key: odin-${{ env.ODIN_VERSION }}-${{ runner.os }}
+          # runner.os in the key so the three OSes don't share one cache entry, and
+          # the digest so a re-pinned asset is downloaded and checked again.
+          key: odin-${{ env.ODIN_VERSION }}-${{ runner.os }}-${{ matrix.odin_sha256 }}
 
       # Linux + macOS share the tar.gz path; only the asset name differs (matrix).
       # The ubuntu leg is unchanged from before (same URL shape, same install).
@@ -78,6 +86,7 @@ jobs:
         if: runner.os != 'Windows' && steps.cache-odin.outputs.cache-hit != 'true'
         run: |
           curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/${{ matrix.odin_asset }}" -o /tmp/odin.tar.gz
+          echo "${{ matrix.odin_sha256 }}  /tmp/odin.tar.gz" | shasum -a 256 -c -
           sudo mkdir -p /opt/odin
           sudo tar -xzf /tmp/odin.tar.gz -C /opt/odin --strip-components=1
 
@@ -86,8 +95,11 @@ jobs:
         shell: pwsh
         run: |
           $url = "https://github.com/odin-lang/Odin/releases/download/$env:ODIN_VERSION/${{ matrix.odin_asset }}"
-          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\odin.zip"
-          Expand-Archive -Path "$env:RUNNER_TEMP\odin.zip" -DestinationPath C:\odin -Force
+          $zip = "$env:RUNNER_TEMP\odin.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          $got = (Get-FileHash $zip -Algorithm SHA256).Hash
+          if ($got -ne '${{ matrix.odin_sha256 }}') { throw "odin.zip SHA-256 is $got, expected ${{ matrix.odin_sha256 }}" }
+          Expand-Archive -Path $zip -DestinationPath C:\odin -Force
 
       # Odin links the final binary through the platform C toolchain (clang/ld on
       # unix; on Windows its own bundled radlink — the default since dev-2026-10 —
@@ -263,6 +275,7 @@ jobs:
         if: steps.cache-odin.outputs.cache-hit != 'true'
         run: |
           curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-linux-amd64-${ODIN_VERSION}.tar.gz" -o /tmp/odin.tar.gz
+          echo "${ODIN_SHA256}  /tmp/odin.tar.gz" | sha256sum -c -
           mkdir -p /opt/odin
           tar -xzf /tmp/odin.tar.gz -C /opt/odin --strip-components=1
 
