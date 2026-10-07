@@ -58,6 +58,14 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
     **Upgrading:** a volume that already holds root-owned files (apollo-11's `odin-htmx-data`), or a
     Fly volume, needs a one-time `chown -R 10001:10001` on it before the new image can open the DB.
   - **`HEALTHCHECK`** on `/healthz`, through bash's `/dev/tcp`, so it adds no package.
+- **e2e servers can't pick up the wrong port or your `data.db`**
+  ([#41](https://github.com/alexh95/odin-htmx-skeleton/issues/41)). Every server the suite starts
+  now goes through `helpers/server.ts`. It takes a port the OS picks, not a fixed base, which two
+  runs at once could share; on Windows the second server binds a taken port silently, so a stale
+  build got tested. It also pins the env (`PORT`, `DB_PATH=:memory:`, an empty `BIND_ALL` and
+  `SITE_URL`), and fails fast with the server's own output if it exits. `persistence.spec.ts`
+  restarts on a fresh port. Checked by running the suite with `PORT`, `DB_PATH`, `SITE_URL` and
+  `BIND_ALL` exported: it passed, and the exported `DB_PATH` was never created.
 
 ## [1.1.1] - 2026-10-07
 
