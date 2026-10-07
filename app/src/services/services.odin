@@ -131,6 +131,17 @@ next_sort :: proc(current, column: string) -> string {
 	return column
 }
 
+// Every match for the JSON API; an empty query lists everyone.
+search_all :: proc(q: string) -> []models.Contact {
+	out := make([dynamic]models.Contact, context.temp_allocator)
+	for c in repository.repo_list() {
+		if contact_matches(c, q) {
+			append(&out, c)
+		}
+	}
+	return out[:]
+}
+
 service_search :: proc(q: string, limit: int) -> []models.Contact {
 	out := make([dynamic]models.Contact, context.temp_allocator)
 	if strings.trim_space(q) == "" {
@@ -189,6 +200,63 @@ service_related :: proc(c: models.Contact, limit: int) -> []models.Contact {
 		}
 	}
 	return out[:]
+}
+
+// ---- contacts: reads and writes ------------------------------------------
+//
+// The controllers reach the store only through these: one place to validate,
+// and one seam between what a request asked for and how it is stored.
+
+get_contact :: proc(id: int) -> (models.Contact, bool) {
+	return repository.repo_get(id)
+}
+
+// Trim + validate, then insert. A rejected contact comes back as per-field
+// messages and nothing is stored.
+create_contact :: proc(name, email: string, role: models.Role, status: models.Status, score: int) -> (models.Contact, []Field_Error) {
+	if errs := validate_contact(name, email); len(errs) > 0 {
+		return {}, errs
+	}
+	return repository.repo_create(strings.trim_space(name), strings.trim_space(email), role, status, clamp(score, 0, 100)), nil
+}
+
+// The full edit from the detail drawer. `found` is false for a missing id.
+update_contact :: proc(id: int, name, email: string, role: models.Role, status: models.Status, score: int) -> (c: models.Contact, found: bool, errs: []Field_Error) {
+	if errs = validate_contact(name, email); len(errs) > 0 {
+		c, found = repository.repo_get(id)
+		return
+	}
+	c, found = repository.repo_update(id, strings.trim_space(name), strings.trim_space(email), role, status, clamp(score, 0, 100))
+	return
+}
+
+// Advance the status one step round the cycle (Active → Invited → Disabled → …).
+cycle_status :: proc(id: int) -> (c: models.Contact, found: bool) {
+	cur := repository.repo_get(id) or_return
+	return repository.repo_set_status(id, models.Status((int(cur.status) + 1) % len(models.Status)))
+}
+
+delete_contact :: proc(id: int) -> bool {
+	return repository.repo_delete(id)
+}
+
+// ---- dashboard ----------------------------------------------------------
+
+Stats :: struct {
+	total, active, invited, avg_score: int,
+}
+
+dashboard_stats :: proc() -> Stats {
+	s: Stats
+	score_sum := 0
+	for c in repository.repo_list() {
+		s.total += 1
+		if c.status == .Active {s.active += 1}
+		if c.status == .Invited {s.invited += 1}
+		score_sum += c.score
+	}
+	s.avg_score = s.total > 0 ? score_sum / s.total : 0
+	return s
 }
 
 // ---- validation ---------------------------------------------------------
