@@ -221,6 +221,10 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   must exist and every token must hit somewhere; a file left with nothing to rename is only noted. A
   second run says the checkout is already renamed. An audit of every existing replacement found two misses: the `run.sh` scenario list
   (above) and `app/README.md`, which was in the rename list with nothing to rename.
+### Fixed
+- **The `--minimal` starter passes `odin check -vet`** (part of
+  [#29](https://github.com/alexh95/odin-htmx-skeleton/issues/29)): `notes.odin` dropped an unused
+  `import "core:c"`.
 
 ## [1.1.1] - 2026-10-07
 
