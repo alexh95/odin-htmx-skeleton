@@ -8,6 +8,20 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [1.1.0] - 2026-10-07
+
+The skeleton now ships the **crawler contract** every new site needs, so a fork can be found:
+one canonical origin (`SITE_URL`, set by `init --site`), `robots.txt`, a `sitemap.xml` derived from
+the nav, canonical and social-card tags, JSON-LD, a root `favicon.ico`, and opt-in Bing/IndexNow
+verification. All of it is ported into the `--minimal` starter and covered by both the e2e and the
+load suites. The project is now licensed **zlib**. Two fixes: clicks are no longer lost while an
+htmx swap runs ([#8](https://github.com/alexh95/odin-htmx-skeleton/issues/8)), and the home page's
+`<title>` and `og:title` now agree. Every pin is current: Odin `dev-2026-10`, htmx `4.0.0` final,
+Debian 13 `trixie`, SQLite `3.53.4`, Playwright `1.63.0`, and the GitHub Actions on their Node 24
+majors. Nothing breaking for a fork: the additions are opt-in or derived from what's already there.
+
 ### Changed
 - **Dependency sweep — every pin checked against upstream; one moved.**
   - **Odin `dev-2026-09` → `dev-2026-10`** (`ci.yml`'s `ODIN_VERSION` and all three matrix asset
