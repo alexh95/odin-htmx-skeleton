@@ -9,6 +9,15 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 ## [Unreleased]
 
 ### Added
+- **`<bin> --backup <file>`: a safe online backup, and a restore runbook**
+  ([#34](https://github.com/alexh95/odin-htmx-skeleton/issues/34)). A fork with a persistent
+  `DB_PATH` had no backup path, and the docs advised "a file copy", which can lose committed
+  transactions still in `data.db-wal`. `DB_PATH=<live db> <bin> --backup <file>` writes a consistent
+  copy with `VACUUM INTO` from its own connection, beside the running server, and refuses to
+  overwrite a file. `docs/DATA.md` gains the backup and restore runbook (Fly and Docker commands,
+  scheduling, deleting the stale `-wal`/`-shm` on restore, the one-machine-per-volume limit), and
+  `DATA_IMPL.md` drops the file-copy advice. e2e: `backup.spec.ts` backs up under a live server, and
+  restores by booting on the copy.
 - **Logging, an access log and a build version**
   ([#20](https://github.com/alexh95/odin-htmx-skeleton/issues/20)). `context.logger` was never set, so
   Odin's no-op default swallowed every one of odin-http's warnings and errors, and nothing recorded a

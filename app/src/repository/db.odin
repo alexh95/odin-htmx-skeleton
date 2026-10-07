@@ -192,6 +192,35 @@ migration_hash :: proc(sql: string) -> string {
 	return string(hex.encode(sum[:], context.temp_allocator))
 }
 
+// ---- backup -------------------------------------------------------------
+//
+// A consistent, compacted copy of the database at `src`, written to `dest` with
+// VACUUM INTO. Safe while the server is running: it reads one snapshot, WAL
+// included, which a plain file copy of data.db does not (a copy taken without
+// its -wal file can miss committed writes). It opens its own connection, so it
+// runs from a second process beside the server (`<bin> --backup <path>`), and
+// SQLite refuses to write over an existing file. Returns "" or what went wrong.
+repo_backup :: proc(src, dest: string) -> (problem: string) {
+	conn: sqlite.DB
+	// No OPEN_CREATE: backing up a path that isn't a database is a mistake to report.
+	rc := sqlite.open_v2(csql(src), &conn, sqlite.OPEN_READWRITE, nil)
+	defer sqlite.close(conn) // a failed open can still hand back a handle to free
+	if rc != sqlite.OK {
+		return fmt.tprintf("can't open %s: %s", src, sqlite.errmsg(conn))
+	}
+	sqlite.exec(conn, "PRAGMA busy_timeout=5000;", nil, nil, nil)
+	st: sqlite.Stmt
+	if sqlite.prepare_v2(conn, "VACUUM INTO ?", -1, &st, nil) != sqlite.OK {
+		return fmt.tprintf("can't back up %s: %s", src, sqlite.errmsg(conn))
+	}
+	defer sqlite.finalize(st)
+	bind_text(st, 1, dest)
+	if sqlite.step(st) != sqlite.DONE {
+		return fmt.tprintf("backup to %s failed: %s", dest, sqlite.errmsg(conn))
+	}
+	return ""
+}
+
 // Whether the store answers at all: the readiness half of /healthz.
 repo_ping :: proc() -> bool {
 	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
