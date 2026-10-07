@@ -131,6 +131,16 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   ([#40](https://github.com/alexh95/odin-htmx-skeleton/issues/40)). It claimed both suites "gate CI".
   CI runs e2e only; the load suite is local, so it says that now and points at `--strict`. The e2e
   line gains `npx playwright install`.
+- **README and `docs/STRIP.md` match the code**
+  ([#33](https://github.com/alexh95/odin-htmx-skeleton/issues/33)). The README listed "three brand
+  constants" for `init` (it's five, plus two blanked tokens, the favicon and the card). It now shows
+  `--site` in the example and lists every option. It gains a **Deploy** section linking
+  `infra/PLAN.md` and `deploy/docker-host`, with the io_uring requirement, and the layout block lists
+  `infra/`, `deploy/` and `tools/`. `init`'s usage text now lists `--site`. `docs/STRIP.md`'s
+  keep-lists cover the 1.1.0 crawler contract: the SEO handlers and routes, `robots_txt`'s
+  demo-specific `Disallow` list, `og.png` and its source, `BRAND_HOME_TITLE`, and the generic
+  `seo.spec.ts`/`seo.js`. It also marks `helpers/server.ts` as demo-only and covers the CI `minimal`
+  job and the stale `data.db`.
 - **Per-id load-test URLs are tagged with a route `name`**
   ([#40](https://github.com/alexh95/odin-htmx-skeleton/issues/40)): `POST`/`DELETE /contacts/:id` in
   `write.js` and `mixed.js`, and `GET /contacts/:id` in `detail.js`. Untagged, each id was its own k6

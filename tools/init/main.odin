@@ -410,11 +410,12 @@ confirm :: proc(prompt: string) -> bool {
 }
 
 usage :: proc() {
-	fmt.eprintln("usage: odin run tools/init -- <new-name> [--wordmark W] [--suffix S] [--repo URL] [--yes]")
+	fmt.eprintln("usage: odin run tools/init -- <new-name> [--wordmark W] [--suffix S] [--repo URL] [--site URL] [--minimal] [--yes]")
 	fmt.eprintln("  <new-name>   lower-case machine name, e.g. acme-crm")
 	fmt.eprintln("  --wordmark   topbar wordmark (inline HTML ok); default: <new-name>")
 	fmt.eprintln("  --suffix     <title> suffix; default: Title Case of <new-name>")
 	fmt.eprintln("  --repo       GitHub URL for the About page; default: a placeholder")
+	fmt.eprintln("  --site       canonical origin (canonical tags, sitemap); default: https://<new-name>.example.com")
 	fmt.eprintln("  --minimal    also strip the demo to a one-page starter")
 	fmt.eprintln("  --yes, -y    skip the confirmation prompt")
 	os.exit(2)
