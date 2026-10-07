@@ -13,13 +13,14 @@ binary and served from memory.
 
 You need the [Odin compiler](https://odin-lang.org) on your `PATH` **and a C toolchain** —
 `prepare` now compiles the SQLite amalgamation into a static lib, so a C compiler is a hard
-requirement (it's also what Odin's linker uses):
+requirement (its libraries are also what Odin links against — on Windows with its own bundled
+`radlink`, not `link.exe`, since `dev-2026-10`):
 
 - **Windows** — MSVC **Build Tools** (not full Visual Studio):
   `winget install --id Microsoft.VisualStudio.2022.BuildTools -e`, then pick the *Desktop
   development with C++* workload (MSVC v143 + Windows 11 SDK). Run `prepare.bat`/`run.bat`
   from an *“x64 Native Tools Command Prompt for VS 2022”* (or after `vcvars64.bat`) so
-  `cl.exe`/`link.exe` and `INCLUDE`/`LIB` are set.
+  `cl.exe` and `INCLUDE`/`LIB` are set.
 - **Linux** — `sudo apt-get install -y clang` (clang/gcc + binutils + unzip).
 - **macOS** — `xcode-select --install` (clang, ld, ar, the SDK).
 
