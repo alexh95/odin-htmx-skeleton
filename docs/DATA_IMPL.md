@@ -201,8 +201,8 @@ next optimization once the dataset outgrows "fits in a slice." Keep it behind th
   (Windows uses MSVC `cl`/`lib` + PowerShell `Expand-Archive`). The runtime image carries nothing —
   sqlite is statically linked into the binary.
 - **Deploy**: the binary needs a writable path for `data.db` *only when `DB_PATH` points at a file*.
-  apollo-11 mounts a named docker volume at `/data` and sets `DB_PATH=/data/data.db` (durable across
-  redeploys). On Fly, leaving `DB_PATH` unset keeps `:memory:` (the live demo reseeds each deploy);
+  The Docker-host deploy (`deploy/docker-host`) mounts a named volume at `/data` and sets
+  `DB_PATH=/data/data.db` (durable across redeploys). On Fly, leaving `DB_PATH` unset keeps `:memory:` (the live demo reseeds each deploy);
   to persist, `fly volumes create`, add `[mounts]` + `DB_PATH` to `fly.toml` (operator step — a
   `[mounts]` referencing a missing volume fails the deploy). Back up with `<bin> --backup <file>`
   (`VACUUM INTO`, safe beside the running server) — never by copying `data.db`, whose recent commits

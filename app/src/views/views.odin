@@ -371,7 +371,7 @@ layout :: proc(title, active, description, content: string) -> string {
 `)
 	// The site name a search engine prints above the result. Without this it is
 	// derived from the hostname — which for a subdomain means the bare registrable
-	// name ("alexh95"), not the project. Google reads WebSite only from the home
+	// name (the "example" of app.example.com), not the project. Google reads WebSite only from the home
 	// page, hence the guard, and `name` matches og:site_name on purpose: agreeing
 	// signals are what makes it pick ours over the fallback.
 	if active == "/" {
