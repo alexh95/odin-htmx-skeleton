@@ -71,11 +71,11 @@ strip_to_minimal :: proc(opt: Options) {
 	// 3. The note-page styles ride on top of the kept theme/component CSS.
 	append_file("app/static/app.css", MIN_CSS)
 
-	// 4. Point the load driver at the surviving scenarios.
+	// 4. The load driver runs whatever scenarios are left; only its optional
+	//    bombardier baseline names a demo path.
 	edit(
 		"load-tests/run.sh",
 		[]Repl {
-			{`SCENARIOS="static pages list search api detail write mixed"`, `SCENARIOS="static pages"`},
 			{`for path in /static/app.css /api/search?q=a /; do`, `for path in /static/app.css /; do`},
 		},
 	)
