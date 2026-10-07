@@ -266,6 +266,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
 
 ### Fixed
+- **Visual defaults: bare checkboxes, the starter's note list**
+  ([#30](https://github.com/alexh95/odin-htmx-skeleton/issues/30)). The global
+  `input, select, textarea { width: 100% }` stretched a bare checkbox to about 815 px; it now skips
+  checkboxes and radios, inside `:where()` so `input[type="range"]` still wins. In the `--minimal`
+  starter the note list lost its 40 px browser indent, and the seed now runs oldest to newest and the
+  list orders by time, so "Welcome…" (the newest) is on top instead of at the bottom. e2e:
+  `styles.spec.ts`.
 - **`/forms` stores the notes and the email-updates switch it posts** (part of
   [#23](https://github.com/alexh95/odin-htmx-skeleton/issues/23); the e2e half of
   [#15](https://github.com/alexh95/odin-htmx-skeleton/issues/15)). `forms_submit` silently dropped
