@@ -11,10 +11,6 @@ package main
 // are embedded at compile time (#load), so what lands in the project is exactly
 // what you can read here.
 
-import "core:fmt"
-import "core:os"
-import "core:strings"
-
 MIN_MODELS :: #load("minimal/src/models/models.odin", string)
 MIN_REPO :: #load("minimal/src/repository/repo.odin", string)
 MIN_NOTES :: #load("minimal/src/repository/notes.odin", string)
@@ -52,7 +48,7 @@ strip_to_minimal :: proc(opt: Options) {
 		"load-tests/scenarios/write.js",
 	}
 	for f in demo {
-		remove_file(f)
+		remove(f)
 	}
 
 	// 2. Drop in the minimal app (overwrites the demo's core files; main.odin,
@@ -69,7 +65,7 @@ strip_to_minimal :: proc(opt: Options) {
 	put("load-tests/scenarios/pages.js", MIN_PAGES)
 
 	// 3. The note-page styles ride on top of the kept theme/component CSS.
-	append_file("app/static/app.css", MIN_CSS)
+	append_to("app/static/app.css", MIN_CSS)
 
 	// 4. The load driver runs whatever scenarios are left; only its optional
 	//    bombardier baseline names a demo path.
@@ -79,36 +75,4 @@ strip_to_minimal :: proc(opt: Options) {
 			{`for path in /static/app.css /api/search?q=a /; do`, `for path in /static/app.css /; do`},
 		},
 	)
-}
-
-@(private = "file")
-put :: proc(path, content: string) {
-	if werr := os.write_entire_file(path, content); werr != nil {
-		fmt.eprintfln("  ERROR writing %s: %v", path, werr)
-		os.exit(1)
-	}
-	fmt.printfln("  wrote    %s", path)
-}
-
-@(private = "file")
-remove_file :: proc(path: string) {
-	if err := os.remove(path); err != nil {
-		fmt.printfln("  (absent) %s", path)
-	} else {
-		fmt.printfln("  removed  %s", path)
-	}
-}
-
-@(private = "file")
-append_file :: proc(path, extra: string) {
-	data, rerr := os.read_entire_file(path, context.allocator)
-	if rerr != nil {
-		fmt.eprintfln("  ERROR reading %s: %v", path, rerr)
-		os.exit(1)
-	}
-	if werr := os.write_entire_file(path, strings.concatenate({string(data), extra})); werr != nil {
-		fmt.eprintfln("  ERROR writing %s: %v", path, werr)
-		os.exit(1)
-	}
-	fmt.printfln("  appended %s", path)
 }

@@ -21,6 +21,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   scenario list that `init --minimal` was meant to trim, but the line it matched had changed in 1.1.0,
   so the trim silently missed and the run died at the first deleted scenario. `run.sh` now runs every
   `scenarios/*.js` by default, so there is no list to keep in step.
+- **`init` fails loudly instead of skipping an edit that no longer applies**
+  ([#27](https://github.com/alexh95/odin-htmx-skeleton/issues/27)). It now plans every change in
+  memory (`tools/init/plan.odin`) and writes only if all of them apply; otherwise it lists each miss
+  and changes nothing. A targeted replacement must match; for the name-token pass, each file must
+  still name the upstream and each token must hit somewhere. A second run says the checkout is
+  already renamed. An audit of every existing replacement found two misses: the `run.sh` scenario list
+  (above) and `app/README.md`, which was in the rename list with nothing to rename.
 
 ## [1.1.1] - 2026-10-07
 

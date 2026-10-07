@@ -1,0 +1,204 @@
+package main
+
+// ---- the plan: every change, in memory, until all of them apply ---------
+//
+// Each step reads and updates the planned state of a file rather than the disk,
+// so a later step sees an earlier one's result and nothing is written until the
+// whole run has applied cleanly. A step that no longer fits the files (a
+// replacement whose text is gone, a file that moved) records a problem instead;
+// any problem aborts the run with nothing touched. The template drifting under
+// init must break it loudly: a quiet skip is how a fork ends up half-renamed,
+// or with a load driver pointing at scenarios it just deleted.
+
+import "core:fmt"
+import "core:os"
+import "core:strings"
+
+// A literal find/replace. Applied in order, so list the most specific first.
+Repl :: struct {
+	old, new: string,
+}
+
+Change :: struct {
+	path:     string,
+	content:  string,
+	edits:    int,
+	wrote:    bool, // replaced wholesale (or created)
+	appended: bool,
+	removed:  bool,
+	optional: bool, // local state, not source: failing to remove it only warns
+}
+
+changes: [dynamic]Change
+problems: [dynamic]string
+
+problem :: proc(format: string, args: ..any) {
+	append(&problems, fmt.aprintf(format, ..args))
+}
+
+@(private = "file")
+find :: proc(path: string) -> int {
+	for c, i in changes {
+		if c.path == path {
+			return i
+		}
+	}
+	return -1
+}
+
+// The planned content of `path`, read from disk the first time it's needed.
+// -1 (and a problem) when there's nothing to edit.
+load :: proc(path: string) -> int {
+	if i := find(path); i >= 0 {
+		if changes[i].removed {
+			problem("%s: edited after an earlier step removed it", path)
+			return -1
+		}
+		return i
+	}
+	data, err := os.read_entire_file(path, context.allocator)
+	if err != nil {
+		problem("%s: not found", path)
+		return -1
+	}
+	append(&changes, Change{path = path, content = string(data)})
+	return len(changes) - 1
+}
+
+// Every replacement must match at least once: each was written against a line
+// that exists, and one that stopped matching means that line changed.
+edit :: proc(path: string, repls: []Repl) {
+	i := load(path)
+	if i < 0 {
+		return
+	}
+	s := changes[i].content
+	for r in repls {
+		n := strings.count(s, r.old)
+		if n == 0 {
+			problem("%s: no longer contains %q", path, r.old)
+			continue
+		}
+		s, _ = strings.replace_all(s, r.old, r.new)
+		changes[i].edits += n
+	}
+	changes[i].content = s
+}
+
+// A vocabulary pass: the same tokens over many files, each file holding only
+// some of them. Holding every token to every file would just restate a grep, so
+// the checks are per file (it must still name the upstream at all) and per token
+// (`hits`, which the caller checks hit somewhere). The closing scan in main
+// reports whatever is left.
+sweep :: proc(path: string, repls: []Repl, hits: []int) {
+	i := load(path)
+	if i < 0 {
+		return
+	}
+	s := changes[i].content
+	total := 0
+	for r, k in repls {
+		n := strings.count(s, r.old)
+		if n > 0 {
+			s, _ = strings.replace_all(s, r.old, r.new)
+			hits[k] += n
+			total += n
+		}
+	}
+	if total == 0 {
+		problem("%s: no longer names the upstream project; drop it from the rename list", path)
+	}
+	changes[i].content = s
+	changes[i].edits += total
+}
+
+put :: proc(path, content: string) {
+	i := find(path)
+	if i < 0 {
+		append(&changes, Change{path = path})
+		i = len(changes) - 1
+	}
+	changes[i].content = content
+	changes[i].wrote = true
+	changes[i].removed = false
+}
+
+append_to :: proc(path, extra: string) {
+	i := load(path)
+	if i < 0 {
+		return
+	}
+	changes[i].content = strings.concatenate({changes[i].content, extra})
+	changes[i].appended = true
+}
+
+// A file init expects to delete. Missing means the template moved on and the
+// list here is stale, which is a problem like any other miss.
+remove :: proc(path: string) {
+	i := find(path)
+	if i < 0 {
+		if !os.exists(path) {
+			problem("%s: not found (nothing to remove)", path)
+			return
+		}
+		append(&changes, Change{path = path})
+		i = len(changes) - 1
+	}
+	changes[i].removed = true
+}
+
+// Local, untracked state (a dev database) that may or may not be there.
+remove_if_present :: proc(path: string) -> bool {
+	if !os.exists(path) {
+		return false
+	}
+	append(&changes, Change{path = path, removed = true, optional = true})
+	return true
+}
+
+// ---- apply --------------------------------------------------------------
+
+// Abort with the full list of misses, before anything is written.
+check :: proc() {
+	if len(problems) == 0 {
+		return
+	}
+	fmt.eprintfln("init: %d step%s no longer fit this checkout; nothing was changed:", len(problems), len(problems) == 1 ? "" : "s")
+	for p in problems {
+		fmt.eprintfln("  - %s", p)
+	}
+	fmt.eprintln("If init already ran here, start again from a clean checkout: it runs once.")
+	fmt.eprintln("Otherwise the template changed under it; tools/init needs updating to match.")
+	os.exit(1)
+}
+
+commit :: proc() {
+	for c in changes {
+		switch {
+		case c.removed:
+			if err := os.remove(c.path); err != nil {
+				if c.optional {
+					fmt.printfln("  WARNING: could not remove %s (%v); delete it before the next run", c.path, err)
+					continue
+				}
+				fmt.eprintfln("  ERROR removing %s: %v", c.path, err)
+				os.exit(1)
+			}
+			fmt.printfln("  removed  %s", c.path)
+			// Only succeeds once the directory is empty (e2e/helpers/, say).
+			_ = os.remove(os.dir(c.path))
+		case c.wrote, c.appended, c.edits > 0:
+			if err := os.write_entire_file(c.path, c.content); err != nil {
+				fmt.eprintfln("  ERROR writing %s: %v", c.path, err)
+				os.exit(1)
+			}
+			if c.wrote {
+				fmt.printfln("  wrote    %s", c.path)
+			} else if c.appended {
+				fmt.printfln("  appended %s", c.path)
+			} else {
+				fmt.printfln("  %-38s %d edit%s", c.path, c.edits, c.edits == 1 ? "" : "s")
+			}
+		}
+	}
+}
