@@ -21,6 +21,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
 
 ### Fixed
+- **Ids are 64-bit, and a bad id is a 404**
+  ([#16](https://github.com/alexh95/odin-htmx-skeleton/issues/16)). Ids were bound and read as
+  32-bit `c.int`, and `to_int` ignored parse failures, so `GET /contacts/4294967297` returned
+  contact #1 and `DELETE /contacts/4294967298` deleted #2. The repository binds and reads ids with
+  `bind_id`/`column_id` (int64), and the controllers parse path ids with `parse_id`, which rejects
+  zero, non-digits and anything past 64 bits (`strconv.parse_int` wraps silently). e2e:
+  `ids.spec.ts`.
 - **Store errors are no longer ignored, and empty strings are stored as `""`**
   ([#15](https://github.com/alexh95/odin-htmx-skeleton/issues/15)). `bind_text` passed a nil pointer
   for `""`, which SQLite binds as NULL, so a `NOT NULL` text column rejected it; and no `step()`
