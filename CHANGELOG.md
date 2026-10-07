@@ -27,13 +27,11 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   release the fork started from, read from the upstream changelog. The TODO lists the remaining
   make-it-yours steps. `--minimal` also deletes `e2e/helpers/server.ts`, which only the deleted
   persistence and events specs used.
-
 - **`load-tests/run.sh --strict`**
   ([#40](https://github.com/alexh95/odin-htmx-skeleton/issues/40)). Without it the driver still records
   a breached threshold and carries on (a sweep exists to find the knee). With it, the run lists the
   failed `scenario@VUs` and exits 1, so it can gate. Checked: `P95=0.001 ./run.sh --quick --strict
   static` exits 1, and exits 0 without `--strict`.
-
 - **`load-tests/parity.sh`** ([#40](https://github.com/alexh95/odin-htmx-skeleton/issues/40)) lists
   every route in `routes.odin` and whether `e2e/tests/` and `load-tests/scenarios/` mention its path,
   so the "both suites" rule can be checked rather than just stated. It's a text search, not coverage.
