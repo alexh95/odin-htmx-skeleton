@@ -21,6 +21,15 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
 
 ### Fixed
+- **Escaping gaps closed** ([#22](https://github.com/alexh95/odin-htmx-skeleton/issues/22)). Avatar
+  initials were cut byte by byte and written raw: a name starting with `<` broke the row's DOM, and
+  every non-ASCII initial (the `É` of "Émile") rendered as half a character. They are now whole runes,
+  escaped. `page_head`, `section_open`, `acc_item`, `link_tile` and `stat_card` (and the starter's
+  `page_head`) wrote their text arguments raw, so the first fork to pass a stored value to a heading
+  had stored XSS; they now escape them, and the one pre-escaped caller (`"Data &amp; CRUD"`) passes
+  plain text. JSON-LD used the HTML escaper; it now uses a JSON string escaper, `json_esc`. `w`, `esc`,
+  `url_encode` and `json_esc` live in one shared file, `views/html.odin`. Tests: `escaping.spec.ts`
+  (avatars) and `views/html_test.odin` (`page_head` with hostile text, `json_esc`).
 - **A refused form keeps what the user typed**
   ([#17](https://github.com/alexh95/odin-htmx-skeleton/issues/17)). Validation errors came back as
   200, so app.js's reset-on-success wiped every field of a rejected `/forms` submit. They are now
