@@ -266,6 +266,14 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `dashboard_stats`; `view_dashboard` takes its numbers as a parameter.
 
 ### Fixed
+- **The dashboard shows only what the store says** (part of
+  [#23](https://github.com/alexh95/odin-htmx-skeleton/issues/23) and
+  [#14](https://github.com/alexh95/odin-htmx-skeleton/issues/14)). "+4 this week" and "82% of base"
+  sat beside live counts, over made-up sparklines. The cards now come from one aggregate query
+  (`repo_contact_stats`: a `GROUP BY` of status, role and score band, so its cost doesn't grow with
+  the table) instead of loading every contact: shares are computed ("35% of all"), and each sparkline
+  is a real distribution (contacts per role; engagement scores, low to high), with the misleading
+  up-arrow gone. e2e: `dashboard.spec.ts`.
 - **Cycling a status can't lose a step** (part of
   [#23](https://github.com/alexh95/odin-htmx-skeleton/issues/23)). It read the status and wrote the
   next one under two separate lock acquisitions, so two clicks at once could both write the same
