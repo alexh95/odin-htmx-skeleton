@@ -65,6 +65,9 @@ main :: proc() {
 	fmt.printfln("  canonical site URL (SEO tags)      : %s", opt.site)
 	if opt.minimal {
 		fmt.println("  + strip the contacts/events demo to a minimal one-page starter")
+		if os.exists(DEV_DB[0]) {
+			fmt.printfln("  + delete %s (+ -wal/-shm): the demo's local database, which the starter can't migrate", DEV_DB[0])
+		}
 	}
 	fmt.println()
 
@@ -82,6 +85,9 @@ main :: proc() {
 	fmt.println("  - the brand wordmark/suffix/repo/site live in app/src/views/brand.odin — tweak to taste")
 	fmt.println("  - SITE_URL drives the canonical tags and /sitemap.xml; point it at your real domain")
 	fmt.println("  - CHANGELOG.md / TODO.md / load-tests/RESULTS.md describe the example; prune them")
+	if opt.minimal {
+		fmt.println("  - if DB_PATH points at a database other than app/data.db, delete that too: it has the demo's schema")
+	}
 	fmt.println("  - once you're happy, delete tools/init (a one-time step) and commit")
 }
 

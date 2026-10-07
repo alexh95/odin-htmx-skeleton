@@ -108,6 +108,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   job, so the deploy was blocked too. Both variants now delete the job and its comment block and drop
   it from `deploy`'s `needs`. `init` fails, changing nothing, if it can't find the job or if
   `ci.yml` still runs `tools/init` afterwards.
+- **The README's order of steps no longer crashes a minimal fork**
+  ([#26](https://github.com/alexh95/odin-htmx-skeleton/issues/26)). The Quick start's `run` creates
+  `app/data.db` with the demo's schema; after `init --minimal` the starter's migration runner counted
+  it as up to date and the app exited with `no such table: notes`. `init --minimal` now deletes
+  `app/data.db` and its `-wal`/`-shm` files (a dev store, reseeded on the next run) and says so before
+  asking to proceed. A database elsewhere (`DB_PATH`) is named in the "Next" list. The migration
+  check that would catch this at boot is #21.
 - **`./run.sh --quick` works in a minimal fork again**
   ([#27](https://github.com/alexh95/odin-htmx-skeleton/issues/27)). The load driver kept a hard-coded
   scenario list that `init --minimal` was meant to trim, but the line it matched had changed in 1.1.0,
