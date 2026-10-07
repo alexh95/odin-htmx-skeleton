@@ -21,7 +21,9 @@ MIN_CONTROLLERS :: #load("minimal/src/controllers/controllers.odin", string)
 MIN_VIEWS :: #load("minimal/src/views/views.odin", string)
 MIN_CSS :: #load("minimal/notes.css", string)
 MIN_E2E :: #load("minimal/e2e/home.spec.ts", string)
+MIN_E2E_ABOUT :: #load("minimal/e2e/about.spec.ts", string)
 MIN_PAGES :: #load("minimal/load/pages.js", string)
+MIN_NOTES_LOAD :: #load("minimal/load/notes.js", string)
 
 // The local dev database app/run.* default to. It holds the demo's tables at
 // the demo's migration count, so the starter's migration runner would count
@@ -72,7 +74,9 @@ strip_to_minimal :: proc(opt: Options) {
 	put("app/src/controllers/controllers.odin", MIN_CONTROLLERS)
 	put("app/src/views/views.odin", MIN_VIEWS)
 	put("e2e/tests/home.spec.ts", MIN_E2E)
+	put("e2e/tests/about.spec.ts", MIN_E2E_ABOUT)
 	put("load-tests/scenarios/pages.js", MIN_PAGES)
+	put("load-tests/scenarios/notes.js", MIN_NOTES_LOAD)
 
 	// 3. The note-page styles ride on top of the kept theme/component CSS.
 	append_to("app/static/app.css", MIN_CSS)
