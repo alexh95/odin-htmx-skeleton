@@ -43,7 +43,7 @@ design notes.
    ```sh
    odin run tools/init -- your-name --repo https://github.com/you/your-name
    ```
-   One pass rewrites the binary, the Fly app, the Docker image, the apollo-11 service, the startup
+   One pass rewrites the binary, the Fly app, the Docker image, the Docker-host deploy, the startup
    banner, the test-package names, and the three brand constants in
    [`app/src/views/brand.odin`](app/src/views/brand.odin). Run `odin run tools/init` with no args to
    see the options (`--wordmark`, `--suffix`); delete `tools/init` once you're happy.

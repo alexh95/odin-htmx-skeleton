@@ -11,8 +11,8 @@ package main
 //
 // <new-name> is the machine name (lower-case letters, digits, dashes; starts
 // with a letter), e.g. `acme-crm`. It becomes the binary, the Fly app, the
-// Docker image, the apollo-11 service, the startup banner, and the package
-// names. --wordmark / --suffix / --repo / --site set the four brand constants the
+// Docker image, the docker-host container + volume, the startup banner, and the
+// package names. --wordmark / --suffix / --repo / --site set the four brand constants the
 // layout reads (see app/src/views/brand.odin); sensible defaults are derived
 // from <new-name>. --minimal additionally strips the contacts/events demo down
 // to a one-page starter (see strip.odin).
@@ -124,18 +124,14 @@ rename :: proc(opt: Options) {
 		"app/src/main.odin",
 		"README.md",
 		"CLAUDE.md",
+		"deploy/docker-host/deploy.sh",
+		"deploy/docker-host/compose.yaml",
+		"deploy/docker-host/README.md",
 	}
 	hits := make([]int, len(std))
 	for f in std_files {
 		sweep(f, std, hits)
 	}
-
-	// apollo-11's compose refers to the service by the bare `odin-htmx` (service /
-	// image / container / volume names), so it needs that extra token.
-	apollo := make([dynamic]Repl)
-	append(&apollo, ..std)
-	append(&apollo, Repl{"odin-htmx", name}) // also rewrites odin-htmx-data -> <name>-data
-	sweep("deploy/apollo-11/docker-compose.yml", apollo[:], make([]int, len(apollo)))
 
 	for n, k in hits {
 		if n == 0 {
