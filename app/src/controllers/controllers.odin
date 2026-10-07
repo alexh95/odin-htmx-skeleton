@@ -197,7 +197,12 @@ frag_contacts :: proc(req: ^http.Request, res: ^http.Response) {
 // Drilldown: the full contact record + a derived activity trail + related
 // contacts, rendered as a drawer into #overlay.
 contact_detail :: proc(req: ^http.Request, res: ^http.Response) {
-	d, err := services.contact_detail(to_int(req.url_params[0]))
+	id, ok := parse_id(req.url_params[0])
+	if !ok {
+		http.respond(res, http.Status.Not_Found)
+		return
+	}
+	d, err := services.contact_detail(id)
 	if err != .None {
 		respond_store_error(req, res, err)
 		return
@@ -230,7 +235,11 @@ contacts_create :: proc(req: ^http.Request, res: ^http.Response) {
 }
 
 contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
-	id := to_int(req.url_params[0])
+	id, ok := parse_id(req.url_params[0])
+	if !ok {
+		http.respond(res, http.Status.Not_Found)
+		return
+	}
 	form := request_form()
 	action := form["action"]
 	// view=detail → respond with the re-rendered detail drawer (the action came
@@ -285,7 +294,11 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
 }
 
 contacts_delete :: proc(req: ^http.Request, res: ^http.Response) {
-	id := to_int(req.url_params[0])
+	id, ok := parse_id(req.url_params[0])
+	if !ok {
+		http.respond(res, http.Status.Not_Found)
+		return
+	}
 	if err := services.delete_contact(id); err != .None {
 		respond_store_error(req, res, err)
 		return

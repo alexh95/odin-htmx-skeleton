@@ -137,6 +137,18 @@ step_error :: proc(rc: c.int) -> Error {
 	return (rc & 0xff) == sqlite.CONSTRAINT ? .Constraint : .Failed
 }
 
+// Row ids are 64-bit. c.int is 32, and binding an id through it silently
+// reduced it mod 2^32: /contacts/4294967297 read (and deleted) contact #1.
+@(private)
+bind_id :: proc(st: sqlite.Stmt, idx: c.int, id: int) {
+	sqlite.bind_int64(st, idx, i64(id))
+}
+
+@(private)
+column_id :: proc(st: sqlite.Stmt, col: c.int) -> int {
+	return int(sqlite.column_int64(st, col))
+}
+
 // Clone a text column into the request temp arena — never alias a stmt buffer.
 @(private)
 clone_col :: proc(st: sqlite.Stmt, col: c.int) -> string {

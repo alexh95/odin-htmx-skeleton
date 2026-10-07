@@ -43,7 +43,7 @@ repo_list_notes :: proc() -> ([]models.Note, Error) {
 		append(
 			&out,
 			models.Note {
-				id = int(sqlite.column_int(q_list, 0)),
+				id = column_id(q_list, 0),
 				body = clone_col(q_list, 1),
 				at = sqlite.column_int64(q_list, 2),
 			},
