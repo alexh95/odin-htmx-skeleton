@@ -70,6 +70,11 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `SITE_URL`), and fails fast with the server's own output if it exits. `persistence.spec.ts`
   restarts on a fresh port. Checked by running the suite with `PORT`, `DB_PATH`, `SITE_URL` and
   `BIND_ALL` exported: it passed, and the exported `DB_PATH` was never created.
+- **e2e's `global-setup` no longer hides a failed `prepare`** (part of
+  [#42](https://github.com/alexh95/odin-htmx-skeleton/issues/42)). It used to warn and carry on, so
+  the build could link a stale SQLite or fail later with a less useful error. It now skips `prepare`
+  when htmx, the SQLite stamp and a newer library already match `prepare.sh`'s pins, so a re-run on
+  Windows needs no MSVC prompt. When `prepare` does run, its failure stops the suite.
 
 ## [1.1.1] - 2026-10-07
 
