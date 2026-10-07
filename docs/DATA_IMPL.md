@@ -193,8 +193,9 @@ next optimization once the dataset outgrows "fits in a slice." Keep it behind th
   apollo-11 mounts a named docker volume at `/data` and sets `DB_PATH=/data/data.db` (durable across
   redeploys). On Fly, leaving `DB_PATH` unset keeps `:memory:` (the live demo reseeds each deploy);
   to persist, `fly volumes create`, add `[mounts]` + `DB_PATH` to `fly.toml` (operator step — a
-  `[mounts]` referencing a missing volume fails the deploy). Back up = copy the file (or `VACUUM
-  INTO`).
+  `[mounts]` referencing a missing volume fails the deploy). Back up with `<bin> --backup <file>`
+  (`VACUUM INTO`, safe beside the running server) — never by copying `data.db`, whose recent commits
+  may still be in `data.db-wal`. The restore runbook is in [`DATA.md`](DATA.md#backup-and-restore-sqlite).
 - **The store no longer resets per process** — so e2e/load, which rely on a clean fixture, should
   point at an ephemeral DB (`:memory:` or a temp file deleted per run). Wire this via the existing
   `PORT`/env pattern: `DB_PATH=:memory:` for tests, a real path in prod. `repo_seed` still runs at
