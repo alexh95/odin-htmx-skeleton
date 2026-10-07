@@ -1,12 +1,19 @@
 # Optional local prod-parity run. Builds the same image Fly deploys, so you can
 # reproduce production on your machine — handy before a risky change or for
 # pointing load-tests at a prod-like container. Requires Docker; not needed for
-# day-to-day dev (use app/run.* for that) since CI + Fly's builder cover images.
+# day-to-day dev (use app/run.* for that).
 #
 #   docker compose up --build      ->  http://localhost:8080
 services:
   app:
     build: .
+    # The server needs Linux io_uring: odin-http's event loop (core:nbio) has no
+    # epoll fallback, and Docker's default seccomp profile has blocked io_uring
+    # since 25.0, so a default container aborts at startup. This profile is
+    # Docker's default plus the three io_uring syscalls. (Fly runs microVMs, not
+    # Docker's seccomp, so it doesn't need one.)
+    security_opt:
+      - seccomp=docker/seccomp-io-uring.json
     ports:
       - "8080:8080"
     environment:
