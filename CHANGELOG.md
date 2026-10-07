@@ -101,6 +101,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `brand.odin` and skip only when the token is empty; when one is set they also check the served
   value against it. The `*.fly.dev` redirect test skips while `SITE_URL` is still an
   `*.example.com` placeholder, the case #25 changes.
+- **`init` removes the template-only `minimal` CI job from the fork**
+  ([#24](https://github.com/alexh95/odin-htmx-skeleton/issues/24)). The job runs `tools/init` on the
+  checkout to keep the `--minimal` templates honest, so in a fork it failed as soon as `tools/init`
+  was deleted (as the README says to), or overwrote a minimal fork's own code. `deploy` needs every
+  job, so the deploy was blocked too. Both variants now delete the job and its comment block and drop
+  it from `deploy`'s `needs`. `init` fails, changing nothing, if it can't find the job or if
+  `ci.yml` still runs `tools/init` afterwards.
 - **`./run.sh --quick` works in a minimal fork again**
   ([#27](https://github.com/alexh95/odin-htmx-skeleton/issues/27)). The load driver kept a hard-coded
   scenario list that `init --minimal` was meant to trim, but the line it matched had changed in 1.1.0,

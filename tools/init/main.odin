@@ -137,6 +137,16 @@ rename :: proc(opt: Options) {
 		}
 	}
 
+	// The `minimal` CI job runs tools/init on the checkout to keep the --minimal
+	// templates honest. That's the template's concern, not the fork's: a fork
+	// deletes tools/init (and a minimal fork that grows past the Notes starter
+	// would be overwritten by it), so either way the job would turn its CI red
+	// and block the deploy that `needs` it.
+	drop_job(".github/workflows/ci.yml", "minimal")
+	if i := load(".github/workflows/ci.yml"); i >= 0 && strings.contains(changes[i].content, "tools/init") {
+		problem(".github/workflows/ci.yml: still runs tools/init, which a fork deletes")
+	}
+
 	// brand.odin holds the site-identity constants; rewrite each whole line so the
 	// repo URL's `odin-htmx-skeleton` isn't caught by the token pass above.
 	edit(

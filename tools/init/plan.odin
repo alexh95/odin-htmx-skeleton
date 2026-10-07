@@ -112,6 +112,70 @@ sweep :: proc(path: string, repls: []Repl, hits: []int) {
 	changes[i].edits += total
 }
 
+// Remove a job from a GitHub Actions workflow: its block, the comment block
+// directly above it, and its name from every `needs: [...]` list. Line-based,
+// not a YAML parse, so it leans on the workflow's shape (jobs indented two
+// spaces, needs in flow form); anything else is a problem, not a guess.
+drop_job :: proc(path, job: string) {
+	i := load(path)
+	if i < 0 {
+		return
+	}
+	lines := strings.split(changes[i].content, "\n")
+	key := fmt.tprintf("  %s:", job)
+	at := -1
+	for l, n in lines {
+		if strings.trim_right_space(l) == key {
+			at = n
+			break
+		}
+	}
+	if at < 0 {
+		problem("%s: no `%s` job to remove", path, job)
+		return
+	}
+	first := at
+	for first > 0 && strings.has_prefix(lines[first - 1], "  #") {
+		first -= 1
+	}
+	// Its body is everything indented deeper (blank lines included), up to the
+	// next job or that job's comment block.
+	last := at + 1
+	for last < len(lines) && (strings.trim_space(lines[last]) == "" || strings.has_prefix(lines[last], "   ")) {
+		last += 1
+	}
+
+	kept := make([dynamic]string)
+	append(&kept, ..lines[:first])
+	append(&kept, ..lines[last:])
+	for &l in kept {
+		t := strings.trim_space(l)
+		if !strings.has_prefix(t, "needs:") || !strings.contains(t, job) {
+			continue
+		}
+		open := strings.index_byte(l, '[')
+		close := strings.last_index_byte(l, ']')
+		if open < 0 || close < open {
+			problem("%s: can't drop %q from %q; edit it by hand", path, job, t)
+			continue
+		}
+		names := make([dynamic]string)
+		for n in strings.split(l[open + 1:close], ",") {
+			if strings.trim_space(n) != job {
+				append(&names, strings.trim_space(n))
+			}
+		}
+		l = strings.concatenate({l[:open + 1], strings.join(names[:], ", "), l[close:]})
+		changes[i].edits += 1
+	}
+	s := strings.join(kept[:], "\n")
+	if strings.contains(s, fmt.tprintf("needs.%s", job)) {
+		problem("%s: still refers to needs.%s after removing the job", path, job)
+	}
+	changes[i].content = s
+	changes[i].edits += 1
+}
+
 put :: proc(path, content: string) {
 	i := find(path)
 	if i < 0 {
