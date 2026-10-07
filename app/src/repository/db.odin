@@ -192,6 +192,12 @@ migration_hash :: proc(sql: string) -> string {
 	return string(hex.encode(sum[:], context.temp_allocator))
 }
 
+// Whether the store answers at all: the readiness half of /healthz.
+repo_ping :: proc() -> bool {
+	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+	return sqlite.exec(db, "SELECT 1;", nil, nil, nil) == sqlite.OK
+}
+
 // ---- shared helpers (caller holds the lock) -----------------------------
 
 @(private)

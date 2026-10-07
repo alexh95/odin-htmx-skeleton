@@ -18,6 +18,11 @@ import "core:unicode/utf8"
 // exported so the controllers need not import the repository.
 Store_Error :: repository.Error
 
+// Whether the store answers; /healthz reports it.
+store_ok :: proc() -> bool {
+	return repository.repo_ping()
+}
+
 list_notes :: proc() -> ([]models.Note, Store_Error) {
 	return repository.repo_list_notes()
 }

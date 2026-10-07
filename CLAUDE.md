@@ -204,6 +204,15 @@ Every request goes through **`controllers.front`**, installed once in `main.odin
    mark it `SameSite=Lax`; a per-session token on top is only for browsers older than both headers.
 4. **The body**, read before routing for any request that announces one, capped at `MAX_BODY`
    (413 past it). Handlers read it with `request_form()`.
+5. **One access-log line** per request on every way out: `GET /data 200 0.41ms` (method, path
+   without the query, status, time in the app), at `.Info`.
+
+`main` installs a console logger first thing (Odin's default discards everything, odin-http's own
+warnings included); `LOG_LEVEL=debug|info|warn|error` sets the floor, and `warn` turns the access
+log off. Log with `core:log`, never `fmt.println`. Every response carries **`x-version`**, the
+build's `-define:VERSION=…` (`"dev"` when absent; CI and the Dockerfile should pass the tag or
+commit). `/healthz` answers `ok` only while the store answers a `SELECT 1` (503 otherwise); its body
+stays exactly `ok`, which the CI smoke test and Fly compare.
 
 A new cross-cutting rule (auth, a rate limit) belongs here, not in each handler.
 

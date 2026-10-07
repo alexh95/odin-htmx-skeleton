@@ -22,6 +22,11 @@ SEARCH_LIMIT :: 6 // results shown in the nav search dropdown
 // or 500). Re-exported so the controllers need not import the repository.
 Store_Error :: repository.Error
 
+// Whether the store answers; /healthz reports it.
+store_ok :: proc() -> bool {
+	return repository.repo_ping()
+}
+
 Page :: struct {
 	rows:        []models.Contact,
 	page:        int,

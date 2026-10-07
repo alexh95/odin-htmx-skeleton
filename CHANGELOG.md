@@ -221,6 +221,16 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   must exist and every token must hit somewhere; a file left with nothing to rename is only noted. A
   second run says the checkout is already renamed. An audit of every existing replacement found two misses: the `run.sh` scenario list
   (above) and `app/README.md`, which was in the rename list with nothing to rename.
+- **Logging, an access log and a build version**
+  ([#20](https://github.com/alexh95/odin-htmx-skeleton/issues/20)). `context.logger` was never set, so
+  Odin's no-op default swallowed every one of odin-http's warnings and errors, and nothing recorded a
+  request. `main` now installs a console logger (`LOG_LEVEL=debug|info|warn|error`, default `info`)
+  before anything runs, and the server threads inherit it. The middleware writes one line per request
+  (`GET /about 200 0.19ms`: method, path without the query, status, time). Every response carries
+  `x-version` from `-define:VERSION=…` (default `dev`), also logged at boot. `/healthz` now checks the
+  store with a `SELECT 1` and answers 503 when it fails; its body is still exactly `ok`. Measured with
+  `./run.sh --quick pages static`: about 21.3k rps on `pages` with the access log against 23.5k with
+  `LOG_LEVEL=warn` (k6 at 20 VUs; `static` within noise). e2e: `ops.spec.ts`.
 - **Cross-site writes are refused** ([#18](https://github.com/alexh95/odin-htmx-skeleton/issues/18)).
   A POST from any site could edit a contact; the first fork to add a cookie session would have
   inherited forgeable writes. `controllers.front` now answers 403 to a write whose `Sec-Fetch-Site`

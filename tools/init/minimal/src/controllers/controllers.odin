@@ -71,8 +71,14 @@ notes_create :: proc(req: ^http.Request, res: ^http.Response) {
 
 // ---- health -------------------------------------------------------------
 
-// Liveness probe for the platform. Cheap, no allocations, 200 while up.
+// Health probe for the platform: 200 "ok" while the process is up and its store
+// answers, 503 when it doesn't. The build is in the x-version header (set for
+// every response by the middleware). Cheap: one SELECT 1.
 health :: proc(req: ^http.Request, res: ^http.Response) {
+	if !services.store_ok() {
+		http.respond_plain(res, "store unavailable", .Service_Unavailable)
+		return
+	}
 	http.respond_plain(res, "ok")
 }
 
