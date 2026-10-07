@@ -8,7 +8,91 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **CI builds and runs the Docker image on every PR** ([#37](https://github.com/alexh95/odin-htmx-skeleton/issues/37)).
+  Until now only Fly's builder built it, after the merge. The new `docker` job (host runner) starts
+  it through `compose.yaml` under the io_uring seccomp profile and waits for its `HEALTHCHECK`. It
+  then curls `/healthz` and `/`, checks it runs as UID 10001, and requires `docker stop` to exit 0 in
+  under 3 s. Last, it creates a DB on a fresh `/data` volume as that user.
+- **CI checks that the version pins agree** (part of
+  [#44](https://github.com/alexh95/odin-htmx-skeleton/issues/44)). `.github/scripts/check-pins.sh`,
+  run first in the build job's Linux leg, fails if the `Dockerfile`'s `ODIN_VERSION`/`ODIN_SHA256`,
+  `ci.yml`'s env, the three matrix asset names and the linux digest disagree. It also fails if a
+  Playwright image tag differs from `@playwright/test` in `e2e/package-lock.json`. Sweeps used to
+  check these by hand.
+
+### Changed
+- **CI's apt step switches to HTTPS mirrors when the runner's mirror won't answer** (part of
+  [#36](https://github.com/alexh95/odin-htmx-skeleton/issues/36)). The 1.1.1 retry loop wasn't enough:
+  both master runs after it timed out in the same step. Two attempts against
+  `azure.archive.ubuntu.com` used up the 10-minute budget, so neither run deployed.
+  - **Why another mirror:** every failure that day was a plain-HTTP (port 80) fetch from a
+    Playwright container. HTTPS downloads in the same jobs (npm, the Odin tarball) worked, and the
+    azure mirror has no HTTPS.
+  - **What the script does now:** `apt-install.sh` tries the configured mirror once, then rewrites
+    every Ubuntu source (both the one-line and the deb822 format) to HTTPS. Canonical's own
+    `archive`/`security.ubuntu.com` comes first, then `mirrors.edge.kernel.org`.
+  - **Faster attempts:** in-apt timeouts are 15 s with one retry, so a dead mirror fails an attempt
+    quickly.
+  - **Timeouts:** apt steps now get 15 min and jobs 25.
+  - **Tested** locally against stub `apt-get`s that accept only one of the two fallback mirrors,
+    through the `APT_SOURCES` override.
+- **CI runs with a read-only token, and a new push to a PR cancels the old run** (rest of
+  [#36](https://github.com/alexh95/odin-htmx-skeleton/issues/36)). `permissions: contents: read` is set
+  for the whole workflow; no job needs more, the deploy included (it uses `FLY_API_TOKEN`). Branch
+  pushes get a concurrency group per run, so they are never cancelled or queued.
+- **CI runs on `main` as well as `master`, and deploys from the repo's default branch** (part of
+  [#44](https://github.com/alexh95/odin-htmx-skeleton/issues/44)). A fork that renamed its default
+  branch used to lose CI and its deploy without a word.
+- **The Odin download is checked against its SHA-256** in CI and the `Dockerfile` (part of
+  [#44](https://github.com/alexh95/odin-htmx-skeleton/issues/44)), like htmx and SQLite already were.
+  The release's published digests sit next to `ODIN_VERSION`: `ODIN_SHA256` in `ci.yml`'s env and
+  the `Dockerfile`, and one `odin_sha256` per build-matrix asset. The build job's Odin cache key now
+  includes the digest.
+- **Browser-less e2e specs run once, not once per engine** (part of
+  [#42](https://github.com/alexh95/odin-htmx-skeleton/issues/42)). `events` and `persistence` never
+  open a page, so they're now the `api` project in `playwright.config.ts`, which CI runs on the
+  chromium shard. A full local run is 215 tests (71 per engine + 2), down from 219.
+- **e2e shards no longer compile SQLite on every run** (part of
+  [#43](https://github.com/alexh95/odin-htmx-skeleton/issues/43)). They cache `prepare`'s outputs
+  (`htmx.min.js`, `app/vendor/sqlite`), keyed on `prepare.sh` (the pins and compile flags) and the
+  image's distro, and `global-setup` skips `prepare` on a hit. That saves about a minute per shard.
+  The build job still runs `prepare` from scratch on all three OSes. The Odin cache keys stay as
+  they are: the containers write gzip archives and the host zstd, so one entry can't serve both.
+  `ci.yml` also notes how a private fork can drop the macOS (10×) or Windows (2×) leg.
+
+### Fixed
+- **`docker compose up` can start the server** ([#38](https://github.com/alexh95/odin-htmx-skeleton/issues/38)).
+  odin-http's event loop needs io_uring, which Docker's default seccomp profile has blocked since 25.0,
+  so the root `compose.yaml` aborted at startup. New `docker/seccomp-io-uring.json` is Docker's default
+  profile plus `io_uring_setup`/`_enter`/`_register`, and `compose.yaml` runs under it. The requirement
+  is noted in the `Dockerfile` and `compose.yaml`.
+- **The container stops cleanly, runs as non-root and reports its health**
+  ([#39](https://github.com/alexh95/odin-htmx-skeleton/issues/39)).
+  - **`STOPSIGNAL SIGINT`:** the server only handles SIGINT, so `docker stop`'s SIGTERM was ignored
+    by PID 1 and every stop waited 10 s for a SIGKILL, skipping `repo_close`.
+  - **`USER 10001`:** `/data` is created owned by it, so a fresh volume there is writable.
+    **Upgrading:** a volume that already holds root-owned files (apollo-11's `odin-htmx-data`), or a
+    Fly volume, needs a one-time `chown -R 10001:10001` on it before the new image can open the DB.
+  - **`HEALTHCHECK`** on `/healthz`, through bash's `/dev/tcp`, so it adds no package.
+- **e2e servers can't pick up the wrong port or your `data.db`**
+  ([#41](https://github.com/alexh95/odin-htmx-skeleton/issues/41)). Every server the suite starts
+  now goes through `helpers/server.ts`. It takes a port the OS picks, not a fixed base, which two
+  runs at once could share; on Windows the second server binds a taken port silently, so a stale
+  build got tested. It also pins the env (`PORT`, `DB_PATH=:memory:`, an empty `BIND_ALL` and
+  `SITE_URL`), and fails fast with the server's own output if it exits. `persistence.spec.ts`
+  restarts on a fresh port. Checked by running the suite with `PORT`, `DB_PATH`, `SITE_URL` and
+  `BIND_ALL` exported: it passed, and the exported `DB_PATH` was never created.
+- **e2e's `global-setup` no longer hides a failed `prepare`** (part of
+  [#42](https://github.com/alexh95/odin-htmx-skeleton/issues/42)). It used to warn and carry on, so
+  the build could link a stale SQLite or fail later with a less useful error. It now skips `prepare`
+  when htmx, the SQLite stamp and a newer library already match `prepare.sh`'s pins, so a re-run on
+  Windows needs no MSVC prompt. When `prepare` does run, its failure stops the suite.
+- **Stale notes in the e2e docs, `ci.yml` and the `Dockerfile`** (part of
+  [#33](https://github.com/alexh95/odin-htmx-skeleton/issues/33)). `e2e/PLAN.md` described 31 tests in
+  six files run by a `serve.mjs` launcher, and its CI section described a browser install the CI
+  doesn't do. `e2e/README.md` left out `seo` and `responsive`. Both said CSS is served from disk.
+  The `Dockerfile` header spoke of on-disk static assets, and `ci.yml` of "the planned SQLite layer".
 
 ## [1.1.1] - 2026-10-07
 

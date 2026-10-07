@@ -1,9 +1,8 @@
 # End-to-end tests — plan
 
-> Status: **implemented.** The Playwright suite lives alongside this plan (31 tests across the
-> six spec files below); see [`README.md`](README.md) to run it. This document stays as the
-> design rationale. One deviation: a `webServer` launcher (`serve.mjs`) builds + runs the
-> binary, in place of the `fixtures/server.ts` sketched below.
+> Status: **implemented.** The Playwright suite lives alongside this plan: ten spec files under
+> `tests/`, each listed in [`README.md`](README.md) with how to run them. This document stays as the
+> design rationale.
 
 ## Goal
 
@@ -34,16 +33,21 @@ doesn't replace browser e2e.
 ```
 e2e/
   package.json            # playwright only (npm; package-lock.json)
-  playwright.config.ts    # 3 engines, fullyParallel, trace on retry
-  global-setup.ts         # builds app/bin once with -warnings-as-errors
-  fixtures.ts             # worker-scoped server per port + baseURL override
+  playwright.config.ts    # 3 engines + the browser-less `api` project, fullyParallel, trace on retry
+  global-setup.ts         # prepare (if needed) + builds app/bin once with -warnings-as-errors
+  fixtures.ts             # worker-scoped server + baseURL override
+  helpers/server.ts       # starts a server: OS-picked port, pinned env, fails fast
   tests/
     navigation.spec.ts
     search.spec.ts
     components.spec.ts    # tabs, accordion, modal (regression), drawer, toasts
     forms.spec.ts         # validation, field-persist (regression), slider fill (regression)
     crud.spec.ts          # create / cycle / delete / sort / paginate / filter
-    assets.spec.ts        # embedded htmx, disk css, path-traversal 404
+    assets.spec.ts        # embedded htmx + css, caching headers, path-traversal 404
+    responsive.spec.ts    # no horizontal overflow on a phone-width viewport
+    seo.spec.ts           # robots, sitemap, canonical + social tags, JSON-LD, host redirect
+    events.spec.ts        # (api) deleting a contact cascades its interactions
+    persistence.spec.ts   # (api) a file DB survives a restart
   README.md
 ```
 
@@ -52,8 +56,9 @@ e2e/
 The store is SQLite at `:memory:` (the default when `DB_PATH` is unset), seeded fresh and gone on
 exit, so a freshly spawned binary is a clean, deterministic fixture. As implemented:
 1. `global-setup.ts` builds the binary once (`-warnings-as-errors`).
-2. A **worker-scoped fixture** (`fixtures.ts`) spawns one server per Playwright worker on its
-   own port (`8200 + parallelIndex`), waits on `GET /healthz`, and kills it at worker end.
+2. A **worker-scoped fixture** (`fixtures.ts`) spawns one server per Playwright worker on a
+   port the OS picks, with a pinned env (`DB_PATH=:memory:` whatever the shell exports), waits on
+   `GET /healthz` (failing fast with the server's output if it exits), and kills it at worker end.
 3. It overrides `baseURL` so each worker's `page`/`request` hit that worker's server.
 
 Because every worker has its **own process and its own store**, the suite runs **fully in
@@ -86,7 +91,17 @@ removes the row (and a missing id returns 404 with the row untouched); sort head
 and flip asc/desc; pagination and filter swap the table region without a full reload.
 
 **assets** — `/static/htmx.min.js` is the embedded copy (200, JS content-type, ~36 KB, htmx 4);
-`/static/app.css` is 200 from disk; `/static/../main.odin` is blocked (404).
+`/static/app.css` is embedded too; static assets carry ETag + Cache-Control and revalidate to 304;
+pages link fingerprinted, immutable asset URLs; an encoded `../` out of `/static/` is blocked (404).
+
+**responsive** — each nav page fits a 390 px viewport without horizontal overflow.
+
+**seo** — the crawler contract: `robots.txt`, a `sitemap.xml` derived from the nav, a
+self-referential canonical on every page, social-card tags, JSON-LD, `favicon.ico`, and the
+`*.fly.dev` → canonical-origin redirect (with `/healthz` exempt).
+
+**events** / **persistence** (the `api` project, run once rather than per engine) — deleting a
+contact cascades its interactions; a file-backed DB survives a process restart.
 
 ## Selectors
 
@@ -96,9 +111,12 @@ only where a query would otherwise be brittle — don't blanket the markup with 
 
 ## CI
 
-GitHub Actions: install Odin → `odin build` the app → `npx playwright install --with-deps`
-→ run. Upload traces/screenshots on failure. Gate merges on green. Where this runs and how it
-fits the deploy pipeline: see [`infra/PLAN.md`](../infra/PLAN.md).
+GitHub Actions (`.github/workflows/ci.yml`): one runner per engine, inside Playwright's Docker
+image (browsers preinstalled), each installing Odin + clang and running the suite; the chromium
+shard also runs the `api` project. The HTML report (traces on retry, screenshots on failure) is
+uploaded per shard. Merge on green — by convention: no check is marked required, so add them to
+branch protection if you want that enforced. Where this runs and how it fits the deploy pipeline:
+see [`infra/PLAN.md`](../infra/PLAN.md).
 
 ## Parity with load-tests
 
