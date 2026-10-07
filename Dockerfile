@@ -42,8 +42,11 @@ COPY app /src/app
 WORKDIR /src/app
 # Invoke via `sh` (not ./) so the build doesn't depend on the exec bit, which a
 # Windows-origin build context (e.g. local `flyctl deploy`) wouldn't carry.
-RUN sh prepare.sh \
- && odin build src -out:bin/demo -o:speed -warnings-as-errors
+RUN sh prepare.sh
+# VERSION names the build in the x-version header and /healthz; the deploy job
+# passes the commit. Declared after prepare so a new commit doesn't re-run it.
+ARG VERSION=dev
+RUN odin build src -out:bin/demo -o:speed -warnings-as-errors -define:VERSION=${VERSION}
 
 # ---- runtime: just the binary (all assets are embedded) ------------------
 # Must match the build stage's Debian release (glibc compatibility).

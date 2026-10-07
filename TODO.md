@@ -209,7 +209,8 @@ The patterns + harness a fork inherits. (Was "Now / next"; the initiative below 
         **~5×** (1→8 threads), writes ~1.8× (exclusive-lock-bound, as predicted), and the
         500-VU overload failures (13–34%) drop to **0%**. Also ran it against prod (Fly).
   - [x] Two-host absolute numbers: deployed to the apollo-11 home server
-        ([`deploy/apollo-11`](deploy/apollo-11)), k6 on the workstation over a 1 GbE LAN. Found the
+        (then `deploy/apollo-11`, now the generic [`deploy/docker-host`](deploy/docker-host)), k6 on
+        the workstation over a 1 GbE LAN. Found the
         wire ceiling (static/pages saturate ~912 Mbit vs 2.4 GB/s loopback) and the reverse-proxy
         cost (~12× for NPM+TLS on the shared box). Surfaced the io_uring-vs-Docker-seccomp gotcha.
         Results in `RESULTS.md`. (Further: a generator *outside* the LAN for the true external path.)
@@ -247,7 +248,38 @@ The patterns + harness a fork inherits. (Was "Now / next"; the initiative below 
 - [ ] Move the CI `e2e` + `minimal` containers off `mcr.microsoft.com/playwright:v*-jammy` before
       Ubuntu 22.04 leaves standard support (2027). `noble` is the conservative step. It changes the
       jobs' apt `clang` (14 → 18), which compiles SQLite and links Odin, so land it alone and not
-      inside a dependency sweep. Same rule as the Debian base in the `Dockerfile`.
+      inside a dependency sweep. Same rule as the Debian base in the `Dockerfile`. (The apt
+      mirror outages of 2026-10-07 are another reason; `apt-install.sh`'s HTTPS failover covers them
+      meanwhile.)
+
+### Left over from the 2026-10-07 review (tracker #12)
+What the fixes for #13–#44 didn't finish, by area. Each names its issue where one exists.
+- [ ] **Reads under load** (#14). Lists and counts are in SQL now, but search still scans every
+      row (FTS5 if that matters) and every op still takes the one global exclusive lock, so at 20k
+      rows and 20 VUs p95 only drops 1.7 s → 1.2 s. Per-thread WAL read connections is the fix (the
+      1.x item above). The dashboard's `GROUP BY` is O(n), about 6–10 ms at 20k rows.
+- [ ] **`--minimal` still carries demo weight** (#29). `CLAUDE.md`, `app/README.md`,
+      `docs/USE_CASES.md`, `e2e/PLAN.md`, `load-tests/RESULTS.md`, `load-tests/lib/config.js`'s
+      `TERMS`, and the full `app.css`/`app.js` theme library (≈134 of 190 classes unused by the
+      starter) all describe or serve the demo.
+- [ ] **Load parity is checked, not enforced** (#40). `load-tests/parity.sh` reports the routes
+      with no load scenario (about 14 of 26 in the demo) but isn't in CI. Wire it in once the gaps
+      are closed, and consider `run.sh --quick --strict` in the minimal job.
+- [ ] **Test-suite gaps** (#42): order-dependent "first row" tests; the toast
+      test races a 3.6 s timer; occasional Firefox-only flakes in `search.spec` and the
+      `components.spec` drawer under local parallel load. The concurrent-cycle test documents the
+      single-UPDATE contract but doesn't reproduce the old race.
+- [ ] **Supply chain** (#44): pin `debian:trixie-slim`, the Playwright image and the actions by
+      digest; add Dependabot or Renovate; turn on branch protection with required checks (today
+      nothing is required, so GitHub auto-merge would merge immediately).
+- [ ] **CI cost** (#43): document the per-run minutes for private forks in the README.
+- [ ] **Ops polish**: origin gzip (#23); request ids in the access log (#20); optionally run e2e
+      against the `-o:speed` binary (#37); a CSS watch loop for local dev (#35).
+- [ ] **Auth will need**: a session CSRF token and `SameSite=Lax` cookies on top of today's
+      `Sec-Fetch-Site`/`Origin` guard (#18).
+- [ ] **Upstream (odin-http)**: its shared `Date`-header buffer is rewritten every second while
+      other threads read it. k6 saw 2 malformed `Date:` headers with NUL bytes in about 800k
+      requests. Report it upstream.
 
 ## Done
 

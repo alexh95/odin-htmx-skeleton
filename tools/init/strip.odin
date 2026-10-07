@@ -54,6 +54,7 @@ strip_to_minimal :: proc(opt: Options) {
 		"app/src/repository/contacts.odin",
 		"app/src/repository/events.odin",
 		"app/src/repository/migrations/0002_events.sql",
+		"app/src/repository/migrations/0003_contact_notes.sql",
 		"app/src/views/views_pages.odin",
 		"app/src/views/views_fragments.odin",
 		"e2e/tests/assets.spec.ts",
@@ -69,6 +70,7 @@ strip_to_minimal :: proc(opt: Options) {
 		"load-tests/scenarios/detail.js",
 		"load-tests/scenarios/list.js",
 		"load-tests/scenarios/mixed.js",
+		"load-tests/scenarios/scale.js",
 		"load-tests/scenarios/search.js",
 		"load-tests/scenarios/write.js",
 	}

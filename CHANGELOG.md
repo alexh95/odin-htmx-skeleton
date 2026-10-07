@@ -8,6 +8,37 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Changed
+- **The review fixes, joined up.** The fixes for #13–#44 landed as four PRs (#46–#49) that each
+  owned different files, and these are the seams between them:
+  - **e2e:** the new `backup`, `canonical` and `ops` specs start their servers through
+    `helpers/server.ts`'s `startServer`. That's OS-assigned ports with a pinned env; no fixed port
+    bases are left. `Server` gains `output()`, so a spec can read the start-up banner.
+  - **The `api` project:** it now takes every browser-less spec (`backup`, `canonical`,
+    `dashboard`, `events`, `ids`, `limits`, `ops`, `persistence`, `routing`, `seo`, `writes`), and
+    the `minimal` job runs it too. The specs shared by the demo and the starter keep running
+    against the starter.
+  - **The `minimal` job** verifies the Odin tarball's SHA-256 and shares the e2e shards' cache of
+    `prepare`'s outputs. `init` now removes the job by structure, so it no longer has to stay
+    byte-identical.
+  - **`deploy` waits for the Docker job**, so an image that builds but won't run never ships.
+  - **Builds name themselves:** CI, the Dockerfile and the Fly deploy pass `-define:VERSION=<commit>`,
+    which the `x-version` header and `/healthz` report; a local build says `dev`. The Dockerfile
+    declares `VERSION` after `prepare`, so a new commit doesn't re-run it. CI also runs the new unit
+    tests (`odin test src/repository`, `src/views`) on all three OSes.
+  - **`init --minimal`** also deletes the demo's `0003_contact_notes.sql`, and its `scale` load
+    scenario, which grows the contacts table and so 404s in the starter. init also drops
+    `fixtures.ts` and `helpers/server.ts` from its rename list, since neither names the project
+    any more.
+  - **Load runs** set `PORT` explicitly (the server prefers it over argv) and default to
+    `LOG_LEVEL=warn`, so the new access log doesn't skew comparisons with older results.
+  - **`scale` has its own latency budget** (`SCALE_P95`/`SCALE_P99`, default 3 s/6 s). At 20k rows
+    it is bound by the one store lock (p95 ≈ 0.7–1.2 s under 20 VUs), so the suite's 50 ms budget
+    failed every run and would have made `run.sh --strict` unusable.
+  - **`fly.toml`:** its `SITE_URL` comment points at `canonical_host`'s new home in
+    `controllers/middleware.odin`.
+  - **`TODO.md`:** gains the review's leftovers, grouped by area.
+
 ### Added
 - **CI builds and runs the Docker image on every PR** ([#37](https://github.com/alexh95/odin-htmx-skeleton/issues/37)).
   Until now only Fly's builder built it, after the merge. The new `docker` job (host runner) starts

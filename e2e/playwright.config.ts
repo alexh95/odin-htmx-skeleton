@@ -1,9 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// Specs that never open a page: each starts a server of its own and talks HTTP to
-// it, so a browser engine changes nothing. They run once, as the `api` project,
-// instead of once per engine.
-const API_ONLY = /[\\/](events|persistence)\.spec\.ts$/;
+// Specs that never open a page: they talk HTTP to a server (their own, or the
+// worker's), so a browser engine changes nothing. They run once, as the `api`
+// project, instead of once per engine.
+const API_ONLY =
+  /[\\/](backup|canonical|dashboard|events|ids|limits|ops|persistence|routing|seo|writes)\.spec\.ts$/;
 
 // global-setup builds the binary once; each worker spawns its own server on its
 // own port (see fixtures.ts) with an isolated in-memory store — so the suite
