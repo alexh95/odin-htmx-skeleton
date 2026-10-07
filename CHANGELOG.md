@@ -98,6 +98,12 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   a `POST /notes` load scenario (`notes.js`) and an `/about` e2e spec. The spec checks that the page
   renders as the current nav item, that the nav reaches it with a boosted swap, and that its repository
   link matches the JSON-LD. The starter's `pages.js` now loads `/about` as well as `/`.
+- **The social card has a source: `tools/og/og.html`**
+  ([#28](https://github.com/alexh95/odin-htmx-skeleton/issues/28)). `og.png` was a bare image showing
+  the upstream's name and domain, with no way to redraw it. The 1200×630 HTML recreates it, and its
+  header has the one-line re-render through the Playwright the e2e suite already installs
+  (`npx playwright screenshot`), so there's no new dependency. `init` writes the fork's wordmark,
+  name and domain into it.
 
 ### Changed
 - **`deploy/apollo-11` is now `deploy/docker-host`, a generic self-host example**
@@ -129,6 +135,19 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `brand.odin` and skip only when the token is empty; when one is set they also check the served
   value against it. The `*.fly.dev` redirect test skips while `SITE_URL` is still an
   `*.example.com` placeholder, the case #25 changes.
+- **`init` leaves almost nothing of the upstream's identity behind**
+  ([#28](https://github.com/alexh95/odin-htmx-skeleton/issues/28)). It now also rewrites
+  `BRAND_HOME_TITLE` (a "<name> — built with Odin + HTMX" stand-in), the JSON-LD code name, the
+  favicon's label, the social card source, the README's live-demo line (removed), the upstream's
+  canonical URL wherever the docs quote it, `app.css`'s header, `infra/PLAN.md`,
+  `load-tests/README.md` and the docker-host deploy. It rejects a backslash in the brand values (they
+  land in Odin string literals). The "Next" list names what only the fork can do: the home title, a
+  real `SITE_URL`, re-rendering `og.png`, the favicon artwork, the ownership tokens, the first deploy,
+  and the LICENSE notice. A closing read-only scan lists every file that still names the upstream.
+  `grep -rE 'odin-htmx|alexh95|apollo-11'` outside CHANGELOG/TODO/LICENSE/`tools/` after
+  `init acme-site` went from 39 lines in 12 files to 3 in 3; after `--minimal`, from 38 in 11 to 2
+  in 2. What's left is one measurement record in `RESULTS.md` and two lines in files this change
+  doesn't touch.
 - **`init` removes the template-only `minimal` CI job from the fork**
   ([#24](https://github.com/alexh95/odin-htmx-skeleton/issues/24)). The job runs `tools/init` on the
   checkout to keep the `--minimal` templates honest, so in a fork it failed as soon as `tools/init`
