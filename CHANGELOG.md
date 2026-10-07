@@ -10,6 +10,31 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ### Changed
 - **Dependency sweep — every pin checked against upstream; one moved.**
+  - **Odin `dev-2026-09` → `dev-2026-10`** (`ci.yml`'s `ODIN_VERSION` and all three matrix asset
+    names, the `Dockerfile`). The assets were downloaded before landing: every name resolves, every
+    SHA-256 matches the release's published digest, and the layouts are unchanged (the Windows zip
+    still unpacks to `dist/`; each tarball still has one top-level dir for `--strip-components=1`).
+    The release drops macOS *Intel* builds, which doesn't touch the matrix — its macOS leg is arm64.
+    No source change was needed. On Windows it does change the linker: Odin now links with its own
+    bundled `radlink` instead of MSVC's `link.exe`. It links the `/MT` `sqlite3.lib` cleanly, and the
+    three comments that named `link.exe` (`ci.yml`, `app/README.md`, `run.bat`) were corrected. The
+    MSVC Build Tools are still required, for `cl` and for the CRT/SDK libraries Odin links against.
+    The release's compiler work also shows up here: a debug build of `app/src` went from 0.48 s to
+    0.27 s on the same machine, and the `-o:speed` binary shrank by ~10 KB.
+  - **Checked and already current:** odin-http `fac113f` (upstream `main`), htmx `4.0.0` (the newest
+    4.x), SQLite `3.53.4`, Playwright `1.63.0` (and its `v1.63.0-jammy` image), `actions/checkout@v7`
+    (7.0.1), `actions/cache@v6` (6.1.0), `actions/upload-artifact@v7` (7.0.2 came out today; the
+    major tag already picks it up), `ilammy/msvc-dev-cmd@v1.13.0`, and `setup-flyctl` at SHA
+    `ed8efb33` (still tag 1.6 and upstream `master`). The Debian base floats on `trixie-slim`.
+  - Verified on Windows 11 (MSVC 14.51) with the `dev-2026-10` release: a fresh `prepare.bat` (the
+    pinned htmx and SQLite downloads still match their SHA-256s), clean `-warnings-as-errors` builds
+    (debug and `-o:speed`), all 213 e2e tests (71 each on chromium, firefox and webkit), and the
+    `tools/init --minimal` starter built and run through its own e2e (19 passed; the 3 skips are by
+    design: the two per-deployment verification files `init` blanks, and a demo-copy check). Linux
+    and macOS are CI's.
+
+### Changed
+- **Dependency sweep — every pin checked against upstream; one moved.**
   - **Playwright `1.62.1` → `1.63.0`** (`e2e/package.json` + lockfile, and both CI container image
     tags — `mcr.microsoft.com/playwright:v1.63.0-jammy` is published, so the npm package and the
     image move together as they must). The lockfile also loses its `fsevents` entry: `playwright`

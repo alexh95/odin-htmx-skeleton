@@ -1,7 +1,7 @@
 @echo off
-rem Build and run. Linking to a native .exe needs the MSVC toolchain, but the
-rem shell you build Odin in already has it; nothing to set up here. If link.exe
-rem is missing, open an "x64 Native Tools Command Prompt" and run this again.
+rem Build and run. Linking to a native .exe needs the MSVC + Windows SDK libraries,
+rem which Odin finds by itself (and links with its bundled radlink); nothing to set
+rem up here. If linking fails, open an "x64 Native Tools Command Prompt" and retry.
 rem Usage:  run.bat [port]   (default 8080)
 setlocal
 cd /d "%~dp0"
