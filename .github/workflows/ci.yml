@@ -1,10 +1,12 @@
 name: ci
 
+# Both default-branch names, so a fork on main keeps its CI. (deploy below follows
+# whichever the repo's default branch is.)
 on:
   push:
-    branches: [master]
+    branches: [master, main]
   pull_request:
-    branches: [master]
+    branches: [master, main]
 
 # Every job only reads the repo. Caches and artifacts go through the runner's own
 # token, and the deploy authenticates with FLY_API_TOKEN, so nothing needs more.
@@ -343,20 +345,21 @@ jobs:
         env:
           CI: 'true'
 
-  # Deploys the live instance after a green build + e2e on master. Dormant until
-  # you opt in: set the FLY_API_TOKEN secret (`fly tokens create deploy`) and the
-  # repo variable FLY_DEPLOY=true (see infra/PLAN.md → Operator steps). Until
-  # then it's skipped, so CI stays green. If you instead let Fly's GitHub
-  # integration auto-deploy, leave FLY_DEPLOY unset and ignore this job.
+  # Deploys the live instance after a green build + e2e on the default branch
+  # (master or main). Dormant until you opt in: set the FLY_API_TOKEN secret
+  # (`fly tokens create deploy`) and the repo variable FLY_DEPLOY=true (see
+  # infra/PLAN.md → Operator steps). Until then it's skipped, so CI stays green.
+  # If you instead let Fly's GitHub integration auto-deploy, leave FLY_DEPLOY
+  # unset and ignore this job.
   deploy:
     name: Deploy (Fly.io)
     needs: [build, e2e, minimal]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && vars.FLY_DEPLOY == 'true'
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch && vars.FLY_DEPLOY == 'true'
     runs-on: ubuntu-latest
     # Longer than the others: Fly's remote builder has stalled for ~10 min before.
     timeout-minutes: 30
     concurrency:
-      group: deploy-master
+      group: deploy
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7

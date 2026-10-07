@@ -35,6 +35,9 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   [#36](https://github.com/alexh95/odin-htmx-skeleton/issues/36)). `permissions: contents: read` is set
   for the whole workflow; no job needs more, the deploy included (it uses `FLY_API_TOKEN`). Branch
   pushes get a concurrency group per run, so they are never cancelled or queued.
+- **CI runs on `main` as well as `master`, and deploys from the repo's default branch** (part of
+  [#44](https://github.com/alexh95/odin-htmx-skeleton/issues/44)). A fork that renamed its default
+  branch used to lose CI and its deploy without a word.
 
 ### Fixed
 - **`docker compose up` can start the server** ([#38](https://github.com/alexh95/odin-htmx-skeleton/issues/38)).
