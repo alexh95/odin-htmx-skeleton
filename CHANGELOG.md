@@ -8,7 +8,22 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed
+- **CI's apt step switches to HTTPS mirrors when the runner's mirror won't answer** (part of
+  [#36](https://github.com/alexh95/odin-htmx-skeleton/issues/36)). The 1.1.1 retry loop wasn't enough:
+  both master runs after it timed out in the same step. Two attempts against
+  `azure.archive.ubuntu.com` used up the 10-minute budget, so neither run deployed.
+  - **Why another mirror:** every failure that day was a plain-HTTP (port 80) fetch from a
+    Playwright container. HTTPS downloads in the same jobs (npm, the Odin tarball) worked, and the
+    azure mirror has no HTTPS.
+  - **What the script does now:** `apt-install.sh` tries the configured mirror once, then rewrites
+    every Ubuntu source (both the one-line and the deb822 format) to HTTPS. Canonical's own
+    `archive`/`security.ubuntu.com` comes first, then `mirrors.edge.kernel.org`.
+  - **Faster attempts:** in-apt timeouts are 15 s with one retry, so a dead mirror fails an attempt
+    quickly.
+  - **Timeouts:** apt steps now get 15 min and jobs 25.
+  - **Tested** locally against stub `apt-get`s that accept only one of the two fallback mirrors,
+    through the `APT_SOURCES` override.
 
 ## [1.1.1] - 2026-10-07
 
