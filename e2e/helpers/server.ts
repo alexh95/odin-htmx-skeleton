@@ -84,6 +84,28 @@ function request(opts: http.RequestOptions, body?: string): Promise<Resp> {
   });
 }
 
+// Writes `bytes` as they are, for a request node:http won't send (a malformed
+// header), and resolves with the reply's status, or 0 if the connection ended
+// without one. Only the status line is waited for: a keep-alive reply leaves the
+// socket open.
+export function raw(port: number, bytes: string): Promise<number> {
+  return new Promise((resolve) => {
+    const sock = net.connect(port, '127.0.0.1', () => sock.write(bytes));
+    let got = '';
+    const done = () => {
+      sock.destroy();
+      resolve(Number(/^HTTP\/1\.1 (\d{3}) /.exec(got)?.[1] ?? 0));
+    };
+    sock.setTimeout(3000, done);
+    sock.on('data', (d) => {
+      got += d;
+      if (got.includes('\r\n')) done();
+    });
+    sock.on('error', done); // a reset is "no reply" too
+    sock.on('close', done);
+  });
+}
+
 export const get = (port: number, p: string) => request({ port, path: p, method: 'GET' });
 export const del = (port: number, p: string) => request({ port, path: p, method: 'DELETE' });
 export const post = (port: number, p: string, form: string) =>

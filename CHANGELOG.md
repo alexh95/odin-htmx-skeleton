@@ -8,6 +8,28 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Fixed
+- **One request with a bad `Content-Length` no longer takes the whole server down.** odin-http
+  reads the header with `strconv.parse_int`, which takes a sign and `_` separators and wraps past
+  64 bits, and checks it only against the cap. So `-5`, or `9223372036854775808` (it wraps
+  negative), reached an `assert(n >= 0)` in its scanner and aborted the process, with every
+  connection on every thread, from one unauthenticated request. `front` now answers any value
+  that isn't plain digits within `int` with 400 and closes the connection. The check runs before
+  anything else can answer: after *any* response on a keep-alive connection odin-http drains the
+  unread body itself, so a GET, a HEAD, the `*.fly.dev` 301 and the cross-site 403 crashed too.
+  `parse_id` and the new check share one overflow-checked `parse_digits`. nginx (and
+  nginx-proxy-manager's build of it) and Caddy refuse such a header with 400 themselves, so the
+  exposure was a port reached without one: `deploy/docker-host`'s `HOST_PORT`, a LAN.
+  - **`Expect: 100-continue` goes through `front` too** (`auto_expect_continue = false` in
+    `main.odin`). odin-http's own handling read the body unchecked, and it never ran the handler
+    either: the client got the 100 and then nothing. curl sends the body after its one-second
+    wait instead.
+  - **Still open:** odin-http answers `OPTIONS *` itself, so that request never reaches `front`,
+    and a negative length on it still aborts the process. Only a fix in odin-http closes it
+    (`TODO.md`).
+  - **e2e:** `limits.spec.ts` sends the raw headers over a socket (`raw` in `helpers/server.ts`)
+    to a server of its own, and checks `/healthz` still answers after each.
+
 ### Changed
 - **The review fixes, joined up.** The fixes for #13–#44 landed as four PRs (#46–#49) that each
   owned different files, and these are the seams between them:

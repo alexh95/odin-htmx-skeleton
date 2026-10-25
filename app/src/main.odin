@@ -114,6 +114,12 @@ main :: proc() {
 			opts.thread_count = n
 		}
 	}
+	// odin-http's own answer to "Expect: 100-continue" is the 100 and nothing
+	// after it (the handler never runs, so the client waits forever), and it reads
+	// the body unchecked, so a malformed Content-Length there aborts the process.
+	// Off, the request goes through front like any other; curl sends the body
+	// after its one-second wait for the 100.
+	opts.auto_expect_continue = false
 
 	endpoint := net.Endpoint {
 		address = address,

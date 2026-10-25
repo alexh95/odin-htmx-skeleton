@@ -226,15 +226,21 @@ Every request goes through **`controllers.front`**, installed once in `main.odin
    only for the `style="--x:…"` attributes; `frame-ancestors 'none'`), `nosniff`,
    `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`. A fork that needs a
    third-party origin widens the one directive in `init_security`, nothing else.
-2. **`canonical_host`**: the `*.fly.dev` → `SITE_URL` 301 (see Crawlers below).
-3. **`same_origin`**, the cross-site write guard: a POST/PUT/PATCH/DELETE whose `Sec-Fetch-Site` is
+2. **`content_length_ok`**: a `Content-Length` that isn't plain digits within `int` gets 400 and a
+   closed connection, before anything else can answer. odin-http's own parse takes a sign and
+   wraps, a negative length aborts the whole process in its scanner, and after *any* response on
+   a keep-alive connection it drains the unread body itself, so every method needs the check.
+   `Expect: 100-continue` reaches it only because `main.odin` turns odin-http's
+   `auto_expect_continue` off; `OPTIONS *` never does (`TODO.md`).
+3. **`canonical_host`**: the `*.fly.dev` → `SITE_URL` 301 (see Crawlers below).
+4. **`same_origin`**, the cross-site write guard: a POST/PUT/PATCH/DELETE whose `Sec-Fetch-Site` is
    anything but `same-origin`/`none`, or (from a browser too old to send that) whose `Origin` isn't
    this host, gets 403 before its body is read. No header at all means not a browser (curl, k6, the
    e2e API calls) and passes, so it doesn't demand `HX-Request`. When a fork adds a session cookie,
    mark it `SameSite=Lax`; a per-session token on top is only for browsers older than both headers.
-4. **The body**, read before routing for any request that announces one, capped at `MAX_BODY`
+5. **The body**, read before routing for any request that announces one, capped at `MAX_BODY`
    (413 past it). Handlers read it with `request_form()`.
-5. **One access-log line** per request on every way out: `GET /data 200 0.41ms` (method, path
+6. **One access-log line** per request on every way out: `GET /data 200 0.41ms` (method, path
    without the query, status, time in the app), at `.Info`.
 
 `main` installs a console logger first thing (Odin's default discards everything, odin-http's own
@@ -438,7 +444,8 @@ Store failures are separate: `respond_store_error` (404 / 409 / 500).
 ## Odin gotchas (discovered here)
 
 - `strconv.atoi` is deprecated → `strconv.parse_int(s, 10)`. But `parse_int` wraps silently past 64
-  bits (`"18446744073709551617"` → `1`, ok=true): parse anything that names a row with `parse_id`.
+  bits (`"18446744073709551617"` → `1`, ok=true) and takes a sign and `_` separators: parse
+  anything that names a row with `parse_id` (digits only, overflow-checked, via `parse_digits`).
 - `*_test.odin` files compile into every `odin build` too (only `odin test` runs them), so a test
   file must build in both the demo and `--minimal`. The test runner fails a test that logs at
   `.Error`; silence an expected one with `context.logger = log.nil_logger()`.

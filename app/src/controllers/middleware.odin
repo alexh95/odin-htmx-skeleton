@@ -17,8 +17,9 @@ import "../views"
 // One wrapper around the router (main.odin installs it). It is shared by the
 // demo and the `init --minimal` starter, so it stays entity-agnostic.
 //
-// In order: the security headers every response carries, the *.fly.dev
-// redirect (canonical_host), the cross-site guard on writes (same_origin), then
+// In order: the security headers every response carries, the refusal of a
+// malformed Content-Length (content_length_ok), the *.fly.dev redirect
+// (canonical_host), the cross-site guard on writes (same_origin), then
 // the body of every request that can carry one, read before routing and capped
 // at MAX_BODY. Doing that here rather than per handler means the cap and the
 // guard hold for every route, including the ones a fork adds, and a handler gets
@@ -39,6 +40,16 @@ front :: proc(handler: ^http.Handler, req: ^http.Request, res: ^http.Response) {
 	next := handler.next.(^http.Handler)
 	start := time.tick_now()
 	security_headers(res)
+	// First, before anything can answer: after any response on a keep-alive
+	// connection odin-http reads the unread body itself, so a 301 or a 403 to a
+	// request with a bad length aborts the process just as a body read would.
+	// Closing the connection skips that read.
+	if !content_length_ok(req) {
+		http.headers_set_close(&res.headers)
+		respond_plain(res, "Malformed Content-Length.", .Bad_Request)
+		access_log(req, res, start)
+		return
+	}
 	if canonical_host(req, res) {
 		access_log(req, res, start)
 		return
@@ -345,10 +356,31 @@ body_form :: proc(s: string) -> map[string]string {
 	return m
 }
 
-// A row id from a path capture. Rowids are 64-bit and positive. Not
-// strconv.parse_int: it wraps silently past 64 bits (18446744073709551617
-// parses as 1), and an ownership check on one id must not act on another.
+// odin-http frames a body by a Content-Length it reads with strconv.parse_int,
+// and a length that comes out negative ("-5", or "9223372036854775808", which
+// wraps) reaches an assert in its scanner that aborts the whole process: every
+// connection on every thread. Only plain digits within int pass.
+@(private = "file")
+content_length_ok :: proc(req: ^http.Request) -> bool {
+	cl, has_cl := http.headers_get(req.headers, "content-length")
+	if !has_cl {
+		return true
+	}
+	_, ok := parse_digits(cl)
+	return ok
+}
+
+// A row id from a path capture. Rowids are 64-bit and positive, and an
+// ownership check on one id must not act on another.
 parse_id :: proc(s: string) -> (id: int, ok: bool) {
+	id, ok = parse_digits(s)
+	return id, ok && id > 0
+}
+
+// Digits only, within int. Not strconv.parse_int: it takes a sign and '_'
+// separators, and wraps silently past 64 bits (18446744073709551617 parses as 1).
+@(private = "file")
+parse_digits :: proc(s: string) -> (n: int, ok: bool) {
 	if s == "" {
 		return 0, false
 	}
@@ -357,12 +389,12 @@ parse_id :: proc(s: string) -> (id: int, ok: bool) {
 			return 0, false
 		}
 		d := int(s[i] - '0')
-		if id > (max(int) - d) / 10 {
+		if n > (max(int) - d) / 10 {
 			return 0, false
 		}
-		id = id * 10 + d
+		n = n * 10 + d
 	}
-	return id, id > 0
+	return n, true
 }
 
 // '+'→space, then percent-decode; a malformed escape is kept as typed.
