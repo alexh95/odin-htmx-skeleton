@@ -1,10 +1,10 @@
 # The Dockerfile only COPYs app/, so trim what's inside it. Do NOT ignore
-# app/odin-http — the submodule must be in the build context to compile.
+# app/vendor/odin-http: the vendored HTTP library must be in the build context.
 app/bin/
 app/static/htmx.min.js
 # prepare.sh re-fetches + compiles SQLite in the image; don't ship a local
-# (possibly Windows .lib) vendor dir or a local DB into the build context.
-app/vendor/
+# (possibly Windows .lib) SQLite dir or a local DB into the build context.
+app/vendor/sqlite/
 app/data.db*
 **/*.exe
 **/*.pdb

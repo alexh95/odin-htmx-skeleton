@@ -6,7 +6,6 @@ rem Usage:  run.bat [port]   (default 8080; set OPEN=1 to also open it in the br
 setlocal
 cd /d "%~dp0"
 
-if not exist "odin-http\" goto :noprep
 if not exist "static\htmx.min.js" goto :noprep
 if not exist "vendor\sqlite\sqlite3.lib" goto :noprep
 

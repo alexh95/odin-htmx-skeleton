@@ -1,21 +1,14 @@
 @echo off
 rem One-time setup for the two things the build needs that aren't tracked inline.
-rem   1. odin-http  - the HTTP library, vendored as a pinned git submodule.
-rem   2. htmx.min.js - embedded into the binary via #load at compile time.
+rem   1. htmx.min.js - embedded into the binary via #load at compile time.
+rem   2. SQLite      - the pinned amalgamation, compiled to a static lib.
+rem odin-http is vendored in-tree (vendor\odin-http, see its UPSTREAM.md): nothing to fetch.
 rem Idempotent: re-running skips whatever is already in place.
 setlocal
 cd /d "%~dp0"
 
 rem odin's -out: writes into bin\ but won't create it; a fresh clone has no bin\.
 if not exist "bin\" mkdir bin
-
-if exist "odin-http\server.odin" (
-  echo [skip] odin-http submodule already checked out.
-) else (
-  echo [get ] initializing odin-http submodule ...
-  git -C "%~dp0.." submodule update --init app/odin-http
-  if errorlevel 1 goto :fail
-)
 
 rem htmx, pinned exactly (version + SHA-256) for reproducible builds.
 set "HTMX_URL=https://unpkg.com/htmx.org@4.0.0/dist/htmx.min.js"

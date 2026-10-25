@@ -35,7 +35,7 @@ RUN curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSI
  && rm /tmp/odin.tar.gz
 ENV PATH="/opt/odin:${PATH}"
 
-# Only the app dir is needed to build. odin-http rides in via its submodule
+# Only the app dir is needed to build. odin-http is vendored in app/vendor/odin-http
 # (already in the build context), so prepare only fetches htmx and SQLite (both
 # pinned by SHA-256) and compiles SQLite.
 COPY app /src/app

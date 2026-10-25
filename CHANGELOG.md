@@ -8,6 +8,15 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Changed
+- **odin-http is vendored in-tree** at `app/vendor/odin-http/`, replacing the `app/odin-http` git
+  submodule: laytan/odin-http `fac113f` as published, package files only, with an `UPSTREAM.md` that
+  names the base commit and will list every local change (decision D11 of the starter's plan,
+  `docs/PLAN.md` §8.1). A plain clone now builds; `prepare.*` no longer touches git, CI checks out
+  without submodules, and `.dockerignore` keeps `app/vendor/odin-http` in the build context (it now
+  leaves out only `app/vendor/sqlite/`). Imports read `"../vendor/odin-http"` from `src/` and
+  `"../../vendor/odin-http"` from `src/controllers/`, in the `--minimal` starter's files too.
+
 ## [1.2.1] - 2026-10-25
 
 The skeleton's last release (tagged on 2026-10-26; branch `skeleton-1.x` carries it): one fix for a

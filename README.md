@@ -31,7 +31,7 @@ Xcode CLT on macOS) — `prepare` compiles the SQLite amalgamation. See
 
 ```sh
 cd app
-prepare.bat        # once: odin-http submodule, htmx, SQLite          (./prepare.sh on Linux/macOS)
+prepare.bat        # once: htmx, SQLite                               (./prepare.sh on Linux/macOS)
 run.bat            # builds and serves http://localhost:8080          (./run.sh elsewhere)
 ```
 

@@ -89,8 +89,8 @@ The binary reads its whole configuration from the environment:
 
 The build version is not an env var: `-define:VERSION=…` (default `dev`), sent as `x-version`.
 
-odin-http is a **pinned git submodule** (`app/odin-http`); after a fresh clone run
-`git submodule update --init` (or `git clone --recurse-submodules`). `prepare.*` fetches htmx and
+odin-http is **vendored in-tree** (`app/vendor/odin-http`, with an `UPSTREAM.md` that names the
+base commit and every local change), so a plain clone builds. `prepare.*` fetches htmx and
 the **pinned, SHA-256-verified SQLite amalgamation** and compiles it to a static lib, so a **C
 toolchain is now required** (MSVC Build Tools on Windows — run from an *x64 Native Tools* prompt;
 `clang` on Linux; Xcode CLT on macOS). The server binds loopback by default; set `BIND_ALL=1` (and
@@ -152,8 +152,8 @@ src/ (main: main.odin, routes.odin) → controllers → services → repository 
 
 Cross-package calls are qualified: `repository.repo_list()`, `services.service_page()`,
 `views.view_dashboard()`, `models.Contact`. Sibling packages import each other relatively
-(`import "../models"`); `odin-http` lives at `app/odin-http`, so it's `"../odin-http"` from
-`src/` and `"../../odin-http"` from `src/controllers/`.
+(`import "../models"`); `odin-http` lives at `app/vendor/odin-http`, so it's
+`"../vendor/odin-http"` from `src/` and `"../../vendor/odin-http"` from `src/controllers/`.
 
 The server runs **N nbio event-loop threads** (one per core by default; `THREADS` env
 overrides), so handlers run concurrently. The store is one SQLite connection guarded by an
@@ -273,7 +273,7 @@ the response is flushed.
 ## odin-http cheat sheet (verified against the cloned source)
 
 ```odin
-import http "../../odin-http"   // relative; submodule at app/odin-http ("../odin-http" from src/)
+import http "../../vendor/odin-http"   // relative; vendored at app/vendor/odin-http ("../vendor/odin-http" from src/)
 
 // server (main.odin)
 s: http.Server

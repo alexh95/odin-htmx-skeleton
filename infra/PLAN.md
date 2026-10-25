@@ -14,7 +14,7 @@ reachable, at free or near-zero cost.
   `BIND_ALL=1` switches the listen address from loopback to `0.0.0.0`. Every static asset is
   embedded into the binary (`#load`), so the artifact is **one file**: nothing sits next to it at
   runtime.
-- **Reproducible dependencies.** odin-http is a git submodule pinned to a commit (`app/odin-http`).
+- **Reproducible dependencies.** odin-http is vendored in-tree at a pinned commit (`app/vendor/odin-http`).
   `prepare.*` fetches htmx and the SQLite amalgamation by pinned version + SHA-256 and compiles
   SQLite. The Odin release is pinned in the `Dockerfile` (`ARG ODIN_VERSION`) and in `ci.yml`
   (`env.ODIN_VERSION` + the three matrix asset names); bump them together.

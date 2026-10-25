@@ -9,7 +9,7 @@ import "core:strings"
 import "core:text/match"
 import "core:time"
 
-import http "../../odin-http"
+import http "../../vendor/odin-http"
 import "../views"
 
 // ---- middleware: what every request passes through ----------------------

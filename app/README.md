@@ -26,7 +26,7 @@ requirement (its libraries are also what Odin links against — on Windows with 
 
 ```sh
 # Windows
-prepare.bat        # one-time: clones odin-http, downloads htmx.min.js, fetches + compiles SQLite
+prepare.bat        # one-time: downloads htmx.min.js, fetches + compiles SQLite
 run.bat            # builds and serves on http://127.0.0.1:8080 (OPEN=1 also opens a browser tab)
 
 # Linux / macOS
@@ -119,15 +119,16 @@ file. Editing CSS/JS means a rebuild (a redeploy is how assets change in product
 
 - [Odin](https://odin-lang.org) — the compiler.
 - [odin-http](https://github.com/laytan/odin-http) — HTTP server, router, request/response.
-  Cloned by `prepare`. It stands in for the HTTP module Odin's core library is expected to
-  grow; the server path uses `core:nbio` and needs no OpenSSL.
+  Vendored in `vendor/odin-http/` (its `UPSTREAM.md` names the base commit and every change).
+  It stands in for the HTTP module Odin's core library is expected to grow; the server path
+  uses `core:nbio` and needs no OpenSSL.
 - [HTMX](https://htmx.org) — the only front-end library.
 - [SQLite](https://sqlite.org) — the store, bound as the amalgamation. `prepare` fetches a
   pinned, SHA-256-verified `sqlite-amalgamation-*.zip` and compiles it to a static lib (the
   htmx precedent — fetched, not committed; no git submodule). Needs a C toolchain.
 
-No package manager is involved — `prepare` is one `git clone` plus two pinned, checksummed
-downloads (htmx, the SQLite amalgamation).
+No package manager is involved — `prepare` is two pinned, checksummed downloads (htmx, the
+SQLite amalgamation).
 
 ## Notes / non-goals
 

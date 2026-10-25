@@ -12,4 +12,4 @@ data.db
 data.db-wal
 data.db-shm
 
-# odin-http is vendored as a pinned git submodule (see .gitmodules), not ignored.
+# odin-http is vendored in-tree (vendor/odin-http, with its UPSTREAM.md), not ignored.

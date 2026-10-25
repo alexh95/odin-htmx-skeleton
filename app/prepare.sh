@@ -1,20 +1,14 @@
 #!/usr/bin/env sh
 # One-time setup for the two things the build needs that aren't tracked inline.
-#   1. odin-http  - the HTTP library, vendored as a pinned git submodule.
-#   2. htmx.min.js - embedded into the binary via #load at compile time.
+#   1. htmx.min.js - embedded into the binary via #load at compile time.
+#   2. SQLite      - the pinned amalgamation, compiled to a static lib.
+# odin-http is vendored in-tree (vendor/odin-http, see its UPSTREAM.md): nothing to fetch.
 # Idempotent: re-running skips whatever is already in place.
 set -e
 cd "$(dirname "$0")"
 
 # odin's -out: writes into bin/ but won't create it; a fresh clone has no bin/.
 mkdir -p bin
-
-if [ -f odin-http/server.odin ]; then
-  echo "[skip] odin-http submodule already checked out."
-else
-  echo "[get ] initializing odin-http submodule ..."
-  git -C .. submodule update --init app/odin-http
-fi
 
 # sha256 helper (linux: sha256sum, macOS: shasum -a 256). Used for htmx + sqlite.
 sha256_of() {

@@ -6,7 +6,7 @@ import "core:net"
 import "core:os"
 import "core:strconv"
 
-import http "../odin-http"
+import http "../vendor/odin-http"
 import "controllers"
 import "repository"
 import "views"

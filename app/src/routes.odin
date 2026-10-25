@@ -2,7 +2,7 @@ package main
 
 import "core:fmt"
 
-import http "../odin-http"
+import http "../vendor/odin-http"
 import "controllers"
 import "views"
 

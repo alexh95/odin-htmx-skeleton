@@ -4,7 +4,7 @@ import "core:fmt"
 import "core:hash"
 import "core:strings"
 
-import http "../../odin-http"
+import http "../../vendor/odin-http"
 import "../services"
 import "../views"
 

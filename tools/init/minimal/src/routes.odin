@@ -1,6 +1,6 @@
 package main
 
-import http "../odin-http"
+import http "../vendor/odin-http"
 import "controllers"
 
 // The whole route table in one place. Specific patterns are registered before

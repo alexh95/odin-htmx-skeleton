@@ -26,8 +26,7 @@ function prepared(appDir: string): boolean {
     const htmx = createHash('sha256').update(readFileSync(at('static/htmx.min.js'))).digest('hex');
     const stamp = readFileSync(at('vendor/sqlite/.stamp'), 'utf8').trim();
     return htmx === pin('HTMX_SHA256') && stamp === pin('SQLITE_SHA256')
-      && statSync(lib).mtimeMs >= statSync(at('vendor/sqlite/sqlite3.c')).mtimeMs
-      && existsSync(at('odin-http/server.odin'));
+      && statSync(lib).mtimeMs >= statSync(at('vendor/sqlite/sqlite3.c')).mtimeMs;
   } catch {
     return false; // something is missing
   }

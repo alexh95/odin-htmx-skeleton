@@ -73,8 +73,6 @@ jobs:
             exe: '.exe'
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive   # odin-http is a pinned submodule
 
       # A bump that misses one of the places a pin lives fails here, first.
       - name: Version pins agree (Odin, Playwright)
@@ -201,8 +199,6 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
       - name: Build the image
         run: docker compose build
@@ -280,8 +276,6 @@ jobs:
             also: --project=api
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
       # Same key as the minimal job, so the two container jobs share one entry. The
       # build job's can't be shared: actions/cache archives with zstd on the host
@@ -360,8 +354,6 @@ jobs:
       HOME: /root
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
       - name: Cache Odin toolchain
         id: cache-odin
@@ -426,8 +418,6 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
       # SHA-pinned (tag 1.6, identical to master today) — house style is to pin
       # everything; a floating branch can move under us on a deploying job.
       - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6

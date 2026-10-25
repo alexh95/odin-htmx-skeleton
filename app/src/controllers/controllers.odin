@@ -6,7 +6,7 @@ import "core:strconv"
 import "core:strings"
 import "core:time"
 
-import http "../../odin-http"
+import http "../../vendor/odin-http"
 import "../models"
 import "../services"
 import "../views"
