@@ -1,3 +1,18 @@
+# odin-htmx-starter: the repo root. This workspace becomes the renamed repo's checkout at M0 (ANSWERS #5, F5), so
+# this file replaces the skeleton's root .gitignore and carries its entries (the second block).
+
+# Local-only planning material (ANSWERS F4; D45). The repo is public:
+# - docs/private/ holds the real site values behind the public docs' placeholders (docs/private/SITE.md);
+# - the research notes, the three proposals and the outline name LAN and host details and are superseded by
+#   DECISIONS.md and PLAN.md, which cite them in place;
+# - _ref/ is a read-only reference clone of the skeleton at 709bc94, removed at M0.
+/docs/private/
+/docs/research/
+/docs/design/proposal-*.md
+/docs/design/OUTLINE.md
+/_ref/
+
+# From the skeleton's root .gitignore (709bc94).
 # Build artifacts and fetched deps under app/ are ignored by app/.gitignore.
 # This file covers the repo as a whole.
 
