@@ -8,6 +8,11 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-25
+
+The skeleton's last release (tagged on 2026-10-26; branch `skeleton-1.x` carries it): one fix for a
+request that could abort the whole server.
+
 ### Fixed
 - **One request with a bad `Content-Length` no longer takes the whole server down.** odin-http
   reads the header with `strconv.parse_int`, which takes a sign and `_` separators and wraps past
@@ -29,6 +34,15 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
     (`TODO.md`).
   - **e2e:** `limits.spec.ts` sends the raw headers over a socket (`raw` in `helpers/server.ts`)
     to a server of its own, and checks `/healthz` still answers after each.
+
+## [1.2.0] - 2026-10-15
+
+The skeleton's last feature release, tagged at `709bc94` with no code change on 2026-10-26, so that
+it stays exactly the build the starter's parity gate measures (with 1.1.1). Since 1.1.1: the
+2026-10-07 review fixes (#46–#49) joined up, security headers and a strict CSP, cross-site writes
+refused, body caps, 405s and a 404 page, a request log, `--backup`, migrations checked by hash, 422s
+that keep the form, an init that plans every edit and aborts on any miss, lists filtered, sorted,
+paged and counted in SQL, and CI that pins and verifies Odin.
 
 ### Changed
 - **The review fixes, joined up.** The fixes for #13–#44 landed as four PRs (#46–#49) that each
