@@ -19,7 +19,6 @@ import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -432,6 +431,15 @@ function rss(s) {
   return Number(/VmRSS:\s+(\d+) kB/.exec(r.stdout)?.[1] ?? 0) * 1024;
 }
 
+// RssAnon, RssFile and RssShmem in MB, and the transparent-hugepage mode.
+function rssDetail(s) {
+  const read = (f) => (WSL ? spawnSync('wsl', ['-e', 'cat', f], { encoding: 'utf8' }).stdout : readFileSync(f, 'utf8')) || '';
+  const st = read(`/proc/${s.pid}/status`);
+  const mb = (k) => (Number(new RegExp(`${k}:\\s+(\\d+) kB`).exec(st)?.[1] ?? 0) / 1000).toFixed(2);
+  const thp = /\[(\w+)\]/.exec(read('/sys/kernel/mm/transparent_hugepage/enabled'))?.[1] ?? '?';
+  return ` (anon ${mb('RssAnon')}, file ${mb('RssFile')}, shmem ${mb('RssShmem')}; THP ${thp})`;
+}
+
 async function phaseBudgets() {
   // Boot → /readyz, from the spawn, with the default loop count: the median of 5. Through WSL
   // the spawn costs wsl.exe's own start (about 0.7 s), so there the server's boot_ms counts.
@@ -453,16 +461,19 @@ async function phaseBudgets() {
   record(`budgets: boot → /readyz ≤ ${BUDGET.readyMs} ms (median of 5, ${WSL ? "the server's boot_ms" : 'from the spawn'})`,
     boot <= BUDGET.readyMs, `${times.map((t) => t.toFixed(0)).join(' ')} ms`);
 
-  // Idle memory, the default loop count, after a page, an asset and 3 s.
-  const s = start(RELEASE_BIN, { THREADS: '', LOG_LEVEL: 'warn' });
+  // Idle memory at the loop count the budget states (16, the dev PC's default), whatever this
+  // machine's core count, after a page, an asset and 3 s. On Linux the line also says what the
+  // RSS is made of and the kernel's transparent-hugepage mode: a CI runner held 5 MB more than
+  // the dev PC's Linux at 4 loops (M1's first runs), and the breakdown says where.
+  const LOOPS = 16;
+  const s = start(RELEASE_BIN, { THREADS: String(LOOPS), LOG_LEVEL: 'warn' });
   if (await ready(s)) {
     for (const p of ['/', '/about', '/static/app.css']) await get(s.port, p);
     await sleep(3000);
     const bytes = rss(s);
-    const loops = Number(/\((\d+) threads?\)/.exec(s.out)?.[1] ?? os.availableParallelism());
-    const cap = BUDGET.idle(loops);
-    record(`budgets: idle ${WIN ? 'working set' : 'RSS'} ≤ ${(cap / 1e6).toFixed(1)} MB (6 + 0.4 × ${loops} loops)`,
-      bytes > 0 && bytes <= cap, `${(bytes / 1e6).toFixed(2)} MB`);
+    const cap = BUDGET.idle(LOOPS);
+    record(`budgets: idle ${WIN ? 'working set' : 'RSS'} ≤ ${(cap / 1e6).toFixed(1)} MB (6 + 0.4 × ${LOOPS} loops)`,
+      bytes > 0 && bytes <= cap, `${(bytes / 1e6).toFixed(2)} MB${WIN ? '' : rssDetail(s)}`);
   }
   await stop(s);
 
