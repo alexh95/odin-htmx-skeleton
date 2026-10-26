@@ -4,13 +4,13 @@ Synthesis of the design round, 2026-10-25; the lean composition, X36–X43, the 
 (Q33) folded in 2026-10-26 (§0). This file is the consolidated design and the source of truth for `docs/PLAN.md`;
 `docs/design/OUTLINE.md` cuts PLAN.md into sections and names which decisions each section carries.
 
-Inputs: `docs/BRIEF.md`, `_ref/odin-htmx-skeleton/PHILOSOPHY.md`, `docs/design/SETTLED.md` (S1–S22),
+Inputs: `docs/BRIEF.md`, the skeleton's `PHILOSOPHY.md` (tag v1.2.0), `docs/design/SETTLED.md` (S1–S22),
 `docs/research/00-digest.md` and notes 01–14, the three proposals (`proposal-risk-first.md`,
 `proposal-product-first.md`, `proposal-composition-first.md`), the three judges' verdicts, and
 `docs/design/LEAN-COMPOSITION.md` (the no-DI mechanism, as revised to ANSWERS round 3).
 
 Citation style: research "03 §7", and note 14 by its numbered experiments, "14 (1)"; settled "S8"; skeleton
-`SK/<path>:<line>` (= the skeleton at 709bc94, tag v1.2.0: `_ref/odin-htmx-skeleton/` until M0 removes `_ref/`, D1);
+`SK/<path>:<line>` (= the skeleton at 709bc94, tag v1.2.0, D1);
 proposals "RF §4.5" (risk-first), "PF §6.2" (product-first), "CF §4.6" (composition-first); the lean composition "LC §6"
 (`LEAN-COMPOSITION.md`, whose §16 records its prototype runs); Alex's answers "ANSWERS #5" (round 1), "ANSWERS F2"
 (round 2's follow-ups, always with the prefix, so they never read as 02's audit findings "02 F5"), "ANSWERS round 3" and
