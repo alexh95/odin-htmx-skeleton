@@ -199,9 +199,9 @@ specs are under `e2e/tests/`.
 | 34 | `tools/init`: all-or-nothing rename, guard, leftover report, Next list; `tools/og` | tried on a scratch copy: both renamed profiles build | changed: no `--minimal` (the profile replaces it) |
 | 35 | Docker: two stages, pinned Odin, UID 10001, `/data`, STOPSIGNAL, HEALTHCHECK, io_uring seccomp, compose | the image built and run in WSL (health, `/licenses`, clean stop); CI's `docker` job | green; one profile per build, `/app/server` |
 | 36 | Fly config; the docker-host deploy | unchanged | green; `FLY_DEPLOY` stays off |
-| 37 | CI: OS matrix, pins, Docker, e2e shards, gated deploy, timeouts | `.github/workflows/ci.yml`; the first run on the new layout (`930b1a9`, run 40351922975) | green but the two budget checks, which ANSWERS round 7 restated (the drills and CI read the new figures); the next push's run confirms |
+| 37 | CI: OS matrix, pins, Docker, e2e shards, gated deploy, timeouts | `.github/workflows/ci.yml`; the first run on the new layout (`930b1a9`, run 40351922975) | green: run 40383619999 on `7fe60a5`, every job, on the restated budgets (ANSWERS rounds 7 and 8; the idle budget is gated on the dev PC, a CI runner reports it) |
 | 38 | e2e harness: one build, a server per worker, `api` project, shared specs | `e2e/` | green; specs per feature, chosen by tags |
 | 39 | Load harness: fresh server per run, warmup, thresholds, flags, scale | `load-tests/run.sh` | green; scenarios per feature, `--parity`, route counters replace `parity.sh` |
 | 40 | Docs set | CLAUDE.md, README, app/README, DATA.md, the e2e and load design notes | green; STRIP.md and DATA_IMPL.md removed (D45) |
 
-40 of 40 green, CI's on the restated budgets pending the next push.
+40 of 40 green.

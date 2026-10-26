@@ -94,7 +94,7 @@ stays off and Fly keeps serving 6d37506.
       (M2's `lab`), and `topics`/`exts` with M2. `parity` reads `bin --routes --json`, the counter files in
       `app/build/coverage/{e2e,load}/<profile>/` and the `route` lines of `tests/parity-waivers.txt`
       (e2e/README and load-tests/README already describe it).
-- [ ] **9. CI**: `pins`, `check`, `build` ({minimal, skeleton} × 4 OSes, the no-SQLite build), `e2e`,
+- [x] **9. CI**: `pins`, `check`, `build` ({minimal, skeleton} × 4 OSes, the no-SQLite build), `e2e`,
       `docker`, `linux-ops`, nightly ASan, all through `build.*`. *Check:* a green run (needs the push,
       which waits for Alex's go and the token's `workflow` scope). Written: `pins`, `check`, `build`
       (minimal and skeleton × ubuntu, ubuntu-arm, macOS, Windows; minimal with `NO_SQLITE=1` on ubuntu
@@ -103,7 +103,7 @@ stays off and Fly keeps serving 6d37506.
       odin-http base. Checked locally: the pins, every `check` command, the smoke script on both
       profiles, `NO_SQLITE=1` on Linux; actionlint wasn't run (no local install; the Docker image was
       refused). `linux-ops` and the nightly ASan land with slice 10's drills, which they run. Open
-      until the push: the green run itself.
+      until the push: the green run itself. Done: run 40383619999 on `7fe60a5`, every job green.
 - [x] **10. Drills and budgets.** Crash drills (panic, bounds, div, nil, stack, lock, async, sqlite, hang)
       on both OSes; the fuzz smoke; the shutdown bound with slowloris, half body and idle peers; restart;
       the fd ceiling; `skeleton` ≤ 2.75 MB, idle ≤ 10 MB, boot → `/readyz` ≤ 50 ms. Done: every drill
@@ -163,7 +163,7 @@ stays off and Fly keeps serving 6d37506.
       Q35's references), into `docs/perf/PARITY.md`; the 01 (A) checklist. Done: PASS on both legs, 20 of
       20 cells each counting §18.2's n = 5 re-runs (Windows `8c4f1a9`, Linux `72590f6`, the box quiet);
       Linux `write@mem` at 0.99 of HEAD on its re-run, under the 0.93 floor Alex accepted (round 6). The
-      checklist is 40 of 40, CI's run on the restated budgets pending the next push. Both legs' drills
+      checklist is 40 of 40. Both legs' drills
       pass at `72590f6`, budgets included (skeleton 2,883,584 B, exactly 2.75 MiB: no headroom left).
 - [ ] **12. Audit and release prep.** `docs/audit/M1.md` by an agent that didn't write the code, 0 open
       CRITICAL/HIGH; `Audited:` stamps; CLAUDE.md, README and app/README rewritten for the starter (and
