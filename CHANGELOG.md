@@ -122,6 +122,9 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   `odin-htmx-starter/` directory of their own. The sweep also asks the OS whether each file's process
   still runs (`sys.process_alive`): on Windows it had assumed a live server's files can't be deleted,
   and two servers booting at once proved otherwise (`disk I/O error` at `journal_mode=WAL`).
+- **`CMD=test build.sh <p>` reports no leaks**: the boot checks' tables, which a server keeps for
+  its life, now live in an arena the test destroys (about 150 leak lines per run before). The
+  skeleton's tests also cover the router.
 - **A watchdog exit's crash file names the stalled request**: it was written from the watchdog's
   thread, which has no request of its own, so it said `route "", request` with nothing after.
 - **`OPTIONS *` with a negative `Content-Length` no longer aborts the process.** 1.2.1 refused a bad
