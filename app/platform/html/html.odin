@@ -17,8 +17,14 @@ import "core:strings"
 import "core:unicode"
 import "core:unicode/utf8"
 
+import "../authz"
 import "../escape"
+import client "client:."
 import theme "theme:."
+
+// The build's members of the two families html reads (--features reports them).
+CLIENT :: client.NAME
+THEME :: theme.NAME
 
 w :: escape.w
 esc :: escape.esc
@@ -48,6 +54,10 @@ Search_Box :: struct {
 Nav_Item :: struct {
 	href, label, icon: string,
 }
+
+// A home-page card (`home` shows the profile's HOME_CARDS in order): a dispatch
+// table's row, as a route's handler is.
+Home_Card :: #type proc(b: ^strings.Builder, v: authz.Viewer)
 
 // One page: the brand and origin of the host it is served on, that host's nav,
 // the asset hrefs, and the page's own text.

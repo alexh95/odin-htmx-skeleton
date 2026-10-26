@@ -117,18 +117,11 @@ boot :: proc(profile: string) {
 
 // §8.6 step 4: the boot checks, then the CLI that lists what boot recorded.
 check :: proc(hosts: []Host, jobs: [][]workers.Job, bundle_exts: web.Exts) {
-	for h in hosts {
-		s: web.Site
-		s.name, s.identity, s.nav = h.name, h.identity, h.nav
-		for m in h.routes {
-			web.router_mount(&s.router, m.rows)
-		}
-		append(&st.sites, s)
-	}
+	mount(hosts)
 	for &s in st.sites {
 		for m in s.router.rows { m.obs = obs.register_route(m.id) }
 	}
-	problems := boot_checks(hosts, jobs, bundle_exts)
+	problems := boot_checks(hosts, st.sites[:], jobs, bundle_exts)
 	for p in env.problems() { append(&problems, p) }
 	if len(problems) > 0 {
 		fmt.eprintfln("%s: %d problem(s) at boot:", st.profile, len(problems))
@@ -142,6 +135,27 @@ check :: proc(hosts: []Host, jobs: [][]workers.Job, bundle_exts: web.Exts) {
 		}
 	}
 	answer_cli(hosts)
+}
+
+// The boot checks alone, for a profile's routes_test.odin: the problems, no exit.
+dry_check :: proc(hosts: []Host, jobs: [][]workers.Job, bundle_exts: web.Exts) -> [dynamic]string {
+	sites := make([dynamic]web.Site, context.temp_allocator)
+	for h in hosts { append(&sites, mounted(h)) }
+	return boot_checks(hosts, sites[:], jobs, bundle_exts)
+}
+
+@(private)
+mount :: proc(hosts: []Host) {
+	for h in hosts { append(&st.sites, mounted(h)) }
+}
+
+@(private)
+mounted :: proc(h: Host) -> (s: web.Site) {
+	s.name, s.identity, s.nav = h.name, h.identity, h.nav
+	for m in h.routes {
+		web.router_mount(&s.router, m.rows)
+	}
+	return
 }
 
 // §8.6 steps 6-10: everything that serves, then the banner. Returns once every

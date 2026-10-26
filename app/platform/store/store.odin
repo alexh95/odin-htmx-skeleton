@@ -82,12 +82,16 @@ Op :: struct {
 	arena: mem.Arena,
 }
 
+// `bytes`: what its strings need, input and result together; the arena pads each
+// allocation for alignment, which OP_SLACK covers.
 new_op :: proc($T: typeid, bytes: int) -> ^T where intrinsics.type_is_struct(T) {
-	block, _ := mem.alloc_bytes(size_of(T) + bytes, align_of(T))
+	block, _ := mem.alloc_bytes(size_of(T) + bytes + OP_SLACK, align_of(T))
 	t := (^T)(raw_data(block))
 	mem.arena_init(&(^Op)(t).arena, block[size_of(T):])
 	return t
 }
+
+OP_SLACK :: 256
 
 op_allocator :: proc(op: ^Op) -> mem.Allocator {
 	return mem.arena_allocator(&op.arena)

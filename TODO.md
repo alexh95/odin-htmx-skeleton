@@ -51,9 +51,12 @@ stays off and Fly keeps serving 6d37506.
       components, `behave`), `client/vanilla`, `theme/full`, `theme/lite`, `app` (`front`, `Host`,
       `boot check serve wait shutdown`, the CLI, the 8 boot checks, `TEST_ROUTES`). *Check:* router,
       escaping and boot-check unit tests, a deliberately bad table tripping checks 1, 3 and 5.
-- [ ] **5. `minimal`.** Features `home`, `about`, `notes` (both store families, `storetest`); `cmd/minimal`'s
+- [x] **5. `minimal`.** Features `home`, `about`, `notes` (both store families, `storetest`); `cmd/minimal`'s
       four files. *Check:* builds with no SQLite library present; ≤ 1.0 MB; the skeleton's exact header
-      set; its bundle is `htmx.min.js` byte for byte; the minimal starter's specs pass.
+      set; its bundle is `htmx.min.js` byte for byte; the minimal starter's specs pass. Done: no SQLite
+      file in its build, the exact header set, the bundle byte for byte, the storetest on both families,
+      its boot checks under `CMD=test`. Moved on: the specs run in slice 7's ported suite; the size
+      (1.31 MB at `-o:speed`, og.png alone 230 KB) is slice 10's budget work.
 - [ ] **6. `skeleton`.** Features `contacts` (SQLite store, migrations 0001–0003 with their hashes plus
       `0004_sort_indexes`, group-committed writes over F-13), `dashboard`, `gallery`, `about`;
       `cmd/skeleton`. *Check:* every skeleton URL answers byte for byte as `app/src` does (a route diff,

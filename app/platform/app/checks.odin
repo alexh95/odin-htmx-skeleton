@@ -15,19 +15,20 @@ import "core:strings"
 import "core:time"
 
 import "../env"
+import "../html"
 import "../obs"
 import "../web"
 import "../workers"
 import identity "identity:."
 
 // The problems in a profile's tables, one line each; empty when it may boot.
-boot_checks :: proc(hosts: []Host, jobs: [][]workers.Job, bundle_exts: web.Exts) -> [dynamic]string {
+boot_checks :: proc(hosts: []Host, sites: []web.Site, jobs: [][]workers.Job, bundle_exts: web.Exts) -> [dynamic]string {
 	problems := make([dynamic]string)
 	p :: proc(problems: ^[dynamic]string, format: string, args: ..any) {
 		append(problems, fmt.aprintf(format, ..args))
 	}
 	for h, hi in hosts {
-		site := &st.sites[hi]
+		site := &sites[hi]
 		ids := make(map[string]string, context.temp_allocator) // route id → feature
 		key_owner := make(map[string]string, context.temp_allocator) // router key → feature
 		roots := 0
@@ -138,9 +139,8 @@ print_routes :: proc(b: ^strings.Builder, hosts: []Host, as_json: bool) {
 @(private)
 print_features :: proc(b: ^strings.Builder, hosts: []Host, as_json: bool) {
 	Features :: struct {
-		profile:  string,
-		identity: string,
-		features: []string,
+		profile, identity, client, theme: string,
+		features:                         []string,
 	}
 	names := make([dynamic]string)
 	for h in hosts {
@@ -150,12 +150,12 @@ print_features :: proc(b: ^strings.Builder, hosts: []Host, as_json: bool) {
 		}
 	}
 	if as_json {
-		data, _ := json.marshal(Features{st.profile, identity.NAME, names[:]}, {pretty = true})
+		data, _ := json.marshal(Features{st.profile, identity.NAME, html.CLIENT, html.THEME, names[:]}, {pretty = true})
 		strings.write_string(b, string(data))
 		strings.write_byte(b, '\n')
 		return
 	}
-	fmt.sbprintfln(b, "profile %s, identity %s", st.profile, identity.NAME)
+	fmt.sbprintfln(b, "profile %s: identity %s, client %s, theme %s", st.profile, identity.NAME, html.CLIENT, html.THEME)
 	for n in names { fmt.sbprintfln(b, "  %s", n) }
 }
 

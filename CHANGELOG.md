@@ -43,6 +43,11 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   and a migration runner per feature that adopts a skeleton database, 709bc94's or v1.1.1's, without
   re-running anything) and `store/memory`. `app/src` is unchanged until the profiles replace it, but
   its migrations now live in `app/stores/sqlite/contacts/migrations/`.
+- **The `minimal` profile** (`app/cmd/minimal/`, its four hand-written files): the smallest
+  starter, with the features `home` (the root page, showing the profile's home cards), `notes` (its
+  models, domain, views and web packages, a store in each family, and a conformance suite that runs
+  both) and `about`, on the memory store, the lite theme and the vanilla client. No SQLite reaches
+  its build. `./build.sh minimal` after prepare.
 - **`build.sh` / `build.bat <profile>`** at the repo root: the one place a profile's build flags
   live (its store, identity, client and theme collections, `-vet -strict-style
   -warnings-as-errors`, `VERSION`), with `CMD=check|test|run`. The starter's profiles (`minimal`,
