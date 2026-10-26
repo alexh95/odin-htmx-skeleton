@@ -16,6 +16,65 @@ copy-and-start ergonomics and good defaults matter more than feature depth.
 > items (**bulk actions**, a **named console identity**) are **out of scope as goals** — they'd just
 > be cruft a copier deletes — and survive only as "example extensions you might add."
 
+## M1 — request-path substrate, `skeleton` at parity (v2.0.0)
+
+The starter's first milestone of code ([`docs/PLAN.md`](docs/PLAN.md) §22.3, M1's row; M0's spikes are
+in [`docs/spikes/`](docs/spikes/)). Slices in order, each done only when its check passes. `app/src`
+(the 1.2.x app on the fork) keeps building and passing its tests until slice 7 retires it, so
+every slice before that can be compared with it. Tag v2.0.0 only when Alex says so; `FLY_DEPLOY`
+stays off and Fly keeps serving 6d37506.
+
+- [ ] **1. Build line.** `build.{sh,bat} <profile>` at the root (`minimal`, `skeleton`; `CMD=check|test|run`;
+      the four collection flags; `-vet -strict-style -warnings-as-errors`; `-define:VERSION`), `ols.json`
+      at the root on `skeleton`'s families until `full` exists, and `prepare.*` building SQLite with
+      D16's `SQLITE_FLAGS`, recorded in `vendor/sqlite/.flags` so a flag change rebuilds the lib (S0.11).
+      *Check:* an unknown profile is refused; `app/src` builds and passes its store and views tests on
+      the tuned lib on Windows and Linux.
+- [ ] **2. Platform L1–L2**, each checking alone: `sys`, `ext`, `sqlite` (`in_sqlite` around every call),
+      `guard` (S0.6), `obs` (logfmt buffers, request ids, per-thread counters, health, limits), `env`
+      (the typed table), `authz`, `authz/anonymous`, `store`, `markdown`, `workers` (pools, `next_tick`
+      replies over F-13, the scheduler). *Check:* `odin check -no-entry-point` per package with the strict
+      flags; `odin test` per package under a `Tracking_Allocator` (guard classification, logfmt, env
+      parsing, markdown caps, a worker reply to a gone connection).
+- [ ] **3. Store families.** `store/sqlite` (v3, `MEMMODE` ephemeral/single, the boot sweep, tmpfs; the
+      writer task with group commit and no timer; the query pool; the reader reset pulled from guard;
+      `migrate` adopting 709bc94 and v1.1.1 databases; `--backup`, `--adopt-profile`) and `store/memory`.
+      *Check:* the runner's 6 cases plus fixture databases written by the real 709bc94 and v1.1.1 binaries;
+      a reader sees the writer's commits; 0 re-prepares in 1000 pages; a batch answers each write as a lone
+      write would; the reader reset after a pure trap.
+- [ ] **4. Platform L3–L4.** `web` (per-host prefix router, `Route` and flags, `respond_*`, body caps, the
+      trusted client address, assets with crc32 names and br/gz/identity, robots, sitemap, Bing, IndexNow,
+      `/licenses`, `/healthz /livez /readyz /metrics`), `html` (the escaping boundary, layout, NAV, the
+      components, `behave`), `client/vanilla`, `theme/full`, `theme/lite`, `app` (`front`, `Host`,
+      `boot check serve wait shutdown`, the CLI, the 8 boot checks, `TEST_ROUTES`). *Check:* router,
+      escaping and boot-check unit tests, a deliberately bad table tripping checks 1, 3 and 5.
+- [ ] **5. `minimal`.** Features `home`, `about`, `notes` (both store families, `storetest`); `cmd/minimal`'s
+      four files. *Check:* builds with no SQLite library present; ≤ 1.0 MB; the skeleton's exact header
+      set; its bundle is `htmx.min.js` byte for byte; the minimal starter's specs pass.
+- [ ] **6. `skeleton`.** Features `contacts` (SQLite store, migrations 0001–0003 with their hashes plus
+      `0004_sort_indexes`, group-committed writes over F-13), `dashboard`, `gallery`, `about`;
+      `cmd/skeleton`. *Check:* every skeleton URL answers byte for byte as `app/src` does (a route diff,
+      intended differences listed: X35's three headers, `x-request-id`); `app/src`'s e2e and k6 smoke
+      pass against it.
+- [ ] **7. Retire `app/src`.** The 23 specs ported to `e2e/tests/<f>/` and tagged; global setup through
+      `build.sh` and `--features --json`; `load-tests/scenarios/<f>/` and `run.sh --parity`; per-route
+      counters and `tests/parity-waivers.txt` (S0.4's three documented exceptions); `run.*`, the
+      Dockerfile and `tools/init` through `build.*`; `app/src` deleted. *Check:* 3 engines + `api` green
+      on `skeleton`, chromium on `minimal`; route coverage with 0 unexplained waivers.
+- [ ] **8. `tools/check`**: `imports`, `profile`, `routes`, `contracts` (and `parity`). *Check:* clean on
+      both profiles; a bad fixture trips each.
+- [ ] **9. CI**: `pins`, `check`, `build` ({minimal, skeleton} × 4 OSes, the no-SQLite build), `e2e`,
+      `docker`, `linux-ops`, nightly ASan, all through `build.*`. *Check:* a green run (needs the push,
+      which waits for Alex's go and the token's `workflow` scope).
+- [ ] **10. Drills and budgets.** Crash drills (panic, bounds, div, nil, stack, lock, async, sqlite, hang)
+      on both OSes; the fuzz smoke; the shutdown bound with slowloris, half body and idle peers; restart;
+      the fd ceiling; `skeleton` ≤ 2.75 MB, idle ≤ 10 MB, boot → `/readyz` ≤ 50 ms.
+- [ ] **11. The parity gate** on both legs (`skeleton` against 709bc94 and v1.1.1; §18.2 with Q6's and
+      Q35's references), into `docs/perf/PARITY.md`; the 01 (A) checklist.
+- [ ] **12. Audit and release prep.** `docs/audit/M1.md` by an agent that didn't write the code, 0 open
+      CRITICAL/HIGH; `Audited:` stamps; CLAUDE.md, README and app/README rewritten for the starter;
+      CHANGELOG's 2.0.0 entry; then ask Alex about tagging v2.0.0.
+
 ## Roadmap to 1.0 — template-ize (Phase F) — ✅ shipped as v1.0.0 (2026-07-01)
 
 Make it trivial to start a new project from. Bounded: mostly docs + one script. **All items below are
