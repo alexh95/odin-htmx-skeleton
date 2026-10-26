@@ -38,7 +38,11 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   `authz` (roles, permissions and the identity contract, with the default anonymous identity),
   `store` (what every store shares), `markdown` (a safe Markdown subset from spark, with input and
   nesting caps) and `workers` (bounded pools that answer on the submitting loop, and a job
-  scheduler). `app/src` is unchanged until the profiles replace it.
+  scheduler); and the two store families: `store/sqlite` (store v3: a writer task that commits every
+  loop's queued writes in one transaction, a read-only connection per loop, `MEMMODE`, `--backup`,
+  and a migration runner per feature that adopts a skeleton database, 709bc94's or v1.1.1's, without
+  re-running anything) and `store/memory`. `app/src` is unchanged until the profiles replace it, but
+  its migrations now live in `app/stores/sqlite/contacts/migrations/`.
 - **`build.sh` / `build.bat <profile>`** at the repo root: the one place a profile's build flags
   live (its store, identity, client and theme collections, `-vet -strict-style
   -warnings-as-errors`, `VERSION`), with `CMD=check|test|run`. The starter's profiles (`minimal`,

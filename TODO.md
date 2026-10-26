@@ -38,12 +38,13 @@ stays off and Fly keeps serving 6d37506.
       flags; `odin test` per package under a `Tracking_Allocator` (guard classification, logfmt, env
       parsing, markdown caps, worker replies on the submitting loop). Follow-ups: daily jobs at a local
       time (M4's nightly resets); the jobs page's run history (M5).
-- [ ] **3. Store families.** `store/sqlite` (v3, `MEMMODE` ephemeral/single, the boot sweep, tmpfs; the
+- [x] **3. Store families.** `store/sqlite` (v3, `MEMMODE` ephemeral/single, the boot sweep, tmpfs; the
       writer task with group commit and no timer; the query pool; the reader reset pulled from guard;
       `migrate` adopting 709bc94 and v1.1.1 databases; `--backup`, `--adopt-profile`) and `store/memory`.
       *Check:* the runner's 6 cases plus fixture databases written by the real 709bc94 and v1.1.1 binaries;
       a reader sees the writer's commits; 0 re-prepares in 1000 pages; a batch answers each write as a lone
-      write would; the reader reset after a pure trap.
+      write would; the reader reset after a pure trap. Follow-ups: the dashboard and ops numbers
+      (`sqlite3_db_status`, WAL bytes) pushed to obs at M5; keyset paging helpers with chat (M6).
 - [ ] **4. Platform L3–L4.** `web` (per-host prefix router, `Route` and flags, `respond_*`, body caps, the
       trusted client address, assets with crc32 names and br/gz/identity, robots, sitemap, Bing, IndexNow,
       `/licenses`, `/healthz /livez /readyz /metrics`), `html` (the escaping boundary, layout, NAV, the

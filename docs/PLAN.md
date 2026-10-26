@@ -2408,6 +2408,17 @@ D16 (S8, 12 §9):
   mid-query cost a map lookup, never a use-after-free; a full queue answers 503.
 - **Chunked deletes** of 1,000 rows per transaction on the writer task (one 100k-row delete held the writer 330 ms,
   12 §3.2); **a sort index per list sort key**; **keyset paging** for history and infinite scroll.
+- **Write ops** (M1). A write is a `store.Op` (in `platform/store`, so `models` describe one without importing
+  SQLite): the feature's store sets its `run`, the caller its `done`, and the SQLite family runs it in the writer
+  task's next batch while the memory family runs it at once. An op owns its memory (`store.new_op` allocates it with a
+  block for its strings, `free_op` from `done` releases both), because it can outlive its request: a peer that leaves
+  closes its connection, and the request arena with it, while the write is still queued.
+- **Statements per connection** (M1). A feature's store reads with `read(SQL)` … `defer reset(q)` and writes with
+  `writer_stmt(SQL)` inside its op's `run`; each connection prepares a statement on first use and keeps it, keyed by
+  the SQL string's address, so SQL is a constant or a string built once at init, never one built per call.
+- **Close is `main`'s call** (M1). `platform/app` never imports SQLite, so a SQLite profile's `main` calls
+  `store_sqlite.close()` after `app.shutdown()`: the writer commits what is queued, every connection closes, and the
+  last close checkpoints the WAL (§8.7 step 7).
 - **Statement discipline.** Every step is followed by `defer sqlite.reset`: an unreset statement on a loop's reader
   holds its snapshot open, and the WAL grows about 5.4 MB per second at 3.2k msgs/s (12 §3.3; hence §10's reset).
   `synchronous=NORMAL` survives a process crash; only a power loss or an OS crash loses the last commits (12 §3.1).
