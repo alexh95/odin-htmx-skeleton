@@ -1,6 +1,6 @@
 import { test, expect } from '../../fixtures';
 
-// A refused submit is a 422. app.js resets a [data-reset-on-success] form only
+// A refused submit is a 422. The ResetOnSuccess behaviour resets its form only
 // after a 2xx, so the user's input survives a rejection, and htmx 4 swaps the
 // 422 body either into the form's normal target or, through hx-status:422, into
 // an error slot. The contacts forms here; the note form's in notes/.

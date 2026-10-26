@@ -1,0 +1,106 @@
+// The client's shared part, ahead of the client member's own in every profile's
+// app.js (tools/bundle concatenates them; PLAN §12.4). HTMX drives every
+// interaction; this covers what the server can't and what isn't a behaviour:
+// the theme picker and its persistence (the head's pre-paint script restores the
+// choice before first paint), the dashboard count-up, and Escape closing the
+// overlay. Behaviours (tabs, toasts, form resets …) are the member's: vanilla's
+// twins behind data-behave, or hyperscript's behaviours._hs.
+//
+// No inline handlers anywhere: the Content-Security-Policy forbids them. Markup
+// names what a click means with a data-* attribute, and one delegated listener
+// routes it, which also covers content htmx swaps in later.
+
+// Theme picker — two axes on <html>: data-style (treatment) and data-scheme
+// (palette). Pure presentation; persisted so the head pre-paint script can
+// restore the choice before first paint. No server round-trip.
+function persistPref() {
+  var r = document.documentElement;
+  try {
+    localStorage.setItem("style", r.dataset.style || "");
+    localStorage.setItem("scheme", r.dataset.scheme || "");
+  } catch (e) {}
+  markPicker();
+}
+function pickStyle(name) {
+  var r = document.documentElement;
+  r.dataset.style = name;
+  // Keep the scheme valid for the new style; fall back to its first swatch.
+  var swatches = document.querySelectorAll('.picker-schemes[data-for="' + name + '"] [data-pick-scheme]');
+  var ids = Array.prototype.map.call(swatches, function (b) { return b.dataset.pickScheme; });
+  if (ids.indexOf(r.dataset.scheme) < 0 && swatches[0]) r.dataset.scheme = swatches[0].dataset.pickScheme;
+  persistPref();
+}
+function pickScheme(name) {
+  document.documentElement.dataset.scheme = name;
+  persistPref();
+}
+// Set both axes at once — the /components showroom swatches jump straight to a
+// given style + scheme.
+function setTheme(style, scheme) {
+  var r = document.documentElement;
+  r.dataset.style = style;
+  r.dataset.scheme = scheme;
+  persistPref();
+}
+function markPicker() {
+  var r = document.documentElement;
+  document.querySelectorAll("[data-pick-style]").forEach(function (b) {
+    b.setAttribute("aria-pressed", String(b.dataset.pickStyle === r.dataset.style));
+  });
+  document.querySelectorAll("[data-pick-scheme]").forEach(function (b) {
+    b.setAttribute("aria-pressed", String(b.dataset.pickScheme === r.dataset.scheme));
+  });
+  document.querySelectorAll(".showroom-swatches .swatch[data-sw-style]").forEach(function (b) {
+    b.setAttribute("aria-pressed", String(b.dataset.swStyle === r.dataset.style && b.dataset.swScheme === r.dataset.scheme));
+  });
+}
+
+// Count the dashboard stat values up from zero — cheap, and it makes the
+// numbers feel alive on first paint.
+function countUp() {
+  document.querySelectorAll(".stat-value[data-count]").forEach(function (el) {
+    if (el.dataset.counted) return; // animate each card once — idempotent so it's
+    el.dataset.counted = "1";       // safe to re-run after a boosted nav swap.
+    var target = parseInt(el.dataset.count, 10) || 0;
+    if (target === 0) return;
+    var start = performance.now(), dur = 600;
+    function step(now) {
+      var t = Math.min(1, (now - start) / dur);
+      el.textContent = Math.round(target * (1 - Math.pow(1 - t, 3)));
+      if (t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+// htmx 4 fires htmx:after:process when it wires up new content (initial load and
+// every swap, boosted navigation included): restore the chrome a boosted
+// body-swap re-renders, the picker's pressed state and the count-up. Both are
+// idempotent, so small in-page fragment swaps are cheap no-ops.
+document.addEventListener("htmx:after:process", function () {
+  markPicker();
+  countUp();
+}, true);
+
+// The picker and showroom buttons, by what they carry; an outside click closes
+// the picker.
+document.addEventListener("click", function (e) {
+  var t = e.target.closest ? e.target : e.target.parentElement;
+  var b;
+  if ((b = t.closest("[data-pick-style]"))) pickStyle(b.dataset.pickStyle);
+  else if ((b = t.closest("[data-pick-scheme]"))) pickScheme(b.dataset.pickScheme);
+  else if ((b = t.closest("[data-sw-style]"))) setTheme(b.dataset.swStyle, b.dataset.swScheme);
+  var picker = document.querySelector(".picker[open]");
+  if (picker && !picker.contains(e.target)) picker.removeAttribute("open");
+});
+
+// Escape closes the overlay (a modal or the drawer). The modal's backdrop never
+// does: an outside click must not discard a half-typed field.
+document.addEventListener("keydown", function (e) {
+  if (e.key !== "Escape") return;
+  var overlay = document.getElementById("overlay");
+  if (overlay) overlay.innerHTML = "";
+});
+
+countUp();
+markPicker();

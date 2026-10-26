@@ -11,7 +11,7 @@ test.describe('notes', { tag: ['@notes', '@home'] }, () => {
     await page.getByRole('button', { name: 'Add' }).click();
     // Newest first (afterbegin swap).
     await expect(page.locator('#note-list .note').first()).toContainText(body);
-    await expect(input).toHaveValue(''); // data-reset-on-success cleared it
+    await expect(input).toHaveValue(''); // ResetOnSuccess cleared it
   });
 
   test('a click right after adding a note is not lost to its swap (regression)', async ({ page }) => {

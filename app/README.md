@@ -68,8 +68,8 @@ builders) and `web` (handlers, `ROUTES`, `init`). A feature reaches another only
 Only `platform/web` imports odin-http; it re-exports `web.Request` and `web.Response`.
 
 **A family** is a build-time choice of one implementation, picked by `build.sh`'s collection flags:
-`store:` (sqlite or memory), `identity:` (who the viewer is), `client:` (the JS behaviours) and
-`theme:` (full or lite). `--features --json` prints what a binary was built with.
+`store:` (sqlite or memory), `identity:` (who the viewer is), `client:` (the behaviours: vanilla, or
+hyperscript, which `lab` uses; markup names them through `html.behave`) and `theme:` (full or lite). `--features --json` prints what a binary was built with.
 
 ## What's inside `skeleton`
 

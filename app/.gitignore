@@ -1,6 +1,7 @@
 bin/
 vendor/htmx/htmx.min.js
 vendor/htmx/ext/
+vendor/hyperscript/_hyperscript.*
 # tools/bundle's output, per profile: prepare writes it, build.sh embeds it.
 build/
 *.exe

@@ -21,8 +21,7 @@ if "%P%"=="minimal" (
 ) else if "%P%"=="skeleton" (
   set "STORE=sqlite" & set "ID=platform/authz/anonymous" & set "CLIENT=vanilla" & set "THEME=full"
 ) else if "%P%"=="lab" (
-  rem client=hyperscript from M2's slice 4
-  set "STORE=memory" & set "ID=platform/authz/anonymous" & set "CLIENT=vanilla" & set "THEME=full"
+  set "STORE=memory" & set "ID=platform/authz/anonymous" & set "CLIENT=hyperscript" & set "THEME=full"
 ) else (
   echo build.bat: unknown profile '%P%' ^(minimal, skeleton, lab^) 1>&2
   exit /b 2

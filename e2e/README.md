@@ -74,7 +74,8 @@ tests/
   platform/            what every profile serves: assets, routing, security headers + CSP, the cross-site
                        write guard, input limits, operations (probes, /metrics, /licenses, the access log),
                        SEO contract, canonical redirect, style defaults, responsive, navigation + theme
-                       picker, backup (@platform-sqlite)
+                       picker, backup (@platform-sqlite), escaping (every `_` a lone install and every
+                       data-behave a twin, on every sitemap page; the hyperscript gate, on that client)
   dashboard/           the dashboard's figures come from the store
   gallery/             components (tabs, accordion, toasts, modal, drawer) and forms (validation, sliders)
   contacts/            CRUD, paging, search, ids, escaping, writes, 422s, events (FK), persistence
@@ -82,7 +83,8 @@ tests/
   lab/                 the stream contract (spike S0.3's checks on the real stream and hub): protocol.spec
                        (03's Node-side checks and PLAN §8.2/§9's, api), engine.spec (sockets from the page),
                        extensions.spec (hx-sse, hx-ws, hx-multipart in the engine, the page contract, drain
-                       and restart), pages.spec; streams.ts holds the SSE reader and the raw WebSocket client
+                       and restart), pages.spec; streams.ts holds the SSE reader and the raw WebSocket client.
+                       lab is built on the hyperscript client, so its run covers the behaviours and the gate
 ```
 
 The regression tests pin bugs fixed earlier: the modal keeps its field on a

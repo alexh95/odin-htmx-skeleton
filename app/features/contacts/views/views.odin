@@ -391,7 +391,7 @@ detail_edit_form :: proc(b: ^strings.Builder, c: m.Contact, problem: string) {
 		fmt.sbprintf(b, `<option%s>%s</option>`, st == c.status ? " selected" : "", name)
 	}
 	w(b, `</select></label>`)
-	fmt.sbprintf(b, `<label class="field"><span>Engagement <output>%d</output></span><input name="score" type="range" min="0" max="100" value="%d"></label>`, c.score, c.score)
+	fmt.sbprintf(b, `<label class="field"><span>Engagement <output>%d</output></span><input name="score" type="range" min="0" max="100" value="%d"%s></label>`, c.score, c.score, html.behave_attr(.Range_Fill))
 	if problem != "" {
 		w(b, `<p class="field-msg form-error" role="alert">`)
 		w(b, html.field_msg(false, problem))
@@ -460,7 +460,9 @@ data_page :: proc(p: contacts.Page) -> string {
 	// Filter + add form sit outside the swapped region so they survive a reload
 	// of the table itself.
 	w(&b, `<div class="toolbar">
-    <form class="filter" role="search">`)
+    <form class="filter" role="search"`)
+	html.behave(&b, .Search_Box)
+	w(&b, `>`)
 	html.icon(&b, "search")
 	w(&b, `<input type="search" name="q" placeholder="Filter contacts…" autocomplete="off" value="`)
 	esc(&b, p.q)
@@ -472,7 +474,9 @@ data_page :: proc(p: contacts.Page) -> string {
 	html.icon(&b, "plus")
 	w(&b, `<span>New contact</span></summary>
       <form class="add-form card" hx-post="/contacts" hx-target="#contact-tbody" hx-swap="beforeend"
-            hx-status:422="target:#add-error swap:innerHTML" data-reset-on-success>
+            hx-status:422="target:#add-error swap:innerHTML"`)
+	html.behave(&b, .Reset_On_Success)
+	w(&b, `>
         `)
 	fmt.sbprintf(&b, `<input name="name" placeholder="Full name" required maxlength="%d" aria-label="Name">`, contacts.MAX_NAME)
 	fmt.sbprintf(&b, `<input name="email" type="email" placeholder="email@example.dev" required maxlength="%d" aria-label="Email">`, contacts.MAX_EMAIL)

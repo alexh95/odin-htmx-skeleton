@@ -16,7 +16,7 @@ src="$p"
 case "$p" in
   minimal)  store=memory id=platform/authz/anonymous client=vanilla theme=lite ;;
   skeleton) store=sqlite id=platform/authz/anonymous client=vanilla theme=full ;;
-  lab)      store=memory id=platform/authz/anonymous client=vanilla theme=full ;; # client=hyperscript from M2's slice 4
+  lab)      store=memory id=platform/authz/anonymous client=hyperscript theme=full ;;
   *) echo "build.sh: unknown profile '$p' (minimal, skeleton, lab)" >&2; exit 2 ;;
 esac
 

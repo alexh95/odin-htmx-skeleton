@@ -103,7 +103,9 @@ components_page :: proc() -> string {
 	w(&b, `<div class="demo grid-3">
     <label class="field"><span>Text</span><input placeholder="Type here…"></label>
     <label class="field"><span>Select</span><select><option>One</option><option>Two</option></select></label>
-    <label class="field"><span>Range</span><input type="range" value="60"></label>
+    <label class="field"><span>Range</span><input type="range" value="60"`)
+	html.behave(&b, .Range_Fill)
+	w(&b, `></label>
     <label class="field"><span>Switch</span><span class="toggle"><input type="checkbox" checked><i></i></span></label>
     <label class="field"><span>Checkbox</span><span class="check"><input type="checkbox" checked><i></i> Subscribe</span></label>
     <label class="field"><span>Tooltip</span><button class="btn btn-outline" data-tip="Rendered with one ::after">Hover me</button></label>
@@ -112,7 +114,9 @@ components_page :: proc() -> string {
 	// Tabs (HTMX)
 	section_open(&b, "Tabs", "Panels fetched from the server on demand.")
 	w(&b, `<div class="tabs">
-    <div class="tablist" role="tablist">
+    <div class="tablist" role="tablist"`)
+	html.behave(&b, .Tabs)
+	w(&b, `>
       <button class="tab" role="tab" aria-selected="true" hx-get="/ui/tab/overview" hx-target="#tabpanel">Overview</button>
       <button class="tab" role="tab" aria-selected="false" hx-get="/ui/tab/activity" hx-target="#tabpanel">Activity</button>
       <button class="tab" role="tab" aria-selected="false" hx-get="/ui/tab/security" hx-target="#tabpanel">Security</button>
@@ -171,13 +175,14 @@ forms_page :: proc(f: Contact_Form) -> string {
 		"A real form wired to the same service layer. The email field validates as you type; submit creates a contact.",
 	)
 
-	// data-reset-on-success: app.js resets the form after its OWN successful submit.
-	// Scoped there to this form's request (ctx.sourceElement), so the email field's
-	// inline validation can't trip the reset and wipe what the user just typed. A
-	// refused submit is a 422, which lands in #form-result like a success and
-	// leaves the fields alone, so it needs no hx-status of its own.
-	w(&b, `<form class="form card" hx-post="/forms/submit" hx-target="#form-result" hx-swap="innerHTML"
-        data-reset-on-success>
+	// ResetOnSuccess: the form resets after its OWN successful submit, scoped to
+	// this form's request (ctx.sourceElement), so the email field's inline
+	// validation can't trip the reset and wipe what the user just typed. A refused
+	// submit is a 422, which lands in #form-result like a success and leaves the
+	// fields alone, so it needs no hx-status of its own.
+	w(&b, `<form class="form card" hx-post="/forms/submit" hx-target="#form-result" hx-swap="innerHTML"`)
+	html.behave(&b, .Reset_On_Success)
+	w(&b, `>
   <div class="form-grid">
     <label class="field">
       <span>Full name</span>
@@ -203,7 +208,9 @@ forms_page :: proc(f: Contact_Form) -> string {
     </label>
     <label class="field">
       <span>Engagement <output class="out">60</output></span>
-      <input type="range" name="score" min="0" max="100" value="60">
+      <input type="range" name="score" min="0" max="100" value="60"`)
+	html.behave(&b, .Range_Fill)
+	w(&b, `>
     </label>
     <fieldset class="field span-2">
       <legend>Status</legend>

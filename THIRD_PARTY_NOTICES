@@ -7,11 +7,10 @@ Contents
   1. odin-http (vendored in app/vendor/odin-http): MIT
   2. The Odin core library (linked into every binary): zlib
   3. Unicode Character Database tables (in Odin's core:unicode): Unicode License V3
-  4. htmx (embedded as app/static/htmx.min.js): 0BSD, no notice required; credited here
+  4. htmx and its extensions (embedded from app/vendor/htmx): 0BSD, no notice required; credited here
   5. SQLite (compiled in from the amalgamation): public domain; credited here
-
-When a profile ships hx-multipart (htmx's dist/ext/hx-multipart.min.js), its MIT notice from Shopify is added here:
-the minified file drops it (PLAN §3.5; 10 §8.3).
+  6. _hyperscript (embedded from app/vendor/hyperscript, in profiles on the hyperscript client): 0BSD; credited here
+  7. multipart-parser (inside htmx's hx-multipart extension, in profiles that load it): MIT
 
 --------------------------------------------------------------------------------------------------------------------
 1. odin-http
@@ -110,7 +109,8 @@ authorization of the copyright holder.
    https://htmx.org, https://github.com/bigskysoftware/htmx
 --------------------------------------------------------------------------------------------------------------------
 
-htmx is distributed under the BSD Zero Clause License (0BSD), which asks for no notice. Credited with thanks.
+htmx and the extensions in its dist/ext are distributed under the BSD Zero Clause License (0BSD), which asks for no
+notice. Credited with thanks.
 
 --------------------------------------------------------------------------------------------------------------------
 5. SQLite
@@ -122,3 +122,50 @@ SQLite is in the public domain. In place of a legal notice, its authors offer th
     May you do good and not evil.
     May you find forgiveness for yourself and forgive others.
     May you share freely, never taking more than you give.
+
+--------------------------------------------------------------------------------------------------------------------
+6. _hyperscript
+   https://hyperscript.org, https://github.com/bigskysoftware/_hyperscript
+--------------------------------------------------------------------------------------------------------------------
+
+_hyperscript 0.9.94's LICENSE file is the Zero-Clause BSD (its package.json still names BSD 2-Clause; the LICENSE
+file is the grant), which asks for no notice. Its text, with thanks:
+
+Permission to use, copy, modify, and/or distribute this software for
+any purpose with or without fee is hereby granted.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES
+OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE
+FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY
+DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
+AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
+OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+--------------------------------------------------------------------------------------------------------------------
+7. multipart-parser
+   https://github.com/remix-run/remix/tree/main/packages/multipart-parser
+   (htmx's hx-multipart ports its parser engine; the minified extension drops this notice, so it is kept here)
+--------------------------------------------------------------------------------------------------------------------
+
+MIT License
+
+Copyright (c) 2025 Shopify Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

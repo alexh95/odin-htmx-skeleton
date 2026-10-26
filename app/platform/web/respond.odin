@@ -83,6 +83,7 @@ page_html :: proc(title, active, description, content: string, bundle := Bundle.
 	return html.layout({
 		brand = site.brand, origin = site.origin, nav = site.nav,
 		css = assets.css_href, htmx = assets.bundle_href[bundle], js = assets.js_href,
+		hs = assets.hs_href, behaviours = assets.behaviours_href,
 		title = title, active = active, description = description,
 		bundle = bundle, nonce = c.nonce, private = c.route != nil && .Private in c.route.flags,
 	}, content)

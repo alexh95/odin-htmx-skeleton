@@ -1304,6 +1304,14 @@ on `houston-lab` (D25). Alpine stays inert unless Alex asks (D3).
 member. M1 has one member, vanilla, and the skeleton answers byte for byte as 1.2.x did, so its own `data-*` markup and
 app.js's delegated listeners stay as they are until then.
 
+**As built (M2):** both members and the table are in (PLAN §12.4's as-built note), and the skeleton's markup now goes
+through `html.behave` too, so its pages carry `data-behave="…"` where 1.2.x had `data-reset-on-success` and app.js
+matched roles and classes: one dispatcher by name is what lets a page built for either client carry the same view code,
+and the skeleton is the vanilla member's witness. The pages grow by a few attributes; their routes, statuses and
+behaviour are unchanged, and the skeleton's specs pass on both members. The code both members keep (the theme picker,
+count-up, the overlay's Escape) is `client/core.js`, which tools/bundle puts first in each profile's `app.js`. `lab`
+is the first profile on hyperscript; `full` and `full-vanilla` take over the both-members check when `full` exists.
+
 **Rejected.** String behaviour names (RF §3.9, CF §4.1). RF §4.2's boot switch embedding both runtimes. A vanilla twin
 of every behaviour (PF's `houston-vanilla`): twin cost without user value.
 

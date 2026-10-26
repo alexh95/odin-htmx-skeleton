@@ -71,6 +71,7 @@ Page :: struct {
 	origin:                     string,
 	nav:                        []Nav_Item,
 	css, htmx, js:              string,
+	hs, behaviours:             string, // the hyperscript client's runtime and behaviours ("" on vanilla)
 	title, active, description: string,
 	bundle:                     ext.Bundle,
 	nonce:                      string,
@@ -300,6 +301,19 @@ layout :: proc(p: Page, content: string) -> string {
 	nonce_attr(&b, p.nonce)
 	w(&b, `" defer></script>
 `)
+	// After app.js, whose gate must be listening before hyperscript initialises
+	// anything; after htmx, whose after-process hook hyperscript installs only if
+	// htmx is there (05 §3). The behaviours are text hyperscript fetches.
+	when CLIENT == "hyperscript" {
+		w(&b, `<script src="`)
+		w(&b, p.hs)
+		nonce_attr(&b, p.nonce)
+		w(&b, `" defer></script>
+<script type="text/hyperscript" src="`)
+		w(&b, p.behaviours)
+		w(&b, `"></script>
+`)
+	}
 	// The site name a search engine prints above the result; without it the name is
 	// derived from the hostname. Google reads WebSite only from the home page, hence
 	// the guard, and `name` matches og:site_name on purpose: agreeing signals are
@@ -357,7 +371,9 @@ layout :: proc(p: Page, content: string) -> string {
 	w(&b, `</nav>
   `)
 	if s := p.brand.search; s.href != "" {
-		w(&b, `<form class="search" role="search">`)
+		w(&b, `<form class="search" role="search"`)
+		behave(&b, .Search_Box)
+		w(&b, `>`)
 		icon(&b, "search")
 		w(&b, `<input type="search" name="q" placeholder="`)
 		esc(&b, s.placeholder)
@@ -367,7 +383,9 @@ layout :: proc(p: Page, content: string) -> string {
        hx-get="`)
 		w(&b, s.href)
 		w(&b, `" hx-trigger="keyup changed delay:250ms, search, focus" hx-target="#search-results" hx-swap="innerHTML">
-    <div id="search-results" class="search-results" tabindex="-1"></div>
+    <div id="search-results" class="search-results" tabindex="-1"`)
+		behave(&b, .Dismiss)
+		w(&b, `></div>
   </form>
   `)
 	}
@@ -440,7 +458,9 @@ toast :: proc(kind, message: string, oob: bool) -> string {
 	if oob {
 		w(&b, `<div hx-swap-oob="beforeend:#toasts">`)
 	}
-	fmt.sbprintf(&b, `<div class="toast %s" role="status"><span class="toast-icon">`, cls)
+	fmt.sbprintf(&b, `<div class="toast %s" role="status"`, cls)
+	behave(&b, .Toast)
+	w(&b, `><span class="toast-icon">`)
 	icon(&b, ic)
 	w(&b, `</span><p>`)
 	esc(&b, message)

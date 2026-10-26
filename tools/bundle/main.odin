@@ -19,7 +19,11 @@ package main
 //      keep the skeleton's file and its crc32 name.
 //   4. Precompress each with `brotli -q 11` and `gzip -9 -n` (see compress).
 //   5. Write the profile's app.css (the theme's sheet, then each reached
-//      feature's static CSS) and its client's app.js, precompressed the same way.
+//      feature's static CSS) and its app.js (client/core.js, then its client
+//      member's app.js), precompressed the same way. On the hyperscript client,
+//      also _hyperscript.min.js (pinned, with upstream's .br) and behaviours._hs
+//      (the member's core set, then each reached feature's static/*._hs), and
+//      every bundle's htmx-config names hs-include (05 §3).
 //
 // The ext tables come from the app's own leaf package, imported here, so the
 // header this writes and the boot check that reads it can't disagree on a
@@ -116,11 +120,12 @@ main :: proc() {
 	}
 
 	// Each bundle's htmx-config meta JSON (§12.1), from the same set: an extension
-	// missing from its `extensions` allowlist registers as nothing. Strict JSON, as
-	// hyperscript parses it too. Scripting's adds `safeEval`, under which hx-csp
-	// lets a nonced hx-on and hx-live run (11 §2.2). The layout folds each into a
-	// constant, so a profile with no extensions (minimal, skeleton) keeps the
-	// skeleton's exact head.
+	// missing from its `extensions` allowlist registers as nothing, hyperscript's
+	// hs-include included. Strict JSON, as hyperscript parses it too. Scripting's
+	// adds `safeEval`, under which hx-csp lets a nonced hx-on and hx-live run (11
+	// §2.2). The layout folds each into a constant, so a profile with no
+	// extensions (minimal, skeleton) keeps the skeleton's exact head.
+	member := client_member(files)
 	for b in ext.Bundle {
 		path := path_join(dir, strings.concatenate({strings.to_lower(fmt.tprint(b)), ".config.json"}))
 		if b not_in pages {
@@ -130,7 +135,9 @@ main :: proc() {
 		set := b == .Main ? main_exts : ext.PAGE_EXTS[b]
 		config := `{"defaultSwap":"innerHTML"}`
 		if set != {} {
-			config = strings.concatenate({`{"defaultSwap":"innerHTML","extensions":"`, ext.list(set, context.temp_allocator), `"`, `,"safeEval":true}` if b == .Scripting else `}`})
+			list := ext.list(set, context.temp_allocator)
+			if member == "hyperscript" { list = strings.concatenate({list, ", hs-include"}, context.temp_allocator) }
+			config = strings.concatenate({`{"defaultSwap":"innerHTML","extensions":"`, list, `"`, `,"safeEval":true}` if b == .Scripting else `}`})
 		}
 		if err := os.write_entire_file(path, transmute([]byte)config); err != nil {
 			fatal(fmt.tprintf("can't write %s: %v", path, err))
@@ -138,13 +145,32 @@ main :: proc() {
 	}
 	os.remove(path_join(dir, "htmx-config.json")) // the name before page bundles had their own
 
-	// The stylesheet and the client's script, from the same reached files.
-	for out in ([]struct{name: string, data: []byte}{{"app.css", stylesheet(opt, files)}, {"app.js", client_js(opt, files)}}) {
+	// The stylesheet and the client's script, from the same reached files; on the
+	// hyperscript client, its runtime and the behaviours.
+	outs := make([dynamic]struct{name: string, data: []byte})
+	append(&outs, struct{name: string, data: []byte}{"app.css", stylesheet(opt, files)})
+	append(&outs, struct{name: string, data: []byte}{"app.js", client_js(opt, member)})
+	hs_names := [2]string{"_hyperscript.min.js", "behaviours._hs"}
+	if member == "hyperscript" {
+		append(&outs, struct{name: string, data: []byte}{"_hyperscript.min.js", read(path_join(opt.repo, "app/vendor/hyperscript/_hyperscript.min.js"))})
+		append(&outs, struct{name: string, data: []byte}{"behaviours._hs", behaviours(opt, files)})
+	} else {
+		for n in hs_names { remove_outputs(path_join(dir, n)) } // a profile that left the hyperscript client
+	}
+	for out in outs {
 		path := path_join(dir, out.name)
 		if err := os.write_entire_file(path, out.data); err != nil {
 			fatal(fmt.tprintf("can't write %s: %v", path, err))
 		}
 		gz, br := compress(path, tools)
+		if out.name == "_hyperscript.min.js" {
+			// Upstream's own brotli of the pinned file, as the plan has it (§12.1).
+			upstream := read(path_join(opt.repo, "app/vendor/hyperscript/_hyperscript.min.js.br"))
+			if err := os.write_entire_file(strings.concatenate({path, ".br"}), upstream); err != nil {
+				fatal(fmt.tprintf("can't write %s.br: %v", path, err))
+			}
+			br = len(upstream)
+		}
 		fmt.printfln("%-14s %4s %8s %8s %8s  %08x", out.name, "", fmt.tprint(len(out.data)), size_or_dash(gz), size_or_dash(br), hash.crc32(out.data))
 	}
 }
@@ -197,17 +223,48 @@ stylesheet :: proc(opt: Options, files: []string) -> []byte {
 	return b.buf[:]
 }
 
-// The build's client member owns app.js (its delegated listener and behaviours).
-client_js :: proc(opt: Options, files: []string) -> []byte {
+// The build's client member: vanilla or hyperscript.
+client_member :: proc(files: []string) -> string {
 	PREFIX :: "platform/client/"
 	for f in files {
 		if !strings.has_prefix(f, PREFIX) { continue }
 		member := f[len(PREFIX):]
-		member = member[:strings.index_byte(member, '/')]
-		return read(path_join(opt.repo, "app/platform/client", member, "app.js"))
+		if i := strings.index_byte(member, '/'); i > 0 { return member[:i] }
 	}
 	fatal("the build reaches no client member (app/platform/client/<member>/): check build.sh's -collection:client")
-	return nil
+	return ""
+}
+
+// app.js: what every client shares (client/core.js), then the member's own (its
+// delegated listener and twins, or the hyperscript gate).
+client_js :: proc(opt: Options, member: string) -> []byte {
+	b := strings.builder_make()
+	strings.write_bytes(&b, read(path_join(opt.repo, "app/platform/client/core.js")))
+	strings.write_string(&b, "\n")
+	strings.write_bytes(&b, read(path_join(opt.repo, "app/platform/client", member, "app.js")))
+	return b.buf[:]
+}
+
+// behaviours._hs: the hyperscript member's core set, then each reached
+// feature's static/*._hs, in feature order (§12.4).
+behaviours :: proc(opt: Options, files: []string) -> []byte {
+	b := strings.builder_make()
+	strings.write_bytes(&b, read(path_join(opt.repo, "app/platform/client/hyperscript/behaviours._hs")))
+	for f in reached_features(files) {
+		dir := path_join(opt.repo, "app/features", f, "static")
+		entries, err := os.read_all_directory_by_path(dir, context.temp_allocator)
+		if err != nil { continue }
+		names := make([dynamic]string, context.temp_allocator)
+		for e in entries {
+			if strings.has_suffix(e.name, "._hs") { append(&names, e.name) }
+		}
+		slice.sort(names[:])
+		for n in names {
+			strings.write_string(&b, "\n")
+			strings.write_bytes(&b, read(path_join(dir, n)))
+		}
+	}
+	return b.buf[:]
 }
 
 // The features the build reaches, from their packages' paths, in name order.

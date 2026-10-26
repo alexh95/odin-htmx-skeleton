@@ -1,0 +1,6 @@
+# _hyperscript 0.9.94's core, pinned by SHA-256 (docs/research/05-hyperscript.md §1; spike S0.10 checked it), with
+# upstream's own brotli of it. prepare.sh and prepare.bat fetch each from
+# https://unpkg.com/hyperscript.org@0.9.94/dist/<file> into this directory and refuse a mismatch; tools/bundle ships
+# them for a profile on the hyperscript client (PLAN §12.4). Core only: socket, eventsource, worker and hdb are banned.
+_hyperscript.min.js     4f48d7379281c7271f0a3d14907d68f9814280d757c12bf1e99d49a103b9b86a
+_hyperscript.min.js.br  b47b46d03ac909aa9684f89d1d3a6f4315a3ecc39a2b3684a2a686714488e4a9

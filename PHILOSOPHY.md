@@ -26,7 +26,8 @@ routing, history, templating, diffing the DOM the browser already owns.
 
 This project uses JavaScript the first way. `app.js` is small and vanilla: it persists the theme,
 runs the toast lifecycle, paints a slider fill, animates a count-up — the handful of things that
-are genuinely client-only. HTMX (the one front-end dependency) drives everything else by asking the
+are genuinely client-only. A profile may name those behaviours in _hyperscript instead
+(`_="install Toast"`), and counts it as a dependency. HTMX drives everything else by asking the
 server for the next chunk of HTML. The button changes state. We did not build an engine to do it.
 
 ## The shared vision: Odin and HTMX
@@ -46,29 +47,35 @@ screen*, and you can hold the entire thing in your head. That legibility is the 
 
 ## The line we hold
 
-The **shipped app depends on three things: HTMX, odin-http, and SQLite** — the last bound as the
-amalgamation and *statically linked into the one binary* (a C library, not a server or a framework).
-(See `CLAUDE.md` → "Dependencies — the line we hold" for the operational rules.)
+The shipped app depends on htmx (plus the extensions a profile loads, from the same tarball under
+the same 0BSD licence), odin-http (our fork), optionally SQLite, and optionally _hyperscript. An
+optional client runtime is still a dependency, and is counted as one. (See `CLAUDE.md` →
+"Dependencies — the line we hold" for the operational rules, and `docs/PLAN.md` §3.3 for why each
+entry below is there.)
 
-- No npm, no bundler, no CSS/JS framework, no template engine. HTML comes from Odin procedures; CSS
-  is hand-written and token-driven; JS is vanilla and tiny.
+- No npm, no CSS/JS framework, no template engine. HTML comes from Odin procedures; CSS is
+  hand-written and token-driven; JS is vanilla and tiny, or a behaviour the markup names.
 - Before reaching for a library, ask whether ~30 lines of Odin or CSS does it. They usually do.
-- Test tooling (Playwright, k6) is exempt — it's dev-time and never shipped.
+- Test tooling (Playwright, k6) is exempt: it's dev-time and never shipped.
 
 ## The 90%, honestly
 
-This project is roughly **90% faithful** to the philosophy, and says so out loud rather than
-pretending purity:
+This project is not purely faithful to the philosophy, and says so out loud rather than pretending
+purity. The ledger counts everything that bends it:
 
-- **A little JavaScript.** `app.js` exists. It's small, vanilla, and does only what the server
-  can't. That's the philosophy working as intended, not a violation — but it's not *zero*, so we
-  count it.
-- **A third dependency: SQLite.** The store is now real and persistent (`docs/DATA.md`), not the
-  in-memory POC. SQLite is the most-deployed database on earth, compiled into the single binary (no
-  server, no network hop), so it's about as in-keeping as a datastore gets — but it *is* a third
-  dependency, so we count it.
+| # | What bends | What it costs | Why it's worth it |
+|---|---|---|---|
+| 1 | **`app.js`** | vanilla JavaScript in every profile | it does only what the server can't: the theme pre-paint and its persistence, count-up, the hyperscript gate, the vanilla twins of the behaviours |
+| 2 | **SQLite**, optional per profile | a C library statically linked when present, and a C compile step in prepare | persistence with no server and no network hop (`docs/DATA.md`); a profile without it builds with no SQLite at all |
+| 3 | **_hyperscript 0.9.94**, optional per profile, core only | 39.7 KB brotli, a second, interpreted runtime, pre-1.0 with a bus factor of about one; it runs any `_` that reaches the page, so the CSP no longer backstops an escaping mistake | the element names its behaviour (`_="install Name"`) and the definition lives with the feature that owns the markup; the CSP stays free of `unsafe-eval`; an install-only gate and the vanilla twins keep it contained and replaceable |
+| 4 | **the odin-http fork** | a small diff we maintain in-tree (`app/vendor/odin-http/UPSTREAM.md`), re-applied on each upstream bump | streams on the HTTP port, shutdown deadlines, the crash guard, timeouts and limits need code inside odin-http |
+| 5 | **`tools/bundle`**, a prepare-time Odin tool | a prepare step that reruns whenever CSS, `_hs` or extension files change; it calls the `brotli` and `gzip` CLIs | it concatenates pinned, SHA-verified files in a fixed order and precompresses them: no module graph, no transpile step, nothing at runtime, so a bundler only in the sense of `cat` |
+| 6 | **`platform/guard`**, non-local control flow | `setjmp`/`longjmp`, formally undefined behaviour, against "no hidden control flow"; confined to one package and the fork's callback entry points | Odin has no recover, so without it one trap kills every stream on every loop; every trap is logged, and one that touched shared state exits 70 |
 
-Naming the 10% is the point. A philosophy you can't measure yourself against is just a vibe.
+The plan's ledger has two more rows that enter with the change that lands them: ffmpeg as an
+offline transcoding tool (video), and the device feed's plain-text stream (M14).
+
+Naming what bends is the point. A philosophy you can't measure yourself against is just a vibe.
 
 ## What it buys
 

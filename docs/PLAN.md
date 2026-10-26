@@ -2937,6 +2937,22 @@ vanilla profiles, also the eight twins. `escaping.spec` checks every rendered `_
 `data-behave` value against `BEHAVIOURS` (§19.1.5). Beyond its bytes (§12.1), hyperscript costs 5–19 ms of cold
 execution against htmx's 1.5–3 ms (05 §0); it is ledger line 3 (§3).
 
+**As built (M2):** `platform/html/behave.odin` holds the enum and the table above (20 members) and writes the
+attribute from `client.NAME`. A profile's `app.js` is `client/core.js` (the theme picker and its persistence,
+count-up, the overlay's Escape: everything both members keep) followed by the member's own `app.js`, concatenated by
+`tools/bundle`. The vanilla member's twins hang off one listener per event on `document`, dispatched by the nearest
+`data-behave`, and `htmx:after:process` arms what needs arming (a toast's timer, a range's fill). The hyperscript
+member's `app.js` is the gate alone; the layout loads `_hyperscript.min.js` (`defer`, after app.js, so the gate is
+listening before anything initialises) and then `behaviours._hs` as `<script type="text/hyperscript" src>`: the
+core set (`client/hyperscript/behaviours._hs`) followed by each reached feature's `static/*._hs`, served as
+`text/plain` so no browser treats it as script. Two rows read differently as built: `Dismiss` empties its element
+(search results) or closes it (a `<details>`) on a click outside its *parent*, so the field that fills it doesn't
+count as outside, and Escape lives in `Dismiss`, which `SearchBox`'s results install; `SearchBox` only halts the
+submit. `Composer` and `AutoScroll` land with chat (M2's slice 8). `lab` runs on the hyperscript client and
+`skeleton` and `minimal` on vanilla; the skeleton's specs also passed on a hyperscript build of it (Chromium and
+WebKit), the check `full-vanilla` makes from the other side. `escaping.spec` walks the sitemap and, on a hyperscript
+build, injects both forms of 05 §5 beside an `install` and checks that only the `install` initialised.
+
 ### 12.5 Themes
 
 The skeleton's token system is unchanged: `data-style` × `data-scheme` and the hashed pre-paint (D23, `SK/CLAUDE.md`

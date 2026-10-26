@@ -34,8 +34,8 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   (one layout SSE stream, one socket inside the swapped region, parts into their own targets), beside the endpoints
   spike S0.3's checks drive: a ticking SSE answer, the WebSocket echo, a room through the hub, multipart parts and a
   resumable multipart feed, publish and close for a `lab.feed` or `lab.room` topic, and `/lab/stats`. Published text
-  is escaped into a fixed fragment and every key is plain, since the lab is public. `./build.sh lab`; the client is
-  vanilla until the hyperscript client lands (M2's slice 4).
+  is escaped into a fixed fragment and every key is plain, since the lab is public. `./build.sh lab`, on the
+  hyperscript client.
 - **The stream contract in e2e** (`e2e/tests/lab/`): S0.3's 29 contract checks, its plan checks and its 20 browser
   checks, ported onto `platform/stream` and `platform/hub` (Chromium and WebKit locally, Firefox in CI), with
   checks of the hub's per-topic rings; and load scenarios for every lab route (`load-tests/scenarios/lab/`).
@@ -61,6 +61,20 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   `report-to csp`, and `/csp-report` (`web.REPORT_ROUTES`) logs each at warn, 10 a minute per client.
 - **`headers.spec`** (e2e, api): each profile's exact header set, no COEP, no HSTS over http, `/csp-report` where
   mounted.
+- **The hyperscript client** (`platform/client/hyperscript`, D22, PLAN §12.4): the `client:` family's second member,
+  _hyperscript 0.9.94 core only (pinned in `app/vendor/hyperscript/PINS` and fetched by prepare). The platform's
+  core behaviours are in its `behaviours._hs` (Tabs, Toast, ResetOnSuccess, Dismiss, SearchBox, RangeFill, RelTime,
+  CopyText), which tools/bundle ships with each reached feature's `static/*._hs`; its `app.js` is the gate, which
+  initialises an element only when its `_` is a lone `install <Name>`, so an injected `_` or `text/hyperscript`
+  script never runs.
+- **`html.behave`** (`platform/html/behave.odin`): the one seam between markup and the client. `behave(&b, .Tabs)`
+  writes `_="install Tabs"` or `data-behave="tabs"` from one table of twenty behaviours, the eight twinned ones
+  with a vanilla name.
+- **`escaping.spec`** (e2e): on every sitemap page each `_` is a lone install and each `data-behave` a twin's name
+  from the table; on a hyperscript build, an injected `_` and an injected hyperscript script stay inert beside a
+  working `install`.
+- **The notices** carry _hyperscript's licence and the MIT notice of multipart-parser, which htmx's hx-multipart
+  ports and whose minified file drops it (owed since the lab began loading hx-multipart); `ops.spec` checks it.
 
 ### Changed
 - **An open stream holds 3 KiB, not 16** (the fork's F-17): its receive buffer is sized by kind, the scanner's buffer
@@ -74,6 +88,16 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
 - **The htmx-config files are per bundle** (`app/build/<p>/<bundle>.config.json`; Main's was `htmx-config.json`).
 - **The test harnesses lift the per-client stream caps** for their servers (`e2e/helpers/server.ts`,
   `load-tests/run.sh`): one client opening hundreds of streams a minute is the suite, not a visitor.
+- **The markup names its behaviours through `html.behave`**: the tab list, toasts, the search and filter boxes,
+  range inputs and the forms that reset on success carry `data-behave="…"` (vanilla) where they had
+  `data-reset-on-success`, `role="tablist"` handlers and class selectors. The vanilla `app.js` dispatches by that
+  name, and the code both clients keep (the theme picker, count-up, the overlay's Escape) moved to `client/core.js`,
+  which tools/bundle puts first in every profile's `app.js`. A toast now arms its own timer on
+  `htmx:after:process` instead of a body-wide observer.
+- **The lab runs on the hyperscript client.**
+- **PHILOSOPHY.md's line and ledger** follow PLAN §3.3: htmx with its extensions, the odin-http fork, optional SQLite
+  and optional _hyperscript; the ledger counts app.js, SQLite, _hyperscript, the fork, tools/bundle and the crash
+  guard.
 - **The unit tests build on `minimal`'s four families** (`.github/scripts/unit-tests.sh`): `platform/stream` reaches
   the family collections through `platform/web`.
 

@@ -36,6 +36,13 @@ when #exists(BUILD_DIR + "/app.css.gz") { @(private) APP_CSS_GZ :: #load(BUILD_D
 when #exists(BUILD_DIR + "/app.js") { @(private) APP_JS :: #load(BUILD_DIR + "/app.js", string) } else { @(private) APP_JS :: "" }
 when #exists(BUILD_DIR + "/app.js.br") { @(private) APP_JS_BR :: #load(BUILD_DIR + "/app.js.br", string) } else { @(private) APP_JS_BR :: "" }
 when #exists(BUILD_DIR + "/app.js.gz") { @(private) APP_JS_GZ :: #load(BUILD_DIR + "/app.js.gz", string) } else { @(private) APP_JS_GZ :: "" }
+// The hyperscript client's runtime and behaviours (§12.4), built only for a profile on it.
+when #exists(BUILD_DIR + "/_hyperscript.min.js") { @(private) HS_JS :: #load(BUILD_DIR + "/_hyperscript.min.js", string) } else { @(private) HS_JS :: "" }
+when #exists(BUILD_DIR + "/_hyperscript.min.js.br") { @(private) HS_JS_BR :: #load(BUILD_DIR + "/_hyperscript.min.js.br", string) } else { @(private) HS_JS_BR :: "" }
+when #exists(BUILD_DIR + "/_hyperscript.min.js.gz") { @(private) HS_JS_GZ :: #load(BUILD_DIR + "/_hyperscript.min.js.gz", string) } else { @(private) HS_JS_GZ :: "" }
+when #exists(BUILD_DIR + "/behaviours._hs") { @(private) HS_BEHAVIOURS :: #load(BUILD_DIR + "/behaviours._hs", string) } else { @(private) HS_BEHAVIOURS :: "" }
+when #exists(BUILD_DIR + "/behaviours._hs.br") { @(private) HS_BEHAVIOURS_BR :: #load(BUILD_DIR + "/behaviours._hs.br", string) } else { @(private) HS_BEHAVIOURS_BR :: "" }
+when #exists(BUILD_DIR + "/behaviours._hs.gz") { @(private) HS_BEHAVIOURS_GZ :: #load(BUILD_DIR + "/behaviours._hs.gz", string) } else { @(private) HS_BEHAVIOURS_GZ :: "" }
 // The fixed page bundles (§12.1), built only for a profile whose packages name one on a BUNDLES line.
 when #exists(BUILD_DIR + "/scripting.js") { @(private) SCRIPTING_JS :: #load(BUILD_DIR + "/scripting.js", string) } else { @(private) SCRIPTING_JS :: "" }
 when #exists(BUILD_DIR + "/scripting.js.br") { @(private) SCRIPTING_JS_BR :: #load(BUILD_DIR + "/scripting.js.br", string) } else { @(private) SCRIPTING_JS_BR :: "" }
@@ -64,9 +71,10 @@ Asset :: struct {
 
 @(private)
 assets: struct {
-	table:          [9]Asset,
+	table:          [11]Asset,
 	n:              int,
 	css_href, js_href: string, // what the layout links
+	hs_href, behaviours_href: string, // the hyperscript client's; "" on the vanilla one
 	bundle_href:    [ext.Bundle]string, // each embedded bundle's; "" for one this build has not
 }
 
@@ -77,7 +85,8 @@ assets_init :: proc() {
 		a := &assets.table[assets.n]
 		assets.n += 1
 		a.name, a.identity, a.br, a.gz = name, transmute([]byte)identity, transmute([]byte)br, transmute([]byte)gz
-		a.content_type = http.mime_to_content_type(http.mime_from_extension(name))
+		// behaviours._hs is text hyperscript fetches; no browser runs it as a script.
+		a.content_type = "text/plain; charset=utf-8" if strings.has_suffix(name, "._hs") else http.mime_to_content_type(http.mime_from_extension(name))
 		a.etag = {fmt.aprintf(`"%08x"`, crc), fmt.aprintf(`"%08x-br"`, crc), fmt.aprintf(`"%08x-gz"`, crc)}
 		if !fingerprint { return strings.concatenate({"/static/", name}) }
 		dot := strings.index_byte(name, '.')
@@ -85,6 +94,10 @@ assets_init :: proc() {
 		return strings.concatenate({"/static/", a.hashed})
 	}
 	assets.bundle_href[.Main] = add("htmx.min.js", MAIN_JS, MAIN_JS_BR, MAIN_JS_GZ, true)
+	if len(HS_JS) > 0 {
+		assets.hs_href = add("_hyperscript.min.js", HS_JS, HS_JS_BR, HS_JS_GZ, true)
+		assets.behaviours_href = add("behaviours._hs", HS_BEHAVIOURS, HS_BEHAVIOURS_BR, HS_BEHAVIOURS_GZ, true)
+	}
 	if len(SCRIPTING_JS) > 0 { assets.bundle_href[.Scripting] = add("scripting.js", SCRIPTING_JS, SCRIPTING_JS_BR, SCRIPTING_JS_GZ, true) }
 	if len(COMPAT_HTMX2_JS) > 0 { assets.bundle_href[.Compat_Htmx2] = add("compat-htmx2.js", COMPAT_HTMX2_JS, COMPAT_HTMX2_JS_BR, COMPAT_HTMX2_JS_GZ, true) }
 	if len(COMPAT_ALPINE_JS) > 0 { assets.bundle_href[.Compat_Alpine] = add("compat-alpine.js", COMPAT_ALPINE_JS, COMPAT_ALPINE_JS_BR, COMPAT_ALPINE_JS_GZ, true) }

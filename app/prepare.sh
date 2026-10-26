@@ -16,28 +16,35 @@ sha256_of() {
   else shasum -a 256 "$1" | awk '{print $1}'; fi
 }
 
-# htmx and its extensions, each pinned exactly (version + SHA-256) for reproducible builds — same
-# discipline as ODIN_VERSION and the SQLite amalgamation. The digests live in vendor/htmx/PINS,
-# which prepare.bat reads too; a file already present with its digest is kept.
-mkdir -p vendor/htmx/ext
+# htmx with its extensions, and _hyperscript, each file pinned exactly (version + SHA-256) for
+# reproducible builds — same discipline as ODIN_VERSION and the SQLite amalgamation. The digests
+# live in vendor/<package>/PINS, which prepare.bat reads too; a file already present with its
+# digest is kept.
+# fetch_pinned <dir> <unpkg package@version>: every file vendor/<dir>/PINS names, from its dist/.
+fetch_pinned() {
+  fetched=0
+  while read -r file want; do
+    case "$file" in ''|'#'*) continue ;; esac
+    out="vendor/$1/$file"
+    mkdir -p "$(dirname "$out")"
+    [ -f "$out" ] && [ "$(sha256_of "$out")" = "$want" ] && continue
+    echo "[get ] $2 $file ..."
+    url="https://unpkg.com/$2/dist/$file"
+    if command -v curl >/dev/null 2>&1; then curl -fsSL "$url" -o "$out"
+    else wget -qO "$out" "$url"; fi
+    got="$(sha256_of "$out")"
+    if [ "$got" != "$want" ]; then
+      echo "error: $2 $file checksum mismatch: expected $want, got $got" >&2
+      rm -f "$out"; exit 1
+    fi
+    fetched=$((fetched + 1))
+  done < "vendor/$1/PINS"
+  [ "$fetched" -gt 0 ] || echo "[skip] $2 already present."
+}
 HTMX_VERSION=4.0.0
-fetched=0
-while read -r file want; do
-  case "$file" in ''|'#'*) continue ;; esac
-  out="vendor/htmx/$file"
-  [ -f "$out" ] && [ "$(sha256_of "$out")" = "$want" ] && continue
-  echo "[get ] htmx $HTMX_VERSION $file ..."
-  url="https://unpkg.com/htmx.org@$HTMX_VERSION/dist/$file"
-  if command -v curl >/dev/null 2>&1; then curl -fsSL "$url" -o "$out"
-  else wget -qO "$out" "$url"; fi
-  got="$(sha256_of "$out")"
-  if [ "$got" != "$want" ]; then
-    echo "error: htmx $file checksum mismatch: expected $want, got $got" >&2
-    rm -f "$out"; exit 1
-  fi
-  fetched=$((fetched + 1))
-done < vendor/htmx/PINS
-[ "$fetched" -gt 0 ] || echo "[skip] htmx $HTMX_VERSION and its extensions already present."
+HYPERSCRIPT_VERSION=0.9.94
+fetch_pinned htmx "htmx.org@$HTMX_VERSION"
+fetch_pinned hyperscript "hyperscript.org@$HYPERSCRIPT_VERSION"
 
 # --- SQLite amalgamation (pinned; fetched + compiled, mirroring the htmx fetch) ---
 # NO_SQLITE=1 skips it: a memory profile's build needs no SQLite (D18), and CI builds `minimal`

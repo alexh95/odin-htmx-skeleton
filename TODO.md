@@ -59,20 +59,24 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       page bundles exercised by real pages (slice 5's scripting and compat), and `.Lab_Host`'s `noindex` with
       houston-lab (M4). Follow-up for slice 12: `tools/check routes` should refuse an unescaped `-` in a pattern
       (`/csp-report` matched nothing until it was `/csp%-report`).
-- [ ] **4. `client/hyperscript` and `html.behave`** (§12.4, D22): _hyperscript 0.9.94 core pinned (SHA, upstream
+- [x] **4. `client/hyperscript` and `html.behave`** (§12.4, D22): _hyperscript 0.9.94 core pinned (SHA, upstream
       `.br`) by prepare and in `pins`; the `client` family's second member; the `Behaviour` table and `html.behave`
       (`_="install X"` or `data-behave="x"`); the gate in app.js; the platform's core `._hs` set with its vanilla
-      twins. The skeleton's markup stays as it is. *Check:* behave's output per client in a unit test; the gate
-      refuses an injected `_` and an injected `text/hyperscript` script (a lab spec); `escaping.spec`'s `_` and
-      `data-behave` rules.
+      twins. *Check:* behave's output per client in a unit test; the gate refuses an injected `_` and an injected
+      `text/hyperscript` script (a lab spec); `escaping.spec`'s `_` and `data-behave` rules. Done: both members, the
+      table of twenty, `client/core.js` shared by both, lab on hyperscript; `behave_writes_installs` (lab) and
+      `behave_writes_twins` (skeleton) under `CMD=test`; `escaping.spec` on every sitemap page and the gate test;
+      lab 164, skeleton 195 (api, Chromium, WebKit) and minimal 61 passed, and the skeleton's specs on a hyperscript
+      build of it. Changed from the plan: the skeleton's markup moved to `html.behave` as well (D22's M2 note: one
+      dispatcher by name), and the notices gained hx-multipart's Shopify MIT notice, owed since slice 3.
 - [ ] **5. The lab pages and `cmd/lab`** (§15.5): features `lab` (`/lab/streams`: the SSE, WS and multipart contract
       pages and the WS echo), `scripting` (`/scripting/*`: the nonce class, `live`, `streams`, `tt`) and `compat`
       (`/compat/htmx2`, `/compat/alpine`); `cmd/lab` on memory, anonymous, hyperscript and full, its root row the
       lab index until `landing` (M3), with `about`. *Check:* S0.3's 29 contract checks, plan checks and 20 extension
       checks as `e2e/tests/lab/` specs, green in chromium and webkit on both legs; `csp-clean`, `csp-enforced`,
       `harness-csp`, `streams-hxcsp` and `bundle-race`; load scenarios for every lab route; `lab` builds with no
-      SQLite library. Progress: the `lab` feature and `cmd/lab` (on the vanilla client until slice 4; its root is the
-      lab index until `landing`) with S0.3's checks ported to `e2e/tests/lab/` and green on Windows (157 passed with
+      SQLite library. Progress: the `lab` feature and `cmd/lab` (on the hyperscript client since slice 4; its root is
+      the lab index until `landing`) with S0.3's checks ported to `e2e/tests/lab/` and green on Windows (157 passed with
       the platform specs, Chromium, WebKit, api), load scenarios for every lab route, route parity clean. Two
       lessons in the port: a burst of five 60 KB frames passes the 256 KiB cap while the kernel still has room (the
       never-reads check now fills the kernel first, one message at a time), and a k6 iteration cut off mid-await
@@ -88,7 +92,8 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       parsers (slice 13's fuzz tier 2); streamload into the nightly soak (slice 13).
 - [ ] **The skeleton's size budget** (asked of Alex 2026-10-27): F-17 put the skeleton at 2,884,096 B, 512 B past its
       2.75 MiB (it had 16 B of slack in .text), so CI's Windows size check fails until Alex picks: (a) 3 MiB
-      (recommended), (b) SQLite's OMIT flags (about 69 KB), (c) keep 2.75 MiB. Slices 3 and 4 also touch skeleton code.
+      (recommended), (b) SQLite's OMIT flags (about 69 KB), (c) keep 2.75 MiB. Slices 3 and 4 also touch skeleton code: after slice 4 it is 2,894,848 B (11,264 B over),
+      the shared `client/core.js` and the twins' dispatcher in `app.js` (three encodings each) and `html.behave`.
 - [ ] **7. `notify` (memory)** (§14.2): models, domain, the memory store (200 per user), views, web (`/notify`, the
       bell, `notify_web.send`), `notify.user:<uid>` over `#live` with hx-targets on `.notify-count`. *Check:* e2e and
       load, both suites reaching every route.

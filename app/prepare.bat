@@ -10,13 +10,13 @@ cd /d "%~dp0"
 rem odin's -out: writes into bin\ but won't create it; a fresh clone has no bin\.
 if not exist "bin\" mkdir bin
 
-rem htmx and its extensions, each pinned exactly (version + SHA-256) for reproducible builds. The
-rem digests live in vendor\htmx\PINS, which prepare.sh reads too; a file already present with its
-rem digest is kept.
-if not exist "vendor\htmx\ext\" mkdir vendor\htmx\ext
+rem htmx with its extensions, and _hyperscript, each file pinned exactly (version + SHA-256) for
+rem reproducible builds. The digests live in vendor\PACKAGE\PINS, which prepare.sh reads too; a
+rem file already present with its digest is kept.
 set "HTMX_VERSION=4.0.0"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $n=0; foreach($l in Get-Content 'vendor\htmx\PINS'){ if($l -match '^\s*(#|$)'){continue}; $p=$l -split '\s+'; $f=Join-Path 'vendor\htmx' $p[0]; $w=$p[1]; if((Test-Path $f) -and ((Get-FileHash $f -Algorithm SHA256).Hash.ToLower() -eq $w)){continue}; Write-Host ('[get ] htmx %HTMX_VERSION% '+$p[0]+' ...'); Invoke-WebRequest -UseBasicParsing ('https://unpkg.com/htmx.org@%HTMX_VERSION%/dist/'+$p[0]) -OutFile $f; $g=(Get-FileHash $f -Algorithm SHA256).Hash.ToLower(); if($g -ne $w){Remove-Item $f -Force; Write-Error ('htmx '+$p[0]+' checksum mismatch: expected '+$w+' got '+$g); exit 1}; $n++ }; if($n -eq 0){Write-Host '[skip] htmx %HTMX_VERSION% and its extensions already present.'}"
-if errorlevel 1 goto :fail
+set "HYPERSCRIPT_VERSION=0.9.94"
+call :fetch_pinned htmx htmx.org@%HTMX_VERSION% || goto :fail
+call :fetch_pinned hyperscript hyperscript.org@%HYPERSCRIPT_VERSION% || goto :fail
 
 rem --- SQLite amalgamation (pinned; fetched + compiled, mirroring the htmx fetch) ---
 rem NO_SQLITE=1 skips it: a memory profile's build needs no SQLite (D18), and CI builds
@@ -107,3 +107,8 @@ exit /b 0
 echo.
 echo prepare failed. See the message above.
 exit /b 1
+
+rem fetch_pinned DIR PACKAGE@VERSION: every file vendor\DIR\PINS names, from unpkg's dist/.
+:fetch_pinned
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $n=0; foreach($l in Get-Content 'vendor\%~1\PINS'){ if($l -match '^\s*(#|$)'){continue}; $p=$l -split '\s+'; $f=Join-Path 'vendor\%~1' $p[0]; New-Item -ItemType Directory -Force (Split-Path $f) | Out-Null; $w=$p[1]; if((Test-Path $f) -and ((Get-FileHash $f -Algorithm SHA256).Hash.ToLower() -eq $w)){continue}; Write-Host ('[get ] %~2 '+$p[0]+' ...'); Invoke-WebRequest -UseBasicParsing ('https://unpkg.com/%~2/dist/'+$p[0]) -OutFile $f; $g=(Get-FileHash $f -Algorithm SHA256).Hash.ToLower(); if($g -ne $w){Remove-Item $f -Force; Write-Error ('%~2 '+$p[0]+' checksum mismatch: expected '+$w+' got '+$g); exit 1}; $n++ }; if($n -eq 0){Write-Host '[skip] %~2 already present.'}"
+exit /b %errorlevel%

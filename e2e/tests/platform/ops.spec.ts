@@ -55,6 +55,7 @@ test.describe('operations', { tag: '@platform' }, () => {
     const body = await res.text();
     expect(body).toMatch(/^THIRD-PARTY NOTICES/);
     expect(body).toContain('Laytan Laats'); // odin-http's MIT notice
+    expect(body).toContain('Copyright (c) 2025 Shopify Inc.'); // the one hx-multipart.min.js drops
   });
 
   // logfmt (PLAN §10.4): the route as registered, the status, the time in µs, a

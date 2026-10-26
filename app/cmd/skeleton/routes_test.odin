@@ -6,6 +6,7 @@ import "core:strings"
 import "core:testing"
 
 import "../../platform/app"
+import "../../platform/html"
 import "../../platform/web"
 
 // The boot checks of §6.1 over this profile's tables, as `CMD=test build.sh skeleton`
@@ -102,5 +103,22 @@ router_finds_rows :: proc(t: ^testing.T) {
 		testing.expectf(t, (m.id if m != nil else "") == c.id, "%v %s: row %v", c.method, c.path, m)
 		if c.param != "" { testing.expectf(t, len(params) == 1 && params[0] == c.param, "%s: params %v", c.path, params) }
 		testing.expectf(t, slice.equal(allow, c.allow), "%v %s: allow %v", c.method, c.path, allow)
+	}
+}
+
+// The skeleton is on the vanilla client: html.behave writes a twin's name, which
+// app.js dispatches on, and nothing for a behaviour with no twin. Every row's
+// names fit what the gate and escaping.spec accept.
+@(test)
+behave_writes_twins :: proc(t: ^testing.T) {
+	defer free_all(context.temp_allocator)
+	testing.expect_value(t, html.behave_attr(.Tabs), ` data-behave="tabs"`)
+	testing.expect_value(t, html.behave_attr(.Reset_On_Success), ` data-behave="reset-on-success"`)
+	testing.expect_value(t, html.behave_attr(.Copy_Text), ``)
+	for row, x in html.BEHAVIOURS {
+		hs_ok := len(row.hs) > 0 && row.hs[0] >= 'A' && row.hs[0] <= 'Z'
+		for c in row.hs { hs_ok &&= (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') }
+		testing.expectf(t, hs_ok, "%v: hyperscript name %q", x, row.hs)
+		for c in row.vanilla { testing.expectf(t, (c >= 'a' && c <= 'z') || c == '-', "%v: vanilla name %q", x, row.vanilla) }
 	}
 }

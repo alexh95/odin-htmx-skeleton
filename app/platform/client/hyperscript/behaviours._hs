@@ -1,0 +1,127 @@
+-- The platform's behaviours (PLAN §12.4): the hyperscript side of html.behave's
+-- table, each the twin of client/vanilla/app.js's where it has one. Markup says
+-- `_="install Name"` and nothing else (app.js's gate); data reaches a behaviour
+-- only through data-* attributes, never through code.
+
+-- A tablist: a click on one of its [role=tab] moves aria-selected to it; htmx
+-- swaps the panel.
+behavior Tabs
+  on click
+    set tab to closest <[role=tab]/> to the target
+    if tab is not null and tab is in <[role=tab]/> in me
+      take @aria-selected='true' from <[role=tab]/> in me giving 'false' for tab
+    end
+  end
+end
+
+-- A toast retires itself 3.6 s after it arrives, or when its × is clicked, by
+-- playing its leave animation first (1 s at most, for reduced motion).
+behavior Toast
+  init
+    wait 3.6s
+    add .leaving to me
+    wait for animationend or 1s
+    remove me
+  end
+  on click
+    if closest <.toast-x/> to the target is not null
+      add .leaving to me
+      wait for animationend or 1s
+      remove me
+    end
+  end
+end
+
+-- A form resets after its own successful submit and empties its .form-error
+-- slot; a child field's request (live validation) or a 422 leaves it alone.
+behavior ResetOnSuccess
+  on htmx:after:request[detail.ctx.sourceElement is me and detail.ctx.response and detail.ctx.response.status < 400]
+    call me.reset()
+    put '' into <.form-error/> in me
+  end
+end
+
+-- A click outside its parent, or Escape, empties the element (search results)
+-- or closes it (a <details>).
+behavior Dismiss
+  on click from document
+    if not my parentElement.contains(the target)
+      send dismiss to me
+    end
+  end
+  on keydown[key is 'Escape'] from window
+    send dismiss to me
+  end
+  on dismiss
+    if my tagName is 'DETAILS'
+      remove @open from me
+    else
+      put '' into me
+    end
+  end
+end
+
+-- A live search or filter form: Enter never submits and navigates.
+behavior SearchBox
+  on submit
+    halt the event
+  end
+end
+
+-- A range input paints its filled portion through --fill (app.css reads it) and
+-- keeps its label's <output> in step.
+behavior RangeFill
+  init
+    send paint to me
+  end
+  on input
+    send paint to me
+    set out to first <output/> in closest <label/>
+    if out is not null
+      set out's value to my value
+    end
+  end
+  on paint
+    set lo to my min
+    if lo is '' set lo to '0' end
+    set hi to my max
+    if hi is '' set hi to '100' end
+    set lo to lo as Number
+    set hi to hi as Number
+    set pct to 0
+    if hi > lo
+      set pct to (((my value as Number) - lo) / (hi - lo)) * 100
+    end
+    call me.style.setProperty('--fill', pct + '%')
+  end
+end
+
+-- "3 min ago" from data-ts (unix ms), every 30 s; the server rendered the
+-- absolute time as the element's title.
+behavior RelTime
+  init
+    repeat forever
+      set secs to Math.round((Date.now() - (@data-ts as Number)) / 1000)
+      if secs < 60
+        put 'just now' into me
+      else if secs < 3600
+        put Math.floor(secs / 60) + ' min ago' into me
+      else if secs < 86400
+        put Math.floor(secs / 3600) + ' h ago' into me
+      else
+        put Math.floor(secs / 86400) + ' d ago' into me
+      end
+      wait 30s
+    end
+  end
+end
+
+-- Copies data-copy to the clipboard, and says so for 1.5 s.
+behavior CopyText
+  on click
+    call navigator.clipboard.writeText(@data-copy)
+    add .copied to me
+    wait 1.5s
+    remove .copied from me
+  end
+end
