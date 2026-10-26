@@ -786,7 +786,7 @@ app/cmd/<p>/   brand.odin main.odin routes.odin routes_test.odin   (all hand-wri
    ├─► f_store_<family> app/stores/<family>/f/   ─► f_models, platform/store*, platform/sqlite (SQLite family), platform/workers
    └─► f_models         features/f/models/       ─► core, platform L1–L2 types
 
-platform  L4 app      ─► identity:., L1–L3                       (only cmd/* imports it; it holds front)
+platform  L4 app      ─► identity:., store:., L1–L3             (only cmd/* imports it; it holds front)
           L3 web html hub stream stream/client client/* theme/*   (html ─► client:., theme:.)
           L2 store store/sqlite store/memory env authz authz/anonymous obs guard workers markdown
           L1 sys sqlite ext escape
@@ -1117,6 +1117,13 @@ that no committed profile mounts; a `migrate` line for every SQLite store the bu
 row inside its feature's prefixes, no router key claimed by two features, exactly one root and none inside a package's
 `ROUTES`), `topics`, `contracts`, `imports` and `exts` (§19.2.1). LC's 264-line prototype checker reported 0 problems
 for `skeleton` and `full` and 6 for the bad profile; the orphan and migrate parts of `profile` are **NEW**.
+
+**As built (M1):** `odin run tools/check -- all` runs `imports`, `profile`, `routes` and `contracts` over the tree
+(`parity`, after both suites' runs, is separate); it reads each profile's families from its `build.sh` line and a
+feature's prefix exceptions from a `## Prefixes` table in its README (`| `/data` | why |`, a reason required; the
+platform's in `app/platform/web/README.md`). `platform/app` imports `store:.` besides `identity:.`: the family's root
+package holds its `NAME` for `--features`. Its test runs every check on the repo (clean) and on
+`tools/check/testdata/bad`, a repo-shaped tree that trips each one (30 problems). `topics` and `exts` arrive with M2.
 
 **Derived, never declared twice** (D5; LC §11): `robots.txt` Disallow lines from `.Fragment` rows (the literal prefix up
 to the first pattern character; as built in M1, a prefix another line already covers is dropped and two or more rows

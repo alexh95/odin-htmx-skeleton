@@ -81,8 +81,12 @@ stays off and Fly keeps serving 6d37506.
       brand (tried on a scratch copy: both renamed profiles build); `--minimal` and its overlay are gone,
       the `minimal` profile replaces them. The skeleton image builds through `build.sh` (WSL Docker).
       `run.sh` skips ports another process listens on (WSL's relay held 8192 and answered k6).
-- [ ] **8. `tools/check`**: `imports`, `profile`, `routes`, `contracts` (and `parity`). *Check:* clean on
-      both profiles; a bad fixture trips each. `parity` reads `bin --routes --json`, the counter files in
+- [x] **8. `tools/check`**: `imports`, `profile`, `routes`, `contracts` (and `parity`). *Check:* clean on
+      both profiles; a bad fixture trips each. Done: `odin run tools/check -- all parity` exits 0 on the
+      repo; `odin test tools/check` runs every check on the repo (clean) and on `testdata/bad` (all 30
+      expected problems, nothing else). Feature READMEs carry the D9 prefix tables; `platform/app`'s
+      `store:.` import is in PLAN §5.1. Follow-ups: per-host route counters when a profile has two hosts
+      (M2's `lab`), and `topics`/`exts` with M2. `parity` reads `bin --routes --json`, the counter files in
       `app/build/coverage/{e2e,load}/<profile>/` and the `route` lines of `tests/parity-waivers.txt`
       (e2e/README and load-tests/README already describe it).
 - [ ] **9. CI**: `pins`, `check`, `build` ({minimal, skeleton} × 4 OSes, the no-SQLite build), `e2e`,

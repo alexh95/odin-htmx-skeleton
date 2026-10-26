@@ -1,0 +1,3 @@
+# route waivers for the fixture: one without a reason, one for a route nothing mounts
+route | GET /nowhere | e2e | nothing mounts it, so the waiver is stale
+route | GET /x/y | load |

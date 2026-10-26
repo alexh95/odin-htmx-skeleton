@@ -79,6 +79,15 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   `perf/results/<version>-<leg>.csv`, and `lib/parity.mjs` applies the pass rule with each cell's
   reference (HEAD on the light routes and on a waived cell, max(HEAD, v1.1.1) elsewhere).
 
+- **`tools/check`**: what the compiler can't hold a profile to, read from the source with no build
+  (`odin run tools/check -- all`): `imports` (PLAN §5.1's table: layers, the feature package shapes, the
+  collections, odin-http only in `platform/web`), `profile` (every imported web package mounted and its `init`
+  called, mounts named by their feature, a `migrate` line for every SQLite store the build reaches, no unmounted
+  `ROUTES`), `routes` (per host: rows inside their feature's prefixes, no router key claimed twice, one root,
+  written in the profile), `contracts` (every store states its feature's contract, every identity
+  `authz.Load_Viewer`) and `parity` (every route reached by both suites, or waived with a reason). A bad fixture
+  trips each. Feature READMEs list their prefix exceptions (D9), the skeleton's exact URLs among them.
+
 ### Fixed
 - **`OPTIONS *` with a negative `Content-Length` no longer aborts the process.** 1.2.1 refused a bad
   `Content-Length` in `front`, but odin-http answers `OPTIONS *` itself; the fork's `_body_length`
