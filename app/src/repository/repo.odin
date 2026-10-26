@@ -14,9 +14,9 @@ import "core:sync"
 // the binary. To grow it, add 0004_*.sql and list it here; never edit a file
 // that has shipped, since every database records each one's hash.
 @(private = "file") MIGRATIONS := [?]Migration {
-	{"0001_init.sql", #load("migrations/0001_init.sql", string)},
-	{"0002_events.sql", #load("migrations/0002_events.sql", string)},
-	{"0003_contact_notes.sql", #load("migrations/0003_contact_notes.sql", string)},
+	{"0001_init.sql", #load("../../stores/sqlite/contacts/migrations/0001_init.sql", string)},
+	{"0002_events.sql", #load("../../stores/sqlite/contacts/migrations/0002_events.sql", string)},
+	{"0003_contact_notes.sql", #load("../../stores/sqlite/contacts/migrations/0003_contact_notes.sql", string)},
 }
 
 // ---- lifecycle (called from main, around repo_seed) ---------------------

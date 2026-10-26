@@ -115,6 +115,7 @@ foreign lib {
 	sqlite3_stmt_readonly :: proc(stmt: Stmt) -> c.int ---
 	sqlite3_sql :: proc(stmt: Stmt) -> cstring ---
 	sqlite3_next_stmt :: proc(db: DB, stmt: Stmt) -> Stmt ---
+	sqlite3_db_handle :: proc(stmt: Stmt) -> DB ---
 	sqlite3_progress_handler :: proc(db: DB, n: c.int, f: Progress_Func, user: rawptr) ---
 	sqlite3_interrupt :: proc(db: DB) ---
 	sqlite3_get_autocommit :: proc(db: DB) -> c.int ---
@@ -269,6 +270,12 @@ stmt_status :: proc(s: Stmt, op: c.int, reset := false) -> int {
 stmt_readonly :: proc(s: Stmt) -> bool {
 	enter(); defer leave()
 	return sqlite3_stmt_readonly(s) != 0
+}
+
+// The connection a statement belongs to (for its error message).
+db_handle :: proc(s: Stmt) -> DB {
+	enter(); defer leave()
+	return sqlite3_db_handle(s)
 }
 
 sql :: proc(s: Stmt) -> string {

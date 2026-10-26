@@ -8,6 +8,9 @@ package store
 // holds only the vocabulary they all use.
 
 import "base:intrinsics"
+import "core:mem"
+import "core:unicode"
+import "core:unicode/utf8"
 
 // What a store call fails with, a value the layers above branch on. The
 // store's own message goes to the log, never to the client.
@@ -53,4 +56,89 @@ Search_Hit :: struct {
 Find_Source :: struct {
 	name:   string,
 	search: proc(q: string, limit: int, out: ^[dynamic]Search_Hit) -> Error,
+}
+
+// ---- writes: an op and its continuation ------------------------------------
+//
+// Under store v3 a write commits on the writer task (D16), batched with the
+// writes other loops queued meanwhile; the memory family does it at once. Either
+// way the caller's `done` runs afterwards on the loop that queued it: the tail
+// of a write handler (publish, notify, answer) is that named proc, with its
+// response deferred meanwhile (F-13). A feature's models declare its op, `using`
+// Op first, with the input and the result; the family's store fills `run`:
+//
+//   Create :: struct { using op: store.Op, input: Contact_Input, result: Contact, ref: … }
+//
+// An op owns its memory, because it can outlive the request that made it: a
+// peer that leaves closes its connection, and the arena with it, while the write
+// is still queued. `new_op` allocates the op with a block for its strings
+// (`op_allocator`), and `free_op` releases both, from `done`.
+Op :: struct {
+	run:   proc(op: ^Op),   // the family's: does the write (the SQLite family on its writer thread)
+	done:  proc(op: ^Op),   // the caller's continuation, on its own loop
+	err:   Error,
+	loop:  rawptr,          // where `done` runs: the family's bookkeeping
+	next:  ^Op,             // the writer queue's link
+	arena: mem.Arena,
+}
+
+new_op :: proc($T: typeid, bytes: int) -> ^T where intrinsics.type_is_struct(T) {
+	block, _ := mem.alloc_bytes(size_of(T) + bytes, align_of(T))
+	t := (^T)(raw_data(block))
+	mem.arena_init(&(^Op)(t).arena, block[size_of(T):])
+	return t
+}
+
+op_allocator :: proc(op: ^Op) -> mem.Allocator {
+	return mem.arena_allocator(&op.arena)
+}
+
+free_op :: proc(op: ^Op) {
+	free(op)
+}
+
+// ---- contains_ci: search for both families ----------------------------------
+//
+// Whether needle occurs in haystack, ignoring case rune by rune (unicode.to_lower,
+// as strings.to_lower lowers), so "turİng" finds "Turing" and "straße" finds
+// "Straẞe". The SQLite family registers it as the SQL function contains_ci(text,
+// q), so a query filters inside the database; SQLite's own LIKE folds ASCII only,
+// which would quietly change what a search finds. The memory family calls it
+// directly. It walks the original text and allocates nothing (12 §7: FTS5 is for
+// big tables, and one result list never mixes the two).
+contains_ci :: proc(haystack, needle: string) -> bool {
+	if needle == "" { return true }
+	for i := 0; i < len(haystack); {
+		if prefix_ci(haystack[i:], needle) { return true }
+		_, w := utf8.decode_rune_in_string(haystack[i:])
+		i += w
+	}
+	return false
+}
+
+@(private = "file")
+prefix_ci :: proc(s, prefix: string) -> bool {
+	i, j := 0, 0
+	for j < len(prefix) {
+		if i >= len(s) { return false }
+		// ASCII on both sides (most text, and every e-mail) without the rune decode
+		// and the table lookups: SQLite runs this for every row a search examines.
+		if x, y := s[i], prefix[j]; x < utf8.RUNE_SELF && y < utf8.RUNE_SELF {
+			if x != y && ascii_lower(x) != ascii_lower(y) { return false }
+			i += 1
+			j += 1
+			continue
+		}
+		a, aw := utf8.decode_rune_in_string(s[i:])
+		b, bw := utf8.decode_rune_in_string(prefix[j:])
+		if unicode.to_lower(a) != unicode.to_lower(b) { return false }
+		i += aw
+		j += bw
+	}
+	return true
+}
+
+@(private = "file")
+ascii_lower :: #force_inline proc "contextless" (c: u8) -> u8 {
+	return c + ('a' - 'A') if c >= 'A' && c <= 'Z' else c
 }

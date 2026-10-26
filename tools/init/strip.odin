@@ -53,8 +53,9 @@ strip_to_minimal :: proc(opt: Options) {
 	demo := []string {
 		"app/src/repository/contacts.odin",
 		"app/src/repository/events.odin",
-		"app/src/repository/migrations/0002_events.sql",
-		"app/src/repository/migrations/0003_contact_notes.sql",
+		"app/stores/sqlite/contacts/migrations/0001_init.sql",
+		"app/stores/sqlite/contacts/migrations/0002_events.sql",
+		"app/stores/sqlite/contacts/migrations/0003_contact_notes.sql",
 		"app/src/views/views_pages.odin",
 		"app/src/views/views_fragments.odin",
 		"e2e/tests/assets.spec.ts",
