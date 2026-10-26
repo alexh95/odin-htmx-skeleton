@@ -92,8 +92,8 @@ round 3).
   edits and `tools/check profile` keeps consistent (D7, D8; LC; ANSWERS round 3). Only the transport axes and the bot
   backend switch per request, named in `x-impl` (D8).
 - **The fork**: laytan/odin-http fac113f vendored in-tree at `app/vendor/odin-http/`, with an `UPSTREAM.md`, plus
-  twelve generic changes F-1..F-12 (streams, timeouts, connection caps, shutdown deadlines, the guard hook, the
-  `Content-Length` fix); no separate repo; spike S0.2 proves k6 parity first (D11; Q4; ANSWERS F3).
+  thirteen generic changes F-1..F-13 (streams, timeouts, connection caps, shutdown deadlines, the guard hook, the
+  `Content-Length` fix, deferred responses for pool replies, S0.5); no separate repo; spike S0.2 proves k6 parity first (D11; Q4; ANSWERS F3).
 - **The hub**: topics `<feature>.<family>:<key>`, one wakeup per loop per burst, event ids `<epoch>-<seq>`, and
   persisted topics resume by SQLite rowid through a keyset replay before falling back to `resync` (D13).
 - **Crash model**: every entry point runs under a setjmp guard; a trap with no lock held, no async op posted and
@@ -254,7 +254,7 @@ milestone M<n> releases v2.<n−1>.0 through M12 (D40); v2.2.0 at the M3 exit is
 |---|---|
 | odin-htmx-starter | the starter; repo `alexh95/odin-htmx-starter`, formerly `odin-htmx-skeleton` ("the skeleton", `SK/`), which is frozen as tags v1.2.0 and v1.2.1 and branch `skeleton-1.x` (D1); its checkout is this workspace, `<WORKSPACE>`, from M0 (ANSWERS #5, F5) |
 | Houston | the product name of profile `full` (D28) |
-| the fork, `app/vendor/odin-http/` | laytan/odin-http fac113f plus F-1..F-12, vendored in-tree; its `UPSTREAM.md` names the base commit and each change. There is no separate repo; an upstream offer goes through a GitHub fork made at that time (D11; ANSWERS F3) |
+| the fork, `app/vendor/odin-http/` | laytan/odin-http fac113f plus F-1..F-13, vendored in-tree; its `UPSTREAM.md` names the base commit and each change. There is no separate repo; an upstream offer goes through a GitHub fork made at that time (D11; ANSWERS F3) |
 | spark | Alex's games workspace (`<SPARK_DIR>`), served at games.alexh95.com |
 | apollo | Alex's home server: a modest machine shared with Alex's other self-hosted services; LAN address `<APOLLO_LAN_IP>`, SSH alias `<APOLLO_SSH_ALIAS>` (D42); its spare GPU, `<APOLLO_GPU>`, hosts the bot's llama.cpp server (§14.3; RESOLUTIONS X41) |
 | site placeholders (`<APOLLO_LAN_IP>`, `<APOLLO_CPU>`, `<APOLLO_GPU>`, `<APOLLO_SERVICES>`, `<APOLLO_DATA_DIR>`, `<HOME_UPLINK>`, `<LLAMA_PORT>` …; the dev PC's local paths `<WORKSPACE>`, `<SPARK_DIR>`, `<OLD_DEMO_DIR>`, `<SKELETON_FIX_CLONE>`) | real site values (the LAN address, apollo's hardware, OS and services, the SSH alias and user, host paths, the home uplink, the folders on the dev PC); each is defined in the git-ignored `docs/private/SITE.md`, where agents look it up, so the public docs never spell them out (ANSWERS F4) |
@@ -297,7 +297,7 @@ Container services: `caddy`, `starter-full`, `starter-lab`, `starter-minimal`, `
 
 | Path | Holds |
 |---|---|
-| `app/vendor/odin-http/` | the fork, vendored in-tree, with `UPSTREAM.md` (laytan fac113f plus F-1..F-12; ANSWERS F3) |
+| `app/vendor/odin-http/` | the fork, vendored in-tree, with `UPSTREAM.md` (laytan fac113f plus F-1..F-13; ANSWERS F3) |
 | `app/vendor/{sqlite,htmx,hyperscript}` | pinned third-party sources |
 | `app/platform/<pkg>` | the platform packages (§2.6) |
 | `app/platform/static/` | `base.css` (D19), app.js, the core `_hs` set, favicon, og.png; not a package |
@@ -707,7 +707,7 @@ applied (ANSWERS #5, F3, F5). Steps 1, 4 and 9 need Alex.
 | 4 | Rename the repo in GitHub settings, and drop "skeleton" from its description (10 §10) | Alex | never create a repo named `odin-htmx-skeleton` afterwards: that kills the redirects (10 §2.1) |
 | 5 | Make this workspace the renamed repo's checkout: fetch `master` into `<WORKSPACE>`, remove `_ref/`, fold the workspace's own README (an index of the planning docs) into `docs/` so the repo keeps its README, keep the workspace's root `.gitignore` (it carries the skeleton's entries and §5.3's rules), and commit the planning docs once the scrub is done; then delete the separate clone `<SKELETON_FIX_CLONE>` | agent | all starter work happens in this workspace (ANSWERS #5, F5); the paths §5.3 keeps git-ignored never reach the public repo (ANSWERS F4) |
 | 6 | First starter commit: the `tools/init` identity literals change in lockstep, read from one `tools/init/UPSTREAM` file; add `THIRD_PARTY_NOTICES` | agent | init refuses to run unless `brand.odin` holds the exact upstream `BRAND_REPO` line (`SK/tools/init/main.odin:48-53,197`, `SK/app/src/views/brand.odin:28`), and its README, JSON-LD, favicon, sweep and brand edits must each match (`main.odin:208-246,288-309`; 10 §5.3); `hx-multipart.min.js` drops its Shopify MIT notice (10 §8.3) |
-| 7 | Vendor laytan/odin-http fac113f into `app/vendor/odin-http/` with an `UPSTREAM.md`, replacing the skeleton's `app/odin-http` submodule; F-1..F-12 land on top, S0.2's changes first | agent | the fork lives in-tree, with no separate GitHub repo (D11; Q4; ANSWERS F3) |
+| 7 | Vendor laytan/odin-http fac113f into `app/vendor/odin-http/` with an `UPSTREAM.md`, replacing the skeleton's `app/odin-http` submodule; F-1..F-13 land on top, S0.2's changes first | agent | the fork lives in-tree, with no separate GitHub repo (D11; Q4; ANSWERS F3) |
 | 8 | At the M1 exit, when the `skeleton` profile passes the parity gate, the agent tags **v2.0.0** with `FLY_DEPLOY` still off | agent | the brief puts apollo before the web, so the Fly witness is not redeployed at M1: odin-htmx.alexh95.com keeps serving 6d37506 (v1.2.1) untouched until the M3 exit (RESOLUTIONS X2; Q29: yes) |
 | 9 | At the M3 exit, once `starter-skeleton` has passed the parity gate and the 40-item checklist on apollo's LAN (stage 1a), with `deploy/fly/fly.toml` building `cmd/skeleton`: Alex sets `FLY_DEPLOY=true` first, then the agent pushes the **v2.2.0** tag, and its `deploy-fly` run deploys `cmd/skeleton` | Alex, then agent | the starter's `deploy-fly` job deploys only on a tag while `FLY_DEPLOY` is `true` (D40; §20), so the variable must be on before the tag's run starts (RESOLUTIONS X3); the agent then checks the witness's cost against Q15's $10/month line (§20.6) |
 
@@ -907,7 +907,7 @@ odin-htmx-starter/
   build.sh build.bat          build.{sh,bat} <profile>: the one place the family flags live (CMD=check|test|run)
   ols.json                    the editor's four collections, pinned to full's families (the skeleton's sat in app/)
   app/
-    vendor/odin-http/         the fork, vendored: laytan fac113f + F-1..F-12, with UPSTREAM.md (D11; ANSWERS F3)
+    vendor/odin-http/         the fork, vendored: laytan fac113f + F-1..F-13, with UPSTREAM.md (D11; ANSWERS F3)
     vendor/sqlite/            3.53.4 amalgamation; prepare builds it with D16's flags
     vendor/htmx/              the htmx 4.0.0 tarball pin → htmx.min.js + the 17 dist/ext files
     vendor/hyperscript/       _hyperscript.min.js 0.9.94 + its shipped .br
@@ -1836,7 +1836,7 @@ is buffered whole and sent with one `send` (03 §0, §2.3). The no-fork seam fai
 itself never posts a `recv`, so a vanished client goes unnoticed; `connection_close` is private, so the stream can't
 end cleanly; and shutdown waits forever on the `Active` connection (03 §2.6, §2.7). Upstream is quiet: 0 commits since
 fac113f, and the SSE PR #28 is stale since 2024 (03 §3). Crash containment and timeouts need code inside odin-http too
-(S1). So the fork lives in-tree at `app/vendor/odin-http/`: laytan's fac113f vendored, F-1..F-12 on top, and an
+(S1). So the fork lives in-tree at `app/vendor/odin-http/`: laytan's fac113f vendored, F-1..F-13 on top, and an
 `UPSTREAM.md` that names the base commit and each change (D11; ANSWERS F3). There is no separate repo; the agent
 vendors it at M0, replacing the skeleton's `app/odin-http` submodule (§4.2 step 7).
 
@@ -1854,6 +1854,7 @@ vendors it at M0, replacing the skeleton's `app/odin-http` submodule (§4.2 step
 | F-10 | SIGTERM handled as well as SIGINT; a second signal exits immediately | PID-1 SIGTERM under compose | 13 §4.2 step 1 |
 | F-11 | Per-thread Date header buffer | the Date race (2 malformed headers in about 800k) | S6; 01 §16 |
 | F-12 | `listen` returns an error naming io_uring and seccomp; bind retry for 3 s | `Address_In_Use` after `kill -9` | 13 §3.3 |
+| F-13 | Deferred responses: `response_defer` hands a handler a `Response_Ref` (loop, socket, a per-thread request generation) and `response_resume` returns the Response on that loop, or nil once the connection is gone or has moved on; while deferred, a poll on the socket closes the connection when the peer leaves and calls the application's `on_gone`; a thread's shutdown waits, to `DRAIN_DEADLINE_MS`, for the replies it owes | a pool's reply (argon2id, the query pool, llama, jobs) must not touch a connection that is gone | S0.5 (ASan: 5,042 clients left mid-verify, 0 reports; a raw-pointer control, 3/3 heap-use-after-free) |
 
 **What stays out of the fork.** Only the generic seam and the fixes go in. The WS codec, the SSE encoder, the multipart
 writer, Range parsing and the hub live in the starter (`platform/stream`, `platform/hub`; S1), so the diff stays small
@@ -1865,7 +1866,7 @@ and F-5…F-12 must reach a paired ratio ≥ 0.97 against HEAD on every scenario
 the fork (D44; **UNVERIFIED (S0.2)**).
 
 **Upstream and rebase.** The seam is offered to laytan as a PR after M2 (Q4), from a GitHub fork made at that time
-out of `UPSTREAM.md`'s changes (ANSWERS F3). On each upstream bump the new base is vendored, F-1..F-12 are re-applied,
+out of `UPSTREAM.md`'s changes (ANSWERS F3). On each upstream bump the new base is vendored, F-1..F-13 are re-applied,
 `UPSTREAM.md` is updated and 03's contract suite re-run; every milestone audit reads the diff against the base line by
 line (§19). Rejected (D11): the
 no-fork takeover seam, a separate realtime port (S2), and a guard only where odin-http calls user code, which misses
@@ -1979,7 +1980,7 @@ unknown variable inside a known prefix.
 | `BOT_BACKEND`, `BOT_LLAMA_URL` | mock; none | default backend, switchable by an admin at runtime on `/admin/bot` (D8); required for llama, never assumed (07 §2.2); on apollo, `http://<APOLLO_LAN_IP>:<LLAMA_PORT>` (§14.3; RESOLUTIONS X41) |
 | `BOT_LLAMA_KEY_FILE`, `BOT_SEED`, `BOT_DELAY_MS`, `BOT_CONCURRENCY` | unset | llama key; mock determinism and speed; concurrent generations |
 | `ACCOUNTS_REGISTRATION`, `ACCOUNTS_ADMIN_HASH` | invite; unset | registration mode (Q10); argon2id hash of the bootstrap admin |
-| `ACCOUNTS_ARGON_THREADS`, `ACCOUNTS_NICK_FROM` | 2; lan | argon pool threads; `nick` only for clients in `LAN_CIDRS` |
+| `ACCOUNTS_ARGON_THREADS`, `ACCOUNTS_NICK_FROM` | 2 (1 with ≤ 2 CPUs, Q34); lan | argon pool threads; `nick` only for clients in `LAN_CIDRS` |
 | `GAMES_URL`, `GAMES_API_URL`, `GAMES_CATALOG` | unset | spark's origin; its API, whose presence selects `catalog_api` (§15.3); a `catalog_static` override |
 | `NOTES_CAP`, `CONTACTS_CAP` | 500, 2000 | the demo caps on `full`'s lab host, whose rows the jobs `notes.reset` and `contacts.reset` put back nightly at 04:00 local time; read only where `full` mounts these features on its lab host, so `skeleton` stays uncapped (§7.3, §11.6; RESOLUTIONS X38) |
 | `VIDEO_DIR`, `VIDEO_SIGN_KEY_FILE`, `VIDEO_CDN_URL` | /data/media; unset | media volume; signed-URL key; an optional bunny.net pull zone (stage 2; Q26) |
@@ -2033,11 +2034,11 @@ an idle peer that never answers the FIN each held exit for more than 30 s (13 §
 | # | Step | Deadline |
 |---|---|---|
 | 1 | Signal: SIGINT or SIGTERM (F-10); a second signal exits now | — |
-| 2 | Unready: `/readyz` → 503 with `x-draining: 1`; the accept op is removed | at once |
+| 2 | Unready: `/readyz` → 503 with `x-draining: 1`; the accept op is removed; the worker pools stop intake and cancel their queued jobs (503), and in-flight jobs finish: a reply posted after its loop has left faults inside nbio, so every reply must land within one job (S0.5) | at once |
 | 3 | Streams: `main`'s `drain` calls run in the order written, each closing its own streams: WS close 1012; SSE gets one event carrying `retry:` with per-client jitter (e.g. 500–3000 ms), sent with `data:` because a lone `retry:` is ignored, then the terminal chunk; multipart gets its closing boundary; bot cancels its generations, and term tells its sessions | ≤ 2 s grace |
 | 4 | Idle keep-alive peers, and connections still reading their request line or headers (no handler runs yet; a slowloris looks like this, S0.7): `shutdown(SEND)`, cancel the pending recv, close | ≤ 500 ms |
-| 5 | Active requests: wait, then force-close (503 if nothing was sent); past the deadline, connections already closing no longer hold the loop | ≤ `DRAIN_DEADLINE_MS` (5 s) |
-| 6 | Timers and workers: `on_thread_shutdown` cancels the per-loop timers; the pools stop intake; llama streams abort; no thread that sleeps between checks (the watchdog) is joined: it is told to stop, and the process doesn't wait for it (S0.7) | — |
+| 5 | Active requests: wait, then force-close (503 if nothing was sent); each loop also waits for the pool replies it owes (F-13); past the deadline, connections already closing no longer hold the loop | ≤ `DRAIN_DEADLINE_MS` (5 s) |
+| 6 | Timers and workers: `on_thread_shutdown` cancels the per-loop timers; the pools stop once their replies are in (step 2); llama streams abort; no thread that sleeps between checks (the watchdog) is joined: it is told to stop, and the process doesn't wait for it (S0.7) | — |
 | 7 | Flush: per-thread log buffers, a final metrics snapshot line, store close with a WAL checkpoint | — |
 | 8 | Exit 0, or 70 after a dirty crash (§10) | total ≤ 6 s |
 
@@ -2387,8 +2388,9 @@ D16 (S8, 12 §9):
   topic, so `platform/store/sqlite` never imports `hub`; a memory store calls it at once (LC §8). The writer queue,
   pool depth and `sqlite3_db_status` numbers are pushed to `platform/obs` on the store's own timer (LC §5).
 - **The query pool.** Two threads for anything that scans, ranks, exports, backs up or can hit a budget (bm25, dbview,
-  `VACUUM INTO`, retention chunks). Results return through `nbio.next_tick_poly(l = loop)` with a connection
-  generation check, so a client that left mid-query causes no use-after-free; a full queue answers 503.
+  `VACUUM INTO`, retention chunks). The handler calls `http.response_defer`; results return through
+  `nbio.next_tick_poly(l = loop)` and `http.response_resume`, whose generation check (F-13) makes a client that left
+  mid-query cost a map lookup, never a use-after-free; a full queue answers 503.
 - **Chunked deletes** of 1,000 rows per transaction on the writer task (one 100k-row delete held the writer 330 ms,
   12 §3.2); **a sort index per list sort key**; **keyset paging** for history and infinite scroll.
 - **Statement discipline.** Every step is followed by `defer sqlite.reset`: an unreset statement on a loop's reader
@@ -3647,10 +3649,14 @@ tables the three grants that are judgement calls (Q31, below); the rest of this 
 - `Video_Upload` goes to Moderator and Admin, because D35's "uploaders only" is not a role (RF §8.6 had Admin only);
 - `Admin_Audit` is Admin only, where PF §6.1 let moderators see their own entries.
 
-**Passwords** (D35, S11). argon2id runs on the argon pool, never on a loop: `ACCOUNTS_ARGON_THREADS` 2, at most 2
-concurrent verifies and a queue of 32, then 503 "busy, retry". The parameters come from S0.5's fresh measurement, so
-that apollo's CPU verifies in ≤ 100 ms; on the dev PC the OWASP preset measured 24.7–37.5 ms and the 64 MiB preset
-114–192 ms. Compares are constant-time; unknown usernames get a dummy hash; passwords are 10–256 bytes; failures
+**Passwords** (D35, S11). argon2id runs on the argon pool, never on a loop: `ACCOUNTS_ARGON_THREADS` 2 (1 when the
+container has ≤ 2 CPUs, as apollo's `full` does: Q34's default), at most that many concurrent verifies and a queue of
+32, then 503 "busy, retry"; the handler defers its response (F-13), and each worker keeps one buffer for argon's memory,
+so the pool holds threads × 19 MiB and never allocates per login. The parameters are OWASP's (19 MiB, t = 2, p = 1):
+S0.5 measured 19–32 ms per verify on the dev PC (medians, both OSes, a busy box; two at once barely slower), while the
+64 MiB preset took 119–191 ms and is out; OWASP's 7 MiB, t = 5 preset is the fallback for a tight `mem_limit`. Whether
+apollo verifies in ≤ 100 ms is **UNVERIFIED (M4)**: `--hash-password` prints its own derive time, so Alex's bootstrap
+step measures it. Compares are constant-time; unknown usernames get a dummy hash; passwords are 10–256 bytes; failures
 cause per-account exponential backoff, never a hard lockout (no lockout-as-DoS, 07 §5.2); the last admin can't be
 demoted or disabled. Alex makes the bootstrap hash with `--hash-password` and never shares the password (M4).
 
@@ -3954,7 +3960,7 @@ risk register tracks it as R2a, a sub-item of the parity risk (§22.6).
 | Fan-out, Linux, 4 loops | 1000 SSE subscribers p99 ≤ 100 ms; 3000 ≤ 200 ms; WS 1000 sockets × 20 messages delivered ≤ 2 s | 03 §10.4 (74 ms; 115–188 ms; 1.6 s) |
 | Restart | boot → `/readyz` ≤ 50 ms (file DB, 20k rows) plus the bind retry; 4000 clients back ≤ 3 s; stale cursors → replay or resync 100 % | 13 §3.3-3.4 |
 | Shutdown | ≤ 6 s with 500 SSE + 500 WS + a slowloris + a half-sent body + a non-closing idle peer | 13 §4.1 (13.2 s and > 30 s today) |
-| Login storm | 50 logins/s → other routes' p99 within +10 % | 07 §5.6 |
+| Login storm | 50 logins/s under `cpus: 2.0` with one argon thread: other routes' p99 ≤ their base + 0.5 ms, the cgroup never throttled, every login answered (200/401, or 503 at once past the queue); Q34's default, since the first budget, p99 within +10 %, failed in every setting (S0.5: +24 % to ×22 on a sub-millisecond p99, never by blocking a loop; +0.08–0.12 ms with one thread) | 07 §5.6; S0.5 |
 | Chat | writer task ≥ 50k msgs/s batched on a file WAL; send → another member's DOM on the LAN via NPM p95 ≤ 50 ms (NEW) | 12 §3.1 |
 | Bot (mock) | 1000 concurrent generations × 200 tokens at 20 Hz ≤ 1 core and ≤ +30 MB (NEW) | — |
 | Video | 256 MiB Range transfer ≤ 8 MB peak private memory (Linux splice UNVERIFIED) | 07 §0.2 (5.1 MB) |
@@ -4740,7 +4746,7 @@ warning above $10/month (§20.6).
 | M | Scope | Exit gate (all must hold) | h | Release | Alex |
 |---|---|---|---:|---|---|
 | **M0** Spikes | the transition (§4.2 steps 1–7: tags v1.2.0 and v1.2.1, this workspace as the checkout with `_ref/` removed and the scrubbed planning docs committed, the vendored fork); the Odin install in WSL2 (Q5); the spikes above | every spike has a decision record; the workspace is the checkout; `x-version: 6d37506` on the Fly witness and its cost recorded (§20.6) | 40 | — | the rename (Q1: yes); re-run 6d37506's failed CI so it deploys (or ask the agent to), then `FLY_DEPLOY` off (§4.2 step 1); the apollo facts (Q24: yes); Q6 if S0.4 needs it |
-| **M1** Request-path substrate, `skeleton` at parity | the vendored fork productionised (F-1…F-12 in `app/vendor/odin-http/`); `platform/{sys, ext, guard, obs, app, env, web, html, authz, authz/anonymous, store, store/sqlite, store/memory, sqlite, workers, markdown, theme/full, theme/lite, client/vanilla}`; features dashboard, gallery, contacts, about, notes, home, with their stores in both families where they have them (`app/stores/{sqlite,memory}/`); `build.{sh,bat}` and `ols.json` at the root; `cmd/skeleton`, `cmd/minimal`, four hand-written files each; the migration runner adopting skeleton databases; the skeleton's 23 specs ported and tagged; route counters; `tools/{check (imports, profile, routes, contracts), baseline, bundle}`; CI pins, build, check, e2e, docker, linux-ops, nightly ASan, all through `build.*`; audit stamps begin | every profile and every store checked through `build.*` and on its own; `tools/check profile`, `routes` and `contracts` clean; the parity gate green on both legs; the 01 (A) checklist green; ported specs green in 3 engines (Firefox in CI) + the api project; request-path drills (panic, bounds, div, nil, stack, lock, async, sqlite, hang), fuzz smoke, shutdown bound with slowloris, half body and idle peers, restart, fd ceiling with keep-alive connections; skeleton ≤ 2.75 MB, idle ≤ 10 MB, boot → `/readyz` ≤ 50 ms; minimal builds with no SQLite library; route coverage with 0 unexplained waivers; `docs/audit/M1.md` 0 CRITICAL/HIGH | 70 | **v2.0.0**, tagged with `FLY_DEPLOY` still off: Fly keeps serving 6d37506 (v1.2.1; X2) | rename done; `FLY_DEPLOY` stays off (Q29: yes) |
+| **M1** Request-path substrate, `skeleton` at parity | the vendored fork productionised (F-1…F-13 in `app/vendor/odin-http/`); `platform/{sys, ext, guard, obs, app, env, web, html, authz, authz/anonymous, store, store/sqlite, store/memory, sqlite, workers, markdown, theme/full, theme/lite, client/vanilla}`; features dashboard, gallery, contacts, about, notes, home, with their stores in both families where they have them (`app/stores/{sqlite,memory}/`); `build.{sh,bat}` and `ols.json` at the root; `cmd/skeleton`, `cmd/minimal`, four hand-written files each; the migration runner adopting skeleton databases; the skeleton's 23 specs ported and tagged; route counters; `tools/{check (imports, profile, routes, contracts), baseline, bundle}`; CI pins, build, check, e2e, docker, linux-ops, nightly ASan, all through `build.*`; audit stamps begin | every profile and every store checked through `build.*` and on its own; `tools/check profile`, `routes` and `contracts` clean; the parity gate green on both legs; the 01 (A) checklist green; ported specs green in 3 engines (Firefox in CI) + the api project; request-path drills (panic, bounds, div, nil, stack, lock, async, sqlite, hang), fuzz smoke, shutdown bound with slowloris, half body and idle peers, restart, fd ceiling with keep-alive connections; skeleton ≤ 2.75 MB, idle ≤ 10 MB, boot → `/readyz` ≤ 50 ms; minimal builds with no SQLite library; route coverage with 0 unexplained waivers; `docs/audit/M1.md` 0 CRITICAL/HIGH | 70 | **v2.0.0**, tagged with `FLY_DEPLOY` still off: Fly keeps serving 6d37506 (v1.2.1; X2) | rename done; `FLY_DEPLOY` stays off (Q29: yes) |
 | **M2** Stream substrate (bundles and CSP, `streams` and the lab pages, generator v1) | `platform/{stream, stream/client, hub}`; `/events` with the cursor procedure; heartbeats, pong deadline, caps, policies, close codes; the writer task; page bundles; flags → CSP; `client/hyperscript` with the gate; features chat (memory, the 4 transports behind `chat_web`'s switch), notify (memory), bot (memory, mock, SSE and multipart delivery, the backend switch), ops, status (basic), scripting, compat, lab; `cmd/streams`, `cmd/lab` (lab pages only); `tools/check topics` and `exts`; `tools/streamload`; `tools/init` compose mode (`--list --json`, `--explain`, `--profile`, `--features`, `--add`, `--without`, the family commands, `--verify`), with parse-planned edits of the profile files; the generator job (with `tools/check profile`) and singleton rotation; the `e2e-proxy` job with a CI Caddyfile (the same `deploy/Caddyfile`, run in CI) and NPM's generated nginx config (X26); the nightly Autobahn\|Testsuite run against the lab's WS echo (X24) | S0.3's specs and the lab specs green in 3 engines and through e2e-proxy; fan-out, restart (4000 back ≤ 3 s), replay and resync, back-pressure budgets; stream drills (`wsdata` → 1011; shutdown ≤ 6 s with 500 SSE + 500 WS; fd ceiling with 3000 streams); TSan 0 reports on hub, stream, workers and store/sqlite (S0.11), with one suppression for `core:nbio`'s mpsc assert until an Odin bump fixes it (S0.9); 1 h soak; headers, csp-clean, csp-enforced, bundle-race, streams-hxcsp green; minimal, streams and lab built with no SQLite library; generator job green; parity gate green; audit | 65 | v2.1.0 | — (Q32 answered: the bot stays in `streams`) |
 | **M3** Pipeline and apollo LAN (and the landing page) | the release workflow (GHCR multi-arch); `deploy/compose.yaml` (`8120:80`, the staged seccomp profile, the valid healthcheck), `promote.ps1`; the proxy-config job for NPM's nginx, the publish and the catch-all (X23, X26); `landing` and the status witness board in `cmd/lab`; stages 1a then 1b; two-host load; 1 h NPM soak; the Fly witness redeployed from `cmd/skeleton` at the exit (X2) | minimal, streams, skeleton (LAN) and lab deployed by `promote -Target apollo-lan -Tag v2.2.x` with smoke; `starter-skeleton` green on the 40-item checklist (01 (A)) on apollo's LAN at stage 1a; a deliberately broken tag rolls back by itself; 0 5xx through Caddy during a promote under 50 VUs; 1000 SSE through NPM held 1 h with no idle cuts; `readelf` confirms the distroless base with SQLite linked; every redirect alias passes its curl test; the seccomp path, the `8120:80` publish and the 421 catch-all confirmed (X21, X23); the apollo inventory recorded; the parity gate green (X25); then `FLY_DEPLOY=true` and the v2.2.0 tag redeploy Fly, and the witness's cost is checked: over $10/month, Alex is warned (Q15) | 30 | v2.2.0; Fly redeployed from `cmd/skeleton` | create `<APOLLO_DATA_DIR>/odin-htmx-starter` (sudo); split DNS before the first LAN deploy (the seven DNS-only `A` records pointing at `<APOLLO_LAN_IP>`, X41); the four NPM hosts (`houston-lab` included) and the Access List; the promote permission rule; `worker_connections` 4096 (Q14: yes; X40); optionally, an NPM upgrade, never an agent's step (X40; the `e2e-proxy` pin then follows); `FLY_DEPLOY=true` before the v2.2.0 tag (Q29: yes) |
 | **M4** Identity and the Houston shell | accounts (with envadmin and nick), authz enforcement (route perms, step-up, `.Lan_Only`), audit, modules; `cmd/full` with its two hosts: Houston (home and Today cards, nav from brand.odin, themes including `houston` and `accounts_prefs`) and `houston-lab.alexh95.com` with every starter demo and lab page (`landing` at its root, `notes`, the skeleton's `dashboard` at `/dashboard`, `gallery`, `contacts` and `about`, `lab`, `scripting`, `compat`), `app.Host`, per-host tables, the boot's lab rules, `SITE_URL_LAB`, `LAB_NAV`, the `NOTES_CAP` and `CONTACTS_CAP` demo caps and their nightly resets (ANSWERS F2, round 3); the hyperscript behaviours and their vanilla twins; the `full-vanilla` build (`full` with the vanilla client); pairwise and selection fuzzing start nightly | slice gate; the lab host's demo, `lab` and stream pages pass their specs there, and the demo resets run; `rbac.spec` over 100 % of routes × roles, freezing Q31's grants, and every route × both hosts in `full`; `revoke.spec` (X19); CSRF and CSWSH specs; the login-storm budget; behaviour duality (full and full-vanilla); the argon pool memory cap; injected `_` inert; `headers.spec` and `csp-clean.spec` on both of `full`'s hosts (the lab host sets no cookie), and the lab host passes `csp-enforced` and `streams-hxcsp`; Houston and its lab host deployed at stage 1b (no invites yet) | 50 | v2.3.0 | Q10, Q11, Q31; Alex runs `--hash-password` for the bootstrap admin and never shares the password |
@@ -4895,6 +4901,7 @@ default the plan follows.
 | # | Question | Options | Recommended | Needed by | Status |
 |---|---|---|---|---|---|
 | Q6 | If S0.4 finds no `:memory:` mode passing every cell, what does the gate do? | gate the failing `:memory:` cells against HEAD 709bc94 (v1.2.0) with a documented exception / gate the file DB only and report `:memory:` / block M1 until a mode passes | **Gate the failing `:memory:` cells against HEAD**, file-DB cells never waived; asked with S0.4's numbers before M1 | M1 (only if S0.4 needs it) | default (not yet raised; conditional on S0.4) |
+| Q34 | The login-storm budget, after S0.5 failed its +10 % (§17.1, §18.4) | restate it in absolute terms (other routes' p99 ≤ base + 0.5 ms under `cpus: 2.0`, the cgroup never throttled) and size the argon pool by CPU (1 thread with ≤ 2 CPUs, else 2) / keep +10 % and cap logins lower (fewer than 50/s) / keep +10 % and give the argon pool CPUs of its own (a container of its own) | **Restate it, and 1 thread on ≤ 2 CPUs**: hashing costs a core whatever the design, and +10 % of a sub-millisecond p99 is less than one busy neighbour core costs; the per-client login limits (§17.5) stay in front, so 50/s can only come from many clients | M4 (`accounts`; the plan follows the default meanwhile) | default (not yet raised; S0.5, 2026-10-26) |
 | Q7 | _hyperscript pin | 0.9.94 (S15) / 0.9.93 until 0.9.94 has aged | **0.9.94**, SHA-pinned, bumped only through the behaviour suite | M1 (`pins`) | default (not yet raised) |
 | Q15 | Keep the Fly witness at odin-htmx.alexh95.com (please check the legacy allowance)? | keep (shared-cpu-1x 256 MB, about $2–3/month) / retire with a 301 / move it to apollo | **Keep** | M1 exit | **Answered 2026-10-25: keep**, with no allowance check; Alex is warned if it costs more than $10/month, checked at M0, at the M3 exit and every exit after it, and on any machine-size change (ANSWERS Q15; §20.6) |
 | Q17 | License the spark modules the starter adopts under zlib (and add a LICENSE to spark)? | yes, after scrubbing LAN and host details / no | **Yes** | M1 (first spark code, e.g. `limits.odin`) | **Answered 2026-10-25: yes**, zlib, and spark gets a LICENSE; the scrub of LAN and host details still applies (ANSWERS round 1; §21.6) |

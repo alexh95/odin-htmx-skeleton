@@ -1,0 +1,204 @@
+diff --git a/app/vendor/odin-http/UPSTREAM.md b/app/vendor/odin-http/UPSTREAM.md
+index 02b2d2f..5504708 100644
+--- a/app/vendor/odin-http/UPSTREAM.md
++++ b/app/vendor/odin-http/UPSTREAM.md
+@@ -32,6 +32,7 @@ it touches. The WS codec, the SSE encoder, the multipart writer, Range parsing a
+ | F-10 | SIGTERM as well as SIGINT; the second-signal check is a process-wide flag (upstream read a thread-local that is nil on a thread that isn't the server's); `server_is_closing` | `server.odin` | M0 spike (S0.7) |
+ | F-11 | The `date` header is formatted per thread, once per second of its loop's clock, instead of in one shared buffer a timer rewrote under the readers | `server.odin` | M0 spike (S0.2) |
+ | F-12 | `listen` logs an error naming io_uring and seccomp when the event loop can't start, instead of asserting, and retries a bind that fails with `Address_In_Use` for `bind_retry` (3 s) | `server.odin` | M0 spike (S0.7) |
++| F-13 | Deferred responses: `response_defer` hands out a `Response_Ref` (loop, socket, a per-thread request generation) and `response_resume` returns the Response on that loop, or nil once the connection is gone or has moved on; while deferred, a poll on the socket closes the connection when the peer leaves and calls the application's `on_gone`; a thread's shutdown waits (to `drain_deadline`) for the refs it still owes | `deferred.odin`, `server.odin`, `response.odin` | M0 spike (S0.5) |
+ 
+ "M0 spike" means the change is in and the named spikes exercise it (`docs/spikes/`); M1 productionises it with its own
+ tests (PLAN §22.3). Spike S0.2 measures F-1 and F-5..F-12 under the skeleton's k6 suite before anything builds on them.
+diff --git a/app/vendor/odin-http/deferred.odin b/app/vendor/odin-http/deferred.odin
+new file mode 100644
+index 0000000..e8c3587
+--- /dev/null
++++ b/app/vendor/odin-http/deferred.odin
+@@ -0,0 +1,108 @@
++package http
++
++import "core:log"
++import "core:nbio"
++import "core:net"
++
++// F-13: deferred responses. A handler that answers from another thread (a worker pool) calls
++// `response_defer` and returns. The worker hands the `Response_Ref` back to the connection's loop
++// (`nbio.next_tick_poly(job, done, l = ref.loop)`), where `response_resume` returns the Response,
++// or nil when the connection is gone or has moved on. A ref never points into the connection, so
++// a stale one costs a map lookup instead of a use-after-free.
++//
++// While a response is deferred the server watches the socket: a peer that leaves closes the
++// connection at once and `on_gone` runs on the loop, so the application can drop the work. The
++// thread's shutdown waits (up to `drain_deadline`) until every ref it handed out was resumed, so
++// a reply never targets a loop that has gone away.
++Response_Ref :: struct {
++	loop:   ^nbio.Event_Loop,
++	socket: net.TCP_Socket,
++	gen:    u64,
++}
++
++@(private)
++Deferred :: struct {
++	active:  bool,
++	watch:   ^nbio.Operation,
++	on_gone: proc(user: rawptr),
++	user:    rawptr,
++}
++
++// Call on the connection's loop, before returning from the handler without responding.
++// `on_gone` runs on the loop when the connection closes before `response_resume`.
++response_defer :: proc(res: ^Response, on_gone: proc(user: rawptr) = nil, user: rawptr = nil, loc := #caller_location) -> Response_Ref {
++	assert_has_td(loc)
++	c := res._conn
++	assert(c.state == .Active && !res.sent && !c.deferred.active, "response_defer: the response is not open", loc)
++
++	c.deferred = {active = true, on_gone = on_gone, user = user}
++	td.deferred += 1
++	// A body read still in flight owns the socket's read side; the watch starts only on an idle scanner.
++	if c.scanner.recv_op == nil { _deferred_watch(c) }
++	return {loop = td.event_loop, socket = c.socket, gen = c.gen}
++}
++
++// Call exactly once per ref, on `ref.loop`. nil: the peer left, or the connection is closing.
++// A non-nil Response must be answered (or deferred again) before the callback returns.
++response_resume :: proc(ref: Response_Ref, loc := #caller_location) -> ^Response {
++	assert_has_td(loc)
++	assert(ref.loop == td.event_loop, "response_resume: called off the connection's loop", loc)
++	td.deferred -= 1
++
++	c, ok := td.conns[ref.socket]
++	if !ok || c.gen != ref.gen || c.state != .Active || !c.deferred.active || c.loop.res.sent {
++		return nil
++	}
++	_deferred_end(c, gone = false)
++	return &c.loop.res
++}
++
++@(private)
++_deferred_watch :: proc(c: ^Connection) {
++	c.deferred.watch = nbio.poll_poly(c.socket, .Receive, c, _on_deferred_ready)
++}
++
++@(private)
++_on_deferred_ready :: proc(op: ^nbio.Operation, c: ^Connection) {
++	c.deferred.watch = nil
++	if !_invoke(c.server, proc(a, b: rawptr) { _deferred_ready((^nbio.Operation)(a), (^Connection)(b)) }, op, c) {
++		connection_crashed(c)
++	}
++}
++
++@(private)
++_deferred_ready :: proc(op: ^nbio.Operation, c: ^Connection) {
++	if !c.deferred.active { return }
++
++	if op.poll.result == .Ready {
++		// Readable is either the peer's next bytes (a pipelined request: keep them for the scanner
++		// and stop watching) or its close. A read can't block here, so read to tell which.
++		s := &c.scanner
++		if len(s.buf) - s.end < INIT_BUF_SIZE / 2 {
++			non_zero_resize(&s.buf, max(INIT_BUF_SIZE, len(s.buf) * 2))
++		}
++		n, err := net.recv_tcp(c.socket, s.buf[s.end:])
++		switch {
++		case err == nil && n > 0:
++			s.end += n
++			return
++		case err == .Would_Block, err == .Interrupted:
++			_deferred_watch(c)
++			return
++		}
++	}
++
++	log.debugf("deferred response: peer %i left", c.socket)
++	_deferred_end(c, gone = true)
++	connection_close(c)
++}
++
++// Stops the watch; `gone` also tells the application through `on_gone`.
++@(private)
++_deferred_end :: proc(c: ^Connection, gone: bool) {
++	d := c.deferred
++	if !d.active { return }
++	c.deferred = {}
++	if d.watch != nil { nbio.remove(d.watch) }
++	if gone && d.on_gone != nil { d.on_gone(d.user) }
++}
+diff --git a/app/vendor/odin-http/response.odin b/app/vendor/odin-http/response.odin
+index feeeea2..f3e16dd 100644
+--- a/app/vendor/odin-http/response.odin
++++ b/app/vendor/odin-http/response.odin
+@@ -289,6 +289,9 @@ response_send :: proc(r: ^Response, conn: ^Connection, loc := #caller_location)
+ 	assert(!r.sent, "response has already been sent", loc)
+ 	r.sent = true
+ 
++	// F-13: answering a deferred response ends its watch.
++	_deferred_end(conn, gone = false)
++
+ 	check_body :: proc(res: rawptr, body: Body, err: Body_Error) {
+ 		res := cast(^Response)res
+ 		will_close: bool
+diff --git a/app/vendor/odin-http/server.odin b/app/vendor/odin-http/server.odin
+index 1d5c017..1ac0fda 100644
+--- a/app/vendor/odin-http/server.odin
++++ b/app/vendor/odin-http/server.odin
+@@ -147,6 +147,11 @@ Server_Thread :: struct {
+ 	// second while other threads read it (torn reads put NUL bytes in about 2 in 800k headers).
+ 	date:       Server_Date,
+ 
++	// F-13: the last request generation handed out on this thread, and the refs to deferred
++	// responses not yet resumed (shutdown waits for them).
++	next_gen:   u64,
++	deferred:   int,
++
+ 	// free_temp_blocks:       map[int]queue.Queue(^Block),
+ 	// free_temp_blocks_count: int,
+ }
+@@ -377,6 +382,9 @@ _server_thread_shutdown :: proc(s: ^Server, loc := #caller_location) {
+ 			}
+ 		}
+ 
++		// F-13: a reply still owed to this loop keeps it alive until the deadline.
++		if !past_deadline { waiting += td.deferred }
++
+ 		if waiting == 0 { break }
+ 
+ 		err := nbio.tick(SHUTDOWN_INTERVAL)
+@@ -479,6 +487,9 @@ Connection :: struct {
+ 	temp_allocator: virtual.Arena,
+ 	loop:           Loop,
+ 	stream:         ^Stream,
++	// F-13: this request's generation (unique per thread), and its deferred response, if any.
++	gen:            u64,
++	deferred:       Deferred,
+ }
+ 
+ // Loop/request cycle state.
+@@ -500,6 +511,9 @@ connection_close :: proc(c: ^Connection, loc := #caller_location) {
+ 
+ 	log.debugf("closing connection: %i", c.socket)
+ 
++	// F-13: a deferred response's watch ends here, and the application hears its peer is gone.
++	_deferred_end(c, gone = true)
++
+ 	c.state = .Closing
+ 
+ 	// RFC 7230 6.6.
+@@ -597,6 +611,7 @@ _invoke :: #force_inline proc(s: ^Server, fn: proc(a, b: rawptr), a, b: rawptr)
+ @(private)
+ connection_crashed :: proc(c: ^Connection) {
+ 	scanner_cancel(&c.scanner)
++	_deferred_end(c, gone = true)
+ 
+ 	if c.state == .Streaming && c.stream != nil {
+ 		stream_crashed(c.stream)
+@@ -636,6 +651,9 @@ conn_handle_reqs :: proc(c: ^Connection) {
+ 
+ @(private)
+ conn_handle_req :: proc(c: ^Connection, allocator := context.temp_allocator) {
++	td.next_gen += 1
++	c.gen = td.next_gen
++
+ 	// F-7: waiting for the next request is the idle phase; the first byte of it starts the header
+ 	// deadline (scanner_on_read), and the end of the headers starts the body deadline.
+ 	scanner_set_phase(&c.scanner, .Idle)
