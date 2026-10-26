@@ -249,7 +249,8 @@ The rules that change:
 
 **Platform work that touches an optional package, without a callback** (**NEW**). The old plan left these to
 `Module_Ops`, the store vtable or `platform/app`; each is now a direct call in one direction:
-- **The pure-trap reset** of the loop's reader statements (D15 rule 3) is pulled, not installed: `platform/guard`
+- **The pure-trap reset** of the loop's reader statements (D15 rule 3) is pulled, not installed (and, since S0.6, also
+  pulled by a 1 s timer the reader arms on its loop): `platform/guard`
   counts recoveries per thread, and `platform/store/sqlite` compares that count before each use of the loop's reader
   and resets every statement when it has moved. `guard` never calls into SQLite, so a memory profile still links no
   SQLite (D18).

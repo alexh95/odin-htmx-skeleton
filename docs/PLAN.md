@@ -330,7 +330,7 @@ Below L4, platform imports a feature only through a family collection: `platform
 | `platform/sqlite` | 1 | the SQLite binding (core only); keeps the `in_sqlite` counter |
 | `platform/ext` | 1 | the closed `Ext` enum of htmx extensions with its registration-name and file tables; imports nothing; re-exported as `web.Ext` (RESOLUTIONS X33) |
 | `platform/store` | 2 | what every store shares: `Migration`, `Error`, `enum_from_int`, `Search_Hit` (domains return it) and `Find_Source` (a row of `main`'s `FIND_SOURCES`) |
-| `platform/store/sqlite` | 2 | store v3: the writer connection, per-loop readers, the writer task, the query pool (D16); `open` and `migrate`, which answer `--backup` and `--adopt-profile`; the pure-trap reader reset, pulled from guard's recovery count; `sqlite3_db_status` numbers pushed to obs (LC §5) |
+| `platform/store/sqlite` | 2 | store v3: the writer connection, per-loop readers, the writer task, the query pool (D16); `open` and `migrate`, which answer `--backup` and `--adopt-profile`; the pure-trap reader reset, pulled from guard's recovery count before each reader use and on a per-loop 1 s timer (S0.6); `sqlite3_db_status` numbers pushed to obs (LC §5) |
 | `platform/store/memory` | 2 | rings and maps behind guarded locks, ids `<epoch>-<seq>` |
 | `platform/env` | 2 | the typed env table (D10): the platform's rows and each feature's, recorded by its `init`; features read their rows here, never through `platform/app` (LC §5) |
 | `platform/workers` | 2 | the argon, query, llama and jobs pools, the scheduler over the mounted `JOBS` (`run_now`, `cancel`, each run's state as data), generation checks |
@@ -831,9 +831,9 @@ encoders and the layout takes a `web.Bundle`, D19). No layer needs an exception:
 **Platform work that touches an optional package, without a callback** (LC §5; **NEW**). Each is a direct call in one
 direction:
 - **The pure-trap reset** of the loop's reader statements (D15 rule 3) is pulled, not installed: `platform/guard`
-  counts recoveries per thread, and `platform/store/sqlite` compares that count before each use of the loop's reader
-  and resets every statement when it has moved (§10.2). `guard` never calls into SQLite, so a memory profile still
-  links none (D18).
+  counts recoveries per thread, and `platform/store/sqlite` compares that count before each use of the loop's reader,
+  and on a 1 s timer that the reader's first use arms on its loop, and resets every statement when it has moved
+  (§10.2; S0.6). `guard` never calls into SQLite, so a memory profile still links none (D18).
 - **SQLite numbers for ops** (`sqlite3_db_status`, the writer queue, pool depth) are pushed to `platform/obs` by
   `platform/store/sqlite` on its own timer. `ops` reads obs and never imports the store, so `streams` keeps ops without
   SQLite.
@@ -1850,7 +1850,7 @@ vendors it at M0, replacing the skeleton's `app/odin-http` submodule (§4.2 step
 | F-6 | `_body_length` rejects `Content-Length` < 0, overflow and non-digits with 400 | F1: one unauthenticated packet aborts the process; the skeleton's 6d37506 (v1.2.1) refuses it in `front` instead, and leaves `OPTIONS *`, which odin-http answers itself, to the upstream fix | 02 §1.2 (`SK/app/odin-http/body.odin:119-148`) |
 | F-7 | Timeouts: header read 10 s, idle keep-alive 75 s, body read 30 s, as per-op nbio timeouts on the scanner's recv | slowloris; shutdown hangs | 02 F5; `scanner.odin:204` |
 | F-8 | `max_connections` (fd soft limit − 64) answering 503; accept errors logged and re-posted instead of `panicf` | at the fd limit the server stops accepting after 1,012 streams and `/healthz` hangs; non-EMFILE accept errors panic | 13 §3.5; 03 §2.8 (`server.odin:418-428`) |
-| F-9 | Shutdown deadlines: Active ≤ `DRAIN_DEADLINE`, idle peers get `shutdown(SEND)` then a recv cancel within 500 ms, streams get 2 s grace | the three unbounded waits | 13 §4.1-4.2 |
+| F-9 | Shutdown deadlines: Active ≤ `DRAIN_DEADLINE`, idle peers and peers still sending their headers get `shutdown(SEND)` then a recv cancel within 500 ms, streams get 2 s grace; past the deadline, closing connections no longer hold the loop | the three unbounded waits | 13 §4.1-4.2; S0.7 |
 | F-10 | SIGTERM handled as well as SIGINT; a second signal exits immediately | PID-1 SIGTERM under compose | 13 §4.2 step 1 |
 | F-11 | Per-thread Date header buffer | the Date race (2 malformed headers in about 800k) | S6; 01 §16 |
 | F-12 | `listen` returns an error naming io_uring and seccomp; bind retry for 3 s | `Address_In_Use` after `kill -9` | 13 §3.3 |
@@ -2031,17 +2031,18 @@ an idle peer that never answers the FIN each held exit for more than 30 s (13 §
 | 1 | Signal: SIGINT or SIGTERM (F-10); a second signal exits now | — |
 | 2 | Unready: `/readyz` → 503 with `x-draining: 1`; the accept op is removed | at once |
 | 3 | Streams: `main`'s `drain` calls run in the order written, each closing its own streams: WS close 1012; SSE gets one event carrying `retry:` with per-client jitter (e.g. 500–3000 ms), sent with `data:` because a lone `retry:` is ignored, then the terminal chunk; multipart gets its closing boundary; bot cancels its generations, and term tells its sessions | ≤ 2 s grace |
-| 4 | Idle keep-alive peers: `shutdown(SEND)`, cancel the pending recv, close | ≤ 500 ms |
-| 5 | Active requests: wait, then force-close (503 if nothing was sent) | ≤ `DRAIN_DEADLINE_MS` (5 s) |
-| 6 | Timers and workers: `on_thread_shutdown` cancels the per-loop timers; the pools stop intake; llama streams abort | — |
+| 4 | Idle keep-alive peers, and connections still reading their request line or headers (no handler runs yet; a slowloris looks like this, S0.7): `shutdown(SEND)`, cancel the pending recv, close | ≤ 500 ms |
+| 5 | Active requests: wait, then force-close (503 if nothing was sent); past the deadline, connections already closing no longer hold the loop | ≤ `DRAIN_DEADLINE_MS` (5 s) |
+| 6 | Timers and workers: `on_thread_shutdown` cancels the per-loop timers; the pools stop intake; llama streams abort; no thread that sleeps between checks (the watchdog) is joined: it is told to stop, and the process doesn't wait for it (S0.7) | — |
 | 7 | Flush: per-thread log buffers, a final metrics snapshot line, store close with a WAL checkpoint | — |
 | 8 | Exit 0, or 70 after a dirty crash (§10) | total ≤ 6 s |
 
 In `main` (§7.2; LC §6), `app.wait()` runs steps 1 and 2 and returns, the `drain` calls are step 3, and `app.shutdown()`
 runs the rest under their deadlines: the platform keeps the deadlines, and `main` shows who drains what. The total stays
-under compose's 10 s and Fly's `kill_timeout` of 10 s (D41). Spike S0.7 proves it with 500 SSE + 500 WS + a slowloris +
-a half body + a stuck idle peer (exit ≤ 6 s, WS got 1012), and the per-push shutdown-bound drill keeps it true (§19);
-§20's `promote.ps1` relies on it.
+under compose's 10 s and Fly's `kill_timeout` of 10 s (D41). Spike S0.7 proved it on the fork with 500 SSE + 500 WS +
+a slowloris + a half body + a stuck idle peer: exit in 5.6 s on Windows and Linux (the half body's 5 s deadline, one
+100 ms shutdown tick, at most 500 ms of leftovers), 500/500 WebSockets got 1012 and 500/500 SSE streams their `retry:`
+event (`docs/spikes/S0.7.md`). The per-push shutdown-bound drill keeps it true (§19); §20's `promote.ps1` relies on it.
 
 ## 9. Realtime: the hub and the page contract
 
@@ -2256,8 +2257,10 @@ substance (S5, 13 §1.4, §6.3):
    statement on this loop's reader connection is reset before its next use (walk `sqlite3_next_stmt`, `sqlite3_reset`
    each), because the jump skipped the deferred resets and an unreset reader statement pins the WAL without bound (12
    §10). The reset is pulled, not installed: `platform/store/sqlite` compares guard's per-thread recovery count before
-   each use of the loop's reader and resets when it has moved, so `guard` never calls into SQLite and a memory profile
-   links none (LC §5; **NEW**). More than 100 pure recoveries in 60 s counts as dirty, because each one leaks its
+   each use of the loop's reader and on a 1 s timer that the reader's first use arms on its loop (it stops re-arming
+   once the server drains), and resets when it has moved, so `guard` never calls into SQLite and a memory profile
+   links none (LC §5). The timer is S0.6's finding: a loop that crashed and then got no more reads kept its snapshot,
+   and the WAL grew 165 MB in 5 s of writes; with the timer it stays flat on both OSes. More than 100 pure recoveries in 60 s counts as dirty, because each one leaks its
    `context.allocator` allocations (**NEW**).
 4. **Watchdog thread**: wakes every 1 s; a loop whose `tick_age` exceeds 10 s, or the store write lock held for more
    than 5 s → log `lvl=fatal`, flush logs, write `/data/last-crash.txt` (shown on `/admin/ops` after the restart),
@@ -2406,13 +2409,20 @@ D16 (S8, 12 §9):
 | `THREADSAFE=2` | no scaling gain alone; −15 to −20 % per call on several queries; safe under "one connection per thread, the writer under a mutex" |
 | `DQS=0` | the skeleton's store tests pass: no double-quoted string literals in its SQL |
 | `DEFAULT_FOREIGN_KEYS=1` | no cost measured; every connection (readers, the pool, `--backup`) enforces foreign keys |
-| `OMIT_LOAD_EXTENSION` | no size change at PE alignment; drops `dlopen` and `-ldl` on Linux |
+| `OMIT_LOAD_EXTENSION` | no size change at PE alignment; the Linux lib references no `dlopen`, so `platform/sqlite` drops `system:dl` (on glibc 2.34 and later the skeleton links without it with either lib, S0.11) |
 | `OMIT_SHARED_CACHE` | −5,632 B; silently turns a `cache=shared` URI into a private empty database (a trap to document) |
-| `ENABLE_FTS5` | +220,160 B (2,440,704 → 2,660,864 B, `-o:speed`) |
+| `ENABLE_FTS5` | +220,160 B (2,440,704 → 2,660,864 B, `-o:speed`); S0.11: +226,304 B on Windows (clang 19), +254,728 B on Linux (clang 18, unstripped) |
 
 The tuned build is 0.96–1.07× the default on the 20-row scenarios (noise) and +26 % (`:memory:`) or +7 % (file) on
 `scale@20`. `SQLITE_OMIT_PROGRESS_CALLBACK` stays off: dbview and the pool's budgets use `progress_handler`. Each reader
-holds about 1.15 MB of SQLite heap. Spike S0.11 checks the build on Windows and Linux (size delta ≤ 230 KB).
+holds about 1.15 MB of SQLite heap. Spike S0.11 built it on Windows (clang 19, MSVC 19.43) and Linux (clang 18, gcc
+13): +192,904 to +228,584 B over the default flags (FTS5 is the whole delta; the other six flags shrink the binary), and
+the store and views tests and a smoke pass on every build. `prepare.{sh,bat}` hold the flags in one `SQLITE_FLAGS`
+string (`cl` accepts `-D` too), compile with `cl /O2 /MT` or, when `cl` is missing, `clang -O2 -fms-runtime-lib=static`
+and `llvm-lib`, and write the flags to `vendor/sqlite/.flags`, so a flag change rebuilds the lib (today's "lib newer
+than source" check would keep the old one). The Linux margin is thin (clang 18: 1,416 B under 230,000 B; the production
+image's clang is measured by M1's docker job), and §18.4's 2.75 MB budget is a Windows figure: the tuned skeleton is
+2.66 MB on Windows and 2.77 MB unstripped on Linux (`docs/spikes/S0.11.md`).
 
 ### 11.3 `MEMMODE` and `:memory:` parity
 
@@ -2587,7 +2597,14 @@ lists the SQLite stores with their migrations), and union the `EXTS` of those pa
 `hx-csp` (Scripting only, first among extensions, 11 §8.1) → the other extensions in a fixed order, separated by
 `"\n;\n"`, under a header `/* exts: … */`; (3) concatenate CSS (`platform/static/base.css`, the theme, each feature's
 `static/<f>.css`) and behaviours (the platform's core set, each feature's `static/<f>._hs`) the same way; (4)
-precompress with `brotli -q 11` and `gzip -9 -n` (Windows dev builds without brotli ship gzip and identity, 11 §8.3).
+precompress with `brotli -q 11 -f` and `gzip -9 -n -k -f`, which write beside the input. S0.10 settled the details:
+Odin exports the package list from `build`, `run` and `test`, not `check`, so the app `#load`s each bundle under
+`when #exists(...)` and a build before prepare still compiles, then boot check 6 refuses it ("run prepare"); a test
+imports no package that declares `EXTS` beyond what `main` mounts, since `odin build` compiles `_test.odin` files too;
+on Linux both compressors are required, and on Windows the tool finds them on the `PATH` or in Git for Windows, which
+ships both (a build without them ships the encodings it has), so the files are byte-identical on both OSes; an empty
+union gets no header, so `minimal`'s bundle is `htmx.min.js` exactly and boot reads a headerless bundle as the empty
+set.
 
 **Assets ride with the package that owns them** (D4): deleting a feature deletes its CSS and `_hs`. The binary `#load`s
 identity, `.br` and `.gz`, fingerprints each by the crc32 of its identity bytes (one URL for every encoding) and serves
@@ -2599,11 +2616,16 @@ and NPM gzips only `text/html`: htmx, `full`'s extensions and hyperscript fall f
 **Why a bundle is mandatory.** A deferred htmx initialises on a `setTimeout`, so a later extension file misses the
 initial DOM (04 §2.3): with separate files a `<form hx-ws:send>` submitted natively in 3/3 runs per engine (Chrome 156,
 Chromium 153, WebKit 26.6), and without hyperscript `hx-ws:connect` and `hx-sse:connect` never wired. One bundle
-delayed 400 ms: 0 failures (11 §3). S0.10 proves the mechanics; `bundle-race.spec` keeps it (§19).
+delayed 400 ms: 0 failures (11 §3). S0.10 proved the mechanics: `bundle-race.spec` passed 9/9 per engine in Chromium
+153 and WebKit 26.6 with every asset held 400 ms, while the separate-files control failed every run
+(`docs/spikes/S0.10.md`); the spec keeps it (§19).
 
 **Page bundles.** `web.Bundle` is `{Main, Scripting, Compat_Htmx2, Compat_Alpine}`. `Main` is the union; the other
 three have fixed sets in one table and are built only for a profile mounting `scripting` or `compat` (`lab`, and
-`full` for its lab host, ANSWERS F2). The
+`full` for its lab host, ANSWERS F2). Those two web packages say so in one line each, `BUNDLES ::
+bit_set[web.Bundle]{.Scripting}` and `{.Compat_Htmx2, .Compat_Alpine}`; `tools/bundle` builds Main plus every bundle a
+reached package names, `web.Bundle` and its fixed table live in `platform/ext` beside `Ext`, and `tools/check exts`
+covers `BUNDLES` lines too (S0.10). The
 layout takes the bundle as a parameter. Links across bundles are full navigations (`hx-boost="false"`), because a
 body swap keeps the old document's CSP and scripts (11 §6.4, 05 §9). **Hyperscript** is a separate deferred file
 after the bundle, using upstream's shipped `.br`: both layouts are race-free, and separate keeps 175 KB cacheable
@@ -2623,13 +2645,15 @@ the hyperscript client is present: an extension missing from the list registers 
 | Bundle | Profiles | Contents | Raw B | br B |
 |---|---|---|---:|---:|
 | `htmx.min.js` | `minimal`, `skeleton` | htmx 4.0.0, byte-identical to the skeleton's, same crc32 name | 36,716 | 11,736 |
-| Main | `full`, `full-vanilla` | htmx + the 13 Houston extensions (§12.3) | 74,435 † | about 23 KB (21,606 †) |
-| Main | `streams`, `lab` | htmx + the profile's derived union (`streams`: sse, ws, hx-multipart, upsert, hx-pending, ptag, hx-targets, download, hx-prompt, browser-indicator) | S0.10 | S0.10 |
+| Main | `full`, `full-vanilla` | htmx + the 13 Houston extensions (§12.3) | 79,790 | 23,022 |
+| Main | `streams` | htmx + the profile's derived union: sse, ws, hx-multipart, upsert, hx-pending, ptag, hx-targets, download, hx-prompt, browser-indicator | 71,358 | 20,852 |
+| Main | `lab` | htmx + the lab's derived union (S0.10's fixture: 5 extensions) | 71,391 | 20,777 |
 | `_hyperscript.min.js` | `full`, `lab` | 0.9.94 core | 175,365 | 39,706 |
-| Scripting | `lab`; `full` (lab host only) | htmx + hx-csp + hx-live + sse, ws, hx-multipart, hx-pending | 85,110 | 25,021 |
-| Compat_Htmx2, Compat_Alpine | `lab`; `full` (lab host only) | htmx + htmx-2-compat; htmx + hx-alpine-compat | S0.10 | about 12.5 KB each (RF §5.1 estimate) |
+| Scripting | `lab`; `full` (lab host only) | htmx + hx-csp + hx-live + sse, ws, hx-multipart, hx-pending | 85,173 | 25,063 |
+| Compat_Htmx2, Compat_Alpine | `lab`; `full` (lab host only) | htmx + htmx-2-compat; htmx + hx-alpine-compat | 38,466; 38,487 | 12,180; 12,249 |
 
-Sizes: 11 §9 († without browser-indicator and history-cache); "S0.10" = **UNVERIFIED (S0.10)**. Budgets: §18.
+Sizes: S0.10's `tools/bundle` over a fixture of the plan's packages (the real `streams` and `lab` unions come from the
+M1–M2 packages, **UNVERIFIED (M2)**); hyperscript from 11 §9. Budgets: §18.
 
 Every bundle list is derived from the build, never declared (D24's column is labelled so): `streams` gains hx-prompt
 (chat moderation reasons) and browser-indicator (bot generation), the real uses D21 gives them, and every chat
@@ -3941,7 +3965,7 @@ budgets it asserts.
 | Source | Box | Used for | Caveat |
 |---|---|---|---|
 | Windows leg | the dev PC: Ryzen 7 5800X 8C/16T, 64 GB, Windows 11; k6 v2.0.0 co-located on loopback (01 §14) | the parity gate, budgets, micro-guards | shared with other agents and desktop apps: background CPU 0–91 % sampled in 12, 12–59 % in 01 §14; Windows spreads k6's connections unevenly over the loops (12 §2) |
-| Linux leg | the same PC, Linux on WSL2: Odin dev-2026-10 installed in WSL2 (Q5: yes), with 03 §10.3's obj + lld recipe as the fallback (S0.9) | the gate's second leg; the fan-out budgets (Linux, 4 loops); S0.9's TSan build | the same CPU and the same noise |
+| Linux leg | the same PC, Linux on WSL2: Odin dev-2026-10 installed natively in WSL2 (Q5: yes; S0.9 retired 03 §10.3's obj + lld fallback), with k6 v2.0.0 there too | the gate's second leg; the fan-out budgets (Linux, 4 loops); S0.9's TSan build | the same CPU and the same noise |
 | Two-host | k6 on the dev PC → 1 GbE → apollo (`<APOLLO_CPU>`) at stage 1a, from M3 (D41) | relative LAN realism: the deploy gap, the NPM path, the 1 h NPM soak | a functional box, not a perf box: NPM + TLS caps out near 1.9k RPS (S20; 1,888 rps against 21,987 direct for api at 50 VUs, 01 §11) |
 | CI runners | GitHub standard runners | the relative `load-smoke` only | never absolute RPS (08 §5.2) |
 
@@ -4711,7 +4735,7 @@ warning above $10/month (§20.6).
 |---|---|---|---:|---|---|
 | **M0** Spikes | the transition (§4.2 steps 1–7: tags v1.2.0 and v1.2.1, this workspace as the checkout with `_ref/` removed and the scrubbed planning docs committed, the vendored fork); the Odin install in WSL2 (Q5); the spikes above | every spike has a decision record; the workspace is the checkout; `x-version: 6d37506` on the Fly witness and its cost recorded (§20.6) | 40 | — | the rename (Q1: yes); re-run 6d37506's failed CI so it deploys (or ask the agent to), then `FLY_DEPLOY` off (§4.2 step 1); the apollo facts (Q24: yes); Q6 if S0.4 needs it |
 | **M1** Request-path substrate, `skeleton` at parity | the vendored fork productionised (F-1…F-12 in `app/vendor/odin-http/`); `platform/{sys, ext, guard, obs, app, env, web, html, authz, authz/anonymous, store, store/sqlite, store/memory, sqlite, workers, markdown, theme/full, theme/lite, client/vanilla}`; features dashboard, gallery, contacts, about, notes, home, with their stores in both families where they have them (`app/stores/{sqlite,memory}/`); `build.{sh,bat}` and `ols.json` at the root; `cmd/skeleton`, `cmd/minimal`, four hand-written files each; the migration runner adopting skeleton databases; the skeleton's 23 specs ported and tagged; route counters; `tools/{check (imports, profile, routes, contracts), baseline, bundle}`; CI pins, build, check, e2e, docker, linux-ops, nightly ASan, all through `build.*`; audit stamps begin | every profile and every store checked through `build.*` and on its own; `tools/check profile`, `routes` and `contracts` clean; the parity gate green on both legs; the 01 (A) checklist green; ported specs green in 3 engines (Firefox in CI) + the api project; request-path drills (panic, bounds, div, nil, stack, lock, async, sqlite, hang), fuzz smoke, shutdown bound with slowloris, half body and idle peers, restart, fd ceiling with keep-alive connections; skeleton ≤ 2.75 MB, idle ≤ 10 MB, boot → `/readyz` ≤ 50 ms; minimal builds with no SQLite library; route coverage with 0 unexplained waivers; `docs/audit/M1.md` 0 CRITICAL/HIGH | 70 | **v2.0.0**, tagged with `FLY_DEPLOY` still off: Fly keeps serving 6d37506 (v1.2.1; X2) | rename done; `FLY_DEPLOY` stays off (Q29: yes) |
-| **M2** Stream substrate (bundles and CSP, `streams` and the lab pages, generator v1) | `platform/{stream, stream/client, hub}`; `/events` with the cursor procedure; heartbeats, pong deadline, caps, policies, close codes; the writer task; page bundles; flags → CSP; `client/hyperscript` with the gate; features chat (memory, the 4 transports behind `chat_web`'s switch), notify (memory), bot (memory, mock, SSE and multipart delivery, the backend switch), ops, status (basic), scripting, compat, lab; `cmd/streams`, `cmd/lab` (lab pages only); `tools/check topics` and `exts`; `tools/streamload`; `tools/init` compose mode (`--list --json`, `--explain`, `--profile`, `--features`, `--add`, `--without`, the family commands, `--verify`), with parse-planned edits of the profile files; the generator job (with `tools/check profile`) and singleton rotation; the `e2e-proxy` job with a CI Caddyfile (the same `deploy/Caddyfile`, run in CI) and NPM's generated nginx config (X26); the nightly Autobahn\|Testsuite run against the lab's WS echo (X24) | S0.3's specs and the lab specs green in 3 engines and through e2e-proxy; fan-out, restart (4000 back ≤ 3 s), replay and resync, back-pressure budgets; stream drills (`wsdata` → 1011; shutdown ≤ 6 s with 500 SSE + 500 WS; fd ceiling with 3000 streams); TSan 0 reports on hub, stream, workers; 1 h soak; headers, csp-clean, csp-enforced, bundle-race, streams-hxcsp green; minimal, streams and lab built with no SQLite library; generator job green; parity gate green; audit | 65 | v2.1.0 | — (Q32 answered: the bot stays in `streams`) |
+| **M2** Stream substrate (bundles and CSP, `streams` and the lab pages, generator v1) | `platform/{stream, stream/client, hub}`; `/events` with the cursor procedure; heartbeats, pong deadline, caps, policies, close codes; the writer task; page bundles; flags → CSP; `client/hyperscript` with the gate; features chat (memory, the 4 transports behind `chat_web`'s switch), notify (memory), bot (memory, mock, SSE and multipart delivery, the backend switch), ops, status (basic), scripting, compat, lab; `cmd/streams`, `cmd/lab` (lab pages only); `tools/check topics` and `exts`; `tools/streamload`; `tools/init` compose mode (`--list --json`, `--explain`, `--profile`, `--features`, `--add`, `--without`, the family commands, `--verify`), with parse-planned edits of the profile files; the generator job (with `tools/check profile`) and singleton rotation; the `e2e-proxy` job with a CI Caddyfile (the same `deploy/Caddyfile`, run in CI) and NPM's generated nginx config (X26); the nightly Autobahn\|Testsuite run against the lab's WS echo (X24) | S0.3's specs and the lab specs green in 3 engines and through e2e-proxy; fan-out, restart (4000 back ≤ 3 s), replay and resync, back-pressure budgets; stream drills (`wsdata` → 1011; shutdown ≤ 6 s with 500 SSE + 500 WS; fd ceiling with 3000 streams); TSan 0 reports on hub, stream, workers and store/sqlite (S0.11), with one suppression for `core:nbio`'s mpsc assert until an Odin bump fixes it (S0.9); 1 h soak; headers, csp-clean, csp-enforced, bundle-race, streams-hxcsp green; minimal, streams and lab built with no SQLite library; generator job green; parity gate green; audit | 65 | v2.1.0 | — (Q32 answered: the bot stays in `streams`) |
 | **M3** Pipeline and apollo LAN (and the landing page) | the release workflow (GHCR multi-arch); `deploy/compose.yaml` (`8120:80`, the staged seccomp profile, the valid healthcheck), `promote.ps1`; the proxy-config job for NPM's nginx, the publish and the catch-all (X23, X26); `landing` and the status witness board in `cmd/lab`; stages 1a then 1b; two-host load; 1 h NPM soak; the Fly witness redeployed from `cmd/skeleton` at the exit (X2) | minimal, streams, skeleton (LAN) and lab deployed by `promote -Target apollo-lan -Tag v2.2.x` with smoke; `starter-skeleton` green on the 40-item checklist (01 (A)) on apollo's LAN at stage 1a; a deliberately broken tag rolls back by itself; 0 5xx through Caddy during a promote under 50 VUs; 1000 SSE through NPM held 1 h with no idle cuts; `readelf` confirms the distroless base with SQLite linked; every redirect alias passes its curl test; the seccomp path, the `8120:80` publish and the 421 catch-all confirmed (X21, X23); the apollo inventory recorded; the parity gate green (X25); then `FLY_DEPLOY=true` and the v2.2.0 tag redeploy Fly, and the witness's cost is checked: over $10/month, Alex is warned (Q15) | 30 | v2.2.0; Fly redeployed from `cmd/skeleton` | create `<APOLLO_DATA_DIR>/odin-htmx-starter` (sudo); split DNS before the first LAN deploy (the seven DNS-only `A` records pointing at `<APOLLO_LAN_IP>`, X41); the four NPM hosts (`houston-lab` included) and the Access List; the promote permission rule; `worker_connections` 4096 (Q14: yes; X40); optionally, an NPM upgrade, never an agent's step (X40; the `e2e-proxy` pin then follows); `FLY_DEPLOY=true` before the v2.2.0 tag (Q29: yes) |
 | **M4** Identity and the Houston shell | accounts (with envadmin and nick), authz enforcement (route perms, step-up, `.Lan_Only`), audit, modules; `cmd/full` with its two hosts: Houston (home and Today cards, nav from brand.odin, themes including `houston` and `accounts_prefs`) and `houston-lab.alexh95.com` with every starter demo and lab page (`landing` at its root, `notes`, the skeleton's `dashboard` at `/dashboard`, `gallery`, `contacts` and `about`, `lab`, `scripting`, `compat`), `app.Host`, per-host tables, the boot's lab rules, `SITE_URL_LAB`, `LAB_NAV`, the `NOTES_CAP` and `CONTACTS_CAP` demo caps and their nightly resets (ANSWERS F2, round 3); the hyperscript behaviours and their vanilla twins; the `full-vanilla` build (`full` with the vanilla client); pairwise and selection fuzzing start nightly | slice gate; the lab host's demo, `lab` and stream pages pass their specs there, and the demo resets run; `rbac.spec` over 100 % of routes × roles, freezing Q31's grants, and every route × both hosts in `full`; `revoke.spec` (X19); CSRF and CSWSH specs; the login-storm budget; behaviour duality (full and full-vanilla); the argon pool memory cap; injected `_` inert; `headers.spec` and `csp-clean.spec` on both of `full`'s hosts (the lab host sets no cookie), and the lab host passes `csp-enforced` and `streams-hxcsp`; Houston and its lab host deployed at stage 1b (no invites yet) | 50 | v2.3.0 | Q10, Q11, Q31; Alex runs `--hash-password` for the bootstrap admin and never shares the password |
 | **M5** Operate | ops, status (full), jobs (with leases; backups as jobs), dbview | slice gate; one ops render per second whatever the number of viewers (CPU flat from 1 to 100 viewers); status parts swap independently (parallel order asserted); a backup and restore drill; dbview never takes the writer lock | 28 | v2.4.0 | — |
@@ -4821,7 +4845,7 @@ RESOLUTIONS X27).
 | R1 | The fork costs request-path throughput or stability | low / high | S0.2 before anything builds on it; hot path untouched; 03's contract tests in CI; a small vendored diff, re-applied per bump (ANSWERS F3) |
 | R2 | `:memory:` parity can't be met | medium / medium | S0.4's three candidates; Q6 decided before M1 |
 | R2a | File-DB write parity: 0.98× clears the 0.97 bar narrowly (12 §2), a watched margin | medium / medium | S0.1's and S0.4's paired rounds settle it; if the cell fails, the file DB also gets D17's candidate C (group commit of skeleton writes through the writer task) (RESOLUTIONS X17; §18.3) |
-| R3 | core:nbio is young; Windows puts every connection on one loop, so cross-loop bugs show only on Linux | medium / high | Linux legs in parity, TSan, soak and linux-ops; pin dev-2026-10; bump to dev-2026-11 only through a parity re-run (09 §1.2); avoid unbuffered multi-sender `core:sync/chan` until then |
+| R3 | core:nbio is young; Windows puts every connection on one loop, so cross-loop bugs show only on Linux | medium / high | Linux legs in parity, TSan, soak and linux-ops; pin dev-2026-10; bump to dev-2026-11 only through a parity re-run (09 §1.2); avoid unbuffered multi-sender `core:sync/chan` until then; TSan flags a plain read inside an `assert` in `core:nbio`'s cross-thread queue (`mpsc.odin:36`), suppressed by name until a bump fixes it (S0.9) |
 | R4 | The guard is formally UB (no returns_twice) | low / high | trivial guarded frame, volatile loads; dirty → exit 70; drills on both OSes every push |
 | R5 | htmx 4.0.0 bugs (history, SSE abort noise, hx-pending error) | high / low | pin; the known-error allowlist; history-cache first on the cut list; four-dev watched; bump gated by the per-extension e2e |
 | R6 | _hyperscript is pre-1.0 with a bus factor of 1, and agents write htmx-2 events | medium / medium | optional client; vanilla twins of the core behaviours; the install-only gate; `--validate` in CI; SHA pin |
