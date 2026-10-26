@@ -147,6 +147,9 @@ Server_Thread :: struct {
 	// second while other threads read it (torn reads put NUL bytes in about 2 in 800k headers).
 	date:       Server_Date,
 
+	// F-7: the thread's 1 s timeout sweep.
+	sweep:      ^nbio.Operation,
+
 	// F-13: the last request generation handed out on this thread, and the refs to deferred
 	// responses not yet resumed (shutdown waits for them).
 	next_gen:   u64,
@@ -287,6 +290,11 @@ _server_thread_init :: proc(s: ^Server, ttd: ^Server_Thread) {
 
 	td.accept = nbio.accept_poly(s.tcp_sock, s, on_accept)
 
+	// F-7: one timer per thread checks every connection's deadline once a second.
+	if s.opts.header_timeout > 0 || s.opts.idle_timeout > 0 || s.opts.body_timeout > 0 {
+		td.sweep = nbio.timeout_poly(SWEEP_INTERVAL, s, _sweep_timeouts)
+	}
+
 	log.debug("starting event loop")
 	td.state = .Serving
 	for {
@@ -345,6 +353,10 @@ _server_thread_shutdown :: proc(s: ^Server, loc := #caller_location) {
 	if td.accept != nil {
 		nbio.remove(td.accept)
 		td.accept = nil
+	}
+	if td.sweep != nil {
+		nbio.remove(td.sweep)
+		td.sweep = nil
 	}
 
 	// F-4: the application cancels its per-loop timers and tells its streams.
@@ -591,6 +603,32 @@ _on_accept :: proc(op: ^nbio.Operation, server: ^Server) {
 
 	log.debugf("new connection with thread, got %d conns", len(td.conns))
 	conn_handle_reqs(c)
+}
+
+// F-7: how often a thread looks for connections past their deadline; a timeout fires up to this late.
+@(private)
+SWEEP_INTERVAL :: time.Second
+
+// F-7: closes (or fails the body read of) every connection on this thread whose scanner is waiting
+// past its phase's deadline. One pass over the thread's connections a second replaces a timeout on
+// every read.
+@(private)
+_sweep_timeouts :: proc(_: ^nbio.Operation, s: ^Server) {
+	td.sweep = nil
+	if td.state != .Serving { return }
+	now := nbio.now()
+	for _, c in td.conns {
+		sc := &c.scanner
+		if sc.recv_op == nil || sc.deadline == {} || time.diff(sc.deadline, now) < 0 { continue }
+		#partial switch c.state {
+		case .New, .Idle, .Active:
+			log.debugf("connection %i: %v phase timed out", c.socket, sc.phase)
+			if !_invoke(s, proc(a, _: rawptr) { scanner_timed_out((^Scanner)(a)) }, sc, nil) {
+				connection_crashed(c)
+			}
+		}
+	}
+	td.sweep = nbio.timeout_poly(SWEEP_INTERVAL, s, _sweep_timeouts)
 }
 
 @(private)

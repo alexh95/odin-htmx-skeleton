@@ -235,12 +235,25 @@ scanner_scan :: proc(
 	s.could_be_too_short = could_be_too_short
 
 	assert_has_td()
-	// F-7: the read ends at the phase's deadline.
-	timeout := nbio.NO_TIMEOUT
-	if s.deadline != {} {
-		timeout = max(time.diff(nbio.now(), s.deadline), time.Millisecond)
-	}
-	s.recv_op = nbio.recv_poly(s.connection.socket, {s.buf[s.end:len(s.buf)]}, s, scanner_on_read, timeout = timeout)
+	// F-7: the phase's deadline is enforced by the thread's 1 s sweep (_sweep_timeouts), not by a
+	// timeout on each read: on io_uring a per-read timeout is a linked operation, an extra submission
+	// and completion per request, and cost 2-4 % on the lightest routes (S0.2).
+	s.recv_op = nbio.recv_poly(s.connection.socket, {s.buf[s.end:len(s.buf)]}, s, scanner_on_read)
+}
+
+// F-7: ends the read in flight as if the peer had left (EOF): the scanner's callback runs as it would
+// for a closed connection, so a handler reading a body gets an error, and a request line or headers
+// that never finish close the connection.
+scanner_timed_out :: proc(s: ^Scanner) {
+	if s.recv_op == nil { return }
+	scanner_cancel(s)
+	// A body cut off part way leaves its rest unread on the wire, so the connection must close after
+	// the answer: `_body_length` marks the body read before scanning it, so the response path alone
+	// would keep it alive and read the rest as the next request.
+	if s.phase == .Body { connection_set_state(s.connection, .Will_Close) }
+	context.temp_allocator = virtual.arena_allocator(&s.connection.temp_allocator)
+	s._err = .EOF
+	scanner_scan(s, s.user_data, s.callback)
 }
 
 scanner_on_read :: proc(op: ^nbio.Operation, s: ^Scanner) {
