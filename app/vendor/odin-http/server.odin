@@ -355,7 +355,13 @@ _server_thread_shutdown :: proc(s: ^Server, loc := #caller_location) {
 		for sock, conn in td.conns {
 			#partial switch conn.state {
 			case .Active, .Will_Close:
-				if past_deadline {
+				if conn.state == .Active && conn.scanner.phase != .Body {
+					// Still reading the request line or headers (a slowloris looks like this):
+					// no handler runs yet, so it closes like an idle connection.
+					scanner_cancel(&conn.scanner)
+					connection_close(conn)
+					waiting += 1
+				} else if past_deadline {
 					log.infof("shutdown: connection %i still active at the drain deadline, cutting it", sock)
 					net.shutdown(conn.socket, .Both)
 				} else {
@@ -370,8 +376,9 @@ _server_thread_shutdown :: proc(s: ^Server, loc := #caller_location) {
 				connection_close(conn)
 				waiting += 1
 			case .Closing:
+				// Waits out Conn_Close_Delay so the peer can read what was sent; not past the deadline.
 				log.debugf("shutdown: connection %i is closing", sock)
-				waiting += 1
+				if !past_deadline { waiting += 1 }
 			case .Closed:
 				log.warn("closed connection in connections map, maybe a race or logic error")
 			}
