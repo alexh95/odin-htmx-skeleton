@@ -11,7 +11,7 @@ What's left, as a checklist. Check items off as they land and add follow-ups as 
 - [ ] Write the site's home title: `BRAND_HOME_TITLE` in `app/src/views/brand.odin` is a stand-in,
       and it's what a search result shows for the site.
 - [ ] Point `SITE_URL` at your domain (`brand.odin`, or `SITE_URL` in `fly.toml`).
-- [ ] Re-render the social card `app/static/og.png` from `tools/og/og.html`, and redraw the favicon
+- [ ] Re-render the social card `app/platform/static/og.png` from `tools/og/og.html`, and redraw the favicon
       (`favicon.svg` + `favicon.ico`).
 - [ ] If you want search-engine verification: set `BING_SITE_AUTH` / `INDEXNOW_KEY` in `brand.odin`
       and register their routes (the starter has none).

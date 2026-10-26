@@ -1,0 +1,201 @@
+package web
+
+// ---- responses and request helpers ---------------------------------------------
+//
+// odin-http names text types without a charset ("text/html"); the pages say
+// UTF-8 in a <meta>, but the header is what a client reads first, so text goes
+// out through these, never http.respond_html or http.respond_plain.
+
+import "core:net"
+import "core:strconv"
+import "core:strings"
+
+import http "../../vendor/odin-http"
+import "../html"
+import "../store"
+
+respond_html :: proc(res: ^Response, body: string, status := Status.OK) {
+	respond_text(res, "text/html; charset=utf-8", body, status)
+}
+
+respond_plain :: proc(res: ^Response, body: string, status := Status.OK) {
+	respond_text(res, "text/plain; charset=utf-8", body, status)
+}
+
+respond_json :: proc(res: ^Response, v: any, status := Status.OK) {
+	http.respond_json(res, v, status)
+}
+
+// Content type from the name's extension.
+respond_file :: proc(res: ^Response, name: string, content: []byte, status := Status.OK) {
+	http.respond_file_content(res, name, content, status)
+}
+
+respond_status :: proc(res: ^Response, status: Status) {
+	http.respond(res, status)
+}
+
+@(private)
+respond_text :: proc(res: ^Response, content_type, body: string, status: Status) {
+	res.status = status
+	http.headers_set_content_type(&res.headers, content_type)
+	http.body_set(res, body)
+	http.respond(res)
+}
+
+header :: proc(req: ^Request, name: string) -> (string, bool) #optional_ok {
+	return http.headers_get(req.headers, name)
+}
+
+has_header :: proc(req: ^Request, name: string) -> bool {
+	return http.headers_has(req.headers, name)
+}
+
+set_header :: proc(res: ^Response, name, value: string) {
+	http.headers_set(&res.headers, name, value)
+}
+
+is_htmx :: proc(req: ^Request) -> bool {
+	return http.headers_has(req.headers, "hx-request")
+}
+
+// ---- pages ------------------------------------------------------------------------
+
+// A whole page in the host's shell: its brand, its nav, the assets.
+render_page :: proc(req: ^Request, res: ^Response, title, active, description, content: string, status := Status.OK) {
+	respond_html(res, page_html(title, active, description, content), status)
+}
+
+page_html :: proc(title, active, description, content: string) -> string {
+	site := ctx().site
+	return html.layout({
+		brand = site.brand, origin = site.origin, nav = site.nav,
+		css = assets.css_href, htmx = assets.htmx_href, js = assets.js_href,
+		title = title, active = active, description = description,
+	}, content)
+}
+
+// A 404 a person might be looking at gets the site's own page; an htmx or API
+// request gets a bare 404, since a page would be swapped into a fragment.
+not_found :: proc(req: ^Request, res: ^Response) {
+	if is_htmx(req) {
+		http.respond(res, Status.Not_Found)
+		return
+	}
+	msg := "There is nothing at this address. It may have moved, or never existed."
+	respond_html(res, page_html("Not found", "", msg, html.error_body("Page not found", msg)), .Not_Found)
+}
+
+// A store failure the handler can't recover from. A missing row keeps its plain
+// 404; anything else gets a status and, as htmx 4 swaps error responses too, an
+// out-of-band toast for an htmx request (a response that is all OOB leaves its
+// target alone) or an error page for a page load.
+respond_store_error :: proc(req: ^Request, res: ^Response, err: store.Error) {
+	status := Status.Internal_Server_Error
+	msg := "Something went wrong on our side. Try again in a moment."
+	#partial switch err {
+	case .Not_Found:
+		not_found(req, res)
+		return
+	case .Constraint:
+		status, msg = .Conflict, "That change conflicts with what is already stored."
+	case .Busy:
+		status, msg = .Service_Unavailable, "The server is busy. Try again in a moment."
+		http.headers_set(&res.headers, "retry-after", "1")
+	}
+	if is_htmx(req) {
+		respond_html(res, html.toast("error", msg, true), status)
+	} else {
+		respond_html(res, page_html("Error", "", msg, html.error_body("That didn't work", msg)), status)
+	}
+}
+
+// ---- the query and the form --------------------------------------------------------
+
+// One query parameter, decoded. odin-http hands over the raw query; it is walked
+// once rather than built into a map for the one key wanted.
+query_get :: proc(req: ^Request, key: string) -> string {
+	q := req.url.query
+	for part in strings.split_by_byte_iterator(&q, '&') {
+		eq := strings.index_byte(part, '=')
+		k := part if eq < 0 else part[:eq]
+		if k == key {
+			return form_decode("" if eq < 0 else part[eq + 1:])
+		}
+	}
+	return ""
+}
+
+// An integer parameter; `fallback` when absent. Garbage parses as 0, as the
+// skeleton's did: the services clamp what they get.
+query_int :: proc(req: ^Request, key: string, fallback: int) -> int {
+	s := query_get(req, key)
+	if s == "" { return fallback }
+	return to_int(s)
+}
+
+// The request's form fields, '+'- and percent-decoded; empty without a body.
+// front read the body before routing, capped and same-origin checked.
+form :: proc(req: ^Request) -> map[string]string {
+	c := ctx()
+	if !c.parsed {
+		c.form = body_form(c.body)
+		c.parsed = true
+	}
+	return c.form
+}
+
+// Parses an application/x-www-form-urlencoded body. Unlike http.body_url_encoded
+// it decodes '+' as a space: htmx 4 sends spaces as '+' (the form-encoding
+// standard), and odin-http's parser only percent-decodes.
+@(private)
+body_form :: proc(s: string) -> map[string]string {
+	m := make(map[string]string, context.temp_allocator)
+	s := s
+	for part in strings.split_by_byte_iterator(&s, '&') {
+		if part == "" { continue }
+		eq := strings.index_byte(part, '=')
+		key := part if eq < 0 else part[:eq]
+		val := "" if eq < 0 else part[eq + 1:]
+		m[form_decode(key)] = form_decode(val)
+	}
+	return m
+}
+
+// '+' to a space, then percent-decoding; a malformed escape is kept as typed.
+form_decode :: proc(s: string) -> string {
+	if s == "" { return "" }
+	t := s
+	if strings.index_byte(s, '+') >= 0 {
+		t, _ = strings.replace_all(s, "+", " ", context.temp_allocator)
+	}
+	dec, ok := net.percent_decode(t, context.temp_allocator)
+	return dec if ok else t
+}
+
+// A row id from a path capture: digits only, positive, within i64. An
+// ownership check on one id must never act on another.
+parse_id :: proc(s: string) -> (id: i64, ok: bool) {
+	n, digits_ok := parse_digits(s)
+	return i64(n), digits_ok && n > 0
+}
+
+// Digits only, within int. Not strconv.parse_int: it takes a sign and '_'
+// separators, and wraps silently past 64 bits (18446744073709551617 parses as 1).
+parse_digits :: proc(s: string) -> (n: int, ok: bool) {
+	if s == "" { return 0, false }
+	for i in 0 ..< len(s) {
+		if s[i] < '0' || s[i] > '9' { return 0, false }
+		d := int(s[i] - '0')
+		if n > (max(int) - d) / 10 { return 0, false }
+		n = n * 10 + d
+	}
+	return n, true
+}
+
+// A form or query integer, as the skeleton read one: strconv's prefix parse,
+// garbage as 0. The services clamp what they get; ids go through parse_id.
+to_int :: proc(s: string) -> int {
+	n, _ := strconv.parse_int(s, 10)
+	return n
+}

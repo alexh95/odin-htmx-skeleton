@@ -95,7 +95,7 @@ strip_to_minimal :: proc(opt: Options) {
 	put("load-tests/scenarios/notes.js", MIN_NOTES_LOAD)
 
 	// 3. The note-page styles ride on top of the kept theme/component CSS.
-	append_to("app/static/app.css", MIN_CSS)
+	append_to("app/platform/static/app.css", MIN_CSS)
 
 	// 4. The load driver runs whatever scenarios are left; only its optional
 	//    bombardier baseline names a demo path. CI's build-job smoke test hits

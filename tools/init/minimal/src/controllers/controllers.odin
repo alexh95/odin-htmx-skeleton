@@ -138,13 +138,13 @@ favicon_ico :: proc(req: ^http.Request, res: ^http.Response) {
 // to this file: src/controllers -> app/static) and served from memory, so the
 // binary is fully self-contained. prepare.* fetches htmx before the first build.
 HTMX_JS :: #load("../../static/htmx.min.js")
-APP_CSS :: #load("../../static/app.css")
-APP_JS :: #load("../../static/app.js")
-FAVICON :: #load("../../static/favicon.svg")
+APP_CSS :: #load("../../platform/static/app.css")
+APP_JS :: #load("../../platform/client/vanilla/app.js")
+FAVICON :: #load("../../platform/static/favicon.svg")
 // Search engines look for /favicon.ico at the site root and are far more
 // reliable with a raster .ico than with an SVG; browsers prefer the SVG.
-FAVICON_ICO :: #load("../../static/favicon.ico")
-OG_IMAGE :: #load("../../static/og.png")
+FAVICON_ICO :: #load("../../platform/static/favicon.ico")
+OG_IMAGE :: #load("../../platform/static/og.png")
 
 // Strong ETags (content hashes) computed once at startup; they let the browser
 // revalidate with a cheap 304 after max-age instead of re-downloading.

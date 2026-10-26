@@ -65,6 +65,24 @@ start :: proc(p: ^Pool, name: string, threads, queue_cap: int) {
 	for &t in p.threads {
 		t = thread.create_and_start_with_poly_data(p, worker, context)
 	}
+	sync.mutex_lock(&registry.mu)
+	append(&registry.pools, p)
+	sync.mutex_unlock(&registry.mu)
+}
+
+// Every started pool, so platform/app can drain them all at shutdown without
+// knowing which features started which.
+@(private)
+registry: struct {
+	mu:    sync.Mutex,
+	pools: [dynamic]^Pool,
+}
+
+// From each loop's shutdown hook (F-4): idempotent.
+drain_all :: proc() {
+	sync.mutex_lock(&registry.mu)
+	defer sync.mutex_unlock(&registry.mu)
+	for p in registry.pools { drain(p) }
 }
 
 // On a loop thread. false: the queue is full or the pool is draining, and the
@@ -116,6 +134,14 @@ stop :: proc(p: ^Pool) {
 	delete(p.threads)
 	delete(p.queue)
 	p.threads, p.queue = nil, nil
+	sync.mutex_lock(&registry.mu)
+	for q, i in registry.pools {
+		if q == p {
+			unordered_remove(&registry.pools, i)
+			break
+		}
+	}
+	sync.mutex_unlock(&registry.mu)
 }
 
 depth :: proc(p: ^Pool) -> int {

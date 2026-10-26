@@ -88,9 +88,9 @@ main :: proc() {
 	fmt.println("  - app/src/views/brand.odin: BRAND_HOME_TITLE is a stand-in tagline; write the site's own")
 	fmt.println("    (~60 chars, it's the search-result title). The wordmark/suffix/repo live there too")
 	fmt.printfln("  - SITE_URL is %s: point it at your real domain (brand.odin, or SITE_URL in fly.toml)", opt.site)
-	fmt.println("  - app/static/og.png, the social card, is still the upstream's: re-render it from")
+	fmt.println("  - app/platform/static/og.png, the social card, is still the upstream's: re-render it from")
 	fmt.println("    tools/og/og.html (which now carries your name; the command is in the file)")
-	fmt.println("  - app/static/favicon.svg + favicon.ico are the upstream's mark: redraw them when you have one")
+	fmt.println("  - app/platform/static/favicon.svg + favicon.ico are the upstream's mark: redraw them when you have one")
 	fmt.println("  - BING_SITE_AUTH / INDEXNOW_KEY are blank, so their routes 404 until you verify your site")
 	fmt.println("  - deploy: infra/PLAN.md → Operator steps (Fly), or deploy/docker-host (any Docker host)")
 	fmt.println("  - LICENSE is the upstream's zlib notice, which stays in source copies; add your own")
@@ -230,7 +230,7 @@ rename :: proc(opt: Options) {
 		},
 	)
 	edit(
-		"app/static/favicon.svg",
+		"app/platform/static/favicon.svg",
 		[]Repl {
 			{`aria-label="odin-htmx"`, strings.concatenate({`aria-label="`, suffix, `"`})},
 			{`<title>odin · htmx</title>`, strings.concatenate({`<title>`, suffix, `</title>`})},
@@ -265,7 +265,7 @@ rename :: proc(opt: Options) {
 		".github/workflows/ci.yml",
 		"app/run.sh",
 		"app/run.bat",
-		"app/static/app.css",
+		"app/platform/static/app.css",
 		"load-tests/run.sh",
 		"load-tests/README.md",
 		"e2e/global-setup.ts",
