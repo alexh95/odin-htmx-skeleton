@@ -1,16 +1,16 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { test, expect } from '../fixtures';
-import { appDirFrom, PROFILE } from '../global-setup';
+import { test, expect, has } from '../../fixtures';
+import { appDirFrom, PROFILE } from '../../global-setup';
 
 // The crawler-facing contract. None of this is visible in the UI, so it can rot
 // silently — these are the checks that catch it.
 //
 // Everything is derived from what the app actually serves rather than hardcoded:
 // the canonical origin is a compile-time constant (views.SITE_URL) and the page
-// set comes from views.NAV, which `init --minimal` legitimately shrinks. So the
+// set comes from the profile's NAV, which differs between profiles. So the
 // assertions match on shape and cross-check the app against itself, and the same
-// spec holds for the full demo and the minimal starter alike.
+// spec holds for every profile.
 const ORIGIN = /^https:\/\/[a-z0-9.-]+$/;
 
 function attr(text: string, re: RegExp): string {
@@ -39,7 +39,7 @@ function brandConst(name: string): string {
   return m![1];
 }
 
-test.describe('SEO contract', () => {
+test.describe('SEO contract', { tag: '@platform' }, () => {
   test('robots.txt allows the pages and points at the sitemap', async ({ request }) => {
     const res = await request.get('/robots.txt');
     expect(res.status()).toBe(200);
@@ -53,14 +53,16 @@ test.describe('SEO contract', () => {
     const sitemap = attr(body, /Sitemap: (\S+)/);
     expect(sitemap).toMatch(/^https:\/\/.+\/sitemap\.xml$/);
 
-    // The demo's fragment routes answer with bare HTML meant to be swapped into a
-    // page; indexed alone they are thin near-duplicates competing with the real
-    // pages. The minimal starter has none of them, so this is scoped to the demo.
-    const paths = await sitemapPaths(request);
-    if (paths.includes('/data')) {
-      for (const p of ['/ui/', '/api/', '/search', '/contacts', '/validate/', '/forms/submit']) {
-        expect(body).toContain(`Disallow: ${p}`);
-      }
+    // Fragment routes answer with bare HTML meant to be swapped into a page;
+    // indexed alone they are thin near-duplicates competing with the real pages.
+    // Each feature's, where the build mounts it.
+    const fragments: Record<string, string[]> = {
+      gallery: ['/ui/', '/validate/', '/forms/submit'],
+      contacts: ['/api/', '/search', '/contacts'],
+    };
+    for (const [feature, prefixes] of Object.entries(fragments)) {
+      if (!has(feature)) continue;
+      for (const p of prefixes) expect(body).toContain(`Disallow: ${p}`);
     }
   });
 
@@ -103,7 +105,11 @@ test.describe('SEO contract', () => {
 
   test('BingSiteAuth.xml proves ownership with a well-formed token', async ({ request }) => {
     const token = brandConst('bing_site_auth');
-    test.skip(token === '', 'BING_SITE_AUTH is unset, so the route 404s by design');
+    if (token === '') {
+      // Unset, the route 404s: a fork never advertises a stale token.
+      expect((await request.get('/BingSiteAuth.xml')).status()).toBe(404);
+      return;
+    }
 
     const res = await request.get('/BingSiteAuth.xml');
     expect(res.status()).toBe(200);
@@ -121,7 +127,11 @@ test.describe('SEO contract', () => {
     // The path *is* the key, so a route that stopped matching it would silently
     // deactivate IndexNow; this is what notices.
     const KEY = brandConst('indexnow_key');
-    test.skip(KEY === '', 'INDEXNOW_KEY is unset, so the route is not registered');
+    if (KEY === '') {
+      // Unset, no hex path is the key: the route 404s for every one.
+      expect((await request.get('/0123456789abcdef.txt')).status()).toBe(404);
+      return;
+    }
 
     const res = await request.get(`/${KEY}.txt`);
     expect(res.status()).toBe(200);
@@ -247,13 +257,10 @@ test.describe('SEO contract', () => {
     expect(h1).not.toBe(navLabel);
   });
 
-  test('the home page carries prose, not only widgets', async ({ request }) => {
+  test('the home page carries prose, not only widgets', { tag: '@dashboard' }, async ({ request }) => {
     // Stat cards and link tiles are captions; alone they leave the page thin for
     // anyone — reader or crawler — who arrives without knowing what the project
-    // is. Scoped to the demo, whose copy this is; the starter has its own.
-    const paths = await sitemapPaths(request);
-    test.skip(!paths.includes('/data'), 'demo copy');
-
+    // is. The dashboard's copy, so it runs where the dashboard is the home page.
     const html = await (await request.get('/')).text();
     const prose = attr(html, /<article class="card about">([\s\S]*?)<\/article>/)
       .replace(/<[^>]+>/g, ' ')

@@ -1,0 +1,14 @@
+# The waivers of the two parity rules, one per line, each with its reason (PLAN §18.2, §19.1.11).
+# Every milestone audit reviews them; a line without a reason is an unexplained waiver, which the
+# slice gate allows none of. Fields are separated by " | ":
+#
+#   perf  | <scenario>@<store> | <legs>   | <reason>   the cell is gated against HEAD (709bc94) alone,
+#                                                      not max(HEAD, v1.1.1); read by load-tests/lib/parity.mjs
+#   route | <route id>         | <suites> | <reason>   the suites (e2e, load) needn't reach the route;
+#                                                      read by tools/check parity
+#
+# Nothing is waived without Alex (PLAN §18.2), and a file-DB cell never is.
+
+perf | pages@mem | windows linux | v1.1.1 sorts its 20 rows in Odin straight from RAM; C reads them through SQLite on a per-loop reader. 0.95 (Linux) and 0.96 (Windows) against max, 2.64 and 2.44 against HEAD (docs/spikes/S0.4.md; Q6, 2026-10-26)
+perf | list@mem | windows linux | the same as pages@mem: 0.93 (Linux) and 0.94 (Windows) against max, 3.95 and 3.70 against HEAD (docs/spikes/S0.4.md; Q6, 2026-10-26)
+perf | write@mem | linux | on Linux tmpfs v1.1.1's in-RAM insert is cheaper than a WAL append, even batched: 0.91 against max, 0.98 against HEAD; Windows passes at 1.20 (docs/spikes/S0.4.md; Q6, 2026-10-26)

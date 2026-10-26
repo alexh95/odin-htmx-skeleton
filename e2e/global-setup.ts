@@ -1,7 +1,7 @@
 import type { FullConfig } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
+import { createHash, randomBytes } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 // Resolve app/ relative to this config's location (not cwd or rootDir, which is
@@ -17,6 +17,13 @@ export const PROFILE = process.env.E2E_PROFILE || 'skeleton';
 
 // The binary global-setup builds and helpers/server.ts starts, relative to app/.
 export const BIN = process.platform === 'win32' ? `bin\\${PROFILE}.exe` : `bin/${PROFILE}`;
+
+// Where each server's per-route request counters land when it stops
+// (helpers/server.ts), for `tools/check parity` (PLAN §19.1.11): every route the
+// profile mounts needs a non-zero count from e2e and from the load suite.
+export function coverageDir(appDir: string): string {
+  return path.join(appDir, 'build', 'coverage', 'e2e', PROFILE);
+}
 
 // Whether prepare's outputs are in place and match its current pins (read from
 // prepare.sh; prepare.bat pins the same): htmx by its SHA-256, the SQLite source
@@ -61,4 +68,14 @@ export default function globalSetup(config: FullConfig) {
   const repo = path.resolve(appDir, '..');
   if (process.platform === 'win32') execFileSync('cmd', ['/c', path.join(repo, 'build.bat'), PROFILE], { cwd: repo, stdio: 'inherit' });
   else execFileSync('sh', [path.join(repo, 'build.sh'), PROFILE], { cwd: repo, stdio: 'inherit' });
+
+  // This run's counters only, and this run's bearer for /metrics.
+  const coverage = coverageDir(appDir);
+  rmSync(coverage, { recursive: true, force: true });
+  mkdirSync(coverage, { recursive: true });
+  writeFileSync(path.join(coverage, '.token'), randomBytes(16).toString('hex'));
+
+  // What the build mounts, in its own words: fixtures.ts runs a spec only when
+  // the profile has every feature its tags name. Workers inherit the variable.
+  process.env.E2E_FEATURES = execFileSync(path.join(appDir, BIN), ['--features', '--json'], { cwd: appDir, encoding: 'utf8' });
 }

@@ -1,8 +1,10 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE } from '../lib/config.js';
-import { options as build, summarize } from '../lib/options.js';
+import { BASE } from '../../lib/config.js';
+import { options as build, summarize } from '../../lib/options.js';
 
+// tags: @platform
+//
 // The crawler's view of the site. Cheap by construction — robots.txt is a fixed
 // string and sitemap.xml is a walk over views.NAV — so this should sit close to
 // the `static` ceiling. It is measured anyway because both are built per request

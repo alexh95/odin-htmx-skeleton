@@ -1,9 +1,9 @@
-import { test, expect } from '../fixtures';
+import { test, expect } from '../../fixtures';
 
 // Layout defaults a fork inherits the moment it adds markup: a bare checkbox
-// keeps its natural size, and the starter's note list sits flush with its input,
-// newest note first. Shared by the demo and the --minimal starter.
-test.describe('style defaults', () => {
+// keeps its natural size, a range input its own track. Every profile (the note
+// list's layout is in notes/notes.spec.ts).
+test.describe('style defaults', { tag: '@platform' }, () => {
   test('a bare checkbox or radio is not stretched to the full width', async ({ page }) => {
     await page.goto('/');
     const widths = await page.evaluate(() => {
@@ -32,18 +32,5 @@ test.describe('style defaults', () => {
       return getComputedStyle(el).paddingLeft;
     });
     expect(padding).toBe('0px');
-  });
-
-  test('the starter lists notes flush with the form, newest first', async ({ page, request }) => {
-    test.skip((await request.get('/data')).status() === 200, 'starter page');
-    await page.goto('/');
-    const list = page.locator('#note-list');
-    expect(await list.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe('0px');
-    // Among the seeded notes the welcome one is the newest, so it comes first.
-    // (Other specs may have added newer notes above them on this worker's store.)
-    const notes = await list.locator('.note-body').allTextContents();
-    const at = (s: string) => notes.findIndex((n) => n.includes(s));
-    expect(at('Welcome')).toBeGreaterThanOrEqual(0);
-    expect(at('Welcome')).toBeLessThan(at('Notes live in SQLite'));
   });
 });

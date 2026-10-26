@@ -33,7 +33,7 @@ services:
       # ephemeral, freshly-seeded store instead.
       - DB_PATH=/data/data.db
       # The canonical origin for canonical tags + the sitemap, if this host
-      # serves the public site (see app/src/views/brand.odin).
+      # serves the public site (see site_url in app/cmd/<profile>/brand.odin).
       # - SITE_URL=https://www.example.com
       # THREADS defaults to the core count. THREADS=1 reproduces the
       # single-thread baseline for an on-server before/after.

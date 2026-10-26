@@ -1,17 +1,19 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
 import type { FullConfig } from '@playwright/test';
-import { appDirFrom, BIN } from '../global-setup';
+import { appDirFrom, BIN, coverageDir } from '../global-setup';
 
 // Starts and talks to the server under test. fixtures.ts gives each worker one;
 // specs that need their own (a file DB, a store they may wreck) start one here.
 // The binary is built once in global-setup.ts.
 
 // `output` is everything the server has printed so far, start-up banner included
-// (a listener attached after startServer returns would miss that).
-export type Server = { port: number; proc: ChildProcess; output: () => string };
+// (a listener attached after startServer returns would miss that). `coverage` is
+// where stopServer leaves its per-route counters.
+export type Server = { port: number; proc: ChildProcess; output: () => string; coverage: string };
 export type Resp = { status: number; body: string };
 
 // A port nothing listens on, picked by the OS. A fixed base can't promise that:
@@ -31,13 +33,18 @@ function freePort(): Promise<number> {
 // The env is pinned, not inherited: the server prefers PORT over argv, and an
 // exported DB_PATH would aim the suite's deletes at a real database. An empty
 // BIND_ALL/SITE_URL reads as unset, so the server stays on loopback with its
-// built-in canonical origin. `env` overrides (a spec's own DB_PATH).
+// built-in canonical origin. /metrics takes this run's bearer, so stopServer can
+// read the counters. `env` overrides (a spec's own DB_PATH).
 export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {}): Promise<Server> {
   const appDir = appDirFrom(config);
+  const coverage = coverageDir(appDir);
   const port = await freePort();
   const proc = spawn(path.join(appDir, BIN), [], {
     cwd: appDir,
-    env: { ...process.env, PORT: String(port), DB_PATH: ':memory:', BIND_ALL: '', SITE_URL: '', ...env },
+    env: {
+      ...process.env, PORT: String(port), DB_PATH: ':memory:', BIND_ALL: '', SITE_URL: '',
+      METRICS_TOKEN_FILE: path.join(coverage, '.token'), ...env,
+    },
   });
   // Kept so a failed start shows the server's own error (an io_uring/seccomp
   // abort, a DB it can't open) instead of a bare health timeout.
@@ -48,7 +55,7 @@ export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {
   const deadline = Date.now() + 20_000;
   while (proc.exitCode === null && proc.signalCode === null && Date.now() < deadline) {
     try {
-      if ((await get(port, '/healthz')).status === 200) return { port, proc, output: () => log };
+      if ((await get(port, '/healthz')).status === 200) return { port, proc, output: () => log, coverage };
     } catch { /* not listening yet */ }
     await new Promise((r) => setTimeout(r, 100));
   }
@@ -59,7 +66,17 @@ export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {
   throw new Error(`server on :${port} ${why}\n--- server output ---\n${log || '(none)'}`);
 }
 
-export function stopServer({ proc }: Server): Promise<void> {
+// Stops a server, first keeping what each of its routes was asked
+// (`app_http_requests_total`) in its own file under `coverage`. A server that
+// can't answer (gone, or started with another METRICS_TOKEN_FILE) leaves none.
+export async function stopServer({ port, proc, coverage }: Server): Promise<void> {
+  if (proc.exitCode !== null || proc.signalCode !== null) return;
+  try {
+    const token = readFileSync(path.join(coverage, '.token'), 'utf8');
+    const res = await request({ port, path: '/metrics', method: 'GET', headers: { authorization: `Bearer ${token}` } });
+    const counts = res.body.split('\n').filter((l) => l.startsWith('app_http_requests_total{'));
+    if (res.status === 200) writeFileSync(path.join(coverage, `${port}-${proc.pid}.prom`), counts.join('\n') + '\n');
+  } catch { /* no counters from this one */ }
   return new Promise((resolve) => {
     if (proc.exitCode !== null || proc.signalCode !== null) return resolve();
     const giveUp = setTimeout(resolve, 3000); // so cleanup never hangs

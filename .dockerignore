@@ -1,12 +1,20 @@
-# The Dockerfile only COPYs app/, so trim what's inside it. Do NOT ignore
-# app/vendor/odin-http: the vendored HTTP library must be in the build context.
+# The build context is the repo root, but the Dockerfile needs only app/, tools/bundle, build.sh and
+# THIRD_PARTY_NOTICES: everything else stays out (node_modules, docs, results).
+*
+!app
+!tools/bundle
+!build.sh
+!THIRD_PARTY_NOTICES
+
+# Inside app/, what prepare re-creates in the image. Do NOT ignore app/vendor/odin-http: the
+# vendored HTTP library must be in the build context. prepare.sh re-fetches + compiles SQLite and
+# htmx, and bundles the assets, so a local (possibly Windows .lib) SQLite dir, a local DB or a
+# local build/ never ships.
 app/bin/
-app/static/htmx.min.js
-# prepare.sh re-fetches + compiles SQLite in the image; don't ship a local
-# (possibly Windows .lib) SQLite dir or a local DB into the build context.
+app/build/
+app/vendor/htmx/
 app/vendor/sqlite/
 app/data.db*
 **/*.exe
 **/*.pdb
-**/.git
 **/*.log

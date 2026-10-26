@@ -542,13 +542,15 @@ needs in practice.
   `/events`, `robots.txt`, `favicon.ico`, `/licenses`, `/csp-report`), and the profile's own rows: the root, and any
   page placed outside its package's table (`/dashboard` on houston-lab, D25). Then `TOPICS` and `JOBS` mounted the
   same way, and `HOSTS`, one `app.Host` per origin (D5). Tables are package-level; boot keys every row by prefix
-  (D9), so order matters only inside a prefix, and `bin --routes` prints each host's flat table.
+  (D9), so order matters only inside a prefix, and `bin --routes` prints each host's flat table. Each mount is an
+  `app.Mount{feature, rows}` (M1), so the build can say which features it mounts (`bin --features`).
 - **`main.odin`**: the boot sequence as plain calls. `app.boot(<profile>)`; `identity.cli()`; each feature's `init`
   in dependency order (notify before its producers); `home_web.init(HOME_CARDS[:])` and
   `find_web.init(FIND_SOURCES[:])`; `app.check(HOSTS[:], JOBS[:], BUNDLE_EXTS)` (D5's boot checks; `--features`,
   `--routes` and `--limits` answer here); in a SQLite profile `store_sqlite.open()` and one
   `store_sqlite.migrate("<f>", <f>_store.MIGRATIONS[:])` per store in dependency order (D16); `app.serve(HOSTS[:],
-  JOBS[:], BRAND)`; the `start` calls; `app.wait()`; the `drain` calls in the order written; `app.shutdown()` (PLAN
+  JOBS[:], &BRAND)`; the `start` calls; `app.wait()`; the `drain` calls in the order written; `app.shutdown()`; in a
+  SQLite profile `store_sqlite.close()`; `app.exit()` (PLAN
   §8.6, §8.7). The platform keeps the deadlines; `main` shows who drains what. It also holds `HOME_CARDS`,
   `FIND_SOURCES` and `BUNDLE_EXTS` (D6, D19).
 - **`brand.odin`**: `BRAND`, `NAV` per host (`LAB_NAV` in `full`), nav labels and order, the default scheme and copy.
@@ -2023,7 +2025,14 @@ answered 2026-10-25 (ANSWERS round 3).
   have a non-zero per-route request counter in both (CF §10). `tools/check parity` fails otherwise; waivers live in
   `tests/parity-waivers.txt` with a reason and are reviewed in the milestone audit. This enforces the skeleton's
   "every endpoint in both suites" rule (`SK/CLAUDE.md` standing policy 3), which `parity.sh` stated but never
-  enforced (14 of 26 routes had no load scenario, 01 §2).
+  enforced (14 of 26 routes had no load scenario, 01 §2). **M1:** each server either suite starts is scraped as it
+  stops, through a per-run bearer, into `app/build/coverage/{e2e,load}/<profile>/`; new e2e checks and the load
+  scenarios `ops`, `ping`, `gallery`, `home` and `about` bring every route of both profiles into both suites with no
+  route waiver. The waivers file holds both parity rules' waivers (`perf | <cell> | <legs> | <reason>`, `route |
+  <route id> | <suites> | <reason>`; PLAN §19.1.11).
+- **Tags, as built (M1)**: a spec or scenario carries a tag for every feature it touches, its folder's first, and
+  runs only when the build has them all; `@<f>-<member>` names a family member by its `NAME` (the store family's from
+  `app/stores/<family>/stores.odin`). An untagged spec fails rather than run on builds it wasn't written for.
 - **Combination coverage**: every named profile per push; one rotating singleton per push; every singleton nightly;
   from M4 (once there are at least 10 optional features) a strength-2 covering array over feature presence nightly:
   N rows cover every pair of k binary factors when C(N−1, ⌈N/2⌉) ≥ k, so 8 rows cover up to 35 features (C(7,4) =
@@ -2034,6 +2043,10 @@ answered 2026-10-25 (ANSWERS round 3).
 **Alex confirms:** no.
 
 ### D38. Performance budgets and the parity gate
+
+**M1:** the gate's procedure is `load-tests/run.sh --parity` (`lib/parity.sh`, spike S0.1's loop, and
+`lib/parity.mjs`, the pass rule with each cell's reference and the waivers file's `perf` lines); the baselines build
+into the git-ignored `perf/baseline/`.
 
 **Decision.**
 

@@ -1,8 +1,10 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE, term } from '../lib/config.js';
-import { options as build, summarize } from '../lib/options.js';
+import { BASE, term } from '../../lib/config.js';
+import { options as build, summarize } from '../../lib/options.js';
 
+// tags: @contacts @dashboard
+//
 // A realistic blend: ~90% reads (page loads, live search, JSON) against ~10%
 // writes (create + delete). This is the number that best reflects real traffic —
 // the pure-endpoint scenarios bound it from either side. Per-request URL tags

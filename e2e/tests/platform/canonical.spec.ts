@@ -1,11 +1,10 @@
-import { test, expect } from '../fixtures';
-import { startServer, stopServer } from '../helpers/server';
+import { test, expect } from '../../fixtures';
+import { startServer, stopServer } from '../../helpers/server';
 
 // The *.fly.dev → SITE_URL redirect never fires for a placeholder origin: a
 // fork on fly.dev without a domain yet must serve its pages, not bounce every
 // visitor to https://<name>.example.com (what init writes). Each case boots its
-// own server with its own SITE_URL, so it holds for the demo and the --minimal
-// starter alike (seo.spec.ts covers the built-in origin).
+// own server with its own SITE_URL (seo.spec.ts covers the built-in origin).
 const fly = { Host: 'acme-notes.fly.dev' };
 
 async function withServer(env: NodeJS.ProcessEnv, body: (base: string) => Promise<void>) {
@@ -17,7 +16,7 @@ async function withServer(env: NodeJS.ProcessEnv, body: (base: string) => Promis
   }
 }
 
-test.describe('canonical host redirect', () => {
+test.describe('canonical host redirect', { tag: ['@platform', '@about'] }, () => {
   test('a real SITE_URL: fly.dev 301s there, query intact', async ({ request }) => {
     await withServer({ SITE_URL: 'https://notes.acme-real.dev' }, async (base) => {
       const res = await request.get(`${base}/about?x=1`, { headers: fly, maxRedirects: 0 });

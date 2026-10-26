@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1
 #
-# Two stages: build the self-contained binary, then ship it alone on a slim glibc
-# base. Every static asset is embedded in it, so the runtime image carries no
-# toolchain and no asset files.
+# Two stages: build one profile's self-contained binary (PROFILE, skeleton by
+# default), then ship it alone on a slim glibc base as /app/server. Every static
+# asset is embedded in it, so the runtime image carries no toolchain and no asset
+# files.
 #
 # Running it needs Linux io_uring, which Docker's default seccomp profile blocks
 # (since 25.0): start it with docker/seccomp-io-uring.json, as compose.yaml does,
@@ -22,10 +23,10 @@ ARG ODIN_VERSION=dev-2026-10
 ARG ODIN_SHA256=c3c8b095621fd0c75f7f73e3a0829f1b4d45324225f20ba11ed8dc4da310a8ab
 
 # clang is the linker driver and also compiles the SQLite amalgamation (prepare.sh);
-# unzip extracts it and binutils (ar) archives it into sqlite3.a. The Odin release
-# statically bundles LLVM.
+# unzip extracts it and binutils (ar) archives it into sqlite3.a; brotli compresses
+# the bundled assets (tools/bundle). The Odin release statically bundles LLVM.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends clang binutils unzip git curl ca-certificates tar \
+ && apt-get install -y --no-install-recommends clang binutils unzip brotli git curl ca-certificates tar \
  && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-linux-amd64-${ODIN_VERSION}.tar.gz" -o /tmp/odin.tar.gz \
@@ -35,18 +36,23 @@ RUN curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSI
  && rm /tmp/odin.tar.gz
 ENV PATH="/opt/odin:${PATH}"
 
-# Only the app dir is needed to build. odin-http is vendored in app/vendor/odin-http
-# (already in the build context), so prepare only fetches htmx and SQLite (both
-# pinned by SHA-256) and compiles SQLite.
+# app/, build.sh (the one place a profile's flags live) and tools/bundle are what
+# the build needs. odin-http is vendored in app/vendor/odin-http (already in the
+# build context), so prepare only fetches htmx and SQLite (both pinned by
+# SHA-256), compiles SQLite and bundles each profile's assets; THIRD_PARTY_NOTICES
+# is embedded for /licenses.
 COPY app /src/app
-WORKDIR /src/app
+COPY tools/bundle /src/tools/bundle
+COPY build.sh THIRD_PARTY_NOTICES /src/
+WORKDIR /src
 # Invoke via `sh` (not ./) so the build doesn't depend on the exec bit, which a
 # Windows-origin build context (e.g. local `flyctl deploy`) wouldn't carry.
-RUN sh prepare.sh
+RUN sh app/prepare.sh
 # VERSION names the build in the x-version header and /healthz; the deploy job
 # passes the commit. Declared after prepare so a new commit doesn't re-run it.
+ARG PROFILE=skeleton
 ARG VERSION=dev
-RUN odin build src -out:bin/demo -o:speed -warnings-as-errors -define:VERSION=${VERSION}
+RUN VERSION=${VERSION} sh build.sh ${PROFILE} -o:speed && cp app/bin/${PROFILE} /src/server
 
 # ---- runtime: just the binary (all assets are embedded) ------------------
 # Must match the build stage's Debian release (glibc compatibility).
@@ -61,7 +67,7 @@ RUN useradd --uid 10001 --user-group --no-create-home --shell /usr/sbin/nologin 
  && mkdir /data && chown app:app /data
 
 WORKDIR /app
-COPY --from=build /src/app/bin/demo /app/demo
+COPY --from=build /src/server /app/server
 # Numeric, so Kubernetes' runAsNonRoot can check it without reading /etc/passwd.
 USER 10001:10001
 
@@ -69,9 +75,9 @@ USER 10001:10001
 ENV PORT=8080 BIND_ALL=1
 EXPOSE 8080
 
-# odin-http shuts down cleanly on SIGINT (and repo_close then checkpoints SQLite).
-# Without this, `docker stop` sends SIGTERM, which the binary has no handler for,
-# and as PID 1 an unhandled signal is ignored: Docker waits 10 s, then SIGKILLs.
+# The server drains on SIGINT and SIGTERM alike (in-flight requests finish, the
+# store's last batch commits and SQLite checkpoints); a second signal exits at
+# once. SIGINT stays the stop signal the platforms already send.
 STOPSIGNAL SIGINT
 
 # Probes /healthz with bash's /dev/tcp, because the slim base has no curl or wget
@@ -80,4 +86,4 @@ STOPSIGNAL SIGINT
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --start-interval=1s \
   CMD ["bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/${PORT:-8080} && printf 'GET /healthz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -n1 <&3 | grep -q ' 200 '"]
 
-CMD ["/app/demo"]
+CMD ["/app/server"]

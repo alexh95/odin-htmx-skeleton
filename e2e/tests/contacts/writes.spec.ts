@@ -1,8 +1,7 @@
-import { test, expect } from '../fixtures';
+import { test, expect } from '../../fixtures';
 import type { APIRequestContext } from '@playwright/test';
 
-// What the demo's writes store. Contacts are the demo's, so this skips on the
-// starter. API-only (no browser).
+// What the contacts writes store. API-only (no browser).
 const form = { 'content-type': 'application/x-www-form-urlencoded' };
 
 async function contact(request: APIRequestContext, q: string) {
@@ -11,12 +10,8 @@ async function contact(request: APIRequestContext, q: string) {
   return found[0];
 }
 
-test.describe('writes', () => {
-  test.beforeEach(async ({ request }) => {
-    test.skip((await request.get('/data')).status() !== 200, 'demo contacts');
-  });
-
-  test('/forms keeps every field it posts, an empty optional one as ""', async ({ request }) => {
+test.describe('writes', { tag: '@contacts' }, () => {
+  test('/forms keeps every field it posts, an empty optional one as ""', { tag: '@gallery' }, async ({ request }) => {
     // Notes left empty and the switch off: the optional text column must store
     // "" (a NULL would break its NOT NULL), and the unticked box isn't posted.
     const quiet = `Quiet ${Date.now()}`;

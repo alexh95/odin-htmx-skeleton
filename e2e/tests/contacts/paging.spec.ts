@@ -1,15 +1,10 @@
-import { test, expect } from '../fixtures';
+import { test, expect } from '../../fixtures';
 
 // The table pages in SQL and the pager shows a window, not a button per page
-// (2,864 of them at 20k rows). The JSON API is capped. Contacts are the demo's;
-// the starter skips this.
+// (2,864 of them at 20k rows). The JSON API is capped.
 const form = { 'content-type': 'application/x-www-form-urlencoded' };
 
-test.describe('paging', () => {
-  test.beforeEach(async ({ request }) => {
-    test.skip((await request.get('/data')).status() !== 200, 'demo contacts');
-  });
-
+test.describe('paging', { tag: '@contacts' }, () => {
   test('a long result shows a windowed pager that still reaches every page', async ({ page, request }) => {
     const tag = `Pager${Date.now()}`;
     for (let i = 0; i < 80; i++) {

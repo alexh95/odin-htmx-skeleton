@@ -64,24 +64,42 @@ stays off and Fly keeps serving 6d37506.
       pass against it. Done: 32 of 33 GET URLs byte for byte (asset hashes and the ping token
       normalised); robots.txt is now derived from the `.Fragment` rows (the same Disallows, single
       routes kept exact); the access log is logfmt (ops.spec follows). The suite: 181 passed in
-      chromium, webkit and api; the k6 quick smoke: 10 scenarios, 0 % failed.
-- [ ] **7. Retire `app/src`.** The 23 specs ported to `e2e/tests/<f>/` and tagged; global setup through
+      chromium, webkit and api; the k6 quick smoke: 10 scenarios, 0 % failed. On Linux (WSL2):
+      prepare, the build and both profiles' `CMD=test` boot checks pass; the smoke URLs answer, a
+      create round-trips, SIGTERM exits 0 and `/dev/shm` is left clean.
+- [x] **7. Retire `app/src`.** The 23 specs ported to `e2e/tests/<f>/` and tagged; global setup through
       `build.sh` and `--features --json`; `load-tests/scenarios/<f>/` and `run.sh --parity`; per-route
       counters and `tests/parity-waivers.txt` (S0.4's three documented exceptions); `run.*`, the
       Dockerfile and `tools/init` through `build.*`; `app/src` deleted. *Check:* 3 engines + `api` green
-      on `skeleton`, chromium on `minimal`; route coverage with 0 unexplained waivers.
+      on `skeleton`, chromium on `minimal`; route coverage with 0 unexplained waivers. Done: `skeleton`
+      190 passed in chromium, webkit and api (10 skipped: the notes and home specs it doesn't mount;
+      Firefox waits for CI), `minimal` 58 passed in chromium and api (every skip names a feature it
+      lacks); both quick k6 runs `--strict` green; every route of both profiles reached by both suites
+      (31/31 and 14/14), so no route waiver; the three `perf` lines are S0.4's. New: `ops.spec` covers
+      `/livez`, `/readyz`, `/metrics`, `/licenses`, and load scenarios `ops`, `ping`, `gallery`, `home`,
+      `about` cover the routes the skeleton never load-tested. `tools/init` renames every profile's
+      brand (tried on a scratch copy: both renamed profiles build); `--minimal` and its overlay are gone,
+      the `minimal` profile replaces them. The skeleton image builds through `build.sh` (WSL Docker).
+      `run.sh` skips ports another process listens on (WSL's relay held 8192 and answered k6).
 - [ ] **8. `tools/check`**: `imports`, `profile`, `routes`, `contracts` (and `parity`). *Check:* clean on
-      both profiles; a bad fixture trips each.
+      both profiles; a bad fixture trips each. `parity` reads `bin --routes --json`, the counter files in
+      `app/build/coverage/{e2e,load}/<profile>/` and the `route` lines of `tests/parity-waivers.txt`
+      (e2e/README and load-tests/README already describe it).
 - [ ] **9. CI**: `pins`, `check`, `build` ({minimal, skeleton} × 4 OSes, the no-SQLite build), `e2e`,
       `docker`, `linux-ops`, nightly ASan, all through `build.*`. *Check:* a green run (needs the push,
-      which waits for Alex's go and the token's `workflow` scope).
+      which waits for Alex's go and the token's `workflow` scope). Until then ci.yml still builds the
+      deleted `app/src` and runs `init --minimal`: its `build`, `minimal` and smoke steps go, `e2e`
+      takes `E2E_PROFILE`, `docker` takes `--build-arg PROFILE`, and the route-coverage scrape feeds
+      `tools/check parity`. infra/PLAN.md's CI list follows.
 - [ ] **10. Drills and budgets.** Crash drills (panic, bounds, div, nil, stack, lock, async, sqlite, hang)
       on both OSes; the fuzz smoke; the shutdown bound with slowloris, half body and idle peers; restart;
       the fd ceiling; `skeleton` ≤ 2.75 MB, idle ≤ 10 MB, boot → `/readyz` ≤ 50 ms.
 - [ ] **11. The parity gate** on both legs (`skeleton` against 709bc94 and v1.1.1; §18.2 with Q6's and
       Q35's references), into `docs/perf/PARITY.md`; the 01 (A) checklist.
 - [ ] **12. Audit and release prep.** `docs/audit/M1.md` by an agent that didn't write the code, 0 open
-      CRITICAL/HIGH; `Audited:` stamps; CLAUDE.md, README and app/README rewritten for the starter;
+      CRITICAL/HIGH; `Audited:` stamps; CLAUDE.md, README and app/README rewritten for the starter (and
+      the docs still describing `app/src`: docs/DATA.md, DATA_IMPL.md, STRIP.md, USE_CASES.md's
+      `init --minimal`, e2e/PLAN.md, load-tests/PLAN.md — rewritten or removed, PLAN §4);
       CHANGELOG's 2.0.0 entry; then ask Alex about tagging v2.0.0.
 
 ## Roadmap to 1.0 — template-ize (Phase F) — ✅ shipped as v1.0.0 (2026-07-01)

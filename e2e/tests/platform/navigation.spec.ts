@@ -1,7 +1,9 @@
-import { test, expect } from '../fixtures';
+import { test, expect } from '../../fixtures';
 
-test.describe('navigation', () => {
-  test('dashboard renders with stat cards', async ({ page }) => {
+// The layout's nav, boosting and theme picker, exercised through the pages the
+// build has: each test names the features it walks through.
+test.describe('navigation', { tag: '@platform' }, () => {
+  test('dashboard renders with stat cards', { tag: '@dashboard' }, async ({ page }) => {
     await page.goto('/');
     // By level, not by name: what this asserts is that the page rendered its
     // heading, and the home page's wording is the site's pitch — seo.spec.ts owns
@@ -11,12 +13,12 @@ test.describe('navigation', () => {
     await expect(page.getByRole('button', { name: 'Ping server' })).toBeVisible();
   });
 
-  for (const { label, path, heading } of [
-    { label: 'Components', path: '/components', heading: 'Components' },
-    { label: 'Forms', path: '/forms', heading: 'Forms & validation' },
-    { label: 'Data & CRUD', path: '/data', heading: 'Data & CRUD' },
+  for (const { label, path, heading, feature } of [
+    { label: 'Components', path: '/components', heading: 'Components', feature: 'gallery' },
+    { label: 'Forms', path: '/forms', heading: 'Forms & validation', feature: 'gallery' },
+    { label: 'Data & CRUD', path: '/data', heading: 'Data & CRUD', feature: 'contacts' },
   ]) {
-    test(`nav link "${label}" routes and marks itself current`, async ({ page }) => {
+    test(`nav link "${label}" routes and marks itself current`, { tag: `@${feature}` }, async ({ page }) => {
       await page.goto('/');
       // Scope to the primary nav — dashboard tiles reuse the same link text.
       await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: label }).click();
@@ -27,7 +29,7 @@ test.describe('navigation', () => {
     });
   }
 
-  test('primary nav is boosted: swaps in place (no full reload) and updates the title', async ({ page }) => {
+  test('primary nav is boosted: swaps in place (no full reload) and updates the title', { tag: '@gallery' }, async ({ page }) => {
     await page.goto('/');
     // Tag the live window. A full document navigation discards it; a boosted
     // (AJAX + pushState) swap keeps the same document, so it survives the click.
@@ -40,7 +42,7 @@ test.describe('navigation', () => {
     expect(await page.evaluate(() => (window as Window & { __alive?: number }).__alive)).toBe(1);
   });
 
-  test('only boosted navigation runs in a view transition, never a fragment swap (regression)', async ({ page }) => {
+  test('only boosted navigation runs in a view transition, never a fragment swap (regression)', { tag: ['@dashboard', '@gallery'] }, async ({ page }) => {
     // While a view transition runs, Chromium hit-tests the whole page to <html> and
     // drops the click. A page swap can afford that; a fragment swap cannot — it
     // leaves the rest of the page live (forms.spec.ts has the click it cost).
@@ -69,7 +71,7 @@ test.describe('navigation', () => {
     await expect.poll(transitions).toBe(1);
   });
 
-  test('toasts still auto-retire after a boosted navigation (swap-safe observer)', async ({ page }) => {
+  test('toasts still auto-retire after a boosted navigation (swap-safe observer)', { tag: '@gallery' }, async ({ page }) => {
     await page.goto('/');
     // Boost over to the components page, then raise a toast on the swapped-in body.
     await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Components' }).click();
@@ -81,7 +83,7 @@ test.describe('navigation', () => {
     await expect(toast).toHaveCount(0, { timeout: 7000 });
   });
 
-  test('a toast survives a boosted navigation (hx-preserve, not wiped mid-flight)', async ({ page }) => {
+  test('a toast survives a boosted navigation (hx-preserve, not wiped mid-flight)', { tag: '@gallery' }, async ({ page }) => {
     await page.goto('/components');
     await page.getByRole('button', { name: 'Success toast' }).click();
     const toast = page.locator('#toasts .toast');
@@ -93,7 +95,7 @@ test.describe('navigation', () => {
     await expect(toast).toBeVisible();
   });
 
-  test('about page links to the source on GitHub', async ({ page }) => {
+  test('about page links to the source on GitHub', { tag: '@about' }, async ({ page }) => {
     await page.goto('/');
     await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'About' }).click();
     await expect(page).toHaveURL('/about');
@@ -104,13 +106,13 @@ test.describe('navigation', () => {
     await expect(gh).toHaveAttribute('rel', /noopener/);
   });
 
-  test('ping button swaps in a live reading', async ({ page }) => {
+  test('ping button swaps in a live reading', { tag: '@dashboard' }, async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Ping server' }).click();
     await expect(page.locator('#ping-slot .ping-ok')).toContainText('200 OK');
   });
 
-  test('dashboard stat card drills into the filtered data view', async ({ page }) => {
+  test('dashboard stat card drills into the filtered data view', { tag: ['@dashboard', '@contacts'] }, async ({ page }) => {
     await page.goto('/');
     await page.locator('.stat-link', { hasText: 'Active' }).click();
     await expect(page).toHaveURL(/\/data\?status=Active/);
@@ -138,7 +140,7 @@ test.describe('navigation', () => {
     await expect(html).toHaveAttribute('data-style', 'modern');
   });
 
-  test('theme picker switches style and reveals that style\'s schemes', async ({ page }) => {
+  test('theme picker switches style and reveals that style\'s schemes', { tag: '@platform-full' }, async ({ page }) => {
     await page.goto('/');
     const html = page.locator('html');
     await page.locator('.picker > summary').click();
@@ -159,7 +161,7 @@ test.describe('navigation', () => {
     await expect(html).toHaveAttribute('data-scheme', 'graphite');
   });
 
-  test('components showroom swatch jumps to a style + scheme', async ({ page }) => {
+  test('components showroom swatch jumps to a style + scheme', { tag: ['@gallery', '@platform-full'] }, async ({ page }) => {
     await page.goto('/components');
     const html = page.locator('html');
     const swatch = page.locator('.showroom-swatches .swatch[data-sw-style="terminal"][data-sw-scheme="green"]');

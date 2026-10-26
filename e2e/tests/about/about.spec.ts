@@ -1,10 +1,10 @@
-import { test, expect } from '../fixtures';
+import { test, expect } from '../../fixtures';
 
-// The starter's second page. Its copy is yours to replace, so what's checked is
+// The about page. Its copy is the profile's (brand.odin), so what's checked is
 // the wiring every page shares: it renders as the current nav item, the nav
 // reaches it with a boosted swap, and its repository link agrees with the
 // structured data.
-test.describe('about', () => {
+test.describe('about', { tag: '@about' }, () => {
   test('renders as the current nav page', async ({ page }) => {
     const res = await page.goto('/about');
     expect(res?.status()).toBe(200);

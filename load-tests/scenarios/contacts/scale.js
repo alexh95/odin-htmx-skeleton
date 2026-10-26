@@ -1,8 +1,10 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE } from '../lib/config.js';
-import { options as build, summarize } from '../lib/options.js';
+import { BASE } from '../../lib/config.js';
+import { options as build, summarize } from '../../lib/options.js';
 
+// tags: @contacts @dashboard
+//
 // The list paths at size. setup() grows the store to SCALE_ROWS contacts (20k
 // by default) before the measured window; each iteration then does what a user
 // does at that size: a deep, filtered, sorted page of the table, a live-search

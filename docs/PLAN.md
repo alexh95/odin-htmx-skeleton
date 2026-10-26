@@ -1119,7 +1119,9 @@ row inside its feature's prefixes, no router key claimed by two features, exactl
 for `skeleton` and `full` and 6 for the bad profile; the orphan and migrate parts of `profile` are **NEW**.
 
 **Derived, never declared twice** (D5; LC §11): `robots.txt` Disallow lines from `.Fragment` rows (the literal prefix up
-to the first pattern character) and the sitemap from `NAV`, both per host (`SK/CLAUDE.md` "Crawlers / SEO");
+to the first pattern character; as built in M1, a prefix another line already covers is dropped and two or more rows
+under one first segment collapse to it, `/ui/modal`, `/ui/drawer`, … → `/ui/`, which reproduces the skeleton's
+hand-written list) and the sitemap from `NAV`, both per host (`SK/CLAUDE.md` "Crawlers / SEO");
 `rbac.spec` from the mounted rows, every route × both hosts in `full` (§17); route coverage from route ids per host
 (§19); the CSP and cache class from the flags (§12); the htmx-config allowlist from the bundle's extensions (§12);
 dependencies from import lines and the compiler's package list (09 §4.6; §12.1); the README env tables from
@@ -1461,18 +1463,18 @@ import home_web "../../features/home/web"
 // … the other web packages
 
 // The skeleton's src/routes.odin, as one line per mounted package plus the profile's own rows.
-ROUTES := [?][]web.Route{
-	web.ROUTES[:],                                       // the main host's platform rows: /healthz /livez /readyz /metrics /sitemap.xml …
-	web.PUBLIC_ROUTES[:],                                // every host's: /static /events /robots.txt /favicon.ico /licenses /csp-report
-	{{.Get, "/", home_web.page_today, .Public, {}, 0}},  // the root: Today
-	identity.ROUTES[:],                                  // /login /logout: the nickname form
-	notes_web.ROUTES[:],                                 // /notes
-	chat_web.ROUTES[:],                                  // /chat, the room page, post, the transports' rows, /admin/chat
-	notify_web.ROUTES[:],                                // /notify
-	bot_web.ROUTES[:],                                   // /bot, /admin/bot
-	ops_web.ROUTES[:],                                   // /admin/ops
-	status_web.ROUTES[:],                                // /status
-	about_web.ROUTES[:],                                 // /about
+ROUTES := [?]app.Mount{
+	{"platform", web.ROUTES[:]},                                    // the main host's: /healthz /livez /readyz /metrics /sitemap.xml …
+	{"platform", web.PUBLIC_ROUTES[:]},                             // every host's: /static /events /robots.txt /favicon.ico /licenses /csp-report
+	{"home", {{.Get, "/", home_web.page_today, .Public, {}, 0}}},  // the root: Today
+	{"identity", identity.ROUTES[:]},                               // /login /logout: the nickname form
+	{"notes", notes_web.ROUTES[:]},                                 // /notes
+	{"chat", chat_web.ROUTES[:]},                                   // /chat, the room page, post, the transports' rows, /admin/chat
+	{"notify", notify_web.ROUTES[:]},                               // /notify
+	{"bot", bot_web.ROUTES[:]},                                     // /bot, /admin/bot
+	{"ops", ops_web.ROUTES[:]},                                     // /admin/ops
+	{"status", status_web.ROUTES[:]},                               // /status
+	{"about", about_web.ROUTES[:]},                                 // /about
 }
 
 // Subscribable topics, mounted the same way: a subscription to chat.room:12 runs that row's subscribe
@@ -1502,6 +1504,10 @@ JOBS := [?][]workers.Job{
 - **`app.Host`** is `{name, site_env, identity, routes, topics, nav}`: the host's log and metrics label, the env var
   that names its origin, whether `front` runs the identity there, and its three tables. The prototype's host held the
   routes only; topics and nav per host are **NEW**.
+- **`app.Mount`** is `{feature, rows}` (M1): a mounted table says whose it is. `bin --features` lists the features
+  from the mounts (with the build's family members: profile, store, identity, client, theme), `bin --routes` prints
+  each row's feature, and the test suites choose their specs from that list (§19.1.2). The profile's own inline rows
+  name the feature whose handler they mount (`{"dashboard", {{.Get, "/", dashboard_web.page, …}}}` in `skeleton`).
 - **Boot keys every row by prefix** (D9), per host, so order here matters only inside a prefix. `bin --routes` prints
   the flat table of each host.
 
@@ -1553,7 +1559,7 @@ main :: proc() {
 	store_sqlite.migrate("chat",     chat_store.MIGRATIONS[:])
 	// … one line per SQLite-backed store this build reaches; rows of features not migrated here stay, dormant
 
-	app.serve(HOSTS[:], JOBS[:], BRAND)    // steps 6–10: seed, assets, bind, loops, banner; returns once the loops run
+	app.serve(HOSTS[:], JOBS[:], &BRAND)   // steps 6–10: seed, assets, bind, loops, banner; returns once the loops run
 	ops_web.start()                        // the 1 Hz panel publisher
 	bot_web.start()                        // the llama health probe
 
@@ -1561,7 +1567,9 @@ main :: proc() {
 	chat_web.drain()                       // step 3: each closes its own streams (WS 1012, SSE retry:, multipart's last boundary)
 	bot_web.drain()                        // cancel generations
 	term_web.drain()                       // tell terminal sessions
-	app.shutdown()                         // steps 3–8 under their deadlines: grace, idle peers, active requests, timers, flush, exit 0 or 70
+	app.shutdown()                         // steps 4–6 under their deadlines: idle peers, active requests, timers, pools
+	store_sqlite.close()                   // step 7: the writer's last batch, then the WAL checkpoint
+	app.exit()                             // steps 7–8: flush the logs, exit 0, or 70 after a dirty crash
 }
 ```
 
@@ -1570,14 +1578,20 @@ main :: proc() {
   a `migrate` line left in one doesn't compile, since memory stores declare no `MIGRATIONS` (§11.7).
 - **The lifecycle is in `main`.** `start` runs once `app.serve` has the loops running (§8.6 step 9), and the `drain`
   calls sit between the signal and the platform's deadlines (§8.7 step 3), in the order written. The platform keeps the
-  deadlines; `main` shows who drains what.
+  deadlines; `main` shows who drains what. The store closes in `main` too, after the loops have stopped and before
+  `app.exit`, because only `main` knows whether the build has a SQLite store: a memory profile has no
+  `store_sqlite.close()` line, as it has no `migrate` line (M1). `app.serve` takes the brand by pointer and a header
+  set (`.Standard`, or `.Skeleton` for the skeleton's exact header list in `minimal`, §17), and installs the
+  platform's own SIGINT/SIGTERM handler, which `app.wait` returns on; a second signal exits 1 at once (F-10).
 - **`HOME_CARDS` and `FIND_SOURCES`** are handed to the one feature that reads each, as `ROUTES` is handed to the
   router. The Today page shows the cards in the table's order, which no longer has to follow `NAV`. A source is a
   domain's `search`, which fills `store.Search_Hit` rows (§15.1).
 - **`brand.odin`** keeps `BRAND`, `NAV` (and `LAB_NAV` in `full`, §7.3) and the copy: the names, nav labels, nav order
   and default scheme. Houston's is `cmd/full/brand.odin`, which is where Comms, Capcom and the other product names live
   (D28); packages and prefixes stay generic (D3, D9). Boot checks that every nav href is a GET route on its host
-  (§6.1 check 7).
+  (§6.1 check 7). A page whose words are the profile's takes them as a `Copy` struct defined there (M1):
+  `about_web.init(ABOUT)` and `home_web.init(cards, HOME)`, so `skeleton`'s and `minimal`'s about pages are one
+  feature with two texts, and `tools/init` renames every profile's brand fields in place.
 - **`routes_test.odin`** runs the boot checks under `CMD=test ./build.sh <p>` (LC §16: `odin test` passes for
   `skeleton` and `full` and fails with 7 problems for a deliberately bad profile).
 
@@ -1946,6 +1960,15 @@ calls the build's identity and the identity packages import `platform/web` (§5.
 6. **Handler**, inside F-5's guard.
 7. **One access-log line**: logfmt with the request id, route id, status, µs, and `impl=` when a runtime-switched axis
    served the request (§10).
+
+**As built (M1)**, with the host, route, request id and security headers settled first: a malformed
+`Content-Length` gets 400 and a closed connection before anything else answers; then the canonical-host 301; then
+`same_origin` for **every** write, routed or not, so a cross-site POST to an unknown path is a 403 and not a 404;
+then, when no row matches, the body cap (413) before the 405 with `Allow` or the 404, as the skeleton's fallback
+answered; then the viewer and the route's access rules, the body under the route's cap, the handler, and the log
+line. A handler that answers later (F-13's deferred response, store v3's writes) leaves the log line to its
+continuation: `web.resume` restores the request's context on the answering loop and `web.finish` counts, logs and
+clears it, so the deferred path logs exactly as the direct one.
 
 **Client address.** `X-Real-IP`, `X-Forwarded-Proto` and `X-Request-Id` count only when the TCP peer is inside
 `TRUST_PROXY` (empty = trust no peer; on apollo, the stack Caddy's fixed address as a /32, RESOLUTIONS X43);
@@ -2621,6 +2644,13 @@ Everything a page runs comes from the binary as a few fingerprinted files, under
 4.0.0 is the pin (S16); _hyperscript 0.9.94 core is optional per profile (S15, Q7); the `pins` job checks both (§20).
 
 ### 12.1 Bundles
+
+**As built (M1).** `prepare.*` builds `tools/bundle` and runs it for every `app/cmd/<p>/` with a `main.odin`, writing
+`app/build/<p>/` (`main.js`, `app.css`, `app.js`, each with `.br` and `.gz`); `build.sh` passes
+`-define:BUILD_DIR=../../build/<p>` and `platform/web` `#load`s from there under `when #exists`. The stylesheet is the
+theme the build reaches plus each reached feature's `static/<f>.css`; a lite theme's is the full one with every
+`/* full-only: … */ … /* /full-only */` region cut, so the two never drift. Feature `EXTS` are still empty in M1, so
+both profiles' `main.js` is `htmx.min.js` byte for byte.
 
 **One definition** (D19; RESOLUTIONS X29, as LC §12 recasts it). Each feature's web package declares its extensions on
 one lint-enforced line, for example `EXTS :: bit_set[web.Ext]{.Sse, .Pending, .Upsert}` in `lists_web`. Switched
@@ -3934,6 +3964,11 @@ another background load. On this box absolute numbers from another session are n
 6. **Record.** Results go to `perf/results/<version>-<leg>.csv` and `docs/perf/PARITY.md`, with the box, the
    toolchain and the background load.
 
+**As built (M1):** `run.sh --parity [scenario …]` execs `load-tests/lib/parity.sh`, S0.1's loop: it builds the two
+baselines into `perf/baseline/` (git-ignored) with `tools/baseline` when they are missing and `skeleton` -o:speed with
+`VERSION` from `git describe`, skips ports another process listens on, and ends with `lib/parity.mjs`, which applies the
+pass rule below with each cell's reference and reads the `perf` lines of `tests/parity-waivers.txt` for the leg.
+
 `scale` stays at 20 VUs, as the skeleton runs it (`SK/load-tests/scenarios/scale.js:17-19`): at 200 VUs HEAD and
 v1.1.1 refuse 99.0–99.9 % of requests on Windows (12 §2), and S0.1 re-checks those refusals on Linux. One gate run is
 40 cells × 3 builds × 3 rounds = 360 runs of about 13 s (3 s warmup + 10 s window), so about 80 minutes of
@@ -4053,7 +4088,11 @@ vectors; `clean_name`; and the micro-guards of §18.2.
 Playwright on the skeleton's harness (01 §9: one build, one server per worker on an OS-picked port with pinned env, a
 browser-less `api` project). Specs live in `e2e/tests/<f>/`, tagged `@<f>`, and `@<f>-<impl>` when they test one
 implementation. Global setup builds each profile under test through `build.sh <p>` and reads `bin --features --json`
-to choose tags.
+to choose tags. **As built (M1):** a spec carries a tag for every feature it touches, its folder's first, and runs
+only when the build has them all; `<impl>` is any family member's `NAME` (`@contacts-sqlite`, `@platform-full`;
+`--features --json` names the store family's member too, from `app/stores/<family>/stores.odin`). The fixture skips
+the rest, naming what's missing, and fails an untagged spec; `has(tag)` lets a shared spec branch on the build. Load
+scenarios carry the same tags on a `// tags:` line, and `load-tests/run.sh` chooses by them.
 
 | Profile | Engines | Scope |
 |---|---|---|
@@ -4175,7 +4214,13 @@ and the fd ceiling (3000 streams in a container with `ulimits`, `/livez` < 100 m
 After the e2e run and after the k6 quick run, CI scrapes `/metrics` of each profile under test: every route id
 (`"<METHOD> <pattern>"`) of every host, as `bin --routes --json` prints them per host, needs a non-zero per-route
 request counter in both, or `tools/check parity` fails (CF §10; LC §11). Waivers live in `tests/parity-waivers.txt` with
-a reason, reviewed in the milestone audit; slice gate (a) allows 0 unexplained ones. This enforces the skeleton's
+a reason, reviewed in the milestone audit; slice gate (a) allows 0 unexplained ones. **As built (M1):** every server
+either suite starts gets a per-run `/metrics` bearer (`METRICS_TOKEN_FILE`), and is scraped as it stops: e2e's
+`stopServer` and `run.sh`'s `stop_server` keep its `app_http_requests_total` lines in
+`app/build/coverage/{e2e,load}/<profile>/`. The waivers file holds both parity rules' waivers, one per line, `kind |
+what | where | reason`: `perf | <scenario>@<store> | <legs> | …` gates a cell against HEAD (§18.2), `route | <route id> |
+<suites> | …` excuses a suite from a route. At M1 it holds S0.4's three `perf` lines and no `route` line: both suites
+reach every route of both profiles. This enforces the skeleton's
 standing policy 3, every endpoint in both suites (`SK/CLAUDE.md:31-34`), which `parity.sh` only stated: a grep for path
 literals (`SK/load-tests/parity.sh:6-9`) that never ran in CI and left 14 of 26 routes with no load reference at HEAD
 (01 §2). Counters see even routes reached only by clicks.
@@ -4317,6 +4362,9 @@ policy and the transition in §4).
   never `latest` in a deploy (the tag is pinned in `.env`). Public GHCR images are free and apollo pulls them without
   credentials (08 §5.3; Q18); the Dockerfile picks Odin's amd64 or arm64 asset by `TARGETARCH` (08 §5.3) and builds
   through `./build.sh <profile> -o:speed`, as every CI job does (§20.1).
+- **M1's image** builds one profile (`--build-arg PROFILE=…`, `skeleton` by default) through `build.sh` and ships it
+  as `/app/server` on the skeleton's `debian:trixie-slim` base with its bash health check; the per-profile names,
+  distroless and `--healthcheck` arrive with the release workflow (M3).
 - **Base**: distroless `base-nossl-debian13` with `USER 10001:10001`. Linux Odin binaries need only `libc.so.6` and
   `libm.so.6` (10 §8.1), so this base drops the `cc` image's GPL-3 GCC runtime and OpenSSL; with SQLite linked it is
   UNVERIFIED until M3's `readelf`. An in-binary `--healthcheck` (06 §3.1) replaces the skeleton's bash check

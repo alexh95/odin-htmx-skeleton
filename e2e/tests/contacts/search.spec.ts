@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures';
+import { test, expect } from '../../fixtures';
 import type { APIRequestContext, Page } from '@playwright/test';
 
 // The global active-search lives in the top bar (aria-label "Search contacts")
@@ -7,7 +7,7 @@ import type { APIRequestContext, Page } from '@playwright/test';
 const box = '#search-results';
 const searchbox = (page: Page) => page.getByRole('searchbox', { name: 'Search contacts' });
 
-test.describe('active search', () => {
+test.describe('active search', { tag: '@contacts' }, () => {
   test('typing shows highlighted matches', async ({ page }) => {
     await page.goto('/');
     await searchbox(page).pressSequentially('grace');
@@ -57,7 +57,7 @@ test.describe('active search', () => {
 // Marks are measured in the original text. Lowering can change a string's byte
 // length (İ → i, ẞ → ß, an invalid byte → U+FFFD), so an offset taken from a
 // lowered copy marked the wrong characters.
-test.describe('search highlighting', () => {
+test.describe('search highlighting', { tag: '@contacts' }, () => {
   const results = async (request: APIRequestContext, q: string) => {
     const res = await request.get(`/search?q=${encodeURIComponent(q)}`);
     expect(res.status()).toBe(200);

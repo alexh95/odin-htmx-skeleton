@@ -1,22 +1,23 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, has } from '../../fixtures';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { startServer, stopServer, get, post, type Server } from '../helpers/server';
+import { startServer, stopServer, get, post, type Server } from '../../helpers/server';
 
 // The backup runbook in docs/DATA.md, end to end: write a row to a file DB,
 // back it up with `<bin> --backup` while the server is still running, then
-// restore by starting a server on the copy. Shared by the demo and the
-// --minimal starter. API-only (no browser); starts its own servers.
-test('a backup taken under a live server restores with the data in it', async () => {
+// restore by starting a server on the copy. Any build on the sqlite store: a
+// contact where it has contacts, else a note. API-only (no browser); starts its
+// own servers.
+test('a backup taken under a live server restores with the data in it', { tag: '@platform-sqlite' }, async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'odin-backup-'));
   const live = path.join(dir, 'data.db');
   const copy = path.join(dir, 'backup.db');
   let srv: Server | undefined;
   try {
     srv = await startServer(test.info().config, { DB_PATH: live });
-    const demo = (await get(srv.port, '/data')).status === 200;
+    const demo = has('contacts');
     const marker = `Backup ${Date.now()}`;
     const made = demo
       ? await post(srv.port, '/contacts', `name=${encodeURIComponent(marker)}&email=backup@example.dev`)

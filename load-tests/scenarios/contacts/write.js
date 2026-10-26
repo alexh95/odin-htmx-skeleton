@@ -1,8 +1,10 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE } from '../lib/config.js';
-import { options as build, summarize } from '../lib/options.js';
+import { BASE } from '../../lib/config.js';
+import { options as build, summarize } from '../../lib/options.js';
 
+// tags: @contacts
+//
 // The mutating path. Each iteration creates a contact, edits it, and deletes it,
 // so the store stays roughly steady within a run instead of growing without bound
 // (the run scripts also start a fresh server per run for a clean baseline — see

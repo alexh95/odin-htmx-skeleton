@@ -1,8 +1,8 @@
-import { test, expect } from '../fixtures';
+import { test, expect } from '../../fixtures';
 
 // Contract-level checks for the things curl can see: the asset strategy
 // (embedded htmx vs on-disk CSS), the health probe, and the plain JSON API.
-test.describe('assets & API', () => {
+test.describe('assets & API', { tag: '@platform' }, () => {
   test('healthz is 200 ok', async ({ request }) => {
     const res = await request.get('/healthz');
     expect(res.status()).toBe(200);
@@ -51,7 +51,7 @@ test.describe('assets & API', () => {
     expect(res.status()).toBe(404);
   });
 
-  test('JSON API returns matching contacts', async ({ request }) => {
+  test('JSON API returns matching contacts', { tag: '@contacts' }, async ({ request }) => {
     const res = await request.get('/api/search?q=grace');
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type'] ?? '').toContain('json');

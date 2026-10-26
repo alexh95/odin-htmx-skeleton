@@ -1,13 +1,13 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures';
 import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { startServer, stopServer, get, post, type Server } from '../helpers/server';
+import { startServer, stopServer, get, post, type Server } from '../../helpers/server';
 
 // The one behaviour the in-memory store could never have: data outlives the
 // process. Boot against a file DB, create a row, restart against the SAME file,
 // and assert the row is still there — and that the seed didn't run again.
-test('data survives a process restart (SQLite persistence)', async () => {
+test('data survives a process restart (SQLite persistence)', { tag: '@contacts-sqlite' }, async () => {
   const config = test.info().config;
   const dir = mkdtempSync(path.join(os.tmpdir(), 'odin-db-'));
   const env = { DB_PATH: path.join(dir, 'data.db') };

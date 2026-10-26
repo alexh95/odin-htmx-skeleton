@@ -1,9 +1,9 @@
-import { test, expect } from '../fixtures';
+import { test, expect } from '../../fixtures';
 
 // What the router answers outside the happy path: a known path with the wrong
 // method, a path nothing serves, and the charset every text response declares.
-// Shared by the demo and the --minimal starter. API-only (no browser).
-test.describe('routing', () => {
+// Every profile. API-only (no browser).
+test.describe('routing', { tag: '@platform' }, () => {
   test('a known path with the wrong method is a 405 that says what is allowed', async ({ request }) => {
     const res = await request.put('/');
     expect(res.status()).toBe(405);

@@ -1,8 +1,10 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE } from '../lib/config.js';
-import { options as build, summarize } from '../lib/options.js';
+import { BASE } from '../../lib/config.js';
+import { options as build, summarize } from '../../lib/options.js';
 
+// tags: @platform
+//
 // Best case: serving embedded bytes from memory. No HTML build, no store touch —
 // this is the server's ceiling, the number every other scenario is measured
 // against. Hits the two assets a real page actually pulls.

@@ -1,8 +1,10 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE } from '../lib/config.js';
-import { options as build, summarize } from '../lib/options.js';
+import { BASE } from '../../lib/config.js';
+import { options as build, summarize } from '../../lib/options.js';
 
+// tags: @dashboard @contacts
+//
 // Full-page HTML built by Odin procedures on every request (no template cache).
 // `/` is the dashboard; `/data` additionally runs filter+sort+paginate over the
 // store and renders a table — the heaviest read page. The gap between this and

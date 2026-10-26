@@ -1,8 +1,10 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE, term } from '../lib/config.js';
-import { options as build, summarize } from '../lib/options.js';
+import { BASE, term } from '../../lib/config.js';
+import { options as build, summarize } from '../../lib/options.js';
 
+// tags: @contacts
+//
 // The HTMX live-search fragment: filter the store by a query and render the
 // matching rows (the markup HTMX swaps into the page as you type). Exercises the
 // service-layer match + the fragment builder, minus the full page chrome.

@@ -1,11 +1,14 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE } from '../lib/config.js';
-import { options as build, summarize } from '../lib/options.js';
+import { BASE } from '../../lib/config.js';
+import { options as build, summarize } from '../../lib/options.js';
 
-// The starter's one write path: POST /notes inserts a row and renders its <li>.
-// There's no delete, so the table grows for the length of a run; the driver
-// starts a fresh :memory: server per run, so every run begins from the seed.
+// tags: @notes
+//
+// The notes card's one write: POST /notes stores a note and renders its <li>.
+// There's no delete, so the store grows for the length of a run (the memory
+// store keeps its newest 500); the driver starts a fresh server per run, so
+// every run begins from the seed.
 export const options = build();
 export const handleSummary = summarize('notes');
 

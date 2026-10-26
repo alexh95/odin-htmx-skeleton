@@ -1,26 +1,29 @@
 #!/usr/bin/env sh
-# Build and run on Linux or macOS (Odin uses clang here; no extra setup).
-# Usage:  ./run.sh [port]   (default 8080; OPEN=1 also opens it in the browser)
+# Build a profile and run it on Linux or macOS (Odin uses clang here; no extra setup).
+# Usage:  ./run.sh [port]   (default 8080; PROFILE=minimal for another profile, skeleton by
+#         default; OPEN=1 also opens it in the browser)
 set -e
 cd "$(dirname "$0")"
 
-if [ ! -f static/htmx.min.js ] || [ ! -f vendor/sqlite/sqlite3.a ]; then
+PROFILE="${PROFILE:-skeleton}"
+if [ ! -f vendor/htmx/htmx.min.js ] || [ ! -f "build/$PROFILE/main.js" ]; then
   echo "Dependencies are missing. Run ./prepare.sh first."
   exit 1
 fi
 
-# Local dev persists to ./data.db by default (gitignored); export DB_PATH=:memory:
-# for an ephemeral, freshly-seeded store.
-: "${DB_PATH:=data.db}"
-export DB_PATH
-# A file DB is only seeded when asked; a dev store wants the demo rows.
-: "${SEED:=1}"
-export SEED
+sh ../build.sh "$PROFILE"
 
-mkdir -p bin
-odin build src -out:bin/demo
+# A SQLite build persists to ./data.db by default (gitignored), seeded with the demo rows;
+# export DB_PATH=:memory: for an ephemeral, freshly-seeded store. A memory build has
+# neither variable.
+if "./bin/$PROFILE" --features --json | grep -q '"store": "sqlite"'; then
+  : "${DB_PATH:=data.db}"
+  : "${SEED:=1}"
+  export DB_PATH SEED
+fi
 
-PORT="${1:-8080}"
+PORT="${1:-${PORT:-8080}}"
+export PORT
 # With OPEN=1, open the browser shortly after the server comes up (best effort).
 # 127.0.0.1, not localhost: the server listens on IPv4 loopback only.
 if [ "${OPEN:-}" = 1 ]; then
@@ -30,4 +33,4 @@ if [ "${OPEN:-}" = 1 ]; then
     fi >/dev/null 2>&1 ) &
 fi
 
-exec ./bin/demo "$@"
+exec "./bin/$PROFILE"

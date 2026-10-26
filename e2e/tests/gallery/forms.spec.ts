@@ -1,6 +1,6 @@
-import { test, expect } from '../fixtures';
+import { test, expect } from '../../fixtures';
 
-test.describe('forms & validation', () => {
+test.describe('forms & validation', { tag: '@gallery' }, () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/forms');
   });

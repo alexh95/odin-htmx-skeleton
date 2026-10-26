@@ -1,13 +1,9 @@
-import { test, expect } from '../fixtures';
+import { test, expect } from '../../fixtures';
 
 // The dashboard's cards are counted from the store, captions included: no
-// placeholder trend ("+4 this week") beside a live number. The demo's page;
-// the starter has none. API-only (reads the HTML, no browser).
-test.describe('dashboard', () => {
-  test.beforeEach(async ({ request }) => {
-    test.skip((await request.get('/data')).status() !== 200, 'demo dashboard');
-  });
-
+// placeholder trend ("+4 this week") beside a live number. API-only (reads
+// the HTML, no browser).
+test.describe('dashboard', { tag: ['@dashboard', '@contacts'] }, () => {
   test('every figure and caption comes from the store', async ({ request }) => {
     const home = await (await request.get('/')).text();
     const card = (label: string) => {

@@ -1,21 +1,15 @@
-import { test, expect } from '../fixtures';
-import type { APIRequestContext } from '@playwright/test';
-import { startServer, stopServer, get, raw } from '../helpers/server';
+import { test, expect, has } from '../../fixtures';
+import { startServer, stopServer, get, raw } from '../../helpers/server';
 
 // Input limits. Every POST body is capped before routing, and each text field
 // has a length limit in the service layer, so one request can't park megabytes
 // in the store and in every page that renders it.
 //
-// Shared by the demo and the --minimal starter: the body cap is checked against
-// a route both variants serve, and the field limits against whichever write
-// path the variant has.
+// The body cap is checked against a route every profile serves, and the field
+// limits against whichever write the build has.
 const form = { 'content-type': 'application/x-www-form-urlencoded' };
 
-async function isDemo(request: APIRequestContext) {
-  return (await request.get('/data')).status() === 200;
-}
-
-test.describe('input limits', () => {
+test.describe('input limits', { tag: '@platform' }, () => {
   test('a body over the cap is refused with 413 before it is read', async ({ request }) => {
     const res = await request.post('/', { headers: form, data: 'x=' + 'a'.repeat(70 * 1024) });
     expect(res.status()).toBe(413);
@@ -29,7 +23,8 @@ test.describe('input limits', () => {
   });
 
   test('an over-long field is rejected and nothing is stored', async ({ request }) => {
-    if (await isDemo(request)) {
+    test.skip(!has('contacts') && !has('notes'), 'no text field to overfill');
+    if (has('contacts')) {
       const name = 'Long' + 'n'.repeat(120); // MAX_NAME is 100
       const res = await request.post('/contacts', { headers: form, data: `name=${name}&email=long@example.dev&role=Engineer` });
       expect(res.status()).toBe(422);

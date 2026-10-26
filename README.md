@@ -46,14 +46,12 @@ design notes.
    ```sh
    odin run tools/init -- your-name --repo https://github.com/you/your-name --site https://your.domain
    ```
-   One pass rewrites the binary, the Fly app, the Docker image, the Docker-host deploy, the startup
-   banner and the test-package names; the brand constants in
-   [`app/src/views/brand.odin`](app/src/views/brand.odin) (wordmark, title suffix, home title, repo,
+   One pass rewrites the Fly app, the Docker-host deploy and the test-package names; every
+   profile's brand in `app/cmd/<profile>/brand.odin` (wordmark, title suffix, home title, repo,
    site URL); and the favicon's label and the social card's source. It blanks the two search-engine
-   ownership tokens (a fork verifies its own site) and removes the template-only `minimal` CI job.
-   It applies every edit or none, and ends with what's left to do by hand. Run `odin run tools/init`
-   with no args to see the options (`--wordmark`, `--suffix`, `--repo`, `--site`, `--minimal`);
-   delete `tools/init` once you're happy.
+   ownership tokens (a fork verifies its own site). It applies every edit or none, and ends with
+   what's left to do by hand. Run `odin run tools/init` with no args to see the options
+   (`--wordmark`, `--suffix`, `--repo`, `--site`); delete `tools/init` once you're happy.
 3. **Replace the demo with your domain.** What you **keep** vs. **strip**:
    - **Keep — the scaffolding:** the layered packages (`models` / `repository` / `services` /
      `views` / `controllers`), the SQLite layer + migrations, the theme system, the view/component
@@ -64,11 +62,10 @@ design notes.
 To extend it, follow the **Recipes** in [CLAUDE.md](CLAUDE.md) (new page, new endpoint, new
 component) and the architecture tour in [app/README.md](app/README.md).
 
-Prefer to start from a blank slate? `odin run tools/init -- your-name --minimal` also strips the
-contacts/events demo down to a one-page **Notes** starter (the full stack over one entity), keeping
-the shell, theme, data layer, and test/deploy harness. It starts a fresh `CHANGELOG.md` and `TODO.md`,
-and deletes the Quick start's `app/data.db`, whose schema is the demo's. To strip it by hand instead — or just to see
-exactly what's demo vs. scaffold — follow [docs/STRIP.md](docs/STRIP.md).
+Prefer to start from a blank slate? The **`minimal`** profile (`./build.sh minimal`, or
+`PROFILE=minimal app/run.sh`) is the one-page **Notes** starter: home, notes and about on a memory
+store, with the shell, theme and test/deploy harness and no SQLite library. (It replaces the old
+`init --minimal`; composing other selections is the next milestone's `tools/init`.)
 
 ## Deploy
 

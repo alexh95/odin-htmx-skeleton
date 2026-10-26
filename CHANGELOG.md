@@ -41,8 +41,7 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   scheduler); and the two store families: `store/sqlite` (store v3: a writer task that commits every
   loop's queued writes in one transaction, a read-only connection per loop, `MEMMODE`, `--backup`,
   and a migration runner per feature that adopts a skeleton database, 709bc94's or v1.1.1's, without
-  re-running anything) and `store/memory`. `app/src` is unchanged until the profiles replace it, but
-  its migrations now live in `app/stores/sqlite/contacts/migrations/`.
+  re-running anything) and `store/memory`.
 - **The `skeleton` profile** (`app/cmd/skeleton/`): the skeleton's console rebuilt from features on
   the starter's platform, at its exact URLs. `contacts` (the table, the drawer, search, the JSON API,
   on SQLite: store v3, whose writes commit on the writer task in batches and answer through a
@@ -59,6 +58,26 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   -warnings-as-errors`, `VERSION`), with `CMD=check|test|run`. The starter's profiles (`minimal`,
   `skeleton` first) build only through it. `ols.json` moves to the root and names the four
   collections, on `skeleton`'s families for now.
+- **The test suites follow the profile.** e2e specs live per feature (`e2e/tests/<f>/`) and load
+  scenarios too (`load-tests/scenarios/<f>/`), each tagged with every feature it touches (`@contacts`,
+  or `@contacts-sqlite` for one family member). Both drivers build the profile through `build.*`, ask
+  the binary what it mounts (`--features --json`, which now names the store family too) and run what
+  fits: `E2E_PROFILE=minimal npm test`, `PROFILE=minimal ./run.sh`. The skeleton's 23 specs are ported
+  (`skeleton` runs them in three engines and the `api` project, `minimal` in chromium), with the
+  minimal starter's home and about specs and a notes spec beside them.
+- **Route coverage from request counters.** Every server either suite starts leaves its per-route
+  request counts (`app_http_requests_total`, read through a per-run `/metrics` bearer) in
+  `app/build/coverage/{e2e,load}/<profile>/`; every route of both profiles is reached by both suites.
+  `tests/parity-waivers.txt` holds the waivers of either parity rule, each with its reason: today the
+  three `:memory:` cells S0.4 gates against HEAD.
+- **e2e and load coverage for every route**: `ops.spec` checks `/livez`, `/readyz` (with `?detail`),
+  `/metrics` (the bearer, the per-route counter) and `/licenses`, and an unset ownership token's 404;
+  new load scenarios `ops`, `ping`, `gallery`, `home` and `about` reach the routes the skeleton never
+  load-tested (14 of its 26).
+- **`load-tests/run.sh --parity`**: the parity gate's procedure (PLAN §18.2) in the load harness,
+  from spike S0.1's loop: it builds the baselines into `perf/baseline/`, writes
+  `perf/results/<version>-<leg>.csv`, and `lib/parity.mjs` applies the pass rule with each cell's
+  reference (HEAD on the light routes and on a waived cell, max(HEAD, v1.1.1) elsewhere).
 
 ### Fixed
 - **`OPTIONS *` with a negative `Content-Length` no longer aborts the process.** 1.2.1 refused a bad
@@ -89,6 +108,18 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   without submodules, and `.dockerignore` keeps `app/vendor/odin-http` in the build context (it now
   leaves out only `app/vendor/sqlite/`). Imports read `"../vendor/odin-http"` from `src/` and
   `"../../vendor/odin-http"` from `src/controllers/`, in the `--minimal` starter's files too.
+- **`run.*`, the Dockerfile and `tools/init` build through `build.*`.** `app/run.sh`/`run.bat` build
+  and serve a profile (`PROFILE`, `skeleton` by default; `DB_PATH=data.db` only for a SQLite build).
+  The image builds one profile (`--build-arg PROFILE=…`) and ships it as `/app/server`. `tools/init`
+  renames every profile's brand (`app/cmd/<profile>/brand.odin`) instead of `app/src`'s.
+- **`load-tests/run.sh` skips a port something already listens on**: on Windows a second server
+  binds it without an error, and k6 measured WSL's relay instead (a 100 % failed `notes` run).
+
+### Removed
+- **`app/src`**, the skeleton's single-binary app: the `skeleton` profile serves it now, at the
+  same URLs, and the `minimal` profile replaces `init --minimal`, so the `--minimal` overlay
+  (`tools/init/minimal/`, `strip.odin`) is gone too.
+- **`load-tests/parity.sh`**, the grep for route paths, replaced by the request counters.
 
 ## [1.2.1] - 2026-10-25
 

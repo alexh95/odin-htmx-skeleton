@@ -1,10 +1,10 @@
-import { test, expect } from '@playwright/test';
-import { startServer, stopServer, get, del } from '../helpers/server';
+import { test, expect } from '../../fixtures';
+import { startServer, stopServer, get, del } from '../../helpers/server';
 
 // Events are interactions BETWEEN contacts (events.actor_id/target_id → contacts,
 // ON DELETE CASCADE). This uses a dedicated :memory: server because it deletes a
 // seeded contact — keeping it off the shared per-worker store other tests use.
-test('deleting a contact cascades to its interactions (FK)', async () => {
+test('deleting a contact cascades to its interactions (FK)', { tag: '@contacts-sqlite' }, async () => {
   const server = await startServer(test.info().config); // its own :memory: store
   const { port } = server;
   try {

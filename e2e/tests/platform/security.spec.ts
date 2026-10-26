@@ -1,10 +1,10 @@
-import { test, expect } from '../fixtures';
+import { test, expect, has } from '../../fixtures';
 import type { Page } from '@playwright/test';
 
 // The security headers every response carries, and the Content-Security-Policy
 // actually holding: no inline handlers left to block, the theme pre-paint
 // script admitted by its hash, and no violation while the pages are used.
-// Shared by the demo and the --minimal starter.
+// Every profile; a check that needs a feature or the full theme says so.
 
 async function sitemapPaths(page: Page): Promise<string[]> {
   const body = await (await page.request.get('/sitemap.xml')).text();
@@ -26,7 +26,7 @@ const violations = (page: Page) => page.evaluate(() => (window as any).__csp as 
 // comes from (Sec-Fetch-Site, Origin); one that is cross-site by either is
 // refused before its body is read. A client that sends neither isn't a browser
 // (these API calls, curl, k6) and passes.
-test.describe('cross-site write guard', () => {
+test.describe('cross-site write guard', { tag: '@platform' }, () => {
   const form = { 'content-type': 'application/x-www-form-urlencoded' };
 
   test('a cross-site or same-site-but-other-origin write is refused', async ({ request }) => {
@@ -42,8 +42,8 @@ test.describe('cross-site write guard', () => {
   });
 
   test('a forged write changes nothing', async ({ request }) => {
-    const demo = (await request.get('/data')).status() === 200;
-    const [path, data, probe] = demo
+    test.skip(!has('contacts') && !has('notes'), 'no write to forge');
+    const [path, data, probe] = has('contacts')
       ? ['/contacts', 'name=Forged+Row&email=forged@example.dev', '/api/search?q=Forged']
       : ['/notes', 'body=Forged+note', '/'];
     const res = await request.post(path, {
@@ -55,8 +55,8 @@ test.describe('cross-site write guard', () => {
   });
 
   test('a same-origin write passes', async ({ request, baseURL }) => {
-    const demo = (await request.get('/data')).status() === 200;
-    const [path, data] = demo ? ['/contacts', 'name=Same+Origin&email=same@example.dev'] : ['/notes', 'body=Same+origin'];
+    test.skip(!has('contacts') && !has('notes'), 'no write to make');
+    const [path, data] = has('contacts') ? ['/contacts', 'name=Same+Origin&email=same@example.dev'] : ['/notes', 'body=Same+origin'];
     for (const headers of [{ 'Sec-Fetch-Site': 'same-origin' }, { Origin: baseURL! }, {}]) {
       const res = await request.post(path, { headers: { ...form, ...headers }, data });
       expect(res.status(), JSON.stringify(headers)).toBe(200);
@@ -64,7 +64,7 @@ test.describe('cross-site write guard', () => {
   });
 });
 
-test.describe('security headers', () => {
+test.describe('security headers', { tag: '@platform' }, () => {
   test('every kind of response carries them', async ({ request }) => {
     for (const path of ['/', '/static/app.css', '/healthz', '/no-such-page']) {
       const h = (await request.get(path)).headers();
@@ -92,16 +92,19 @@ test.describe('security headers', () => {
   });
 
   test('the theme pre-paint script runs under the policy', async ({ page }) => {
+    // A pair that isn't the default, from the themes the build has: lite's one
+    // style has two schemes.
+    const [style, scheme] = has('platform-full') ? ['terminal', 'amber'] : ['modern', 'daylight'];
     await page.goto('/');
-    await page.evaluate(() => {
-      localStorage.setItem('style', 'terminal');
-      localStorage.setItem('scheme', 'amber');
-    });
+    await page.evaluate(([s, c]) => {
+      localStorage.setItem('style', s);
+      localStorage.setItem('scheme', c);
+    }, [style, scheme]);
     await page.reload();
     // Only the inline pre-paint script reads these back; if its hash didn't
     // match, the browser would have refused it and the defaults would show.
-    await expect(page.locator('html')).toHaveAttribute('data-style', 'terminal');
-    await expect(page.locator('html')).toHaveAttribute('data-scheme', 'amber');
+    await expect(page.locator('html')).toHaveAttribute('data-style', style);
+    await expect(page.locator('html')).toHaveAttribute('data-scheme', scheme);
   });
 
   test('using the pages raises no CSP violation', async ({ page }) => {
@@ -111,15 +114,20 @@ test.describe('security headers', () => {
       expect(await violations(page), path).toEqual([]);
     }
 
-    // The picker is on every page, in both variants.
+    // The picker is on every page, whichever theme the build has.
     await page.goto('/');
     await page.locator('.picker summary').click();
-    await page.locator('[data-pick-style="brutal"]').click();
-    await expect(page.locator('html')).toHaveAttribute('data-style', 'brutal');
-    await page.locator('[data-pick-scheme="acid"]').click();
-    await expect(page.locator('html')).toHaveAttribute('data-scheme', 'acid');
+    if (has('platform-full')) {
+      await page.locator('[data-pick-style="brutal"]').click();
+      await expect(page.locator('html')).toHaveAttribute('data-style', 'brutal');
+      await page.locator('[data-pick-scheme="acid"]').click();
+      await expect(page.locator('html')).toHaveAttribute('data-scheme', 'acid');
+    } else {
+      await page.locator('[data-pick-scheme="daylight"]').click();
+      await expect(page.locator('html')).toHaveAttribute('data-scheme', 'daylight');
+    }
 
-    if ((await page.request.get('/components')).status() === 200) {
+    if (has('gallery')) {
       await page.goto('/components');
       await page.locator('[data-sw-style="arcade"][data-sw-scheme="pop"]').click();
       await expect(page.locator('html')).toHaveAttribute('data-scheme', 'pop');

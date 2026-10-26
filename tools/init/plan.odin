@@ -114,6 +114,40 @@ sweep :: proc(path: string, repls: []Repl, hits: []int) {
 	changes[i].edits += total
 }
 
+// A struct literal's string field, `<field> = "<value>",` however it's aligned,
+// on every line that sets it (a brand's repo and its about page's both do). A
+// file that sets it nowhere is a problem, unless `optional`: not every profile's
+// brand has every field.
+set_field :: proc(path, field, value: string, optional := false) {
+	i := load(path)
+	if i < 0 {
+		return
+	}
+	lines := strings.split(changes[i].content, "\n")
+	n := 0
+	for &l in lines {
+		t := strings.trim_left_space(l)
+		if !strings.has_prefix(t, field) {
+			continue
+		}
+		rest := strings.trim_left_space(t[len(field):])
+		if !strings.has_prefix(rest, `= "`) || !strings.has_suffix(strings.trim_right_space(rest), `",`) {
+			continue
+		}
+		eq := strings.index(l, `= "`)
+		l = strings.concatenate({l[:eq], `= "`, value, `",`})
+		n += 1
+	}
+	if n == 0 {
+		if !optional {
+			problem("%s: sets no %s", path, field)
+		}
+		return
+	}
+	changes[i].content = strings.join(lines, "\n")
+	changes[i].edits += n
+}
+
 // Remove a job from a GitHub Actions workflow: its block, the comment block
 // directly above it, and its name from every `needs: [...]` list. Line-based,
 // not a YAML parse, so it leans on the workflow's shape (jobs indented two

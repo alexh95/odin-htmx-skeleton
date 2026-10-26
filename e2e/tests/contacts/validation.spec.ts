@@ -1,24 +1,14 @@
-import { test, expect } from '../fixtures';
-import type { APIRequestContext } from '@playwright/test';
+import { test, expect } from '../../fixtures';
 
 // A refused submit is a 422. app.js resets a [data-reset-on-success] form only
 // after a 2xx, so the user's input survives a rejection, and htmx 4 swaps the
 // 422 body either into the form's normal target or, through hx-status:422, into
-// an error slot. Shared by the demo and the --minimal starter; each block runs
-// against the variant whose form it drives.
+// an error slot. The contacts forms here; the note form's in notes/.
 const form = { 'content-type': 'application/x-www-form-urlencoded' };
 
-async function isDemo(request: APIRequestContext) {
-  return (await request.get('/data')).status() === 200;
-}
-
-test.describe('validation errors (422)', () => {
-  test.describe('demo', () => {
-    test.beforeEach(async ({ request }) => {
-      test.skip(!(await isDemo(request)), 'demo forms');
-    });
-
-    test('a refused /forms submit shows the reason and keeps every field', async ({ page }) => {
+test.describe('validation errors (422)', { tag: '@contacts' }, () => {
+  test.describe('contacts', () => {
+    test('a refused /forms submit shows the reason and keeps every field', { tag: '@gallery' }, async ({ page }) => {
       await page.goto('/forms');
       await page.locator('input[name="name"]').fill('Grace Typed');
       // The browser's type=email accepts this; the server's check does not.
@@ -73,7 +63,7 @@ test.describe('validation errors (422)', () => {
       await expect(page.locator('.drawer-detail .detail-id h2')).toHaveText(stored); // nothing saved
     });
 
-    test('the write endpoints answer 422 to bad input', async ({ request }) => {
+    test('the write endpoints answer 422 to bad input', { tag: '@gallery' }, async ({ request }) => {
       const create = await request.post('/contacts', { headers: form, data: 'name=&email=a@b.co' });
       expect(create.status()).toBe(422);
       expect(await create.text()).toContain('Name is required');
@@ -87,23 +77,6 @@ test.describe('validation errors (422)', () => {
       const edit = await request.post(`/contacts/${id}`, { headers: form, data: 'name=%20&email=a@b.co' });
       expect(edit.status()).toBe(422);
       expect(await (await request.get(`/contacts/${id}`)).text()).not.toContain('a@b.co');
-    });
-  });
-
-  test.describe('minimal starter', () => {
-    test.beforeEach(async ({ request }) => {
-      test.skip(await isDemo(request), 'starter form');
-    });
-
-    test('a blank note is refused into the error slot and the input is kept', async ({ page }) => {
-      await page.goto('/');
-      const input = page.locator('.add-note input[name="body"]');
-      await input.fill('   '); // passes `required`, trims to nothing on the server
-      const submitted = page.waitForResponse((r) => r.url().endsWith('/notes'));
-      await page.getByRole('button', { name: 'Add' }).click();
-      expect((await submitted).status()).toBe(422);
-      await expect(page.locator('#note-error')).toContainText('Write something first');
-      await expect(input).toHaveValue('   ');
     });
   });
 });

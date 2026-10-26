@@ -1,6 +1,6 @@
-import { test, expect } from '../fixtures';
+import { test, expect } from '../../fixtures';
 
-test.describe('data table + CRUD', () => {
+test.describe('data table + CRUD', { tag: '@contacts' }, () => {
   test('create, cycle status, then delete a row', async ({ page }) => {
     page.on('dialog', (d) => d.accept()); // delete uses hx-confirm
 

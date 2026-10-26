@@ -1,8 +1,10 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE, term } from '../lib/config.js';
-import { options as build, summarize } from '../lib/options.js';
+import { BASE, term } from '../../lib/config.js';
+import { options as build, summarize } from '../../lib/options.js';
 
+// tags: @contacts
+//
 // The plain-JSON surface: same filter as /search, but the response goes through
 // json.marshal instead of the HTML builder. Isolates marshalling cost and proves
 // the service layer stands on its own without HTMX.

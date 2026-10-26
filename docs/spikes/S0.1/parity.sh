@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # The parity gate's measurement loop (PLAN §18.2 steps 2-6), as spikes S0.1, S0.2 and S0.4 run it.
-# M1 folds it into `load-tests/run.sh --parity`.
+# M1 folded it into `load-tests/run.sh --parity` (lib/parity.sh); scenarios now live per feature.
 #
 #   VARIANTS="head=bin/head v111=bin/v111 fork=bin/fork" STORES="mem file" ROUNDS=3 \
 #   RESULTS=out.csv docs/spikes/S0.1/parity.sh [scenario ...]
@@ -79,7 +79,7 @@ run_one() { # round scenario store name binary
   v=$VUS; [ "$s" = scale ] && v=$SCALE_VUS
   csv="$DBDIR/k6_$port.csv"; rm -f "$csv"
   "$K6" run --quiet --env BASE_URL="http://127.0.0.1:$port" --env VUS="$v" --env DURATION="$DURATION" \
-    --env WARMUP="$WARMUP" --env OUT_CSV="$(path_for_k6 "$csv")" "$(path_for_k6 "$LT/scenarios/$s.js")" > /dev/null 2>&1 || true
+    --env WARMUP="$WARMUP" --env OUT_CSV="$(path_for_k6 "$csv")" "$(path_for_k6 "$(ls "$LT"/scenarios/*/"$s".js)")" > /dev/null 2>&1 || true
   kill "$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
   [ "$st" = file ] && rm -f "$db" "$db-wal" "$db-shm"
