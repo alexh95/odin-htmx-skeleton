@@ -14,13 +14,15 @@ test.describe('operations', () => {
     expect((await health.text()).trim()).toBe('ok'); // the CI smoke test and Fly compare it verbatim
   });
 
+  // logfmt (PLAN §10.4): the route as registered, the status, the time in µs, a
+  // request id, and never the query, which can hold what a user typed.
   test('a request writes one access-log line', async () => {
     const srv = await startServer(test.info().config);
     try {
       await get(srv.port, '/about?q=not-logged');
-      await expect.poll(srv.output).toMatch(/GET \/about 200 \d+\.\d+ms/);
-      expect(srv.output()).not.toContain('not-logged'); // the query can hold what a user typed
-      expect(srv.output()).toMatch(/version \S+, store :memory:/);
+      await expect.poll(srv.output).toMatch(/ev=req id=\S+ m=GET route="GET \/about" st=200 us=\d+/);
+      expect(srv.output()).not.toContain('not-logged');
+      expect(srv.output()).toMatch(/ev=serving profile=\S+ version=\S+/);
     } finally {
       await stopServer(srv);
     }

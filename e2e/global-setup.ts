@@ -11,12 +11,17 @@ export function appDirFrom(config: FullConfig): string {
   return path.resolve(e2eDir, '..', 'app');
 }
 
+// The profile under test (build.{sh,bat} <profile>): skeleton by default, the
+// starter's witness of the skeleton; E2E_PROFILE=minimal runs the minimal one.
+export const PROFILE = process.env.E2E_PROFILE || 'skeleton';
+
 // The binary global-setup builds and helpers/server.ts starts, relative to app/.
-export const BIN = process.platform === 'win32' ? 'bin\\demo.exe' : 'bin/demo';
+export const BIN = process.platform === 'win32' ? `bin\\${PROFILE}.exe` : `bin/${PROFILE}`;
 
 // Whether prepare's outputs are in place and match its current pins (read from
 // prepare.sh; prepare.bat pins the same): htmx by its SHA-256, the SQLite source
-// by the stamp prepare writes beside it, and a library built after that source.
+// by the stamp prepare writes beside it, a library built after that source, and
+// the profile's bundled assets.
 function prepared(appDir: string): boolean {
   const at = (p: string) => path.join(appDir, p);
   const pins = readFileSync(at('prepare.sh'), 'utf8');
@@ -26,7 +31,8 @@ function prepared(appDir: string): boolean {
     const htmx = createHash('sha256').update(readFileSync(at('vendor/htmx/htmx.min.js'))).digest('hex');
     const stamp = readFileSync(at('vendor/sqlite/.stamp'), 'utf8').trim();
     return htmx === pin('HTMX_SHA256') && stamp === pin('SQLITE_SHA256')
-      && statSync(lib).mtimeMs >= statSync(at('vendor/sqlite/sqlite3.c')).mtimeMs;
+      && statSync(lib).mtimeMs >= statSync(at('vendor/sqlite/sqlite3.c')).mtimeMs
+      && existsSync(at(`build/${PROFILE}/main.js`));
   } catch {
     return false; // something is missing
   }
@@ -51,8 +57,8 @@ export default function globalSetup(config: FullConfig) {
     }
   }
 
-  execFileSync('odin', ['build', 'src', `-out:${BIN}`, '-warnings-as-errors'], {
-    cwd: appDir,
-    stdio: 'inherit',
-  });
+  // Through build.{sh,bat} at the repo root, the one place a profile's flags live.
+  const repo = path.resolve(appDir, '..');
+  if (process.platform === 'win32') execFileSync('cmd', ['/c', path.join(repo, 'build.bat'), PROFILE], { cwd: repo, stdio: 'inherit' });
+  else execFileSync('sh', [path.join(repo, 'build.sh'), PROFILE], { cwd: repo, stdio: 'inherit' });
 }

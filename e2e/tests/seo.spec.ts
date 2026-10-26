@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect } from '../fixtures';
-import { appDirFrom } from '../global-setup';
+import { appDirFrom, PROFILE } from '../global-setup';
 
 // The crawler-facing contract. None of this is visible in the UI, so it can rot
 // silently — these are the checks that catch it.
@@ -26,13 +26,16 @@ async function sitemapPaths(request: any): Promise<string[]> {
 
 // The search-engine ownership tokens are per-deployment identity: `init` blanks
 // them and a fork sets its own. Nothing the app serves says whether one is set
-// (an unset token is a plain 404), so read the constant from the source. A
-// missing constant fails rather than reads as "unset", so a renamed one can't
-// quietly turn its test into a skip.
+// (an unset token is a plain 404), so read the field from the profile's
+// brand.odin. A missing field fails rather than reads as "unset", so a renamed
+// one can't quietly turn its test into a skip; a profile with no such line
+// (minimal) sets none.
 function brandConst(name: string): string {
-  const file = path.join(appDirFrom(test.info().config), 'src', 'views', 'brand.odin');
-  const m = readFileSync(file, 'utf8').match(new RegExp(`^${name}\\s*::\\s*"([^"]*)"`, 'm'));
-  expect(m, `${name} in brand.odin`).toBeTruthy();
+  const file = path.join(appDirFrom(test.info().config), 'cmd', PROFILE, 'brand.odin');
+  const src = readFileSync(file, 'utf8');
+  const m = src.match(new RegExp(`^\\s*${name}\\s*=\\s*"([^"]*)"`, 'm'));
+  if (!m && PROFILE !== 'skeleton') return '';
+  expect(m, `${name} in ${PROFILE}'s brand.odin`).toBeTruthy();
   return m![1];
 }
 
@@ -99,7 +102,7 @@ test.describe('SEO contract', () => {
   });
 
   test('BingSiteAuth.xml proves ownership with a well-formed token', async ({ request }) => {
-    const token = brandConst('BING_SITE_AUTH');
+    const token = brandConst('bing_site_auth');
     test.skip(token === '', 'BING_SITE_AUTH is unset, so the route 404s by design');
 
     const res = await request.get('/BingSiteAuth.xml');
@@ -117,7 +120,7 @@ test.describe('SEO contract', () => {
   test('the IndexNow key file is served verbatim at its own path', async ({ request }) => {
     // The path *is* the key, so a route that stopped matching it would silently
     // deactivate IndexNow; this is what notices.
-    const KEY = brandConst('INDEXNOW_KEY');
+    const KEY = brandConst('indexnow_key');
     test.skip(KEY === '', 'INDEXNOW_KEY is unset, so the route is not registered');
 
     const res = await request.get(`/${KEY}.txt`);

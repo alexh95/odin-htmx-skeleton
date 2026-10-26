@@ -43,6 +43,12 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   and a migration runner per feature that adopts a skeleton database, 709bc94's or v1.1.1's, without
   re-running anything) and `store/memory`. `app/src` is unchanged until the profiles replace it, but
   its migrations now live in `app/stores/sqlite/contacts/migrations/`.
+- **The `skeleton` profile** (`app/cmd/skeleton/`): the skeleton's console rebuilt from features on
+  the starter's platform, at its exact URLs. `contacts` (the table, the drawer, search, the JSON API,
+  on SQLite: store v3, whose writes commit on the writer task in batches and answer through a
+  deferred response), `dashboard` (its root page and the ping), `gallery` (components, forms, the
+  /ui fragments) and `about`. Every page answers as 1.2.x's did, byte for byte but for the asset
+  hashes; the 1.2.x e2e suite passes against it. `./build.sh skeleton` after prepare.
 - **The `minimal` profile** (`app/cmd/minimal/`, its four hand-written files): the smallest
   starter, with the features `home` (the root page, showing the profile's home cards), `notes` (its
   models, domain, views and web packages, a store in each family, and a conformance suite that runs
@@ -63,6 +69,11 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   wire; a body-phase timeout now closes it (found by spike S0.7's timeouts phase).
 
 ### Changed
+- **The access log is logfmt**, one line per request with a request id, the route as registered,
+  the status, the time in µs and a hashed client id (`ev=req id=… m=GET route="GET /data" st=200
+  us=183 …`); still never the query. Every response carries `x-request-id`.
+- **robots.txt is derived** from the routes marked as fragments: the same paths are disallowed,
+  with a single route kept exact (`/api/search`, `/forms/submit`).
 - **SQLite is built with the starter's flags** (`prepare.*`, spike S0.11): no double-quoted string
   literals, foreign keys on by default, multi-thread mode, no global memory statistics (a sorting
   query on 16 connections ran 4.1× faster without its mutex), no extension loading, no shared cache,

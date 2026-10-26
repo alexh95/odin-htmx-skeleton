@@ -64,7 +64,7 @@ added :: proc(o: ^store.Op) {
 	res := web.resume(&op.deferred)
 	if res == nil { return } // the client left: the note is stored all the same
 	if op.err != .None {
-		web.respond_plain(res, "Something went wrong on our side. Try again in a moment.", .Internal_Server_Error)
+		web.respond_store_error(web.request(&op.deferred), res, op.err)
 	} else {
 		b := strings.builder_make(context.temp_allocator)
 		notes_views.li(&b, op.result)

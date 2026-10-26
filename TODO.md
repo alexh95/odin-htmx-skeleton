@@ -57,11 +57,14 @@ stays off and Fly keeps serving 6d37506.
       file in its build, the exact header set, the bundle byte for byte, the storetest on both families,
       its boot checks under `CMD=test`. Moved on: the specs run in slice 7's ported suite; the size
       (1.31 MB at `-o:speed`, og.png alone 230 KB) is slice 10's budget work.
-- [ ] **6. `skeleton`.** Features `contacts` (SQLite store, migrations 0001–0003 with their hashes plus
+- [x] **6. `skeleton`.** Features `contacts` (SQLite store, migrations 0001–0003 with their hashes plus
       `0004_sort_indexes`, group-committed writes over F-13), `dashboard`, `gallery`, `about`;
       `cmd/skeleton`. *Check:* every skeleton URL answers byte for byte as `app/src` does (a route diff,
       intended differences listed: X35's three headers, `x-request-id`); `app/src`'s e2e and k6 smoke
-      pass against it.
+      pass against it. Done: 32 of 33 GET URLs byte for byte (asset hashes and the ping token
+      normalised); robots.txt is now derived from the `.Fragment` rows (the same Disallows, single
+      routes kept exact); the access log is logfmt (ops.spec follows). The suite: 181 passed in
+      chromium, webkit and api; the k6 quick smoke: 10 scenarios, 0 % failed.
 - [ ] **7. Retire `app/src`.** The 23 specs ported to `e2e/tests/<f>/` and tagged; global setup through
       `build.sh` and `--features --json`; `load-tests/scenarios/<f>/` and `run.sh --parity`; per-route
       counters and `tests/parity-waivers.txt` (S0.4's three documented exceptions); `run.*`, the

@@ -10,10 +10,11 @@ package app
 //      id, the security headers by the route's flags;
 //   2. a malformed Content-Length gets 400 and a closed connection, first;
 //   3. the *.fly.dev → canonical origin 301;
-//   4. no route: 405 with Allow when another method serves the path, else 404;
-//   5. the viewer, by the build's identity on a host that runs one, and the route's
+//   4. the cross-site write guard, for every write, routed or not, before its body;
+//   5. no route: the body capped at MAX_BODY (413), then 405 with Allow when
+//      another method serves the path, else 404, as the skeleton answered;
+//   6. the viewer, by the build's identity on a host that runs one, and the route's
 //      perm (401 or 403), .Lan_Only (404 off the LAN);
-//   6. the cross-site write guard, before the body;
 //   7. the body, capped by the route (413 past it), then the handler;
 //   8. one access-log line, unless the handler deferred its response: its
 //      continuation logs it when it answers.
@@ -47,11 +48,20 @@ front :: proc(req: ^web.Request, res: ^web.Response) {
 	case !web.content_length_ok(req):
 		web.refuse_length(res)
 	case web.canonical_redirect(c.site, req, res):
-	case m == nil && len(allow) > 0:
-		web.set_header(res, "allow", strings.join(allow, ", ", context.temp_allocator))
-		web.respond_plain(res, "Method not allowed.", .Method_Not_Allowed)
+	case !web.same_origin(req):
+		web.respond_plain(res, "Cross-site request refused.", .Forbidden)
 	case m == nil:
-		web.not_found(req, res)
+		c.allow = allow
+		if !web.has_body(req) {
+			unrouted(c)
+			break
+		}
+		web.read_body(req, res, web.MAX_BODY, c, proc(user: rawptr, body: string, ok: bool) {
+			c := (^web.Req_Ctx)(user)
+			if ok { unrouted(c) }
+			done(c)
+		})
+		return
 	case:
 		req.url_params = params
 		if !admit(c, req, res) { break }
@@ -71,6 +81,19 @@ front :: proc(req: ^web.Request, res: ^web.Response) {
 		return
 	}
 	done(c)
+}
+
+// No row answers: 405 with Allow when another method serves the path, else the
+// site's 404 (SK/app/src/routes.odin:67-69).
+@(private)
+unrouted :: proc(c: ^web.Req_Ctx) {
+	web.set_ctx(c)
+	if len(c.allow) > 0 {
+		web.set_header(c.res, "allow", strings.join(c.allow, ", ", context.temp_allocator))
+		web.respond_plain(c.res, "Method not allowed.", .Method_Not_Allowed)
+	} else {
+		web.not_found(c.req, c.res)
+	}
 }
 
 // The host whose origin's hostname is Host's; the main host (the first) otherwise,
@@ -113,10 +136,6 @@ admit :: proc(c: ^web.Req_Ctx, req: ^web.Request, res: ^web.Response) -> bool {
 		} else {
 			web.respond_plain(res, "Not allowed.", .Forbidden)
 		}
-		return false
-	}
-	if !web.same_origin(req) {
-		web.respond_plain(res, "Cross-site request refused.", .Forbidden)
 		return false
 	}
 	return true

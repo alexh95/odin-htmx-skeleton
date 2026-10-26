@@ -66,13 +66,15 @@ BOMBARDIER="${BOMBARDIER:-}"
 [ -z "$BOMBARDIER" ] && command -v bombardier >/dev/null 2>&1 && BOMBARDIER="bombardier"
 
 # ---- build the app (skipped for an external --base target) ---------------
+# PROFILE picks the build (build.sh <profile>): skeleton, the parity witness, by default.
 APP="../app"
-BIN="$APP/bin/demo"
-case "$(uname -s)" in *MINGW*|*MSYS*|*CYGWIN*) BIN="$APP/bin/demo.exe" ;; esac
+PROFILE="${PROFILE:-skeleton}"
+BIN="$APP/bin/$PROFILE"
+case "$(uname -s)" in *MINGW*|*MSYS*|*CYGWIN*) BIN="$APP/bin/$PROFILE.exe" ;; esac
 
 if [ -z "$BASE" ]; then
-  echo "building app -o:speed ..."
-  ( cd "$APP" && mkdir -p bin && odin build src -out:"bin/$(basename "$BIN")" -o:speed -warnings-as-errors )
+  echo "building $PROFILE -o:speed ..."
+  sh ../build.sh "$PROFILE" -o:speed
 fi
 
 # ---- results dir --------------------------------------------------------

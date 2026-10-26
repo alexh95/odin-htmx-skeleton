@@ -270,10 +270,13 @@ read_body :: proc(req: ^Request, res: ^Response, cap: int, user: rawptr, done: B
 // defers it and returns; the continuation resumes it on the same loop, answers,
 // then `finish`es it, which counts and logs it as front would have. The ref is
 // generation-checked: a client that left costs a map lookup, never a
-// use-after-free (S0.5).
+// use-after-free (S0.5). A resumed response's connection, and its request arena,
+// are still there, so `resume` restores the request's context until `finish`:
+// the continuation answers with the same helpers a handler uses.
 
 Deferred :: struct {
 	ref:    http.Response_Ref,
+	ctx:    ^Req_Ctx, // valid only after a successful resume
 	route:  ^Mounted,
 	method: string,
 	start:  i64,
@@ -284,6 +287,7 @@ Deferred :: struct {
 
 defer_response :: proc(req: ^Request, res: ^Response, d: ^Deferred, on_gone: proc(user: rawptr) = nil, user: rawptr = nil) {
 	c := ctx()
+	d.ctx = c
 	d.route = c.route
 	d.method = method_name(req)
 	d.start = c_start
@@ -293,13 +297,22 @@ defer_response :: proc(req: ^Request, res: ^Response, d: ^Deferred, on_gone: pro
 	c.deferred = true
 }
 
-// On the loop that deferred it. nil: the client left, or the connection moved on.
+// On the loop that deferred it. nil: the client left, or the connection moved
+// on (and the request's context with it).
 resume :: proc(d: ^Deferred) -> ^Response {
-	return http.response_resume(d.ref)
+	res := http.response_resume(d.ref)
+	if res != nil { tl_ctx = d.ctx }
+	return res
+}
+
+// The deferred request, after a successful resume.
+request :: proc(d: ^Deferred) -> ^Request {
+	return d.ctx.req
 }
 
 // After a resumed response was answered: its count and its access-log line.
 finish :: proc(d: ^Deferred, res: ^Response) {
+	defer tl_ctx = nil
 	us := (sys.mono_ns() - d.start) / 1000
 	if d.route != nil { obs.count_request(d.route.obs, us) }
 	access_log(d.method, d.route.id if d.route != nil else "", "", int(res.status), us, string(d.id[:d.id_len]), string(d.cid[:]), "")

@@ -393,6 +393,29 @@ toast :: proc(kind, message: string, oob: bool) -> string {
 	return strings.to_string(b)
 }
 
+// Initials on a stable per-identity hue (the hue from the id, so a person keeps
+// their colour across re-renders). The initials are the first character of the
+// first two words, whole runes (the É of "Émile" is two bytes), escaped like any
+// other text: a name is input.
+avatar :: proc(b: ^strings.Builder, id: i64, name: string) {
+	fmt.sbprintf(b, `<span class="avatar" style="--h:%d">`, (id % 360) * 47 % 360)
+	n := 0
+	word_start := true
+	for r in name {
+		if r == ' ' {
+			word_start = true
+			continue
+		}
+		if word_start && n < 2 {
+			enc, size := utf8.encode_rune(r) // an invalid byte comes back as a valid U+FFFD
+			esc(b, string(enc[:size]))
+			n += 1
+		}
+		word_start = false
+	}
+	w(b, `</span>`)
+}
+
 // A field's verdict, as the forms and the inline add forms show it.
 field_msg :: proc(ok: bool, message: string) -> string {
 	b := strings.builder_make(context.temp_allocator)

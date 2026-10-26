@@ -127,16 +127,42 @@ robots_txt :: proc(req: ^Request, res: ^Response) {
 }
 
 // robots.txt for one host, at boot: a Disallow per .Fragment row's literal start,
-// cut after its first segment when it has more ("/ui/modal" → "/ui/"), each once.
+// dropping one another line already covers ("/contacts/" under "/contacts"), and
+// collapsing a family of rows under one first segment to it ("/ui/modal",
+// "/ui/drawer", … → "/ui/"). In mount order, each once.
 robots_for :: proc(site: ^Site, allocator := context.allocator) -> string {
-	lines := make([dynamic]string, context.temp_allocator)
-	outer: for m in site.router.rows {
+	lits := make([dynamic]string, context.temp_allocator)
+	for m in site.router.rows {
 		if .Fragment not_in m.flags { continue }
-		p := disallow_prefix(m.pattern)
-		for l in lines {
-			if strings.has_prefix(p, l) { continue outer } // already covered
+		lit := m.pattern
+		if i := strings.index_any(m.pattern, MAGIC); i >= 0 { lit = m.pattern[:i] }
+		append(&lits, lit)
+	}
+	covered :: proc(lits: []string, l: string) -> bool {
+		for o in lits {
+			if o != l && strings.has_prefix(l, o) { return true }
 		}
-		append(&lines, p)
+		return false
+	}
+	first_segment :: proc(l: string) -> string {
+		j := strings.index_byte(l[1:], '/')
+		return l[:j + 2] if j >= 0 else ""
+	}
+	lines := make([dynamic]string, context.temp_allocator)
+	outer: for l in lits {
+		if covered(lits[:], l) { continue }
+		line := l
+		if seg := first_segment(l); seg != "" {
+			family := 0
+			for o in lits {
+				if strings.has_prefix(o, seg) && !covered(lits[:], o) { family += 1 }
+			}
+			if family >= 2 { line = seg }
+		}
+		for x in lines {
+			if x == line { continue outer }
+		}
+		append(&lines, line)
 	}
 	b := strings.builder_make(allocator)
 	strings.write_string(&b, "User-agent: *\nAllow: /\n")
@@ -149,14 +175,6 @@ robots_for :: proc(site: ^Site, allocator := context.allocator) -> string {
 	strings.write_string(&b, site.origin)
 	strings.write_string(&b, "/sitemap.xml\n")
 	return strings.to_string(b)
-}
-
-@(private)
-disallow_prefix :: proc(pattern: string) -> string {
-	lit := pattern
-	if i := strings.index_any(pattern, MAGIC); i >= 0 { lit = pattern[:i] }
-	if j := strings.index_byte(lit[1:], '/'); j >= 0 { return lit[:j + 2] }
-	return lit
 }
 
 // The sitemap walks the host's nav, so a page can't be added to the nav and left

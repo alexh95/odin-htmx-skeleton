@@ -91,6 +91,7 @@ Req_Ctx :: struct {
 	parsed: bool,
 	impl:     string, // "chat.transport=sse": sent as x-impl and logged
 	deferred: bool,   // the handler deferred its response: its continuation logs it
+	allow:    []string, // no route: the methods that would answer (405)
 }
 
 @(private, thread_local) tl_ctx: ^Req_Ctx
