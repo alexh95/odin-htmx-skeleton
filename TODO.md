@@ -138,10 +138,13 @@ stays off and Fly keeps serving 6d37506.
       `sync.Mutex` in four packages; M1-14 Markdown's quadratic worst case; M1-15 the watchdog's lock
       limit equals busy_timeout; M1-16 unchecked setup results. (`web.count_and_log` and
       `store_sqlite.query_drain`, which had no caller, are removed: the audit's vet triage.)
-- [ ] **`Audited:` stamps for the packages without a README**: the M1 audit stamps the features,
+- [x] **`Audited:` stamps for the packages without a README**: the M1 audit stamps the features,
       `platform/web` and the fork (`UPSTREAM.md`); the other platform packages, the stores and the
       profiles need a README (or `tools/check audit-debt` another place to read stamps). F-14, M1-06's
-      and M1-08's fixes are audit debt until an independent re-read.
+      and M1-08's fixes are audit debt until an independent re-read. Done: a README with its purpose
+      and the M1 stamp (`bf831da`) in each of the 19 platform packages, both store families, the three
+      stores and both profiles; the changes since `bf831da` went to an independent re-read
+      (`docs/audit/M1.md`, Re-read). `tools/check audit-debt` itself is still to write (PLAN §19.2.1).
 - [ ] **The M1 profile's follow-ups** (`docs/audit/M1.md`, Profile; owner M2): the connection arena without its
       mutex (21 lock pairs a request on a one-thread arena) and the header maps reserved up front (3.7 regrowths a
       request), as fork change F-16; one read transaction per page request (`unixShmLock` is 13 % of `pages`); a
