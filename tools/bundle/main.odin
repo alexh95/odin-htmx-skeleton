@@ -62,7 +62,7 @@ main :: proc() {
 	_ = os.make_directory_all(opt.out)
 	opt.repo, opt.htmx, opt.out = abs(opt.repo), abs(opt.htmx), abs(opt.out)
 	dir := path_join(opt.out, opt.profile)
-	if err := os.make_directory_all(dir); err != nil {
+	if err := os.make_directory_all(dir); err != nil && !os.is_dir(dir) {
 		fatal(fmt.tprintf("can't create %s: %v", dir, err))
 	}
 
