@@ -59,6 +59,7 @@ Decl :: struct {
 main :: proc() {
 	opt := parse_args(os.args[1:])
 	// Absolute, because build.{sh,bat} cd to the repo root before the scan build writes there.
+	_ = os.make_directory_all(opt.out)
 	opt.repo, opt.htmx, opt.out = abs(opt.repo), abs(opt.htmx), abs(opt.out)
 	dir := path_join(opt.out, opt.profile)
 	if err := os.make_directory_all(dir); err != nil {
