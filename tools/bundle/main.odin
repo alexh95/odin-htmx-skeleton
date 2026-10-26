@@ -115,6 +115,18 @@ main :: proc() {
 		)
 	}
 
+	// The htmx-config meta's JSON for pages on Main (§12.1), from the same union:
+	// an extension missing from its `extensions` allowlist registers as nothing.
+	// The layout folds it into a constant, so a profile with none (minimal,
+	// skeleton) keeps the skeleton's exact head.
+	config := `{"defaultSwap":"innerHTML"}`
+	if main_exts != {} {
+		config = strings.concatenate({`{"defaultSwap":"innerHTML","extensions":"`, ext.list(main_exts, context.temp_allocator), `"}`})
+	}
+	if err := os.write_entire_file(path_join(dir, "htmx-config.json"), transmute([]byte)config); err != nil {
+		fatal(fmt.tprintf("can't write %s/htmx-config.json: %v", dir, err))
+	}
+
 	// The stylesheet and the client's script, from the same reached files.
 	for out in ([]struct{name: string, data: []byte}{{"app.css", stylesheet(opt, files)}, {"app.js", client_js(opt, files)}}) {
 		path := path_join(dir, out.name)

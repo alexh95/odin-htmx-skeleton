@@ -195,6 +195,26 @@ head_title :: proc(b: ^strings.Builder, p: Page) {
 	esc(b, p.brand.suffix)
 }
 
+// The htmx-config meta's JSON for pages on the main bundle: tools/bundle writes it
+// beside the bundle at prepare, from the same union (§12.1), and without it (a
+// build before prepare, or no extensions) it is the skeleton's own. Folded into a
+// constant, so the head costs what it did.
+@(private = "file")
+BUILD_DIR :: #config(BUILD_DIR, "../../build/none")
+when #exists(BUILD_DIR + "/htmx-config.json") {
+	HTMX_CONFIG :: #load(BUILD_DIR + "/htmx-config.json", string)
+} else {
+	HTMX_CONFIG :: `{"defaultSwap":"innerHTML"}`
+}
+
+@(private = "file")
+HEAD_OPEN :: `">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="htmx-config" content='` + HTMX_CONFIG + `'>
+<title>`
+
 // The one page shell. p.active is the href of the current page, so the nav can
 // mark it; the inline head script sets the theme before first paint.
 layout :: proc(p: Page, content: string) -> string {
@@ -208,12 +228,7 @@ layout :: proc(p: Page, content: string) -> string {
 	w(&b, theme.DEFAULT_STYLE)
 	w(&b, `" data-scheme="`)
 	w(&b, theme.DEFAULT_SCHEME)
-	w(&b, `">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="htmx-config" content='{"defaultSwap":"innerHTML"}'>
-<title>`)
+	w(&b, HEAD_OPEN)
 	head_title(&b, p)
 	w(&b, `</title>
 <meta name="description" content="`)
