@@ -8,6 +8,26 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes: `docs/spikes/`).
+
+### Added
+- **The fork's changes to odin-http** (`app/vendor/odin-http/UPSTREAM.md` lists each, F-1 to F-12;
+  F-3 waits for video): streams for SSE, WebSocket and multipart on the HTTP port; an `invoke` hook
+  every server-owned callback runs through, so a crash guard can contain a crash in a handler, a stream
+  or odin-http itself; idle, header and body timeouts; a connection cap that answers 503 instead of
+  stalling at the open-file limit; a shutdown bounded at about 5.6 s with streams, slow and stuck peers
+  open; SIGTERM as well as SIGINT; a per-thread `date` header (the shared one tore under readers); and a
+  3 s bind retry. The skeleton app takes the new defaults through `Default_Server_Opts`. Spikes S0.2,
+  S0.3, S0.6 and S0.7 measure and drill them.
+- **`tools/bundle`** (prototype, spike S0.10): builds a profile's htmx bundles, with br and gzip, from
+  the extensions its packages declare. **`tools/baseline`** (spike S0.1): rebuilds a skeleton release
+  from git for the parity gate.
+
+### Fixed
+- **`OPTIONS *` with a negative `Content-Length` no longer aborts the process.** 1.2.1 refused a bad
+  `Content-Length` in `front`, but odin-http answers `OPTIONS *` itself; the fork's `_body_length`
+  now takes plain digits within `int` only (F-6), for every request.
+
 ### Changed
 - **odin-http is vendored in-tree** at `app/vendor/odin-http/`, replacing the `app/odin-http` git
   submodule: laytan/odin-http `fac113f` as published, package files only, with an `UPSTREAM.md` that

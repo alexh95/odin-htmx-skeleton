@@ -279,13 +279,15 @@ What the fixes for #13–#44 didn't finish, by area. Each names its issue where 
       `Sec-Fetch-Site`/`Origin` guard (#18).
 - [ ] **Upstream (odin-http)**: its shared `Date`-header buffer is rewritten every second while
       other threads read it. k6 saw 2 malformed `Date:` headers with NUL bytes in about 800k
-      requests. Report it upstream.
+      requests. Fixed in the vendored fork (F-11, `app/vendor/odin-http/UPSTREAM.md`); still to
+      report upstream.
 - [ ] **Upstream (odin-http): a negative `Content-Length` aborts the process.** `_body_length`
       (`body.odin`) checks only the upper bound, so `-5` reaches `assert(n >= 0)` in
       `scan_num_bytes`. `front` refuses it for every request it sees, but odin-http answers
       `OPTIONS *` itself and then drains the body, so `OPTIONS * HTTP/1.1` with `Content-Length: -5`
       still kills the server. Report it upstream with the chunked path's `size < 0` guard (#117) as
-      the fix. The vendored copy (`app/vendor/odin-http`) takes that guard as F-6 (its `UPSTREAM.md`).
+      the fix. Fixed in the vendored fork (F-6, `app/vendor/odin-http/UPSTREAM.md`); the issue is
+      drafted, still to post upstream.
 
 ## Done
 
