@@ -849,6 +849,14 @@ conn_handle_req :: proc(c: ^Connection, allocator := context.temp_allocator) {
 			}
 
 			l.conn.server.handler.handle(&l.conn.server.handler, &l.req, &l.res)
+			// F-17: the handler began a stream and has returned, so nothing reads this request
+			// again: its arena's pages go back. A zero arena is a growing one that maps its first
+			// block on first use (re-initialising it would touch a page now), so a chunked stream
+			// that ends serves the next request from it (clean_request_loop).
+			if l.conn.stream != nil {
+				virtual.arena_destroy(&l.conn.temp_allocator)
+				l.conn.temp_allocator = {}
+			}
 		}
 	}
 

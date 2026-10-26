@@ -11,13 +11,17 @@ package http
 // cap, reads for a raw stream, and the shutdown grace. Protocols (SSE, WebSocket, multipart) are the
 // application's.
 //
-// Allocator rule: after the handler returns, the connection's arena is scratch. It is the
-// temp_allocator inside on_data and is freed after every on_data call, so copy anything you need
-// from the request (url params, headers) before the handler returns.
+// Allocator rule: once the handler returns, the request's memory is gone (F-17: the connection
+// gives its arena back), so copy anything you need from the request (url params, headers) before
+// it returns. Inside on_data the temp_allocator is the thread's, freed after every on_data call.
+//
+// F-17: an open stream holds little: its receive buffer is sized by kind (a chunked stream reads
+// only to notice the peer leaving), the scanner's buffer goes back at stream_begin, and the
+// connection's arena once the handler returns. An idle SSE stream held about 16 KiB before
+// (4,000 held: 68 MB over 5 MB idle, Linux), against the starter's 6 KiB budget.
 
 import "core:bytes"
 import "core:mem"
-import "core:mem/virtual"
 import "core:nbio"
 import "core:strconv"
 import "core:time"
@@ -45,6 +49,11 @@ STREAM_MAX_QUEUED     :: 256 * 1024
 STREAM_MAX_INBOUND    :: 128 * 1024
 STREAM_SHUTDOWN_GRACE :: 2 * time.Second
 
+// F-17: what one read takes. A raw stream (a WebSocket) reads its peer's frames; a chunked one
+// reads only to notice the peer leaving.
+STREAM_RECV_RAW     :: 2048
+STREAM_RECV_CHUNKED :: 64
+
 Stream :: struct {
 	conn:        ^Connection,
 	loop:        ^nbio.Event_Loop,
@@ -71,7 +80,7 @@ Stream :: struct {
 	close_after: bool, // the request asked for it, its body was never read, or the peer is HTTP/1.0
 	shutting:    bool,
 	done:        bool,
-	recv_buf:    [4096]byte,
+	recv_buf:    []byte, // F-17: sized by kind
 }
 
 stream_begin :: proc(
@@ -112,17 +121,24 @@ stream_begin :: proc(
 	alloc := conn.server.conn_allocator
 	s := new(Stream, alloc)
 	s.conn, s.loop, s.alloc, s.kind, s.close_after = conn, td.event_loop, alloc, kind, close_after
+	s.recv_buf = make([]byte, STREAM_RECV_RAW if kind == .Raw else STREAM_RECV_CHUNKED, alloc)
 	s.framed = kind == .Chunked && !http10
 	s.user, s.on_data, s.on_close, s.max_queued = user, on_data, on_close, max_queued
 	s.queue.allocator, s.flight.allocator, s.inbound.allocator = alloc, alloc, alloc
 	append(&s.queue, ..bytes.buffer_to_bytes(&res._buf))
 
 	// Bytes the client sent right behind its request (a WebSocket's first frames) are already
-	// in the scanner's buffer.
+	// in the scanner's buffer. F-17: then the buffer goes; a chunked stream that ends serves the
+	// next request from a fresh one, keeping any pipelined bytes.
+	sc := &conn.scanner
 	if kind == .Raw {
-		sc := &conn.scanner
 		if sc.end > sc.start { append(&s.inbound, ..sc.buf[sc.start:sc.end]) }
 		sc.start = sc.end
+	}
+	if sc.end == sc.start {
+		delete(sc.buf)
+		sc.buf = make([dynamic]byte, sc.buf.allocator)
+		sc.start, sc.end = 0, 0
 	}
 
 	conn.stream = s
@@ -307,8 +323,7 @@ _stream_on_recv :: proc(op: ^nbio.Operation, s: ^Stream) {
 
 @(private)
 _stream_feed :: proc(s: ^Stream) {
-	arena := &s.conn.temp_allocator
-	context.temp_allocator = virtual.arena_allocator(arena)
+	// F-17: the thread's temp allocator, not the connection's arena, which an open stream gave back.
 	defer free_all(context.temp_allocator)
 
 	for len(s.inbound) > 0 && !s.done {
@@ -341,6 +356,7 @@ _stream_finish :: proc(s: ^Stream, why: Stream_End) {
 		delete(s.queue)
 		delete(s.flight)
 		delete(s.inbound)
+		delete(s.recv_buf, s.alloc)
 		free(s, s.alloc)
 	})
 }
