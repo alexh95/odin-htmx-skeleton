@@ -8,8 +8,10 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-26
+
 The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes: `docs/spikes/`), and this is
-its first milestone, M1, meant to ship as **2.0.0**: the request path rebuilt as a platform (`app/platform/`),
+its first milestone, M1: the request path rebuilt as a platform (`app/platform/`),
 features (`app/features/`) with a store per family (`app/stores/`), and two profiles (`app/cmd/`): `skeleton`, the
 1.2.x console at its exact URLs, and `minimal`, the one-page notes starter. Behind them: the vendored odin-http fork
 (F-1 to F-16), a crash guard, logfmt and metrics, store v3 (per-loop readers, a group-committing writer task),
@@ -1432,3 +1434,11 @@ pre-1.0; **1.0.0 marks the point it became clone-and-go.**
   - In-memory CRUD over POST/DELETE; single-threaded lock-free store.
   - Hand-written, token-driven CSS with a dark/light theme toggle and snappy animations.
   - Cross-platform `prepare`/`run` scripts (Windows / Linux / macOS).
+
+[Unreleased]: https://github.com/alexh95/odin-htmx-starter/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/alexh95/odin-htmx-starter/compare/v1.2.1...v2.0.0
+[1.2.1]: https://github.com/alexh95/odin-htmx-starter/compare/v1.2.0...v1.2.1
+[1.2.0]: https://github.com/alexh95/odin-htmx-starter/compare/v1.1.1...v1.2.0
+[1.1.1]: https://github.com/alexh95/odin-htmx-starter/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/alexh95/odin-htmx-starter/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/alexh95/odin-htmx-starter/releases/tag/v1.0.0

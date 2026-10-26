@@ -21,7 +21,7 @@ copy-and-start ergonomics and good defaults matter more than feature depth.
 The starter's first milestone of code ([`docs/PLAN.md`](docs/PLAN.md) §22.3, M1's row; M0's spikes are
 in [`docs/spikes/`](docs/spikes/)). Slices in order, each done only when its check passes. `app/src`
 (the 1.2.x app on the fork) keeps building and passing its tests until slice 7 retires it, so
-every slice before that can be compared with it. Tag v2.0.0 only when Alex says so; `FLY_DEPLOY`
+every slice before that can be compared with it. Released as v2.0.0 on 2026-10-26 at Alex's go; `FLY_DEPLOY`
 stays off and Fly keeps serving 6d37506.
 
 - [x] **1. Build line.** `build.{sh,bat} <profile>` at the root (`minimal`, `skeleton`; `CMD=check|test|run`;
@@ -165,13 +165,14 @@ stays off and Fly keeps serving 6d37506.
       Linux `write@mem` at 0.99 of HEAD on its re-run, under the 0.93 floor Alex accepted (round 6). The
       checklist is 40 of 40. Both legs' drills
       pass at `72590f6`, budgets included (skeleton 2,883,584 B, exactly 2.75 MiB: no headroom left).
-- [ ] **12. Audit and release prep.** `docs/audit/M1.md` by an agent that didn't write the code, 0 open
+- [x] **12. Audit and release prep.** `docs/audit/M1.md` by an agent that didn't write the code, 0 open
       CRITICAL/HIGH; `Audited:` stamps; CLAUDE.md, README and app/README rewritten for the starter (and
       the docs still describing `app/src`: docs/DATA.md, DATA_IMPL.md, STRIP.md, USE_CASES.md's
       `init --minimal`, e2e/PLAN.md, load-tests/PLAN.md — rewritten or removed, PLAN §4);
-      CHANGELOG's 2.0.0 entry; then ask Alex about tagging v2.0.0. Done but the tag: the audit and two
-      independent re-reads (0 open CRITICAL or HIGH; M1-01 and M1-17 fixed), stamps in every package
-      README, the docs rewritten, the CHANGELOG's 2.0.0 summary. Waiting on Alex: the v2.0.0 tag.
+      CHANGELOG's 2.0.0 entry; then ask Alex about tagging v2.0.0. Done: the audit and two independent
+      re-reads (0 open CRITICAL or HIGH; M1-01 and M1-17 fixed), stamps in every package README, the docs
+      rewritten, Alex's pass by hand (`docs/testing/M1.md`), and the CHANGELOG cut as 2.0.0; tagged
+      v2.0.0 once CI was green on that commit (Alex: "(a) Confirmed. Release 2.0.0.").
 
 ## Roadmap to 1.0 — template-ize (Phase F) — ✅ shipped as v1.0.0 (2026-07-01)
 
