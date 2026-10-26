@@ -24,7 +24,7 @@ in [`docs/spikes/`](docs/spikes/)). Slices in order, each done only when its che
 every slice before that can be compared with it. Tag v2.0.0 only when Alex says so; `FLY_DEPLOY`
 stays off and Fly keeps serving 6d37506.
 
-- [ ] **1. Build line.** `build.{sh,bat} <profile>` at the root (`minimal`, `skeleton`; `CMD=check|test|run`;
+- [x] **1. Build line.** `build.{sh,bat} <profile>` at the root (`minimal`, `skeleton`; `CMD=check|test|run`;
       the four collection flags; `-vet -strict-style -warnings-as-errors`; `-define:VERSION`), `ols.json`
       at the root on `skeleton`'s families until `full` exists, and `prepare.*` building SQLite with
       D16's `SQLITE_FLAGS`, recorded in `vendor/sqlite/.flags` so a flag change rebuilds the lib (S0.11).

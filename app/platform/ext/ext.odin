@@ -3,9 +3,9 @@ package ext
 // ---- htmx extensions (D19, D21) -----------------------------------------
 //
 // The closed set of htmx 4.0.0 extensions a page can load, and the four page
-// bundles. Fixture copy for spike S0.10; M1 moves it to app/platform/ext. It is
-// an L1 leaf that imports only core, so tools/bundle imports it too: the tool
-// that writes a bundle header and the boot check that reads it share one table.
+// bundles. An L1 leaf that imports only core, so tools/bundle imports it too:
+// the tool that writes a bundle header and the boot check that reads it share
+// one table. platform/web re-exports it as web.Ext (X33).
 
 import "core:strings"
 

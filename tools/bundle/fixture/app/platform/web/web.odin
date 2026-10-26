@@ -5,7 +5,7 @@ package web
 
 import "core:fmt"
 import "core:os"
-import "../ext"
+import "../../../../../../app/platform/ext"
 
 Ext :: ext.Ext
 Bundle :: ext.Bundle

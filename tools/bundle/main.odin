@@ -21,9 +21,8 @@ package main
 //
 // The ext tables come from the app's own leaf package, imported here, so the
 // header this writes and the boot check that reads it can't disagree on a
-// name. Spike S0.10 points the tool at tools/bundle/fixture (--repo) and
-// imports that tree's copy; M1 moves the package to app/platform/ext and
-// repoints the import.
+// name. Spike S0.10's fixture (tools/bundle/fixture, run with --repo)
+// re-exports the same package.
 //
 // An `EXTS` line may name another package's EXTS (chat_web unions its
 // transports'). Those references need no following: a package can only name a
@@ -39,7 +38,7 @@ import "core:os"
 import "core:reflect"
 import "core:slice"
 import "core:strings"
-import ext "fixture/app/platform/ext"
+import ext "../../app/platform/ext"
 
 Options :: struct {
 	profile: string,
