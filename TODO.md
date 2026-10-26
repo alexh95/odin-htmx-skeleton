@@ -136,8 +136,8 @@ stays off and Fly keeps serving 6d37506.
       flushed; M1-11 half-closed clients and resets (likely the Linux "none" count in the drills);
       M1-12 callbacks outside the guard; M1-13 `tools/check locks` and `entry-points`, plain
       `sync.Mutex` in four packages; M1-14 Markdown's quadratic worst case; M1-15 the watchdog's lock
-      limit equals busy_timeout; M1-16 unchecked setup results. Also `web.count_and_log` and
-      `store_sqlite.query_drain` have no caller.
+      limit equals busy_timeout; M1-16 unchecked setup results. (`web.count_and_log` and
+      `store_sqlite.query_drain`, which had no caller, are removed: the audit's vet triage.)
 - [ ] **`Audited:` stamps for the packages without a README**: the M1 audit stamps the features,
       `platform/web` and the fork (`UPSTREAM.md`); the other platform packages, the stores and the
       profiles need a README (or `tools/check audit-debt` another place to read stamps). F-14, M1-06's

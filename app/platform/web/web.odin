@@ -16,7 +16,6 @@ import http "../../vendor/odin-http"
 import "../authz"
 import "../ext"
 import "../html"
-import "../obs"
 
 Request :: http.Request
 Response :: http.Response
@@ -118,9 +117,4 @@ impl :: proc(res: ^Response, axis, name: string) {
 // The route id a row is counted and logged under.
 route_id :: proc(r: Route, allocator := context.allocator) -> string {
 	return strings.concatenate({http.method_string(r.method), " ", r.pattern}, allocator)
-}
-
-@(private)
-count_and_log :: proc(r: ^Mounted, us: i64) {
-	if r != nil { obs.count_request(r.obs, us) }
 }

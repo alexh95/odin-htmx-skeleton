@@ -260,8 +260,6 @@ exit :: proc() -> ! {
 	os.exit(code)
 }
 
-profile :: proc() -> string { return st.profile }
-
 // ---- the per-loop hooks (F-4) ---------------------------------------------------------
 
 @(private)

@@ -26,11 +26,6 @@ pool_start :: proc() {
 	workers.start(&query_pool, "query", QUERY_THREADS, QUERY_QUEUE)
 }
 
-// Called at drain, before the loops wait on the replies they owe.
-query_drain :: proc() {
-	workers.drain(&query_pool)
-}
-
 @(private)
 pool_stop :: proc() {
 	if query_pool.threads != nil { workers.stop(&query_pool) }
