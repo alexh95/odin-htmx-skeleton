@@ -20,6 +20,7 @@ import "../obs"
 import "../web"
 import "../workers"
 import identity "identity:."
+import stores "store:."
 
 // The problems in a profile's tables, one line each; empty when it may boot.
 boot_checks :: proc(hosts: []Host, sites: []web.Site, jobs: [][]workers.Job, bundle_exts: web.Exts) -> [dynamic]string {
@@ -139,7 +140,7 @@ print_routes :: proc(b: ^strings.Builder, hosts: []Host, as_json: bool) {
 @(private)
 print_features :: proc(b: ^strings.Builder, hosts: []Host, as_json: bool) {
 	Features :: struct {
-		profile, identity, client, theme: string,
+		profile, store, identity, client, theme: string,
 		features:                         []string,
 	}
 	names := make([dynamic]string)
@@ -150,12 +151,12 @@ print_features :: proc(b: ^strings.Builder, hosts: []Host, as_json: bool) {
 		}
 	}
 	if as_json {
-		data, _ := json.marshal(Features{st.profile, identity.NAME, html.CLIENT, html.THEME, names[:]}, {pretty = true})
+		data, _ := json.marshal(Features{st.profile, stores.NAME, identity.NAME, html.CLIENT, html.THEME, names[:]}, {pretty = true})
 		strings.write_string(b, string(data))
 		strings.write_byte(b, '\n')
 		return
 	}
-	fmt.sbprintfln(b, "profile %s: identity %s, client %s, theme %s", st.profile, identity.NAME, html.CLIENT, html.THEME)
+	fmt.sbprintfln(b, "profile %s: store %s, identity %s, client %s, theme %s", st.profile, stores.NAME, identity.NAME, html.CLIENT, html.THEME)
 	for n in names { fmt.sbprintfln(b, "  %s", n) }
 }
 
