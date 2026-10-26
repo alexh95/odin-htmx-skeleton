@@ -45,12 +45,17 @@ stays off and Fly keeps serving 6d37506.
       a reader sees the writer's commits; 0 re-prepares in 1000 pages; a batch answers each write as a lone
       write would; the reader reset after a pure trap. Follow-ups: the dashboard and ops numbers
       (`sqlite3_db_status`, WAL bytes) pushed to obs at M5; keyset paging helpers with chat (M6).
-- [ ] **4. Platform L3–L4.** `web` (per-host prefix router, `Route` and flags, `respond_*`, body caps, the
+- [x] **4. Platform L3–L4.** `web` (per-host prefix router, `Route` and flags, `respond_*`, body caps, the
       trusted client address, assets with crc32 names and br/gz/identity, robots, sitemap, Bing, IndexNow,
       `/licenses`, `/healthz /livez /readyz /metrics`), `html` (the escaping boundary, layout, NAV, the
       components, `behave`), `client/vanilla`, `theme/full`, `theme/lite`, `app` (`front`, `Host`,
       `boot check serve wait shutdown`, the CLI, the 8 boot checks, `TEST_ROUTES`). *Check:* router,
-      escaping and boot-check unit tests, a deliberately bad table tripping checks 1, 3 and 5.
+      escaping and boot-check unit tests, a deliberately bad table tripping checks 1, 3 and 5. Done:
+      `platform/escape`'s tests; the router and the bad table in the skeleton's `routes_test.odin`
+      (`platform/web` reaches the family collections, so it can't be tested alone), which trips checks
+      1, 3 and 5 and nothing else; both profiles' boot checks under `CMD=test`, leak-free. Moved to M2:
+      `html.behave` and the `Behaviour` table, with `client/hyperscript`, the family's second member
+      (D22's as-built note; the skeleton's markup stays byte for byte until then).
 - [x] **5. `minimal`.** Features `home`, `about`, `notes` (both store families, `storetest`); `cmd/minimal`'s
       four files. *Check:* builds with no SQLite library present; ≤ 1.0 MB; the skeleton's exact header
       set; its bundle is `htmx.min.js` byte for byte; the minimal starter's specs pass. Done: no SQLite

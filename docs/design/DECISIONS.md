@@ -1292,6 +1292,10 @@ on `houston-lab` (D25). Alpine stays inert unless Alex asks (D3).
 - `escaping.spec` asserts that every `_` on every rendered page matches `^install [A-Z]\w*$` and every `data-behave`
   value is a vanilla name in `BEHAVIOURS`.
 
+**As built (M1):** `html.behave` and the `Behaviour` table arrive in M2 with `client/hyperscript`, the family's second
+member. M1 has one member, vanilla, and the skeleton answers byte for byte as 1.2.x did, so its own `data-*` markup and
+app.js's delegated listeners stay as they are until then.
+
 **Rejected.** String behaviour names (RF §3.9, CF §4.1). RF §4.2's boot switch embedding both runtimes. A vanilla twin
 of every behaviour (PF's `houston-vanilla`): twin cost without user value.
 
