@@ -8,6 +8,22 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, generator v1; `TODO.md`'s M2 slices).
+
+### Added
+- **`platform/stream`** (PLAN §8.2): SSE, WebSocket and multipart on the fork's streams. The SSE encoder splits user
+  text on CR, LF and CRLF alike; the WebSocket handshake checks `Origin` against the host's own origin (a request
+  without one passes) and the codec is strict RFC 6455 (1002, 1007, 1009 at 64 KiB; 1013 to a slow consumer with a
+  2 s deadline, 1012 on drain, 1011 after a pure crash, 1008 past a route's frame rate); the multipart writer frames
+  with CRLF and a `Content-Length` per part. Each stream writes its first bytes with its headers, and one timer per
+  loop sends heartbeats every 20 s and closes a socket silent for 45 s. A `.Stream` route gets
+  `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`. Unit tests cover the encoder, the codec
+  (frame errors, fragments, UTF-8 across fragments, close codes) and the part framing.
+
+### Changed
+- **The unit tests build on `minimal`'s four families** (`.github/scripts/unit-tests.sh`): `platform/stream` reaches
+  the family collections through `platform/web`.
+
 ## [2.0.0] - 2026-10-26
 
 The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes: `docs/spikes/`), and this is

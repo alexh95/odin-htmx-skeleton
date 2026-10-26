@@ -3,7 +3,8 @@
 The request path's L3 package: the prefix router (one map per host), `Req_Ctx`, the `respond_*` helpers, body caps,
 the trusted-proxy client address, deferred responses, the embedded assets, and the platform's two route tables:
 `web.ROUTES` for a site's main host and `web.PUBLIC_ROUTES` for every host (PLAN §5.2, §8.4). It is the only
-package that imports odin-http; it re-exports `web.Request` and `web.Response`.
+package that imports odin-http; it re-exports `web.Request` and `web.Response`, and F-1's streams for
+`platform/stream` (`stream.odin`).
 
 ## Prefixes
 

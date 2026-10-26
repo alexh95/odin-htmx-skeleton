@@ -854,10 +854,11 @@ can't be cross-site hijacking (S0.3).
 **Allocators: three buckets**, written into CLAUDE.md's "Allocator model" and the review rubric (02 §2.8 item 1):
 1. request-scoped data in `context.temp_allocator` (as today);
 2. process-lifetime data in `context.allocator` at boot (as today);
-3. connection-lifetime data in the stream's own `virtual.Arena`, created at `stream_begin` and destroyed one tick
-   after `on_close` (03 §7). Handlers copy what they need before returning; after the handler the request arena is
-   per-callback scratch; every timer, cross-thread and worker callback ends with `free_all(context.temp_allocator)`
-   (03 §2.8).
+3. connection-lifetime data on the heap, in the stream's `Conn` and its buffers, freed one tick after `on_close`
+   (03 §7). Handlers copy what they need before returning; after the handler the request arena is per-callback
+   scratch; every timer, cross-thread and worker callback ends with `free_all(context.temp_allocator)` (03 §2.8).
+   **As built (M2):** not a `virtual.Arena` per stream, as first planned: an arena commits a 4 KiB page, and F-1's
+   `Stream` already holds a 4 KiB receive buffer, so the pair would pass §18.4's 6 KiB per open stream.
 
 **Rejected.** spark's `wsserver` I/O loop (it polls every socket every tick, 03 §5.1); keeping stream state in the
 request arena (02 §2.7).

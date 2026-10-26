@@ -993,15 +993,17 @@ Three buckets (D12), written into CLAUDE.md's "Allocator model" and the review r
 |---|---|---|---|
 | request | `context.temp_allocator`, odin-http's per-connection arena | the response is flushed (02 §2.7) | response HTML, parsed forms, store snapshots for this request |
 | process | `context.allocator`, at boot | the process exits | ETags, CSP strings, fingerprinted asset names, the parsed env table (`SK/CLAUDE.md` "Allocator model") |
-| connection | the stream's own `virtual.Arena`, created at `stream_begin` | one tick after `on_close` (03 §7) | subscriptions, cursors, per-socket buffers |
+| connection | the heap: the stream's `Conn` and its buffers (M2; D12) | one tick after `on_close` (03 §7) | subscriptions, cursors, per-socket buffers |
 
 The rules:
 - Handlers copy what they need before returning; after the handler the request arena is per-callback scratch (03 §7).
 - Every timer, cross-thread and worker callback ends with `free_all(context.temp_allocator)`: nbio hands it the
   tick's context, whose temp allocator odin-http never frees (03 §2.8).
 - Stream state never lives in the temp arena, which is freed under it after each flush (02 §2.7; S4).
-- Structs a callback may still use (`Stream`, `Ws`) are freed one tick after `on_close`, which removes the
+- Structs a callback may still use (`Stream`, `Conn`) are freed one tick after `on_close`, which removes the
   use-after-free where `on_close` runs inside a frame parser (03 §7).
+- A stream's state is not a `virtual.Arena` per stream, as D12 first had it: an arena commits a 4 KiB page, and F-1's
+  `Stream` already holds a 4 KiB receive buffer, so the pair would pass §18.4's 6 KiB per open stream (M2).
 - A recovered pure crash leaks what it had allocated from `context.allocator`; that is why many recoveries in a short
   window count as dirty (D15, §10).
 
@@ -1940,8 +1942,9 @@ delay worth counting (S0.8: p99 ≤ 4.6 ms with `encode zstd gzip`, ≤ 1.3 ms w
 WebKit resolves a streamed fetch only at its first body bytes, so a quiet SSE stream stayed "connecting" until the
 first heartbeat (19.6 s) and a slow first part held a multipart response, inside htmx's 60 s request timeout (S0.3).
 A slow WebSocket consumer gets close 1013 before its queue passes the cap, then 2 s to take it before the fork cuts it
-off (`stream_would_overflow`, and F-1's `stream_end` with a deadline; S0.3). HTTP/1.0 peers get a close-delimited body (F-2). Each stream owns a `virtual.Arena` created at
-`stream_begin` and destroyed one tick after `on_close`; the three allocator buckets are in §5.
+off (`stream_would_overflow`, and F-1's `stream_end` with a deadline; S0.3). HTTP/1.0 peers get a close-delimited body (F-2). Each stream is a `Conn` on
+the heap, freed one tick after `on_close`, and registered on its loop: one timer per loop sends the heartbeats and
+enforces the WS pong deadline (§9.4); the three allocator buckets are in §5.
 
 `platform/stream/client` is one non-blocking chunked, SSE and WS client on `core:net` (**NEW**). Its three users are
 `bot/backend_llama` (§14), `cmd/term-agent` (§16) and `tools/streamload` (§19): one definition of the streaming client.

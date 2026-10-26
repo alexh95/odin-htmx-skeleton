@@ -58,7 +58,7 @@ app/
 |---|---|
 | L1 | `sys` (the OS edge: traps, the open-file limit, clocks), `sqlite` (the binding), `ext` (htmx extensions), `escape` (`esc`, `url_encode`, `json_esc`) |
 | L2 | `store` (+ `store/sqlite`: store v3, the writer task, migrations, `--backup`; `store/memory`), `env` (the typed environment), `authz` (+ `authz/anonymous`), `obs` (logfmt, metrics, health), `guard` (crash containment, the watchdog), `workers`, `markdown` |
-| L3 | `web` (router, `front`'s helpers, responses, assets, the platform's routes), `html` (the layout and components), `client/*`, `theme/*` |
+| L3 | `web` (router, `front`'s helpers, responses, assets, the platform's routes), `stream` (SSE, WebSocket and multipart on the fork's streams), `html` (the layout and components), `client/*`, `theme/*` |
 | L4 | `app` (the `front` chain, `boot`, `check`, `serve`, `wait`, `shutdown`; only `cmd/*` imports it) |
 
 **A feature** is a set of packages: `models` (types and the store contract), `f` (the domain:

@@ -84,6 +84,13 @@ security_headers :: proc(res: ^Response, flags: Route_Flags, path: string) {
 		http.headers_set_unsafe(h, "cache-control", "no-store")
 		http.headers_set_unsafe(h, "x-robots-tag", "noindex, nofollow")
 	}
+	// nginx (NPM) flushes each write instead of buffering the body, and no proxy
+	// compresses or caches a live stream: Caddy's `encode` skips no-transform
+	// (§8.2; 08 §3.2; S0.8).
+	if .Stream in flags {
+		http.headers_set_unsafe(h, "cache-control", "no-store, no-transform" if .Private in flags else "no-cache, no-transform")
+		http.headers_set_unsafe(h, "x-accel-buffering", "no")
+	}
 }
 
 // ---- refusals before anything can answer --------------------------------------------

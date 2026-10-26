@@ -24,7 +24,7 @@ the tests). Slices in order, each done only when its check passes; a later slice
 The S0.3 prototype (`docs/spikes/S0.3/server/`) and its specs (`e2e/spikes/S0.3/`) are where slices 1, 2 and 5
 start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only when Alex says so; `FLY_DEPLOY` stays off.
 
-- [ ] **1. Stream protocols** (`platform/stream`, L3, over F-1 through `platform/web`, which stays the one importer of
+- [x] **1. Stream protocols** (`platform/stream`, L3, over F-1 through `platform/web`, which stays the one importer of
       odin-http): the SSE encoder (CR, LF and CRLF each start a `data:` line; ids, named events; `: open` with the
       headers), the WS handshake (`Origin` = the host's origin, or none; version 13, else 426), the strict RFC 6455
       codec (RSV, masking, control frames, fragmentation, UTF-8 across fragments; 1002, 1007, 1009 at 64 KiB), ping
@@ -32,7 +32,8 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       from `on_crash`; the multipart writer (boundary, CRLF framing, `Content-Length` per part, a preamble); the
       `.Stream` flag's headers; a `virtual.Arena` per stream. *Check:* unit tests from spark's RFC 6455 coverage
       table (03 §5.1, X24), the SSE encoder and a multipart round trip, leaks fatal; `tools/check imports` knows the
-      package.
+      package. Done: 10 unit tests, leak-free; the codec is exercised end to end by slice 5's lab specs. A
+      stream's state is on the heap, not a per-stream arena (D12's as-built note: §18.4's 6 KiB a stream).
 - [ ] **2. The hub** (`platform/hub`, §9.2–9.4): a shard per loop from F-4's thread hooks, one wakeup per loop per
       burst, the hub mutex a `guard.Mutex`, a ring per topic (`HUB_RING` 256), one refcounted message encoded once
       per transport, `.Queue`/`.Latest` (with the publish key)/`.Sample`, `TOPICS` rows mounted per host
