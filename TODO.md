@@ -119,6 +119,9 @@ stays off and Fly keeps serving 6d37506.
       1.0 MB only without the social card. Also seen: on Linux a client that half-closes right after
       its request often gets no response (the malformed run's "none": 5,560 of 10,000 against 1,250 on
       Windows); no crash, but worth the audit's look.
+- [ ] **`--limits` misses the store's rows** (`DB_PATH`, `SEED`, `MEMMODE`): `store_sqlite.open`
+      records them at step 5, after `app.check` answers the CLI at step 4. Record them in an init
+      before `app.check` (PLAN §8.5: every row printed, secrets masked).
 - [ ] **11. The parity gate** on both legs (`skeleton` against 709bc94 and v1.1.1; §18.2 with Q6's and
       Q35's references), into `docs/perf/PARITY.md`; the 01 (A) checklist.
 - [ ] **12. Audit and release prep.** `docs/audit/M1.md` by an agent that didn't write the code, 0 open

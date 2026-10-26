@@ -54,9 +54,10 @@ a product you finish, so it's built as one believable tool rather than a grab-ba
 
 That's the exemplar. Product-depth features a real console would grow — **bulk actions**, saved
 filters, a **named console identity** — are **out of scope as goals**: they'd be cruft a copier
-deletes, and they teach nothing new about the stack. When you fork this, the example is what you
-*strip* — by hand ([`STRIP.md`](STRIP.md)) or with `init --minimal` — keeping the scaffolding beneath
-it. It stays strictly CRUD-centric and inside the sweet spot; that's the honest showcase.
+deletes, and they teach nothing new about the stack. When you fork this, the example features are
+what you replace: start from the `minimal` profile, or drop the skeleton's features from a profile,
+keeping the platform beneath them. It stays strictly CRUD-centric and inside the sweet spot; that's
+the honest showcase.
 
 ## The standing rule: app / e2e / load-tests at par
 

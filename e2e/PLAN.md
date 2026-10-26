@@ -1,130 +1,53 @@
-# End-to-end tests — plan
+# End-to-end tests — design
 
-> Status: **implemented.** The Playwright suite lives alongside this plan: ten spec files under
-> `tests/`, each listed in [`README.md`](README.md) with how to run them. This document stays as the
-> design rationale.
+The operating manual is [`README.md`](README.md); the test plan for the whole starter is
+`docs/PLAN.md` §19.1 (D37). This is the why behind the harness.
 
 ## Goal
 
-Prove the app behaves correctly *through a real browser* — the HTMX swaps, the
-animations settling, the bits that curl can't see. The existing curl checks already cover
-the request/response contracts; e2e covers what happens after the fragment lands in the DOM.
-
-The three bugs fixed in this round become permanent regression tests:
-- the invite dialog does **not** close on an outside click and keeps its field,
-- validating the email on `/forms` does **not** wipe the name/email fields,
-- range sliders paint their fill to match the thumb.
+Prove each profile behaves correctly *through a real browser* — the HTMX swaps, the animations
+settling, the bits curl can't see — and pin every bug fixed once as a regression test (the modal
+keeps its field on a backdrop click; `/forms` validation doesn't wipe the fields; range sliders paint
+their fill; a click isn't lost to a swap's view transition). The `api` project covers the HTTP
+contracts that need no browser (headers, limits, routing, the crawler contract, operations).
 
 ## Tooling
 
-**Playwright** (recommended). It auto-waits for elements and network to settle, which suits
-HTMX's async swaps, runs headless in CI, and drives Chromium/Firefox/WebKit. The trade-off:
-it's a JS-ecosystem dev dependency, which cuts against the app's zero-dependency stance — but
-it is a *test-time* tool, never shipped, and lives entirely inside `e2e/`. The app itself
-stays dependency-free. Managed with npm; on CI it runs in Playwright's official Docker image
-(browsers + OS deps + node/npm preinstalled).
+**Playwright.** It auto-waits for elements and the network to settle, which suits HTMX's async
+swaps, runs headless in CI, and drives Chromium, Firefox and WebKit. It's a JS dev dependency, which
+cuts against the app's no-dependency stance, but it is test-time only, never shipped, and lives
+entirely in `e2e/`; on CI it runs in Playwright's own image. A pure-Odin HTTP harness could cover the
+contracts but can't execute HTMX or assert on the DOM, so it doesn't replace this.
 
-Considered and rejected for now: a pure-Odin HTTP harness. It's great for contract tests
-(and we may add one later) but it can't execute HTMX or assert on rendered DOM, so it
-doesn't replace browser e2e.
+## The server under test
 
-## Layout
+`global-setup.ts` builds the profile once through `build.sh` and asks the binary what it mounts
+(`--features --json`). Each Playwright **worker spawns its own server** on a port the OS picks, with
+a pinned environment (`DB_PATH=:memory:` whatever the shell exports) and its own store, so the suite
+runs **fully in parallel** across workers and engines with no shared-state collisions. A spec that
+needs its own server (a file DB, a crash, a custom `SITE_URL`) starts one with `startServer`.
 
-```
-e2e/
-  package.json            # playwright only (npm; package-lock.json)
-  playwright.config.ts    # 3 engines + the browser-less `api` project, fullyParallel, trace on retry
-  global-setup.ts         # prepare (if needed) + builds app/bin once with -warnings-as-errors
-  fixtures.ts             # worker-scoped server + baseURL override
-  helpers/server.ts       # starts a server: OS-picked port, pinned env, fails fast
-  tests/
-    navigation.spec.ts
-    search.spec.ts
-    components.spec.ts    # tabs, accordion, modal (regression), drawer, toasts
-    forms.spec.ts         # validation, field-persist (regression), slider fill (regression)
-    crud.spec.ts          # create / cycle / delete / sort / paginate / filter
-    assets.spec.ts        # embedded htmx + css, caching headers, path-traversal 404
-    responsive.spec.ts    # no horizontal overflow on a phone-width viewport
-    seo.spec.ts           # robots, sitemap, canonical + social tags, JSON-LD, host redirect
-    events.spec.ts        # (api) deleting a contact cascades its interactions
-    persistence.spec.ts   # (api) a file DB survives a restart
-  README.md
-```
+## One suite, many profiles
 
-## Server under test
-
-The store is SQLite at `:memory:` (the default when `DB_PATH` is unset), seeded fresh and gone on
-exit, so a freshly spawned binary is a clean, deterministic fixture. As implemented:
-1. `global-setup.ts` builds the binary once (`-warnings-as-errors`).
-2. A **worker-scoped fixture** (`fixtures.ts`) spawns one server per Playwright worker on a
-   port the OS picks, with a pinned env (`DB_PATH=:memory:` whatever the shell exports), waits on
-   `GET /healthz` (failing fast with the server's output if it exits), and kills it at worker end.
-3. It overrides `baseURL` so each worker's `page`/`request` hit that worker's server.
-
-Because every worker has its **own process and its own store**, the suite runs **fully in
-parallel** (`fullyParallel: true`) across workers and the three engines — no shared-state
-collisions, no need for `workers: 1`. (The first cut did run serially against a single shared
-server; per-worker isolation replaced it. See the parallelisation commit.)
-
-## Scenarios
-
-**navigation** — dashboard renders (+ stat-card drill-through); each nav link routes and sets
-`aria-current`; the theme picker switches `data-style`/`data-scheme`, the showroom swatches jump,
-and the choice survives a reload (localStorage).
-
-**search** — typing debounces then shows the dropdown; the query is highlighted with
-`<mark>`; an empty query collapses it; clicking a result lands on `/data?q=…`; outside-click
-and Escape dismiss it.
-
-**components** — tabs swap the panel and move `aria-selected`; accordion expands; **modal**:
-opens, an outside (backdrop) click leaves it open with its field intact, × and Cancel close
-it; **drawer**: opens and the backdrop click *does* close it (it has no field to lose);
-**toast**: appears and auto-dismisses after its timeout.
-
-**forms** — bad email shows an error message, good email shows "Looks good."; **name + email
-persist after validation fires** (regression); **slider `--fill` tracks the value**
-(regression); submit creates a contact → success card + toast; the form resets only on its
-own submit, not on field validation.
-
-**crud** — create appends a row and raises a toast; cycle advances the status badge; delete
-removes the row (and a missing id returns 404 with the row untouched); sort headers reorder
-and flip asc/desc; pagination and filter swap the table region without a full reload.
-
-**assets** — `/static/htmx.min.js` is the embedded copy (200, JS content-type, ~36 KB, htmx 4);
-`/static/app.css` is embedded too; static assets carry ETag + Cache-Control and revalidate to 304;
-pages link fingerprinted, immutable asset URLs; an encoded `../` out of `/static/` is blocked (404).
-
-**responsive** — each nav page fits a 390 px viewport without horizontal overflow.
-
-**seo** — the crawler contract: `robots.txt`, a `sitemap.xml` derived from the nav, a
-self-referential canonical on every page, social-card tags, JSON-LD, `favicon.ico`, and the
-`*.fly.dev` → canonical-origin redirect (with `/healthz` exempt).
-
-**events** / **persistence** (the `api` project, run once rather than per engine) — deleting a
-contact cascades its interactions; a file-backed DB survives a process restart.
+Specs live with the feature they test (`tests/<f>/`) and carry a tag for every feature they touch;
+the fixture skips a spec whose features the build lacks, naming them, and fails an untagged one. So a
+profile, or a fork's generated selection, carries exactly its own tests, and a spec written against
+the full skeleton still runs where its features are. A shared spec branches on the build with
+`has()` rather than probing URLs.
 
 ## Selectors
 
-Prefer role/text queries and the stable ids the app already exposes (`#overlay`, `#toasts`,
-`#contact-region`, `#contact-tbody`, `.field-msg`, `.backdrop`, `.modal`). Add `data-testid`
-only where a query would otherwise be brittle — don't blanket the markup with them.
+Prefer role and text queries and the stable ids the app exposes (`#overlay`, `#toasts`,
+`#contact-region`, `#contact-tbody`, `.field-msg`, `.backdrop`, `.modal`). Add `data-testid` only
+where a query would otherwise be brittle.
 
-## CI
+## Route coverage
 
-GitHub Actions (`.github/workflows/ci.yml`): one runner per engine, inside Playwright's Docker
-image (browsers preinstalled), each installing Odin + clang and running the suite; the chromium
-shard also runs the `api` project. The HTML report (traces on retry, screenshots on failure) is
-uploaded per shard. Merge on green — by convention: no check is marked required, so add them to
-branch protection if you want that enforced. Where this runs and how it fits the deploy pipeline:
-see [`infra/PLAN.md`](../infra/PLAN.md).
+Every server the suite starts is scraped for its per-route request counters as it stops; with the
+load suite's, `tools/check parity` proves every route of the profile was reached by both (PLAN
+§19.1.11). A route reached only by a click counts.
 
-## Parity with load-tests
+## Out of scope for now
 
-Per the policy in `CLAUDE.md`: every endpoint covered here must also have a scenario in
-`load-tests/`. When you add an e2e scenario for a new endpoint, add its load scenario in the
-same change (or file a TODO). e2e proves it's *correct*; load-tests prove it's *fast*.
-
-## Out of scope (for later)
-
-Visual-regression snapshots (Playwright `toHaveScreenshot`), and an accessibility audit pass
-(axe). Note them so they're not forgotten, but they're not part of the first cut.
+Visual-regression snapshots; the accessibility pass (`@axe-core/playwright`) and the CSP specs arrive
+with the client-stack milestone (PLAN §19.1.2).

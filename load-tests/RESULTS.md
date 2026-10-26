@@ -142,7 +142,7 @@ render and the response all parallelise, so throughput climbs until that critica
 threads, is **flat at ~16.7k RPS from 50 VUs up** — the events-timeline JOIN does the most work
 *under* the lock, so it saturates its critical section early and adding threads buys nothing beyond
 it. That is the concrete, measured trigger for the deferred optimisation: **per-thread WAL
-connections**, which let readers run concurrently again (`docs/DATA_IMPL.md` §4). Re-run this after.
+connections**, which let readers run concurrently again (the skeleton's `docs/DATA_IMPL.md` §4; git history). Re-run this after.
 
 **Writes scale ~2×, and that's the lock talking.** `repo_create`/`repo_delete` take the exclusive
 lock, so the mutation itself serialises no matter how many threads are up. Writes still nearly double
@@ -269,7 +269,7 @@ benchmark your own public hostname from behind your own NAT.
 - **Per-thread WAL connections (SQLite).** The sweep above quantifies the v1 cost: one shared
   connection forces an exclusive lock on reads too, so they scale ~4× instead of ~5× (worst for the
   `detail` JOIN at 1.9×, flat past 50 VUs). Moving to one WAL connection per nbio thread should
-  restore concurrent reads — the load-test-justified next optimisation (`docs/DATA_IMPL.md` §4).
+  restore concurrent reads — the load-test-justified next optimisation (the skeleton's `docs/DATA_IMPL.md` §4, which store v3 now does).
   Re-run the headline after.
 - **Write-path scaling** is lock-bound by design. If writes ever became hot, the next step would be a
   sharded or finer-grained store — but for a read-heavy app the single exclusive writer is the right

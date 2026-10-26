@@ -1,42 +1,44 @@
-# odin-htmx-skeleton
+# odin-htmx-starter
 
-A **starter skeleton** for a simple, server-rendered website: an **Odin** backend rendering HTML
-with **HTMX**, a **SQLite** store, and browser + load test suites — all in one self-contained
-binary. Clone it, rename it, strip the demo, build your thing.
+A **starter** for server-rendered web apps: an **Odin** backend rendering HTML with **HTMX**, a
+**SQLite** or in-memory store, and browser, load and crash-drill suites, all in one self-contained
+binary. A site is a **profile**, a selection of features on a shared platform; pick one, rename it,
+replace the example features with yours.
 
 **Live demo: [odin-htmx.alexh95.com](https://odin-htmx.alexh95.com/)** — the whole thing, served by
 one ~3 MB binary on a shared-cpu-1x machine.
 
-The bundled app (a contacts/events admin console with a multi-style theme library) is the
-**worked example** that proves the patterns — not the product. You keep the scaffolding
-(architecture, data layer, theming, build / CI / deploy / test harness) and swap the demo domain
-for your own.
+The `skeleton` profile (a contacts/events console with a multi-style theme library) is the **worked
+example** that proves the patterns, and the performance witness the platform is held to; the
+`minimal` profile is the one-page starter. You keep the platform (request path, crash guard, store,
+observability, theming, build / CI / deploy / test harness) and write features.
 
 ```
-odin-htmx-skeleton/
-  app/          The application: Odin server, views, static assets, run scripts.
-  e2e/          Playwright browser tests — see e2e/README.md.
-  load-tests/   k6 throughput/latency tests — see load-tests/README.md.
-  docs/         PHILOSOPHY.md (root), USE_CASES.md, DATA.md, DATA_IMPL.md, STRIP.md.
-  infra/        PLAN.md: hosting, CI/CD, and the Fly operator steps.
-  deploy/       docker-host/: deploy to any Linux box with Docker, over SSH.
-  tools/        init/ (rename + strip, run once), og/ (the social card's source).
+odin-htmx-starter/
+  app/          the platform, the features, their stores and the profiles: see app/README.md
+  e2e/          Playwright specs per feature, chosen by the profile: see e2e/README.md
+  load-tests/   k6 scenarios per feature, and the parity gate: see load-tests/README.md
+  tools/        check (what the compiler can't see), bundle (the assets), drills (crash and
+                shutdown drills), baseline (old releases for the parity gate), init (rename), og
+  tests/        parity-waivers.txt: the waivers of the parity rules, each with its reason
+  docs/         PLAN.md (the plan), design/ (decisions), spikes/, PHILOSOPHY.md (root), DATA.md
+  infra/        PLAN.md: hosting, CI/CD, and the Fly operator steps
+  deploy/       docker-host/: deploy to any Linux box with Docker, over SSH
+  build.sh      build.bat: the one place a profile's build flags live
 ```
 
 ## Quick start
 
-Needs the Odin compiler **and a C toolchain** (MSVC Build Tools on Windows, `clang` on Linux,
-Xcode CLT on macOS) — `prepare` compiles the SQLite amalgamation. See
+Needs the Odin compiler and, for a SQLite profile, **a C toolchain** (MSVC Build Tools on Windows,
+`clang` on Linux, Xcode CLT on macOS): `prepare` compiles the SQLite amalgamation. See
 [app/README.md](app/README.md) → *Run it* for the per-OS setup.
 
 ```sh
-cd app
-prepare.bat        # once: htmx, SQLite                               (./prepare.sh on Linux/macOS)
-run.bat            # builds and serves http://localhost:8080          (./run.sh elsewhere)
+app/prepare.sh              # once: htmx, SQLite, the profiles' bundled assets   (app\prepare.bat)
+app/run.sh                  # builds skeleton and serves http://127.0.0.1:8080  (app\run.bat)
+PROFILE=minimal app/run.sh  # the minimal profile
+./build.sh skeleton -o:speed   # just build: app/bin/skeleton                   (build.bat)
 ```
-
-See [app/README.md](app/README.md) for the full tour — pages, architecture, endpoints, and
-design notes.
 
 ## Using this as a starter
 
@@ -52,24 +54,19 @@ design notes.
    ownership tokens (a fork verifies its own site). It applies every edit or none, and ends with
    what's left to do by hand. Run `odin run tools/init` with no args to see the options
    (`--wordmark`, `--suffix`, `--repo`, `--site`); delete `tools/init` once you're happy.
-3. **Replace the demo with your domain.** What you **keep** vs. **strip**:
-   - **Keep — the scaffolding:** the layered packages (`models` / `repository` / `services` /
-     `views` / `controllers`), the SQLite layer + migrations, the theme system, the view/component
-     helpers, and the build / CI / Docker / deploy / e2e / load harness.
-   - **Strip — the demo:** the contacts + events domain and the demo pages' content. The strict
-     layering keeps this nearly mechanical.
+3. **Start from a profile.** `minimal` (home, notes and about on a memory store, no SQLite library)
+   is the blank slate; `skeleton` shows every pattern at once. A feature is a folder,
+   `app/features/<f>/`, with its store in each family under `app/stores/`, mounted by one line in a
+   profile's `routes.odin`; `odin run tools/check -- all` says when a profile and its features
+   disagree. The next milestone's `tools/init` composes profiles from a feature list.
 
-To extend it, follow the **Recipes** in [CLAUDE.md](CLAUDE.md) (new page, new endpoint, new
-component) and the architecture tour in [app/README.md](app/README.md).
-
-Prefer to start from a blank slate? The **`minimal`** profile (`./build.sh minimal`, or
-`PROFILE=minimal app/run.sh`) is the one-page **Notes** starter: home, notes and about on a memory
-store, with the shell, theme and test/deploy harness and no SQLite library. (It replaces the old
-`init --minimal`; composing other selections is the next milestone's `tools/init`.)
+To extend it, follow the **Recipes** in [CLAUDE.md](CLAUDE.md) (new feature, page, endpoint, store,
+profile) and the tour in [app/README.md](app/README.md).
 
 ## Deploy
 
-The deployable is one binary in a slim container. [infra/PLAN.md](infra/PLAN.md) covers Fly.io (the
+The deployable is one binary in a slim container (`docker build --build-arg PROFILE=…`, `skeleton`
+by default; the binary is `/app/server`). [infra/PLAN.md](infra/PLAN.md) covers Fly.io (the
 `fly.toml` and the CI deploy job here) and its operator steps; [deploy/docker-host](deploy/docker-host)
 runs it on any Linux box with Docker, with the SQLite database on a persistent volume. Linux deploys
 need io_uring, which Docker's default seccomp profile blocks: run containers under
@@ -78,16 +75,22 @@ need io_uring, which Docker's default seccomp profile blocks: run containers und
 
 ## Tests
 
-Two suites, meant to stay at par with the app: every endpoint gets a behaviour test *and* a load
-scenario. `load-tests/parity.sh` lists the routes either suite doesn't mention yet.
+Every endpoint gets a behaviour test *and* a load scenario, and the servers' request counters check
+it: `tools/check parity` fails a route either suite never reached (or waives it with a reason in
+`tests/parity-waivers.txt`).
 
-- **`e2e/`** — Playwright browser tests (Chromium/Firefox/WebKit). CI runs them on every push and
-  PR. `cd e2e && npm ci && npx playwright install && npm test`.
-- **`load-tests/`** — k6 throughput/latency suite. It runs locally, not in CI: shared runners make
-  noisy benchmarks. `cd load-tests && ./run.sh --quick`; add `--strict` to exit non-zero on a
-  breached threshold.
+- **`e2e/`**: Playwright specs per feature (Chromium, Firefox, WebKit, and a browser-less `api`
+  project), tagged with the features they touch and run against whichever profile is built.
+  `cd e2e && npm ci && npx playwright install && npm test` (`E2E_PROFILE=minimal` for minimal).
+- **`load-tests/`**: k6 scenarios per feature. `cd load-tests && ./run.sh --quick`; `--parity`
+  runs the parity gate against the 1.2.0 and 1.1.1 releases (`docs/perf/PARITY.md`).
+- **`tools/drills/drills.mjs <profile>`**: crashes of every class (pure ones answer 500 and serving
+  goes on; dirty ones exit 70), the watchdog, 10k malformed requests, the shutdown bound, restart
+  and the fd ceiling, and the size, memory and boot budgets.
+- **Unit tests**: `sh .github/scripts/unit-tests.sh` (every package with tests, leaks fatal);
+  `CMD=test ./build.sh <profile>` for a profile's boot checks.
 
-Each directory's `README.md` is the operating manual; its `PLAN.md` is the design rationale.
+Each test directory's `README.md` is the operating manual.
 
 ## License
 

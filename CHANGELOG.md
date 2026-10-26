@@ -149,7 +149,13 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
 - **`load-tests/run.sh` skips a port something already listens on**: on Windows a second server
   binds it without an error, and k6 measured WSL's relay instead (a 100 % failed `notes` run).
 
+- **The docs describe the starter**: CLAUDE.md (the layers, features, families, the request path,
+  store v3, the crash zones, recipes for a feature, page, endpoint and profile), README, app/README,
+  docs/DATA.md (the store families and the backup runbook), and the e2e and load-tests design notes.
+
 ### Removed
+- **docs/STRIP.md and docs/DATA_IMPL.md**: stripping the demo is choosing a profile now, and the
+  skeleton's SQLite implementation plan is done and superseded by PLAN §11.
 - **CI's `minimal` job**, which ran `init --minimal`: the `minimal` profile builds and tests in `build`
   and `e2e` instead.
 - **`app/src`**, the skeleton's single-binary app: the `skeleton` profile serves it now, at the

@@ -1,9 +1,9 @@
 # The starter's planning docs
 
-This folder plans the next step for Alex's **odin-htmx-skeleton**: turning it into **odin-htmx-starter**, a superset
-of the skeleton with every htmx 4 extension, _hyperscript, features you can pick one by one, and a large showcase
-app (Houston). The repo is the renamed skeleton, so until M1 restructures it the code at the root is still the
-skeleton's. The skeleton's own docs (`USE_CASES.md`, `DATA.md`, `DATA_IMPL.md`, `STRIP.md`) sit next to these.
+This folder plans **odin-htmx-starter**, the successor of Alex's **odin-htmx-skeleton**: a superset of the skeleton
+with every htmx 4 extension, _hyperscript, features you can pick one by one, and a large showcase app (Houston). Since
+M1 the code at the root is the starter's platform, features and profiles (`app/README.md`). `USE_CASES.md` and
+`DATA.md` (the stores and backups) sit next to these.
 
 Start with **[PLAN.md](PLAN.md)**. §1 summarises it on one screen, §22 holds the milestones and the questions only
 Alex can answer, and the M0 spike records are in [spikes/](spikes/).

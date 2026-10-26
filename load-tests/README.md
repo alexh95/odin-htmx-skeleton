@@ -1,8 +1,9 @@
 # Load tests
 
 Throughput/latency tests for the `odin-http` server, driven by **[k6](https://k6.io)**
-(single static binary, no npm — in keeping with the project). The design rationale and the
-single-thread-ceiling investigation live in [`PLAN.md`](PLAN.md); this is the operating manual.
+(single static binary, no npm — in keeping with the project). The design rationale lives in
+[`PLAN.md`](PLAN.md), the skeleton's recorded numbers in [`RESULTS.md`](RESULTS.md); this is the
+operating manual.
 
 ## Prerequisites
 
@@ -39,8 +40,8 @@ A scenario's name is its file's, and names are unique across features.
 **What fails a run.** Each scenario's thresholds: under 1% failed requests and p95/p99 under
 `P95`/`P99` in the measured window (plus any scenario-specific check rate). A breach is reported and
 the sweep carries on. By default the driver still exits 0, because finding the knee is the point of
-a sweep; `--strict` makes any breached run exit 1. CI doesn't run this suite: shared runners measure
-the neighbours as much as the server (see `PLAN.md`).
+a sweep; `--strict` makes any breached run exit 1. CI runs only the quick run, for route coverage:
+shared runners measure the neighbours as much as the server (see `PLAN.md`).
 
 The driver builds the profile `-o:speed` through `../build.sh`, then for **each scenario × VU
 level** launches a *fresh* server on its own port (clean `:memory:` store; a port something else

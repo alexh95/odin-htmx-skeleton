@@ -2,8 +2,8 @@
 
 Playwright browser tests for the starter's profiles. They drive real browsers against a freshly
 built profile binary and assert on what happens *after* HTMX swaps land in the DOM — the bits curl
-can't see. See [`PLAN.md`](PLAN.md) for the skeleton-era design and scenario rationale, and
-PLAN §19.1.2 for the matrix.
+can't see. See [`PLAN.md`](PLAN.md) for the design rationale, and the repo's `docs/PLAN.md`
+§19.1.2 for the matrix.
 
 ## Run
 

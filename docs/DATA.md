@@ -1,91 +1,46 @@
-# Data — past the in-memory POC
+# Data — the stores, and when each is right
 
-> **Update:** the SQLite step described here now ships (see
-> [`DATA_IMPL.md`](DATA_IMPL.md) and the `src/repository/` package (`db.odin` + `repo.odin` + `contacts.odin` + `events.odin`)). `DB_PATH=:memory:` keeps
-> the old POC behaviour (in-RAM, seeded on boot, gone on exit — now a real in-RAM SQLite rather than
-> a hand-rolled slice); a file path persists. The *when-is-each-right* reasoning below still stands.
+A feature keeps its data in a **store**, one package per family: `app/stores/memory/<f>/` and
+`app/stores/sqlite/<f>/`. A profile picks the family on its `build.sh` line (`store=memory` or
+`store=sqlite`), the feature's domain imports `store:<f>`, and the compiler resolves it to that
+family's package. The domain, the views and the HTTP surface don't change when the family does:
+each store states the feature's contract (the `Store_*` proc types in its `models`) in its
+`contract.odin`, so a store that drifts fails to build. `minimal` runs on memory and links no SQLite
+at all; `skeleton` runs on SQLite. (PLAN §11 is the design; the M0 spikes S0.4 and S0.11 measured it.)
 
-Originally forward-looking. The starting point was an **in-memory POC**: a `[dynamic]Contact` behind
-an `RW_Mutex`, seeded on boot, gone on exit. This documents how to make it real *when it makes
-sense* — and when it honestly doesn't need to.
+## When memory is genuinely fine
 
-## The seam already exists
+Don't add a database to look serious. The memory family is the *correct* choice when:
 
-The whole point of the layered design is that the datasource is swappable without touching anything
-above it. **the `src/repository/` package (`db.odin` + `repo.odin` + `contacts.odin` + `events.odin`) is the only code that touches storage.** Everything
-else speaks in `models.Contact` and reaches the `repo_*` procs through `services`. Swapping backends = reimplementing those procedures. Services, views, controllers,
-and the entire HTTP surface stay byte-for-byte identical.
-
-So this is not a rewrite — it lives behind a contract that already holds.
-
-## When in-memory is genuinely fine
-
-Don't add a database to look serious. The POC store is the *correct* choice when:
-
-- the data is a fixed seed / demo fixture, or is rebuilt from an authoritative source on boot;
+- the data is a fixed seed or a demo fixture, or is rebuilt from an authoritative source on boot;
 - it fits comfortably in RAM and the working set is small;
-- a single process owns it, and losing it on restart is acceptable (or it's reseeded);
+- one process owns it, and losing it on restart is acceptable (or it's reseeded);
 - you want zero operational surface.
 
-That describes this showcase exactly. The honesty rule (PHILOSOPHY → "the 90%") is to *call it a
-POC*, not to pretend it's durable.
+The honesty rule (PHILOSOPHY → "the 90%") is to *call it ephemeral*, not to pretend it's durable.
 
-> The concrete, step-by-step **implementation plan** — bindings, schema, the seven `repo_*` as SQL,
-> concurrency, migrations, build/ops — lives in [`DATA_IMPL.md`](DATA_IMPL.md). This file is the
-> *why/when*; that one is the *how*.
+## SQLite: the default for anything that must last
 
-## The recommended next step: SQLite
+When you need persistence, the answer that keeps the philosophy intact is **SQLite**: the
+amalgamation, pinned by SHA-256, compiled by `prepare` with the starter's flags (no double-quoted
+strings, foreign keys on, multi-thread mode, no global memory statistics, FTS5) and linked into the
+binary. No server, one file, `DB_PATH` names it; `:memory:` gives a fresh, seeded store per process.
 
-When you need persistence, the answer that keeps the philosophy intact is **SQLite**:
+**How a request uses it (store v3).** Each event loop reads through its own read-only connection,
+with a statement cache, so reads on different loops run in parallel. Writes are `store.Op`s queued to
+one **writer task**, which commits whatever is queued, up to 100, in one transaction, then hands each
+op's `done` back to the loop that queued it; the handler answers through a deferred response once its
+batch is durable. WAL mode, `synchronous=NORMAL` (a process crash loses nothing; a power loss can lose
+the last commits). `:memory:` is served from an unsynced temporary file (`MEMMODE=ephemeral`, on
+`/dev/shm` on Linux), so it gets the same concurrency.
 
-- **One file on disk**, in-process, no network hop, no server to run — the data analogue of "one
-  self-contained binary." Add a volume, keep everything else.
-- Fast enough by a wide margin for the sweet-spot apps in [`USE_CASES.md`](USE_CASES.md) — an admin
-  console's read/write rates are nowhere near SQLite's ceiling.
-- One C dependency, which is in keeping with the line we hold (it's the most-deployed database on
-  earth, not a framework). In Odin: bind the SQLite **amalgamation** (a single `.c` file) directly.
-  (There is no `vendor:sqlite3` collection — the request to add one,
-  [odin-lang/Odin #3736](https://github.com/odin-lang/Odin/issues/3736), was closed *won't
-  implement*.)
+**Migrations** are SQL files per store, `app/stores/sqlite/<f>/migrations/NNNN_<name>.sql`, listed
+in its `MIGRATIONS` and run by `store_sqlite.migrate("<f>", …)` in the profile's `main.odin`, in one
+transaction each. Each is recorded with its hash: an edited migration that has shipped stops the boot
+with a message, so add the next one instead. A database written by the 1.x skeleton (709bc94 or
+v1.1.1) is adopted without re-running anything; one written by another app is refused.
 
-Concretely, `repo_*` becomes thin SQL:
-
-```odin
-// repo_create -> INSERT ... RETURNING id;  repo_list -> SELECT ... ;  etc.
-// Build models.Contact rows from the result set, cloned into the right allocator
-// exactly as the snapshot pattern does today.
-```
-
-**Concurrency maps cleanly onto what we already built.** Run SQLite in **WAL mode** with a
-`busy_timeout`: many concurrent readers + one writer at a time — which is *precisely* the
-`RW_Mutex` contract the repository already enforces (shared reads, exclusive writes). The
-multithreaded server stays correct; SQLite handles durability and the read/write discipline carries
-over. Add the read scenarios to `load-tests/` and re-measure — disk + WAL will move the numbers, and
-that before/after is worth recording.
-
-## When you outgrow one box: Postgres
-
-Reach past SQLite only when the topology demands it:
-
-- **multiple app instances** sharing one dataset (horizontal scale), or
-- **high concurrent write** load beyond one writer, or
-- you want a managed/networked DB, replication, rich types, or analytics alongside.
-
-In Odin: `libpq` via `foreign import`, or a driver if one exists for your version. The cost is real
-and worth naming: a **network hop per query** and an **operational surface** (a server to run,
-secure, back up). For the sweet-spot apps this is usually premature — SQLite first, Postgres when a
-concrete constraint forces it, not by default.
-
-## Migrations & operations (keep it boring)
-
-- **Schema as plain SQL files**, applied in order at startup (a `schema_version` table + a tiny
-  apply-on-boot loop) or by a one-shot tool. No ORM, no migration framework — same discipline as the
-  rest of the stack.
-- **Backups** are `<bin> --backup <file>` (SQLite: a consistent copy via `VACUUM INTO`, safe while
-  the server runs; see the runbook below) or your provider's snapshots (Postgres). **Never copy
-  `data.db` itself while the server runs**: in WAL mode, recent commits live in `data.db-wal` until a
-  checkpoint, so a copy of the main file alone can silently miss them.
-- **Seeding** stays exactly as `repo_seed` does now, just writing through the real backend.
+**Seeding** happens only in a store nobody owns yet: `:memory:`, or `SEED=1` on an empty file.
 
 ## Backup and restore (SQLite)
 
@@ -119,7 +74,7 @@ second line, not the first.
    app is refused with a message rather than opened.
 4. Check `/healthz` and a page you know the data for.
 
-Rehearse it once before you need it: `e2e/tests/backup.spec.ts` does exactly this.
+Rehearse it once before you need it: `e2e/tests/platform/backup.spec.ts` does exactly this.
 
 **One machine, one database.** With `DB_PATH` on a volume, `fly scale count 2` gives two machines
 two separate databases that drift apart. Persistent SQLite here means one machine; past that is the
@@ -127,13 +82,13 @@ Postgres row of the table below.
 
 ## Summary
 
-| | in-memory (now) | SQLite (next) | Postgres (scale) |
+| | memory | SQLite | Postgres (scale) |
 |---|---|---|---|
 | persistence | none | one file | networked server |
 | ops surface | none | a volume | a database to run |
-| concurrency | RW_Mutex | WAL (readers + 1 writer) | full MVCC |
+| concurrency | a lock per store | a reader per loop, one batching writer | full MVCC |
 | in-process | yes | yes | no (network hop) |
-| fits the philosophy | as a POC | **yes** | when justified |
+| fits the philosophy | for ephemeral data | **yes** | when justified |
 
-The repository seam means you can sit at any row of that table and move right exactly when a real
-constraint — not a vibe — makes you.
+The store seam means you can sit at any row of that table and move right exactly when a real
+constraint — not a vibe — makes you: a new family is a package per feature behind the same contract.

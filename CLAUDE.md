@@ -5,20 +5,25 @@ and gotchas that aren't obvious from the source and that are expensive to redisc
 
 ## What this is
 
-A **starter skeleton** for server-rendered web apps: an **Odin** backend rendering HTML, with
-**HTMX** on the front end and SQLite as the store, in one binary. The contacts/events console it
-ships is the *worked example* that proves the patterns, not a product to finish; a fork strips it
-(`init --minimal`) and keeps the scaffolding. **Read [`PHILOSOPHY.md`](PHILOSOPHY.md) first** —
-it's the why, and changes must stay in line with it. [`docs/USE_CASES.md`](docs/USE_CASES.md) says
-what the stack is for; [`docs/DATA.md`](docs/DATA.md) covers the store, its limits, and backups.
+A **starter** for server-rendered web apps: an **Odin** backend rendering HTML, **HTMX** on the
+front end, a SQLite or in-memory store, in one binary. A site is a **profile** (`app/cmd/<p>/`): a
+selection of **features** (`app/features/<f>/`) composed on a shared **platform**
+(`app/platform/`). Two profiles ship: `skeleton`, the 1.2.x contacts console rebuilt from features
+at its exact URLs (the worked example and the performance witness), and `minimal`, the one-page
+notes starter. **Read [`PHILOSOPHY.md`](PHILOSOPHY.md) first**, then [`docs/PLAN.md`](docs/PLAN.md)
+(the plan: layers, features, milestones) and [`docs/design/DECISIONS.md`](docs/design/DECISIONS.md);
+[`docs/DATA.md`](docs/DATA.md) covers backups.
 
 ```
-odin-htmx-skeleton/
-  app/          The application (Odin sources, static assets, run scripts). All real work.
-  e2e/          Playwright browser tests (implemented). `cd e2e && npm ci && npm test`.
-  load-tests/   k6 throughput/latency tests (implemented). `cd load-tests && ./run.sh --quick`.
-  docs/         PHILOSOPHY.md (root), USE_CASES.md, DATA.md + DATA_IMPL.md — vision, fit, data.
-  CLAUDE.md TODO.md CHANGELOG.md   ← you are here
+odin-htmx-starter/
+  app/          the platform, features, stores and profiles: app/README.md is the tour
+  e2e/          Playwright specs per feature (e2e/README.md)
+  load-tests/   k6 scenarios per feature and the parity gate (load-tests/README.md)
+  tools/        check, bundle, drills, baseline, init, og
+  tests/        parity-waivers.txt
+  docs/         PLAN.md, design/, spikes/, perf/, audit/
+  build.sh build.bat   the one place a profile's build flags live
+  CLAUDE.md TODO.md CHANGELOG.md   <- you are here
 ```
 
 ## Standing policy (do this every session)
@@ -28,12 +33,14 @@ odin-htmx-skeleton/
    No silent changes.
 2. **Keep `TODO.md` current.** Pick items from it; check off what you finish; add follow-ups
    you discover. It is the source of truth for what's left.
-3. **Keep e2e and load-tests in sync (once implemented).** Every user-facing feature or
-   endpoint must be represented in *both* suites — e2e asserts its behaviour, load-tests
-   measures its cost. Adding `/foo` means adding a `/foo` e2e scenario *and* a `/foo` load
-   scenario in the same change. If you add one, add the other or write a TODO and say so.
+3. **Keep e2e and load-tests in sync.** Every user-facing feature or endpoint is represented in
+   *both* suites — e2e asserts its behaviour, load-tests measures its cost. Adding `/foo` means a
+   spec in `e2e/tests/<f>/` *and* a scenario in `load-tests/scenarios/<f>/` in the same change;
+   `tools/check parity` fails a route either suite never reached (or needs a waiver with a reason
+   in `tests/parity-waivers.txt`).
 4. **Update docs you invalidate.** If you change the API, layout, or a convention here, fix
-   `CLAUDE.md`, `app/README.md`, and the relevant `PLAN.md` in the same pass.
+   `CLAUDE.md`, `app/README.md`, and `docs/PLAN.md` (and `docs/design/DECISIONS.md` for a design
+   change) in the same pass.
 5. **Commit with Conventional Commits** (see below). One logical change per commit.
 
 ## Commits — Conventional Commits
@@ -45,8 +52,9 @@ type(scope): imperative subject
 ```
 
 - **Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`.
-- **Scope** (encouraged): the area touched — `views`, `controllers`, `services`, `repository`,
-  `routes`, `css`, `js`, `e2e`, `load`, `infra`, `deps`, `docs`.
+- **Scope** (encouraged): the area touched — a platform package (`web`, `store`, `guard`, `obs`…),
+  a feature (`contacts`, `notes`…), a profile (`skeleton`, `minimal`), or `css`, `js`, `e2e`,
+  `load`, `check`, `drills`, `ci`, `infra`, `deps`, `docs`.
 - **Subject**: imperative mood, lower-case, no trailing period, ≤ ~72 chars.
 - **Breaking changes**: `type(scope)!: …` and/or a `BREAKING CHANGE:` footer.
 - Body explains *why* when it isn't obvious; wrap ~72.
@@ -60,52 +68,46 @@ environment, an explicit `--no-gpg-sign` on that one commit is acceptable.
 
 ## Build / run / verify
 
-All commands run from `app/`.
+From the repo root:
 
 ```sh
-prepare.bat   # once: fetch htmx + the SQLite amalgamation, compile sqlite    (./prepare.sh elsewhere)
-run.bat [port]   # build + serve (default 8080)                              (./run.sh elsewhere)
-
-odin build src -out:bin/demo.exe    # build only (entry package is src/); MUST be warning-free
-odin check src -vet -warnings-as-errors   # what CI's build holds you to, plus vet
-odin test src/repository            # the store's own tests (db_test.odin: binding, errors, migrations)
-odin test src/views                 # the escaping boundary's tests (html_test.odin)
-./bin/demo.exe 8080                 # run the built binary on a port
-DB_PATH=data.db ./bin/demo.exe --backup backup.db   # consistent copy of a live DB, then exit
+app/prepare.sh              # once: htmx, SQLite, each profile's bundled assets  (app\prepare.bat)
+./build.sh skeleton         # build app/bin/skeleton; -o:speed etc. pass through (build.bat)
+CMD=check ./build.sh minimal    # odin check on the profile's families; CMD=test runs its tests
+app/run.sh                  # build and serve skeleton on :8080 (PROFILE=minimal for minimal)
+odin run tools/check -- all # imports, profile, routes, contracts (parity after both suites ran)
+sh .github/scripts/unit-tests.sh   # every package with tests, leaks fatal
+node tools/drills/drills.mjs skeleton   # crash, shutdown, restart, fd and budget drills
 ```
 
-The binary reads its whole configuration from the environment:
+A clean build is **zero warnings**: `build.sh` passes `-vet -strict-style -warnings-as-errors`. A
+profile is built only through `build.sh`/`build.bat`, never `odin build` by hand: each needs its four
+family collections (`store:`, `identity:`, `client:`, `theme:`) and its asset directory. The two
+scripts hold the same table; change both together. `prepare` writes each profile's bundled assets
+to `app/build/<p>/`, so after editing CSS or JS run `prepare` again, then build.
+
+The binary reads its configuration from the environment; `bin --limits` prints every row with its
+default and meaning, `--features --json` what the build mounts, `--routes --json` its routes. The
+common ones:
 
 | Variable | Default | What it does |
 |---|---|---|
-| `PORT` | first argument, else `8080` | Listen port. |
-| `BIND_ALL` | unset (loopback) | Any value listens on `0.0.0.0`: containers only. |
-| `DB_PATH` | `:memory:` | SQLite file to persist to; `:memory:` is fresh per process. |
-| `SEED` | unset | `1` seeds the demo rows into an empty file DB (`:memory:` always is). |
-| `SITE_URL` | `views.SITE_URL` (brand.odin) | Canonical origin: tags, sitemap, the fly.dev redirect. |
-| `THREADS` | one per core | Event-loop threads. |
-| `LOG_LEVEL` | `info` | `debug`/`info`/`warn`/`error`; `warn` silences the access log. |
-| `OPEN` | unset | `run.*` only: `1` opens a browser tab. |
+| `PORT` | first argument, else `8080` | listen port |
+| `BIND_ALL` | unset (loopback) | any value listens on `0.0.0.0`: containers only |
+| `THREADS` | one per core | event loops |
+| `SITE_URL` | the brand's `site_url` | canonical origin: tags, sitemap, the fly.dev redirect |
+| `LOG_LEVEL` | `info` | `debug`/`info`/`warn`/`error`; `warn` silences the access log |
+| `DB_PATH` | `:memory:` | SQLite profiles: the file to persist to |
+| `SEED` | unset | `1` seeds the demo rows into an empty file DB (`:memory:` always is) |
+| `MEMMODE` | `ephemeral` | how `:memory:` is served (PLAN §11.3) |
+| `METRICS_TOKEN_FILE` | unset | a file with the bearer `/metrics` accepts |
+| `CRASH_FILE` | `last-crash.txt` | where a dirty crash or a watchdog exit writes its reason |
 
-The build version is not an env var: `-define:VERSION=…` (default `dev`), sent as `x-version`.
+The build version is `-define:VERSION=…` (`VERSION=` for `build.sh`; default `dev`), sent as
+`x-version`.
 
-odin-http is **vendored in-tree** (`app/vendor/odin-http`, with an `UPSTREAM.md` that names the
-base commit and every local change), so a plain clone builds. `prepare.*` fetches htmx and
-the **pinned, SHA-256-verified SQLite amalgamation** and compiles it to a static lib, so a **C
-toolchain is now required** (MSVC Build Tools on Windows — run from an *x64 Native Tools* prompt;
-`clang` on Linux; Xcode CLT on macOS). The server binds loopback by default; set `BIND_ALL=1` (and
-`PORT`) for containers — the deploy path (`Dockerfile`, `fly.toml`, `.github/workflows/ci.yml`,
-`infra/PLAN.md`).
-
-Verify with curl for contracts, and a browser (preview/headless pointed at `127.0.0.1` — the server
-binds IPv4 loopback only, so `localhost` can stall on `::1` first) for
-anything HTMX actually swaps or animates. The store is SQLite, chosen by `DB_PATH`: `:memory:`
-(a fresh seeded store per process — the test/CI default) or a file path that persists (`run.*`
-default to a local `data.db`, with `SEED=1` so it gets the demo rows; a file DB is never seeded
-otherwise). `SITE_URL` overrides the canonical origin (`views.SITE_URL`,
-default `https://odin-htmx.alexh95.com`) that feeds the canonical/og tags, `/sitemap.xml` and the
-`*.fly.dev` redirect — set it in any environment served under another domain. A clean build is
-**zero warnings** — treat warnings as errors.
+Verify with curl for contracts and a browser (pointed at `127.0.0.1`: the server binds IPv4 loopback
+only, and `localhost` can stall on `::1`) for anything HTMX swaps or animates.
 
 ## Dependencies — the line we hold
 
@@ -114,12 +116,14 @@ The shipped app's runtime dependencies are deliberately few: **HTMX** (front end
 — bound as the amalgamation and *statically linked in*, the most-deployed database on earth, not a
 framework or a server). All three are pinned and vendored/compiled into the one binary. That's it.
 
-- No NPM, no bundler, no build system beyond `odin build` (+ `prepare` compiling sqlite once).
+- No NPM, no bundler, no build system beyond `odin` through `build.sh` (+ `prepare` compiling
+  SQLite and bundling each profile's assets with `tools/bundle`, itself Odin).
 - No CSS/JS frameworks. CSS is hand-written; JS is vanilla and tiny.
 - No template engine — HTML is generated by Odin procedures.
 - **Every** static asset (htmx, `app.css`, `app.js`, `favicon.svg`, `og.png`) is **embedded into
-  the binary** (`#load` in `controllers.odin`) and served from memory — the binary is fully
-  self-contained, nothing is read from disk at runtime. Editing CSS/JS needs a rebuild.
+  the binary** (`#load` in `platform/web/assets.odin`, with its `.br` and `.gz`) and served from
+  memory — the binary is fully self-contained, nothing is read from disk at runtime. Editing CSS/JS
+  needs `prepare` and a rebuild.
 - Before reaching for a library, ask whether ~30 lines of Odin or CSS does it. They usually
   do. New runtime dependencies in `app/` need a real justification.
 - Test tooling is exempt: `e2e/` and `load-tests/` may use external tools (Playwright, k6)
@@ -127,51 +131,65 @@ framework or a server). All three are pinned and vendored/compiled into the one 
   stays JS-free; `e2e/` uses npm (it runs in Playwright's Docker image on CI, which ships
   node/npm, so there's nothing extra to install).
 
-## Architecture — strict layering
+## Architecture — layers, features, families
 
-Each layer is its own Odin **package** under `app/src/` (a directory = a package). Dependencies
-point one direction only. The compiler enforces part of that: packages can't import each other in
-a cycle, so a repository that reached back into the views wouldn't build. The *direction* itself
-is a convention, kept by review and by the import lists: controllers and views import `services`,
-never `repository`; nothing below the controllers imports odin-http.
+The layering is PLAN §5.1, enforced by `tools/check imports`. An arrow means "may import":
 
 ```
-src/ (main: main.odin, routes.odin) → controllers → services → repository → models
-                                                  ↘ views ↗
+app/cmd/<p>/      brand.odin main.odin routes.odin routes_test.odin  ->  everything
+  f_web           features/f/web/     -> f, f_models, f_views, f's impls, other features' domains,
+                                         notify_web, store:audit, platform L1-L3
+  f_views         features/f/views/   -> f_models, f, platform/html
+  f               features/f/         -> f_models, store:f, store:audit, other domains, platform L1-L2
+  f_store_<fam>   stores/<fam>/f/     -> f_models, platform/store*, platform/sqlite, platform/workers
+  f_models        features/f/models/  -> core, platform L1-L2
+
+platform  L4 app        -> identity:., store:. (the family's NAME), L1-L3; only cmd/* imports it
+          L3 web html client/* theme/*   (html -> client:., theme:.)
+          L2 store store/sqlite store/memory env authz authz/anonymous obs guard workers markdown
+          L1 sys sqlite ext escape
 ```
 
-| Package (dir) | Layer | Rule |
-|------|-------|------|
-| `src/models/` | model | Types + enum label tables. No logic, no imports beyond `core`. |
-| `src/sqlite/` | binding | ~20 `foreign` decls for the SQLite amalgamation (text, int, int64, double, NULL; `column_type` to tell NULL from 0/""). The only C-ABI crossing. |
-| `src/repository/` | repository | Owns the SQLite store: `db.odin` (connection/lock/migration runner + helpers, entity-agnostic and shared with `--minimal`), `repo.odin` (this app's migrations, statement wiring, seed) + per-table files (`contacts.odin`, `events.odin`). Imports `models`, `sqlite`. |
-| `src/services/` | service | Search/sort/paginate/validate. Plain values + errors, never HTTP. Imports `models`, `repository`. |
-| `src/views/` | view | HTML builders (a component is a proc writing into a `^strings.Builder`). Imports `models`, `services` — never `repository`: a page gets its data as a parameter. |
-| `src/controllers/` | controller | **The only layer that handles HTTP** (`main` imports odin-http only to start the server). Parse → call service → render via `views.*` → respond. `middleware.odin` is what every request passes through; embeds the assets via `#load`. |
-| `src/` (`package main`) | entry + wiring | `main.odin` seeds + serves, installing `controllers.front` (the one middleware: `controllers/middleware.odin`); `routes.odin` is the route table. Imports `controllers` (+ `repository` for the seed, `views` for `SITE_URL`). |
+- **A feature reaches another only through its domain** (dashboard -> contacts). No web package
+  imports another web package; no feature imports `platform/app` or odin-http.
+- **Only the domain imports its store** (`store:<f>`, resolved by the family collection), and a store
+  never imports its domain: the shared types and the store contract's proc types live in `f_models`,
+  and each store states them in its `contract.odin` (`_ : m.Store_X : x`), so a drifted signature
+  fails in the store itself (`tools/check contracts` holds every store to it).
+- **Only `platform/web` imports odin-http**; it re-exports `web.Request` and `web.Response`.
+- **A family is a build-time choice** made by `build.sh`'s collection flags: `store:` (sqlite or
+  memory), `identity:` (anonymous for now), `client:` (vanilla), `theme:` (full or lite). The
+  members expose the same names (`NAME`, the stores' procs), so the code above them doesn't change.
+- **A profile is four hand-written files.** `routes.odin` mounts tables, one line each, as
+  `app.Mount{"<feature>", <pkg>.ROUTES[:]}` (the root row is written there, never inside a
+  package's table); `main.odin` is the boot sequence as plain calls (`app.boot`, each feature's
+  `init`, `app.check`, `store_sqlite.open` and one `migrate` per store, `app.serve`, `app.wait`,
+  `app.shutdown`, `store_sqlite.close`, `app.exit`); `brand.odin` holds the names, the nav and the
+  pages' copy; `routes_test.odin` runs the boot checks under `CMD=test`.
+- **Prefixes**: a feature owns `/<f>`, `/admin/<f>` and `/api/<f>`; anything else is listed with a
+  reason in a `## Prefixes` table in its README (the skeleton features keep the skeleton's URLs).
+  `tools/check routes` holds every row to it.
 
-Cross-package calls are qualified: `repository.repo_list()`, `services.service_page()`,
-`views.view_dashboard()`, `models.Contact`. Sibling packages import each other relatively
-(`import "../models"`); `odin-http` lives at `app/vendor/odin-http`, so it's
-`"../vendor/odin-http"` from `src/` and `"../../vendor/odin-http"` from `src/controllers/`.
+The server runs **N nbio event loops** (one per core; `THREADS` overrides), so handlers run
+concurrently. **SQLite (store v3)**: each loop reads through its own read-only connection; writes
+are `store.Op`s queued to one **writer task**, which commits whatever is queued, up to 100, in one
+transaction, then runs each op's `done` back on the loop that queued it. A write handler therefore
+answers later, through a **deferred response** (`web.defer_response` / `web.resume` /
+`web.finish`). The memory family runs the same ops at once under a lock.
 
-The server runs **N nbio event-loop threads** (one per core by default; `THREADS` env
-overrides), so handlers run concurrently. The store is one SQLite connection guarded by an
-`sync.RW_Mutex`. **v1 takes the lock *exclusively* for every op, reads included** — a single
-connection's prepared statements are shared mutable state, so concurrent shared-lock reads would
-corrupt each other (parallel reads return with per-thread WAL connections — `docs/DATA_IMPL.md` §4,
-and the note in `repository/db.odin`). Because callers read a returned contact *after* the lock
-drops, the repository hands out **temp-arena snapshots** (columns cloned into the request arena via
-`clone_col`), never pointers into a statement buffer. If you touch the store, go through a `repo_*`
-proc, reached from a service.
+**Store procs return failures as values** (`store.Error`: `.None/.Not_Found/.Constraint/.Busy/
+.Failed`). Read with `db.read(sql)` + `db.next_row(q, &err)` and `defer db.reset(q)`; write in an
+op's `run` with `db.writer_stmt` + `db.step_done`. Bind with the helpers: `bind_text` stores `""`
+as `""`, never NULL; ids are 64-bit (`bind_id`/`column_id`); an enum read from a column goes
+through `store.enum_from_int`. Strings a read returns are `clone_col`'d into the request arena;
+strings an op answers with live in the op's own arena (`store.op_allocator`). A handler answers a
+store error with `web.respond_store_error` (404 / 409 / 503 for Busy / 500).
 
-**Store procs return their failures as values.** Writes run through `step_done` and reads through
-`next_row`, which log SQLite's message and return a `repository.Error`
-(`.None`/`.Not_Found`/`.Constraint`/`.Failed`; services re-export it as `Store_Error`). Never call
-`sqlite.step` and then read `last_insert_rowid` or `changes()` unchecked: after a failed step they
-describe the *previous* statement. Bind with the helpers: `bind_text` (stores `""` as `""`, not NULL),
-`bind_id`/`column_id` (ids are 64-bit; `c.int` is 32), `sqlite.bind_null`/`bind_double`. A
-controller answers an error with `respond_store_error` (404 / 409 / 500).
+**Crashes** (D15): `guard` turns a trap in a handler into a recovery. A crash that touched nothing
+shared answers 500 and serving goes on; one that held a `guard.Mutex`, posted an nbio op or was
+inside SQLite is dirty: the server drains and exits 70. A loop that stops ticking, or a lock held
+too long, trips the watchdog (exit 70, naming the route and request). Take locks only through
+`guard.lock`/`guard.unlock`, and call `guard.posted()` after posting an op from a handler.
 
 ## Code aesthetics (Odin)
 
@@ -203,166 +221,134 @@ oriented: solve the problem simply, once, and let small reusable procs do the wo
   in text passes through `esc`; every value in an `href`/query passes through `url_encode`; every
   value inside JSON (the ld+json blocks) through **`json_esc`** — entities aren't decoded inside
   `<script>`, so `esc` there is wrong. This is the injection boundary — no exceptions. All three
-  live in **`views/html.odin`**, shared with `--minimal`.
-- **Helpers take text, not markup.** `page_head`, `section_open`, `acc_item`, `link_tile`,
-  `stat_card` escape their string arguments themselves, so a value from the database is safe to pass
+  live in **`platform/escape`**, re-exported by `platform/html`.
+- **Helpers take text, not markup.** The layout's and the views' helpers (`page_head`, `toast`,
+  `field_msg`, `stat_card`, `link_tile`…) escape their string arguments themselves, so a value from the database is safe to pass
   and nothing is pre-escaped at the call site (write `"Data & CRUD"`, not `"Data &amp; CRUD"`).
-  Markup only ever enters through `w()`. Developer-authored inline HTML (`BRAND_WORDMARK`) is the one
-  deliberate exception, and says so where it is defined. Text cut from user input is cut by rune,
+  Markup only ever enters through `w()`. Developer-authored inline HTML (the brand's `wordmark`, the about page's
+  `lede`) is the deliberate exception, and says so where it is defined. Text cut from user input is cut by rune,
   never by byte (`avatar`).
 - **Semantic HTML**: `<header><nav><main><section><article><aside><footer>`, `<form>/<label>/
   <fieldset>`, `<dialog>`-style modals, `<details>/<summary>` accordions, real `<table>`,
   real `<button>`. No div soup.
-- A page handler builds a content string and wraps it with `layout(title, active, content)`.
-  Fragments return bare HTML (no layout).
+- A page handler builds its content and calls `web.render_page(req, res, title, active,
+  description, content)`, which wraps it in the layout. Fragments answer bare HTML (no layout).
 
-## Middleware (`controllers/middleware.odin`)
+## The request path (`platform/app/front.odin`)
 
-Every request goes through **`controllers.front`**, installed once in `main.odin` and shared with
-`--minimal`. In order:
+Every request goes through **`front`**, in this order (PLAN §8.4):
 
-1. **Security headers** on every response: a strict `Content-Security-Policy` (scripts from this
-   origin plus the hashed pre-paint script; no inline handlers; `style-src-attr 'unsafe-inline'`
-   only for the `style="--x:…"` attributes; `frame-ancestors 'none'`), `nosniff`,
-   `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`. A fork that needs a
-   third-party origin widens the one directive in `init_security`, nothing else.
-2. **`content_length_ok`**: a `Content-Length` that isn't plain digits within `int` gets 400 and a
-   closed connection, before anything else can answer. odin-http's own parse takes a sign and
-   wraps, a negative length aborts the whole process in its scanner, and after *any* response on
-   a keep-alive connection it drains the unread body itself, so every method needs the check.
-   `Expect: 100-continue` reaches it only because `main.odin` turns odin-http's
-   `auto_expect_continue` off; `OPTIONS *` never does (`TODO.md`).
-3. **`canonical_host`**: the `*.fly.dev` → `SITE_URL` 301 (see Crawlers below).
-4. **`same_origin`**, the cross-site write guard: a POST/PUT/PATCH/DELETE whose `Sec-Fetch-Site` is
-   anything but `same-origin`/`none`, or (from a browser too old to send that) whose `Origin` isn't
-   this host, gets 403 before its body is read. No header at all means not a browser (curl, k6, the
-   e2e API calls) and passes, so it doesn't demand `HX-Request`. When a fork adds a session cookie,
-   mark it `SameSite=Lax`; a per-session token on top is only for browsers older than both headers.
-5. **The body**, read before routing for any request that announces one, capped at `MAX_BODY`
-   (413 past it). Handlers read it with `request_form()`.
-6. **One access-log line** per request on every way out: `GET /data 200 0.41ms` (method, path
-   without the query, status, time in the app), at `.Info`.
+1. **The host, the route, the request id, the security headers.** The host by `Host` (an unknown
+   one is the main host); the route found before anything answers, so its flags set the headers
+   and its permission is checked before the body is read. Every response carries a strict
+   Content-Security-Policy (scripts from this origin plus the hashed pre-paint script; no inline
+   handlers; `style-src-attr 'unsafe-inline'` only for `style="--x:…"`; `frame-ancestors 'none'`),
+   `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, an
+   `x-request-id` and `x-version`. A fork that needs a third-party origin widens one directive in
+   `web.security_init`.
+2. **A malformed `Content-Length`** (anything but plain digits within `int`) gets 400 and a closed
+   connection, before anything else can answer: odin-http's own parse took a sign and wrapped, and a
+   negative length aborted the process.
+3. **The canonical host**: the `*.fly.dev` → `SITE_URL` 301 (see Crawlers).
+4. **The cross-site write guard** (`same_origin`), for every write, routed or not: a POST/PUT/PATCH/
+   DELETE whose `Sec-Fetch-Site` is anything but `same-origin`/`none`, or whose `Origin` isn't this
+   host, gets 403 before its body is read. No header at all means not a browser (curl, k6) and passes.
+   When a fork adds a session cookie, mark it `SameSite=Lax`.
+5. **No route**: the body capped at `MAX_BODY` (413), then 405 with `Allow` when another method
+   serves the path, else the site's 404 (a bare one for htmx).
+6. **The viewer and the route's rules**: the build's identity loads the viewer; the row's `perm`
+   (401/302 for a guest, 403 otherwise) and `.Lan_Only` (404 off the LAN) are checked.
+7. **The body**, capped by the route's `body_cap` (`MAX_BODY`, 64 KiB, when 0), then the handler,
+   inside the crash guard. Handlers read a form with `web.form(req)` (`+`- and percent-decoded).
+8. **One logfmt access-log line** (`ev=req id=… m=GET route="GET /data" st=200 us=183 …`, never the
+   query), unless the handler deferred its response: then `web.finish` logs it when it answers.
 
-`main` installs a console logger first thing (Odin's default discards everything, odin-http's own
-warnings included); `LOG_LEVEL=debug|info|warn|error` sets the floor, and `warn` turns the access
-log off. Log with `core:log`, never `fmt.println`. Every response carries **`x-version`**, the
-build's `-define:VERSION=…` (`"dev"` when absent; CI and the Dockerfile should pass the tag or
-commit). `/healthz` answers `ok` only while the store answers a `SELECT 1` (503 otherwise); its body
-stays exactly `ok`, which the CI smoke test and Fly compare.
+Log with `obs` (`obs.begin(.Info, "mod", "ev")`, `obs.str`, `obs.num`, `obs.end`): logfmt in
+per-thread buffers, never `fmt.println` and never `core:log`. `/healthz` answers exactly `ok` while
+every critical module (the store's `SELECT 1`) is up; `/livez` while every loop ticks; `/readyz`
+while ready and not draining (`?detail` lists the modules); `/metrics` serves Prometheus text to the
+`METRICS_TOKEN_FILE` bearer, with a request counter per route.
 
-A new cross-cutting rule (auth, a rate limit) belongs here, not in each handler.
+A new cross-cutting rule (auth, a rate limit) belongs in `front`, not in each handler.
 
 ## Allocator model (the #1 gotcha — get this right)
 
-odin-http gives each connection a growing arena as **`context.temp_allocator`**, freed *after*
-the response is flushed.
+odin-http gives each connection a growing arena as **`context.temp_allocator`**, freed *after* the
+response is flushed.
 
 - **Build all response HTML in the temp allocator** (`strings.builder_make(context.temp_allocator)`,
-  `fmt.tprintf`, etc.). It lives exactly long enough and costs nothing to free.
-- **The data lives in SQLite, not in the heap.** SQLite copies what you bind (`bind_text` passes
-  `SQLITE_TRANSIENT`), so a temp-arena string is fine to write, and what the repository hands back is
-  a snapshot cloned into the request arena. Nothing per request touches `context.allocator`. The
-  one rule: **never keep a returned string past the request** (in a global, a cache); clone it
-  into `context.allocator` first if you must. `context.allocator` is for what lives as long as the
-  process: the ETags, the CSP, the fingerprinted asset names, computed once at boot.
-- **Handlers never read the body themselves.** `controllers.front` (`middleware.odin`) reads it
-  before routing, capped at `MAX_BODY` (64 KiB; a bigger body gets 413 unread), so a handler is
-  plain synchronous code that calls `request_form()`. `http.body` may defer to the event loop, which
-  is why `front` keeps its callback state in `new(T, context.temp_allocator)`, not on the stack.
+  `fmt.tprintf`). It lives exactly long enough and costs nothing to free.
+- **Nothing per request touches `context.allocator`.** What a store read returns is cloned into the
+  request arena (`clone_col`); never keep it past the request (in a global, a cache) without cloning
+  it into `context.allocator`, which is for what lives as long as the process: the ETags, the CSP,
+  the fingerprinted asset names, the route table, computed once at boot.
+- **A deferred response outlives its handler**: everything its continuation needs goes in the op
+  (`store.new_op(T, bytes)`, whose tail is an arena: `store.op_allocator(op)`), and the continuation
+  calls `web.resume(&op.deferred)` first: `nil` means the client left, so it frees the op and
+  returns. Never touch the request arena of a deferred request after the handler returns.
+- **Handlers never read the body themselves**: `front` reads it, capped, before calling them.
 
-## odin-http cheat sheet (verified against the cloned source)
+## odin-http (vendored fork, `app/vendor/odin-http`)
 
-```odin
-import http "../../vendor/odin-http"   // relative; vendored at app/vendor/odin-http ("../vendor/odin-http" from src/)
+Vendored in-tree with the fork's changes F-1…F-13, each listed with its reason in `UPSTREAM.md`
+(streams, the `invoke` hook the crash guard uses, idle/header/body timeouts, a connection cap that
+answers 503, a bounded shutdown, SIGTERM, a per-thread date header, a bind retry, deferred
+responses). Features never import it: `platform/web` wraps it.
 
-// server (main.odin)
-s: http.Server
-http.server_shutdown_on_interrupt(&s)
-opts := http.Default_Server_Opts; opts.thread_count = os.get_processor_core_count() // THREADS env overrides
-http.listen_and_serve(&s, http.router_handler(&router),
-    net.Endpoint{address = net.IP4_Loopback, port = port}, opts)
-
-// router (routes.odin) — Lua patterns, captures via req.url_params[i]
-http.router_init(&router); defer http.router_destroy(&router)
-http.route_get/route_post/route_put/route_patch/route_delete/route_options(
-    &router, "/contacts/(%d+)", http.handler(some_handler))
-// register specific routes before catch-alls; first match in registration order wins.
-// routes.odin ends with http.route_all(r, ".*", controllers.fallback(r)): 405 + Allow for a path
-// another method serves, else not_found. Keep it last.
-
-// handler
-some_handler :: proc(req: ^http.Request, res: ^http.Response) { ... }
-
-// request
-req.url.path      // "/static/app.css"   (full path)
-req.url.query     // "q=foo&sort=name"   (raw, after '?'; see query_get helper)
-req.url_params    // []string  capture groups
-
-// body: already read (and size-capped) by controllers.front before routing
-form := request_form()        // map[string]string, '+'- and percent-decoded; empty for GET
-// (front's own read: http.body(req, MAX_BODY, user, proc(user, body, err) {...}); Body_Error is
-// a #shared_nil union → != nil works, and http.body_error_status(err) maps it to 413/400.)
-
-// responses — HTML and text through the controllers' own helpers (middleware.odin), which add
-// "; charset=utf-8" that odin-http's respond_html/respond_plain leave out
-respond_html(res, html, status = .OK)
-respond_plain(res, text)
-not_found(req, res)                                        // the 404 page, or a bare 404 for htmx
-http.respond_json(res, value)                              // marshals any
-http.respond_file_content(res, "htmx.min.js", HTMX_JS)     // content-type from extension
-http.respond_dir(res, "/static/", "static", req.url.path)  // pass the FULL path; it strips base + blocks traversal
-http.respond(res, http.Status.Not_Found)
-```
+- Routes are `web.Route` rows, `{.Get, "/contacts/(%d+)", handler, .Public, {.Fragment}, 0}`, in a
+  package-level `ROUTES := [?]web.Route{…}` table. Patterns are Lua patterns, anchored; captures are
+  `req.url_params[i]`; escape a literal `.` as `%.`. The router keys rows by their first one or two
+  literal segments, so dispatch is a map lookup, then the feature's few patterns.
+- Responses: `web.respond_html(res, html, status)`, `web.respond_plain`, `web.respond_json`,
+  `web.render_page`, `web.not_found(req, res)`, `web.respond_store_error`; they add
+  `; charset=utf-8`.
+- Query strings: `web.query_get(req, key)`, `web.query_int(req, key, fallback)`; path ids:
+  `web.parse_id`.
 
 ## Crawlers / SEO
 
-- **One canonical origin.** `views.SITE_URL` (brand.odin, `SITE_URL` env overrides) is the single
-  source for `<link rel="canonical">`, `og:url`, the `/sitemap.xml` entries, and the redirect
-  target. The app answers on both the custom domain and its `*.fly.dev` hostname; `canonical_host`
-  (in `controllers/middleware.odin`) 301s the latter onto the former so the two don't compete as
-  duplicates — **unless `SITE_URL` is a placeholder** (`*.example.com`, `.test`, … — what `init`
-  writes until the fork has a domain), when it serves instead of sending visitors nowhere.
-  **`/healthz` is exempt** — Fly's probe calls it, and a probe that follows a redirect off-host
-  fails the deploy.
-- **Derived, never duplicated.** `/sitemap.xml` walks `views.NAV` and the canonical URL is
-  `SITE_URL + active`, so adding a nav entry is all a new page needs. Don't hand-maintain a list.
-- **Fragments stay out of the index.** `/ui/*`, `/contacts*`, `/search`, `/api/*`, `/validate/*`
-  return bare HTML meant to be swapped into a page; alone they're thin near-duplicates, so
-  `robots.txt` disallows them. A new fragment route belongs in that list.
+- **One canonical origin.** The brand's `site_url` (`SITE_URL` overrides) is the single source for
+  `<link rel="canonical">`, `og:url`, the `/sitemap.xml` entries, and the redirect target. The
+  app answers on both the custom domain and its `*.fly.dev` hostname, and 301s the latter onto the
+  former — **unless the origin is a placeholder** (`*.example.com`, `.test`, …), when it serves
+  instead of sending visitors nowhere. **`/healthz` is exempt.**
+- **Derived, never duplicated.** `/sitemap.xml` walks the host's nav; the canonical URL is the
+  origin plus the page's nav href; `robots.txt` disallows the literal start of every `.Fragment`
+  row (a family of rows under one first segment collapses to it: `/ui/`). Mark a fragment route
+  `.Fragment` and robots.txt follows.
 - **`og.png` is deliberately unfingerprinted** (`/static/og.png`): social platforms cache a preview
-  against its URL, so the path must survive redeploys. Its source is **`tools/og/og.html`**: edit
-  that, then re-render the PNG with the Playwright `e2e/` already installs
-  (`npx playwright screenshot`, the exact command is in the file's header). It's embedded via
-  `#load` like every other asset.
+  against its URL. Its source is **`tools/og/og.html`** (the command to re-render is in the file).
 - `<script type="application/ld+json">` is **all literal braces** — write it with `w()`, never
-  `sbprintf` (see the Views rules above), and splice its values with `json_esc`.
+  `sbprintf`, and splice values with `json_esc`.
+- Bing's and IndexNow's ownership proofs come from the brand (`bing_site_auth`, `indexnow_key`);
+  blank, their routes 404.
 
 ## HTMX conventions / gotchas
 
 - **htmx 4 events** are colon-namespaced (`htmx:after:request`, `htmx:after:swap`,
   `htmx:after:process`) and carry `event.detail.ctx` (`sourceElement`, `target`, `response`, …).
-  Form auto-reset lives in `app.js` (not `hx-on`): a document listener resets
+  Form auto-reset lives in `app.js` (`platform/client/vanilla/app.js`; not `hx-on`): a document listener resets
   `form[data-reset-on-success]` after a 2xx, **scoped by `ctx.sourceElement`** so a child field's
   validation request can't reset the form (the email field on /forms validates as you type — an
   unscoped reset wiped what the user typed; this bit us once).
 - **Out-of-band toasts**: return `<div class="toast" hx-swap-oob="beforeend:#toasts">…</div>`
-  from any handler; `view_toast(kind, msg, oob=true)` does this.
+  from any handler; `html.toast(kind, msg, true)` does this.
 - **OOB a *table row* with `<hx-partial>`, not `hx-swap-oob`.** htmx 4 collects OOB via
   `querySelectorAll("[hx-swap-oob]")`, which doesn't descend into `<template>`; and a response that
   *starts* with a non-table element is body-parsed, which drops a trailing bare `<tr>`. So to
   refresh `#contact-<id>` alongside a drawer swap, wrap the row in
   `<hx-partial hx-target="#contact-N" hx-swap="outerHTML">…</hx-partial>` (htmx turns it into a
-  `<template>` it processes). See `contacts_update`. (A row-only response that *starts* with `<tr>`,
+  `<template>` it processes). See contacts' `updated`. (A row-only response that *starts* with `<tr>`,
   like delete-from-drawer, is fine bare.)
 - **An OOB swap suppresses an *empty* main swap** (htmx 4.0.0 changed this; in beta6 only
   `hx-partial` did). So a response that is nothing but OOB no longer clears its target. Where the
   empty swap is the point — delete-from-drawer sends an empty body plus one OOB `<tr>`, and closing
   the drawer *is* that empty swap into `#overlay` — opt back out per element with the `swapEmpty:true`
-  swap modifier (see the drawer's Delete button in `views_fragments.odin`). Prefer that over the
+  swap modifier (see the drawer's Delete button in contacts' views). Prefer that over the
   global `allowEmptySwapAfterOOB` config, so the safer default still holds everywhere else.
 - **Form bodies arrive `+`-encoded.** htmx 4 sends spaces as `+` (the form-encoding standard);
-  odin-http's `body_url_encoded` only percent-decodes, so POST bodies go through `request_form()`
-  (it `+`→space-decodes via `form_decode`, like `query_get`), never `http.body_url_encoded`.
+  odin-http's `body_url_encoded` only percent-decodes, so POST bodies go through `web.form(req)`
+  (it `+`→space-decodes via `form_decode`, like `query_get`).
 - **Exit animations**: `hx-swap="outerHTML swap:220ms"` keeps the node around long enough for
   the `.htmx-swapping` CSS to play.
 - **Overlays** (modal/drawer) load into `#overlay` and close via `GET /ui/clear` (empty body).
@@ -401,16 +387,21 @@ A submit the server refuses answers **422 Unprocessable Content** with the reaso
   `hx-status:5xx` works the same for server errors). Status keys match exactly, then `42x`, then
   `4xx`.
 - A form that re-renders itself (the drawer edit) answers 422 with **itself, filled with what was
-  typed**, plus the reason (`view_contact_edit_rejected`).
+  typed**, plus the reason (contacts' `edit_rejected`).
 
-Validation lives in `services` (`validate_contact`, `create_note`), returns plain messages, and caps
-every text field; the inputs carry the same `maxlength` and `required` so the browser stops first.
-Store failures are separate: `respond_store_error` (404 / 409 / 500).
+Validation lives in the domain (contacts' `check_create`/`check_update`, notes' `check`), returns
+plain messages, and caps every text field; the inputs carry the same `maxlength` and `required` so
+the browser stops first. Store failures are separate: `web.respond_store_error` (404 / 409 / 503 /
+500).
 
-## CSS conventions (`app/static/app.css`)
+## CSS conventions (`app/platform/static/app.css`, features' `static/<f>.css`)
 
-- **Token-driven, two orthogonal axes.** `data-style` × `data-scheme` on `<html>` (6 styles, 23
-  schemes; SSR default `modern`/`midnight`, restored pre-paint from localStorage to avoid a flash).
+- **Token-driven, two orthogonal axes.** `data-style` × `data-scheme` on `<html>` (the full theme
+  has 6 styles and 23 schemes, the lite one `modern` with `midnight` and `daylight`; SSR default
+  `modern`/`midnight`, restored pre-paint from localStorage to avoid a flash). The lite stylesheet is
+  the full one with every `/* full-only: … */ … /* /full-only */` region cut by `tools/bundle`, so
+  mark a style or scheme block that way and the two never drift. A feature's own CSS goes in
+  `app/features/<f>/static/<f>.css`, appended when a profile reaches the feature.
   Structural tokens live on `:root`; each `[data-style=x][data-scheme=y]` block sets the palette;
   `--on-accent` flips button text dark on light-accent schemes. Components read tokens
   (`var(--accent)`, `var(--surface)`), never raw colours — so a new scheme is one palette block and
@@ -423,7 +414,7 @@ Store failures are separate: `respond_store_error` (404 / 409 / 500).
 - Dynamic values driven by CSS custom properties set from JS (e.g. slider `--fill`, ring
   `--p`, avatar `--h`), not by rewriting styles in JS.
 
-## JS conventions (`app/static/app.js`)
+## JS conventions (`app/platform/client/vanilla/app.js`)
 
 - Vanilla, no dependencies, small. HTMX drives interactions; JS only does what the server
   can't: theme persistence, toast lifecycle, tab selection state, slider fill, count-up.
@@ -434,7 +425,7 @@ Store failures are separate: `respond_store_error` (404 / 409 / 500).
   also covers content swapped in later. Re-init swapped content on `htmx:after:process` (htmx 4's
   "content wired up" event). The file runs `defer` (DOM is ready). A click that must not bubble to a
   closer behind it is a `hx-trigger="click from:self"` on the closer, not `stopPropagation()`.
-- **No new inline `<script>`.** The only one is `views.THEME_PREPAINT_JS`, admitted by its hash
+- **No new inline `<script>`.** The only one is `html.THEME_PREPAINT_JS`, admitted by its hash
   (computed at boot, so editing the constant keeps the header right); anything else goes in app.js.
 - **Keep per-node state swap-safe** — a boosted nav swaps the whole `<body>`. Observe a stable
   ancestor (the toast retire-observer watches `document.body`, not the swapped `#toasts`), and make
@@ -447,43 +438,46 @@ Store failures are separate: `respond_store_error` (404 / 409 / 500).
   bits (`"18446744073709551617"` → `1`, ok=true) and takes a sign and `_` separators: parse
   anything that names a row with `parse_id` (digits only, overflow-checked, via `parse_digits`).
 - `*_test.odin` files compile into every `odin build` too (only `odin test` runs them), so a test
-  file must build in both the demo and `--minimal`. The test runner fails a test that logs at
+  file must build under every profile that reaches its package. The test runner fails a test that logs at
   `.Error`; silence an expected one with `context.logger = log.nil_logger()`.
 - `len(EnumType)` is valid (member count). Iterate enumerated arrays as `for value, key in ARR`.
 - `make([dynamic]T, context.temp_allocator)` is valid (allocator as the 2nd arg).
 - Ternary `cond ? a : b` exists; use it for small attribute choices.
 - `strings.split_by_byte_iterator(&s, '&')` mutates `s` (pass a local copy of `req.url.query`).
+- `@(thread_local)` variables can't have initialisers; a package-level `[?]T` constant (`::`) can't
+  be sliced (`X[:]` needs `:=`); `@(init)` procs must be contextless.
+- `ast.inspect` calls its callback with `nil` after a node's children: check for it.
+- Shell heredocs in the tooling eat backslashes: write files with escapes through an editor, not
+  `cat <<EOF`.
 
 ## Recipes
 
-- **New table / entity** (say `tasks`):
-  1. `models.odin`: the `Task` struct (and any enum + its label table).
-  2. `repository/migrations/000N_tasks.sql`: the `CREATE TABLE` (plain SQL, no `BEGIN`/`COMMIT`:
-     the runner wraps it), and list it in `MIGRATIONS` in `repo.odin`. Never edit a migration that
-     has shipped; add the next one (the boot refuses a changed hash).
-  3. `repository/tasks.odin`, copying `notes.odin` / `contacts.odin`: each statement is a file-private
-     `q_x: sqlite.Stmt` plus a `SQL_X: cstring`, prepared in `prepare_tasks` and freed in
-     `finalize_tasks`; call both from `repo_open`/`repo_close`. Each `repo_*` takes the lock, binds,
-     runs `step_done`/`next_row`, and returns `(value, Error)`.
-  4. Seed, if it's demo data: a `seed_tasks` under `repo_seed`, run only for `:memory:`/`SEED=1`.
-  5. `services`: validation (with a length cap on every text field) and the calls the controllers
-     make; then views, controllers and routes as for a page or fragment below.
-  6. Tests: an e2e spec in `e2e/tests/` (the fixtures give each worker its own `:memory:` server, so
-     `page`/`request` need no setup; make the rows your test acts on, since the store is shared by
-     the worker's other specs), and a k6 scenario in `load-tests/scenarios/` copying `list.js`
-     (`options` + `summarize` from `lib/options.js`). Both are picked up with no wiring.
-- **New page**: add `view_x()` in `src/views/` → `page_x` controller calling
-  `render_page(res, "Title", "/x", desc, views.view_x())` → `route_get` in `routes.odin` → a nav
-  entry in `NAV` (`src/views/views.odin`) if it's top-level. The `NAV` entry also puts the page in
-  `/sitemap.xml` and its `active` href becomes the canonical URL — both are derived, not duplicated.
-  Add e2e + load scenarios. Changelog.
-- **New fragment/endpoint**: `view_*` returning bare HTML → controller → route. If it mutates,
-  go through a service → repository proc; never touch the store from a controller or a view (both
-  import only `services`, which is where validation and error mapping live). A handler reads its
-  form with `request_form()` (already size-capped and CSRF-checked by the middleware), answers
-  refused input with 422 (see "Validation errors"), and parses path ids with `parse_id`. Escape all
-  input. If it's a fragment, add it to `robots.txt`'s Disallow list. Add e2e + load scenarios.
-  Changelog.
+- **New feature** `f`:
+  1. `app/features/f/models/` (package `f_models`): the types and the store contract's proc types
+     (`Store_List :: proc(...) -> Error`). No logic.
+  2. A store per family it supports, `app/stores/<family>/f/`: the procs, and `contract.odin` with
+     one `_ : m.Store_X : x` line per contract type. In SQLite, `migrations/0001_<name>.sql` (plain
+     SQL; the runner wraps it) listed in its `MIGRATIONS`; never edit a migration that has shipped,
+     add the next one (boot refuses a changed hash).
+  3. `app/features/f/` (package `f`): validation (a length cap on every text field) and the calls,
+     importing `store:f`.
+  4. `views/` (HTML builders over `^strings.Builder`) and `web/`: handlers, `ROUTES` under `/f`
+     (anything else goes in a `## Prefixes` table in `app/features/f/README.md`, with its reason),
+     `EXTS` (htmx extensions it needs; `web.Exts{}` for none), and `init` if it reads env rows.
+  5. Mount it in a profile's `routes.odin` (`{"f", f_web.ROUTES[:]}`), call its `init` in `main.odin`,
+     and in a SQLite profile add `store_sqlite.migrate("f", f_store.MIGRATIONS[:])`.
+  6. Tests: a spec in `e2e/tests/f/` tagged `@f` (and `@<g>` for every other feature it touches), and
+     a scenario in `load-tests/scenarios/f/` with a `// tags: @f` line, copying an existing one.
+  7. `odin run tools/check -- all`, both suites, `tools/check parity`; CHANGELOG.
+- **New page**: a view proc, a handler calling `web.render_page`, a `.Get` row in the feature's
+  `ROUTES`, and a nav entry in the profile's `brand.odin` if it's top-level (the nav entry puts it in
+  the sitemap and makes its canonical URL). e2e + load. Changelog.
+- **New fragment/endpoint**: a view returning bare HTML, a handler, a row marked `.Fragment` (so
+  robots.txt disallows it). A write goes through the domain to the store as an op, answered through a
+  deferred response; refused input answers 422; parse path ids with `web.parse_id`; escape all input.
+  e2e + load. Changelog.
+- **New profile** `p`: `app/cmd/p/` with the four files (copy `minimal`'s), a line in both
+  `build.sh` and `build.bat` naming its four families, and `tools/init`'s `PROFILES`. Run `prepare`
+  (it bundles every `app/cmd/*` with a `main.odin`), then `odin run tools/check -- all`.
 - **New component**: a proc writing into `^strings.Builder` + a token-driven CSS block. Reuse
-  `icon`, `esc`, `w`. Add it to the `/components` gallery.
-```
+  `html.icon`, `esc`, `w`. Add it to the `/components` gallery.
