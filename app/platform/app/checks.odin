@@ -73,6 +73,9 @@ boot_checks :: proc(hosts: []Host, sites: []web.Site, jobs: [][]workers.Job, bun
 	} else if have, ok := web.bundle_exts(); !ok || have != bundle_exts {
 		p(&problems, "the embedded bundle's extensions differ from main's BUNDLE_EXTS: run prepare")
 	}
+	if b, ok := web.page_bundles_ok(); !ok {
+		p(&problems, "the embedded %v bundle doesn't carry its fixed extensions: run prepare", b)
+	}
 	// 8. a job id mounted twice
 	seen := make(map[string]bool, context.temp_allocator)
 	for t in jobs {

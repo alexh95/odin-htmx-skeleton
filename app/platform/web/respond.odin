@@ -15,6 +15,9 @@ import "../html"
 import "../store"
 
 respond_html :: proc(res: ^Response, body: string, status := Status.OK) {
+	body := body
+	// A .Nonce_Csp response: the views' markers become this response's nonce (§12.2).
+	if tl_ctx != nil && tl_ctx.nonce != "" { body, _ = strings.replace_all(body, html.NONCE_MARK, tl_ctx.nonce, context.temp_allocator) }
 	respond_text(res, "text/html; charset=utf-8", body, status)
 }
 
@@ -61,17 +64,27 @@ is_htmx :: proc(req: ^Request) -> bool {
 
 // ---- pages ------------------------------------------------------------------------
 
-// A whole page in the host's shell: its brand, its nav, the assets.
-render_page :: proc(req: ^Request, res: ^Response, title, active, description, content: string, status := Status.OK) {
-	respond_html(res, page_html(title, active, description, content), status)
+// A whole page in the host's shell: its brand, its nav, the assets. A page on a
+// fixed bundle (the lab's scripting and compat pages) names it (§12.1), and a
+// boosted link into it gets HX-Redirect instead: a boosted swap would keep the
+// old document's CSP and scripts, so the browser loads it whole.
+render_page :: proc(req: ^Request, res: ^Response, title, active, description, content: string, status := Status.OK, bundle := Bundle.Main) {
+	if bundle != .Main && header(req, "hx-boosted") == "true" {
+		set_header(res, "hx-redirect", req.url.raw)
+		respond_status(res, .OK)
+		return
+	}
+	respond_html(res, page_html(title, active, description, content, bundle), status)
 }
 
-page_html :: proc(title, active, description, content: string) -> string {
-	site := ctx().site
+page_html :: proc(title, active, description, content: string, bundle := Bundle.Main) -> string {
+	c := ctx()
+	site := c.site
 	return html.layout({
 		brand = site.brand, origin = site.origin, nav = site.nav,
-		css = assets.css_href, htmx = assets.htmx_href, js = assets.js_href,
+		css = assets.css_href, htmx = assets.bundle_href[bundle], js = assets.js_href,
 		title = title, active = active, description = description,
+		bundle = bundle, nonce = c.nonce, private = c.route != nil && .Private in c.route.flags,
 	}, content)
 }
 

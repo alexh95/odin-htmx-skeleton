@@ -36,6 +36,16 @@ when #exists(BUILD_DIR + "/app.css.gz") { @(private) APP_CSS_GZ :: #load(BUILD_D
 when #exists(BUILD_DIR + "/app.js") { @(private) APP_JS :: #load(BUILD_DIR + "/app.js", string) } else { @(private) APP_JS :: "" }
 when #exists(BUILD_DIR + "/app.js.br") { @(private) APP_JS_BR :: #load(BUILD_DIR + "/app.js.br", string) } else { @(private) APP_JS_BR :: "" }
 when #exists(BUILD_DIR + "/app.js.gz") { @(private) APP_JS_GZ :: #load(BUILD_DIR + "/app.js.gz", string) } else { @(private) APP_JS_GZ :: "" }
+// The fixed page bundles (§12.1), built only for a profile whose packages name one on a BUNDLES line.
+when #exists(BUILD_DIR + "/scripting.js") { @(private) SCRIPTING_JS :: #load(BUILD_DIR + "/scripting.js", string) } else { @(private) SCRIPTING_JS :: "" }
+when #exists(BUILD_DIR + "/scripting.js.br") { @(private) SCRIPTING_JS_BR :: #load(BUILD_DIR + "/scripting.js.br", string) } else { @(private) SCRIPTING_JS_BR :: "" }
+when #exists(BUILD_DIR + "/scripting.js.gz") { @(private) SCRIPTING_JS_GZ :: #load(BUILD_DIR + "/scripting.js.gz", string) } else { @(private) SCRIPTING_JS_GZ :: "" }
+when #exists(BUILD_DIR + "/compat_htmx2.js") { @(private) COMPAT_HTMX2_JS :: #load(BUILD_DIR + "/compat_htmx2.js", string) } else { @(private) COMPAT_HTMX2_JS :: "" }
+when #exists(BUILD_DIR + "/compat_htmx2.js.br") { @(private) COMPAT_HTMX2_JS_BR :: #load(BUILD_DIR + "/compat_htmx2.js.br", string) } else { @(private) COMPAT_HTMX2_JS_BR :: "" }
+when #exists(BUILD_DIR + "/compat_htmx2.js.gz") { @(private) COMPAT_HTMX2_JS_GZ :: #load(BUILD_DIR + "/compat_htmx2.js.gz", string) } else { @(private) COMPAT_HTMX2_JS_GZ :: "" }
+when #exists(BUILD_DIR + "/compat_alpine.js") { @(private) COMPAT_ALPINE_JS :: #load(BUILD_DIR + "/compat_alpine.js", string) } else { @(private) COMPAT_ALPINE_JS :: "" }
+when #exists(BUILD_DIR + "/compat_alpine.js.br") { @(private) COMPAT_ALPINE_JS_BR :: #load(BUILD_DIR + "/compat_alpine.js.br", string) } else { @(private) COMPAT_ALPINE_JS_BR :: "" }
+when #exists(BUILD_DIR + "/compat_alpine.js.gz") { @(private) COMPAT_ALPINE_JS_GZ :: #load(BUILD_DIR + "/compat_alpine.js.gz", string) } else { @(private) COMPAT_ALPINE_JS_GZ :: "" }
 
 @(private) FAVICON_SVG :: #load("../static/favicon.svg", string)
 // Crawlers look for /favicon.ico at the root and handle a raster .ico far better
@@ -54,9 +64,10 @@ Asset :: struct {
 
 @(private)
 assets: struct {
-	table:                     [6]Asset,
-	n:                         int,
-	css_href, htmx_href, js_href: string, // what the layout links
+	table:          [9]Asset,
+	n:              int,
+	css_href, js_href: string, // what the layout links
+	bundle_href:    [ext.Bundle]string, // each embedded bundle's; "" for one this build has not
 }
 
 // At boot: names, ETags and hrefs, computed once from the embedded bytes.
@@ -73,7 +84,10 @@ assets_init :: proc() {
 		a.hashed = fmt.aprintf("%s.%08x%s", name[:dot], crc, name[dot:])
 		return strings.concatenate({"/static/", a.hashed})
 	}
-	assets.htmx_href = add("htmx.min.js", MAIN_JS, MAIN_JS_BR, MAIN_JS_GZ, true)
+	assets.bundle_href[.Main] = add("htmx.min.js", MAIN_JS, MAIN_JS_BR, MAIN_JS_GZ, true)
+	if len(SCRIPTING_JS) > 0 { assets.bundle_href[.Scripting] = add("scripting.js", SCRIPTING_JS, SCRIPTING_JS_BR, SCRIPTING_JS_GZ, true) }
+	if len(COMPAT_HTMX2_JS) > 0 { assets.bundle_href[.Compat_Htmx2] = add("compat-htmx2.js", COMPAT_HTMX2_JS, COMPAT_HTMX2_JS_BR, COMPAT_HTMX2_JS_GZ, true) }
+	if len(COMPAT_ALPINE_JS) > 0 { assets.bundle_href[.Compat_Alpine] = add("compat-alpine.js", COMPAT_ALPINE_JS, COMPAT_ALPINE_JS_BR, COMPAT_ALPINE_JS_GZ, true) }
 	assets.css_href = add("app.css", APP_CSS, APP_CSS_BR, APP_CSS_GZ, true)
 	assets.js_href = add("app.js", APP_JS, APP_JS_BR, APP_JS_GZ, true)
 	add("favicon.svg", FAVICON_SVG, "", "", false)
@@ -88,6 +102,16 @@ assets_bundle_present :: proc() -> bool { return len(MAIN_JS) > 0 }
 // with main's BUNDLE_EXTS. A bare htmx.min.js has no header: the empty set.
 bundle_exts :: proc() -> (set: ext.Exts, ok: bool) {
 	return ext.parse_header(MAIN_JS)
+}
+
+// Boot check 6 for the fixed page bundles: each one embedded carries its table's
+// set (ext.PAGE_EXTS); a stale one names the bundle.
+page_bundles_ok :: proc() -> (bad: ext.Bundle, ok: bool) {
+	for js, b in ([ext.Bundle]string{.Main = "", .Scripting = SCRIPTING_JS, .Compat_Htmx2 = COMPAT_HTMX2_JS, .Compat_Alpine = COMPAT_ALPINE_JS}) {
+		if js == "" { continue }
+		if set, hok := ext.parse_header(js); !hok || set != ext.PAGE_EXTS[b] { return b, false }
+	}
+	return {}, true
 }
 
 // GET /static/(.+)

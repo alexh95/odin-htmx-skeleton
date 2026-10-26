@@ -53,7 +53,12 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       per response, the `hx-nonce` marker the writer replaces, no-store) and the `.Lab_Host` mount rule;
       `Reporting-Endpoints`, `report-to` and a rate-limited `/csp-report` in `streams` and `lab`; boot check 6 over
       every bundle. *Check:* CSP-builder unit tests; `headers.spec` (api) per flag class; `minimal`'s and
-      `skeleton`'s headers unchanged.
+      `skeleton`'s headers unchanged. Progress: all of it in the platform (a boosted request for a fixed-bundle page
+      gets `HX-Redirect`, PLAN §12.1 as built; `/csp-report` in `web.REPORT_ROUTES`, 10 a minute per client),
+      `headers.spec` green on the three profiles, the CSP builder's unit test. Left: `.Nonce_Csp`, `.Private` and the
+      page bundles exercised by real pages (slice 5's scripting and compat), and `.Lab_Host`'s `noindex` with
+      houston-lab (M4). Follow-up for slice 12: `tools/check routes` should refuse an unescaped `-` in a pattern
+      (`/csp-report` matched nothing until it was `/csp%-report`).
 - [ ] **4. `client/hyperscript` and `html.behave`** (§12.4, D22): _hyperscript 0.9.94 core pinned (SHA, upstream
       `.br`) by prepare and in `pins`; the `client` family's second member; the `Behaviour` table and `html.behave`
       (`_="install X"` or `data-behave="x"`); the gate in app.js; the platform's core `._hs` set with its vanilla

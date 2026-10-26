@@ -91,6 +91,7 @@ Req_Ctx :: struct {
 	impl:     string, // "chat.transport=sse": sent as x-impl and logged
 	deferred: bool,   // the handler deferred its response: its continuation logs it
 	allow:    []string, // no route: the methods that would answer (405)
+	nonce:    string,   // a .Nonce_Csp route's, this response's (§12.2); "" otherwise
 }
 
 @(private, thread_local) tl_ctx: ^Req_Ctx

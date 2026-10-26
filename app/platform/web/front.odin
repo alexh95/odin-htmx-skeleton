@@ -8,6 +8,7 @@ package web
 // Content-Length refusal, the canonical host, the cross-site write guard, the
 // body, the handler, one access-log line.
 
+import "core:crypto"
 import "core:crypto/sha2"
 import "core:encoding/base64"
 import "core:hash"
@@ -26,18 +27,23 @@ VERSION :: #config(VERSION, "dev")
 
 // Which header set the profile sends (§12.2): `minimal` sends exactly the
 // skeleton's; every other profile adds Permissions-Policy, COOP and CORP, static
-// strings that change neither cost nor features (X35).
+// strings that change neither cost nor features (X35); `streams`, `lab` and
+// `full` also ask browsers to report CSP violations to /csp-report (mounted from
+// REPORT_ROUTES; D9, D20, X11).
 Header_Set :: enum u8 {
 	Skeleton,
 	Standard,
+	Reporting,
 }
 
 @(private)
 sec: struct {
-	csp:      string,
-	set:      Header_Set,
-	trusted:  []env.Cidr, // TRUST_PROXY
-	cid_key:  u32, // per boot: the client id is a hash, never the address
+	csp:        string,
+	nonce_head: string, // a .Nonce_Csp response's policy: head, the nonce, tail
+	nonce_tail: string,
+	set:        Header_Set,
+	trusted:    []env.Cidr, // TRUST_PROXY
+	cid_key:    u32, // per boot: the client id is a hash, never the address
 }
 
 // At boot. The CSP is the skeleton's hash policy verbatim: scripts from this
@@ -51,11 +57,14 @@ security_init :: proc(set: Header_Set, trusted: []env.Cidr) {
 	sha2.init_256(&c)
 	sha2.update(&c, transmute([]byte)string(html.THEME_PREPAINT_JS))
 	sha2.final(&c, sum[:])
-	sec.csp = strings.concatenate({
-		"default-src 'self'; script-src 'self' 'sha256-", base64.encode(sum[:]),
-		"'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; ",
-		"object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
-	})
+	hash := base64.encode(sum[:], allocator = context.temp_allocator)
+	rest := "'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+	report := "; report-to csp" if set == .Reporting else ""
+	sec.csp = strings.concatenate({"default-src 'self'; script-src 'self' 'sha256-", hash, rest, report})
+	// The nonce class (§12.2): scripts by nonce or the pre-paint hash, and nothing
+	// else, not even 'self'.
+	sec.nonce_head = "default-src 'self'; script-src 'nonce-"
+	sec.nonce_tail = strings.concatenate({"' 'sha256-", hash, rest, report})
 	sec.set = set
 	sec.trusted = trusted
 	sec.cid_key = u32(sys.now_unix_ns())
@@ -63,17 +72,27 @@ security_init :: proc(set: Header_Set, trusted: []env.Cidr) {
 
 csp :: proc() -> string { return sec.csp }
 
-// On every response, whatever produced it; a route's flags add their own.
-security_headers :: proc(res: ^Response, flags: Route_Flags, path: string) {
+// On every response, whatever produced it; a route's flags add their own. A
+// .Nonce_Csp route's response gets a fresh nonce, returned for the page to stamp.
+security_headers :: proc(res: ^Response, flags: Route_Flags, path: string) -> (nonce: string) {
 	h := &res.headers
 	// Constant lowercase keys: the unsafe setter skips headers_set's lowercased copy of each,
 	// which a profile of the write path put at 7 % (with F-15's header writing).
 	http.headers_set_unsafe(h, "x-version", VERSION)
-	http.headers_set_unsafe(h, "content-security-policy", sec.csp)
+	if .Nonce_Csp in flags {
+		raw: [16]byte
+		crypto.rand_bytes(raw[:])
+		nonce = base64.encode(raw[:], allocator = context.temp_allocator)
+		http.headers_set_unsafe(h, "content-security-policy", strings.concatenate({sec.nonce_head, nonce, sec.nonce_tail}, context.temp_allocator))
+		http.headers_set_unsafe(h, "cache-control", "no-store")
+	} else {
+		http.headers_set_unsafe(h, "content-security-policy", sec.csp)
+	}
 	http.headers_set_unsafe(h, "x-content-type-options", "nosniff")
 	http.headers_set_unsafe(h, "x-frame-options", "DENY")
 	http.headers_set_unsafe(h, "referrer-policy", "strict-origin-when-cross-origin")
-	if sec.set == .Standard {
+	if sec.set != .Skeleton {
+		if sec.set == .Reporting { http.headers_set_unsafe(h, "reporting-endpoints", `csp="/csp-report"`) }
 		http.headers_set_unsafe(h, "permissions-policy", "camera=(), microphone=(), geolocation=()")
 		http.headers_set_unsafe(h, "cross-origin-opener-policy", "same-origin")
 		// The social card and the favicons are fetched by other sites' previews.
@@ -91,6 +110,7 @@ security_headers :: proc(res: ^Response, flags: Route_Flags, path: string) {
 		http.headers_set_unsafe(h, "cache-control", "no-store, no-transform" if .Private in flags else "no-cache, no-transform")
 		http.headers_set_unsafe(h, "x-accel-buffering", "no")
 	}
+	return
 }
 
 // ---- refusals before anything can answer --------------------------------------------

@@ -40,7 +40,7 @@ front :: proc(req: ^web.Request, res: ^web.Response) {
 	m, params, allow := web.router_find(&c.site.router, web.method_of(req), req.url.path)
 	c.route = m
 	obs.set_request(c.id, m.obs if m != nil else obs.NO_ROUTE)
-	web.security_headers(res, m.flags if m != nil else {}, req.url.path)
+	c.nonce = web.security_headers(res, m.flags if m != nil else {}, req.url.path)
 	web.set_ctx(c)
 	defer web.set_ctx(nil)
 

@@ -19,6 +19,7 @@ import "core:unicode/utf8"
 
 import "../authz"
 import "../escape"
+import "../ext"
 import client "client:."
 import theme "theme:."
 
@@ -60,14 +61,26 @@ Nav_Item :: struct {
 Home_Card :: #type proc(b: ^strings.Builder, v: authz.Viewer)
 
 // One page: the brand and origin of the host it is served on, that host's nav,
-// the asset hrefs, and the page's own text.
+// the asset hrefs, and the page's own text. A page on a bundle other than Main
+// (the lab's scripting and compat pages) links out with full navigations, since a
+// boosted swap keeps the old document's CSP and scripts (§12.1; boosting into one
+// is web.render_page's to refuse); `nonce` is set on a `.Nonce_Csp` route,
+// `private` on a `.Private` one (§12.2).
 Page :: struct {
 	brand:                      ^Brand,
 	origin:                     string,
 	nav:                        []Nav_Item,
 	css, htmx, js:              string,
 	title, active, description: string,
+	bundle:                     ext.Bundle,
+	nonce:                      string,
+	private:                    bool,
 }
+
+// Views write this where a nonce goes (hx-nonce="<%N%>" on an hx-* element of a
+// `.Nonce_Csp` page); the response writer puts the response's nonce in its place.
+// It holds `<`, so escaped text can't forge it (§12.2).
+NONCE_MARK :: "<%N%>"
 
 // Restores the saved theme before first paint, so the page never flashes the
 // default palette. It has to be inline (it must run before the stylesheet
@@ -195,25 +208,35 @@ head_title :: proc(b: ^strings.Builder, p: Page) {
 	esc(b, p.brand.suffix)
 }
 
-// The htmx-config meta's JSON for pages on the main bundle: tools/bundle writes it
-// beside the bundle at prepare, from the same union (§12.1), and without it (a
-// build before prepare, or no extensions) it is the skeleton's own. Folded into a
-// constant, so the head costs what it did.
+// Each bundle's htmx-config meta JSON: tools/bundle writes it beside the bundle at
+// prepare, from the same set (§12.1), and without it (a build before prepare, or
+// Main with no extensions) it is the skeleton's own. Folded into constants, so the
+// head costs what it did.
 @(private = "file")
 BUILD_DIR :: #config(BUILD_DIR, "../../build/none")
-when #exists(BUILD_DIR + "/htmx-config.json") {
-	HTMX_CONFIG :: #load(BUILD_DIR + "/htmx-config.json", string)
-} else {
-	HTMX_CONFIG :: `{"defaultSwap":"innerHTML"}`
-}
+@(private = "file")
+SKELETON_CONFIG :: `{"defaultSwap":"innerHTML"}`
+when #exists(BUILD_DIR + "/main.config.json") { @(private = "file") MAIN_CONFIG :: #load(BUILD_DIR + "/main.config.json", string) } else { @(private = "file") MAIN_CONFIG :: SKELETON_CONFIG }
+when #exists(BUILD_DIR + "/scripting.config.json") { @(private = "file") SCRIPTING_CONFIG :: #load(BUILD_DIR + "/scripting.config.json", string) } else { @(private = "file") SCRIPTING_CONFIG :: SKELETON_CONFIG }
+when #exists(BUILD_DIR + "/compat_htmx2.config.json") { @(private = "file") COMPAT_HTMX2_CONFIG :: #load(BUILD_DIR + "/compat_htmx2.config.json", string) } else { @(private = "file") COMPAT_HTMX2_CONFIG :: SKELETON_CONFIG }
+when #exists(BUILD_DIR + "/compat_alpine.config.json") { @(private = "file") COMPAT_ALPINE_CONFIG :: #load(BUILD_DIR + "/compat_alpine.config.json", string) } else { @(private = "file") COMPAT_ALPINE_CONFIG :: SKELETON_CONFIG }
 
 @(private = "file")
-HEAD_OPEN :: `">
+HEAD_A :: `">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="htmx-config" content='` + HTMX_CONFIG + `'>
+<meta name="htmx-config" content='`
+@(private = "file")
+HEAD_B :: `'>
 <title>`
+@(private = "file", rodata)
+HEAD_OPEN := [ext.Bundle]string {
+	.Main          = HEAD_A + MAIN_CONFIG + HEAD_B,
+	.Scripting     = HEAD_A + SCRIPTING_CONFIG + HEAD_B,
+	.Compat_Htmx2  = HEAD_A + COMPAT_HTMX2_CONFIG + HEAD_B,
+	.Compat_Alpine = HEAD_A + COMPAT_ALPINE_CONFIG + HEAD_B,
+}
 
 // The one page shell. p.active is the href of the current page, so the nav can
 // mark it; the inline head script sets the theme before first paint.
@@ -228,7 +251,7 @@ layout :: proc(p: Page, content: string) -> string {
 	w(&b, theme.DEFAULT_STYLE)
 	w(&b, `" data-scheme="`)
 	w(&b, theme.DEFAULT_SCHEME)
-	w(&b, HEAD_OPEN)
+	w(&b, HEAD_OPEN[p.bundle])
 	head_title(&b, p)
 	w(&b, `</title>
 <meta name="description" content="`)
@@ -270,9 +293,11 @@ layout :: proc(p: Page, content: string) -> string {
 	w(&b, `</script>
 <script src="`)
 	w(&b, p.htmx)
+	nonce_attr(&b, p.nonce)
 	w(&b, `" defer></script>
 <script src="`)
 	w(&b, p.js)
+	nonce_attr(&b, p.nonce)
 	w(&b, `" defer></script>
 `)
 	// The site name a search engine prints above the result; without it the name is
@@ -302,7 +327,10 @@ layout :: proc(p: Page, content: string) -> string {
 	w(&b, `/","programmingLanguage":["Odin","HTML","CSS","JavaScript"]}
 </script>
 </head>
-<body>
+<body`)
+	// .Private: htmx's history snapshot (hx-history-cache) keeps no copy (§12.2).
+	if p.private { w(&b, ` hx-history="false"`) }
+	w(&b, `>
 <header class="topbar">`)
 	// hx-boost turns the brand and nav links into body swaps that push history:
 	// no asset re-parse, no theme flash; the server still renders whole pages. On
@@ -311,7 +339,9 @@ layout :: proc(p: Page, content: string) -> string {
 	// transition runs, Chromium hit-tests the whole page to <html> and drops
 	// clicks, which a fragment swap (the rest of the page live) can't afford.
 	w(&b, `
-  <a class="brand" href="/" hx-boost="true" hx-swap="innerHTML transition:true"><span class="brand-mark">`)
+  <a class="brand" href="/"`)
+	if p.bundle == .Main { w(&b, BOOST) }
+	w(&b, `><span class="brand-mark">`)
 	icon(&b, "bolt")
 	w(&b, `</span><span class="brand-name">`)
 	w(&b, p.brand.wordmark)
@@ -319,7 +349,8 @@ layout :: proc(p: Page, content: string) -> string {
   <nav class="nav" aria-label="Primary">`)
 	for item in p.nav {
 		cur := item.href == p.active ? ` aria-current="page"` : ""
-		fmt.sbprintf(&b, `<a class="nav-link" href="%s"%s hx-boost="true" hx-swap="innerHTML transition:true">`, item.href, cur)
+		boost := BOOST if p.bundle == .Main else ""
+		fmt.sbprintf(&b, `<a class="nav-link" href="%s"%s%s>`, item.href, cur, boost)
 		icon(&b, item.icon)
 		fmt.sbprintf(&b, `<span>%s</span></a>`, item.label)
 	}
@@ -357,6 +388,18 @@ layout :: proc(p: Page, content: string) -> string {
 	w(&b, `</body>
 </html>`)
 	return strings.to_string(b)
+}
+
+@(private = "file")
+BOOST :: ` hx-boost="true" hx-swap="innerHTML transition:true"`
+
+// ` nonce="…"` on a script tag of a `.Nonce_Csp` page, whose CSP admits scripts by
+// nonce alone; nothing elsewhere.
+@(private = "file")
+nonce_attr :: proc(b: ^strings.Builder, nonce: string) {
+	if nonce == "" { return }
+	w(b, `" nonce="`)
+	w(b, nonce)
 }
 
 // The header at the top of every page body. All three are text, escaped here.

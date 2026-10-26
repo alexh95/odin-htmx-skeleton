@@ -13,6 +13,7 @@ The platform's rows, mounted as `"platform"` by every profile (D9, PLAN §6.3):
 | Prefix | Why |
 |---|---|
 | `/healthz` | the health check Fly and the CI smoke test compare verbatim |
+| `/csp-report` | browsers' CSP violation reports, from a profile on `Header_Set.Reporting` (`web.REPORT_ROUTES`; PLAN §12.2) |
 | `/events` | the page's one SSE stream: `hub.ROUTES`, mounted as `"platform"` by a profile with topics (PLAN §9.1) |
 | `/livez` | liveness: every loop ticked in the last 5 s |
 | `/readyz` | readiness: every critical module up, not draining |

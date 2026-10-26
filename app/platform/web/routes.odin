@@ -8,12 +8,17 @@ package web
 // never declared twice: robots.txt's Disallow lines come from the host's
 // .Fragment rows and the sitemap from its nav.
 
+import "base:runtime"
 import "core:crypto"
+import "core:hash"
+import "core:net"
 import "core:strings"
 
 import http "../../vendor/odin-http"
 import "../authz"
+import "../guard"
 import "../obs"
+import "../sys"
 
 ROUTES := [?]Route {
 	{.Get, "/healthz", healthz, .Public, {}, 0},
@@ -32,10 +37,66 @@ PUBLIC_ROUTES := [?]Route {
 	{.Get, "/licenses", licenses, .Public, {}, 0},
 }
 
+// Where a profile on Header_Set.Reporting has browsers send CSP violations
+// (streams, lab, full; §12.2). minimal and skeleton mount none of it.
+REPORT_ROUTES := [?]Route {
+	{.Post, "/csp%-report", csp_report, .Public, {.Fragment}, CSP_REPORT_CAP},
+}
+
 // The bearer /metrics accepts, read from METRICS_TOKEN_FILE at boot; "" = none.
 metrics_token: string
 
 @(private) NOTICES :: #load("../../../THIRD_PARTY_NOTICES", string)
+
+// ---- CSP reports (§12.2, §17.5) -----------------------------------------------------
+
+CSP_REPORT_CAP :: 16 * 1024
+CSP_REPORTS_A_MINUTE :: 10 // per client id (§17.5)
+
+@(private)
+csp_reports: struct {
+	mu:      guard.Mutex,
+	clients: map[u64][2]i64, // client key → {the minute, reports in it}
+}
+
+// Logs a browser's violation report at warn, at most CSP_REPORTS_A_MINUTE a
+// minute from one client (the rest are dropped), and answers 204 either way. The
+// body is the browser's JSON, logged as one escaped value: a report is a hint to
+// look, not evidence.
+csp_report :: proc(req: ^Request, res: ^Response) {
+	c := ctx()
+	minute := sys.mono_ns() / 60e9
+	key := client_key(c.client)
+	guard.lock(&csp_reports.mu)
+	if csp_reports.clients == nil { csp_reports.clients = make(map[u64][2]i64, runtime.heap_allocator()) }
+	if len(csp_reports.clients) > 4096 { clear(&csp_reports.clients) }
+	seen := csp_reports.clients[key]
+	if seen[0] != minute { seen = {minute, 0} }
+	seen[1] += 1
+	csp_reports.clients[key] = seen
+	guard.unlock(&csp_reports.mu)
+	if seen[1] <= CSP_REPORTS_A_MINUTE {
+		if l, ok := obs.begin(.Warning, "csp", "report"); ok {
+			obs.str(&l, "body", c.body)
+			obs.end(&l)
+		}
+	}
+	http.respond(res, Status.No_Content)
+}
+
+// A client's address as a map key, for the per-client limits (CSP reports,
+// stream admission); the address itself is never kept.
+client_key :: proc(a: net.Address) -> u64 {
+	switch v in a {
+	case net.IP4_Address:
+		b := v
+		return hash.fnv64a(b[:])
+	case net.IP6_Address:
+		b := transmute([16]u8)v
+		return hash.fnv64a(b[:])
+	}
+	return 0
+}
 
 // ---- health (§10.4) ----------------------------------------------------------------
 

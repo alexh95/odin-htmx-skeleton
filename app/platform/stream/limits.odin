@@ -6,8 +6,6 @@ package stream
 // with Retry-After past STREAM_CONNECTS a minute from one client. The counts
 // cover every stream (SSE, a socket, a multipart feed), whatever opened it.
 
-import "core:hash"
-import "core:net"
 import "core:strconv"
 import "core:sync"
 import "core:time"
@@ -110,7 +108,7 @@ Loop_Stat :: struct {
 @(private)
 admit :: proc(res: ^web.Response) -> (client, user: u64, ok: bool) {
 	c := web.ctx()
-	client = client_key(c.client)
+	client = web.client_key(c.client)
 	user = c.viewer.id
 	minute := sys.mono_ns() / 60e9
 	queued := queued_total()
@@ -164,19 +162,6 @@ sweep_clients :: proc(minute: i64) {
 	for k, v in adm.clients {
 		if v.open == 0 && v.minute != minute { delete_key(&adm.clients, k) }
 	}
-}
-
-// The address as a map key; the address itself is never kept.
-client_key :: proc(a: net.Address) -> u64 {
-	switch v in a {
-	case net.IP4_Address:
-		b := v
-		return hash.fnv64a(b[:])
-	case net.IP6_Address:
-		b := transmute([16]u8)v
-		return hash.fnv64a(b[:])
-	}
-	return 0
 }
 
 // What every loop's streams have queued, as last summed.

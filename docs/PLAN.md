@@ -428,7 +428,7 @@ A feature owns `/<name>`, `/admin/<name>` and `/api/<name>`; each exception is l
 | `dashboard` | `/dashboard`, `/ui/ping`; its page is `skeleton`'s root row at `/` (the skeleton's page, `SK/app/src/routes.odin:35`) and sits at `/dashboard` on `full`'s lab host | the skeleton's exact URLs, for parity |
 | `gallery` | `/components /forms /ui /validate` | the same |
 | `contacts` | `/data /contacts /search /api/search` | the same; so global search is `find` at `/find` (`SK/app/src/routes.odin:42`) |
-| platform | `web.ROUTES`, a site's main host: `/healthz /livez /readyz /metrics /sitemap.xml /BingSiteAuth.xml /<indexnow-key>.txt`; `web.PUBLIC_ROUTES`, every host: `/static /robots.txt /favicon.ico /licenses /csp-report`; `hub.ROUTES`, every host that mounts topics: `/events` (M2) | owned by no feature |
+| platform | `web.ROUTES`, a site's main host: `/healthz /livez /readyz /metrics /sitemap.xml /BingSiteAuth.xml /<indexnow-key>.txt`; `web.PUBLIC_ROUTES`, every host: `/static /robots.txt /favicon.ico /licenses`; `web.REPORT_ROUTES`, where the profile asks for CSP reports: `/csp-report`; `hub.ROUTES`, every host that mounts topics: `/events` (M2) | owned by no feature |
 
 `/` is no feature's prefix: each host's one `GET /` row is written in the profile's `routes.odin` and names the root
 feature's handler (§6.3; LC §7). Product names (Comms, Capcom, Logbook …) are nav labels in `brand.odin`, never
@@ -1218,7 +1218,7 @@ follow it: `/admin/accounts`, `/admin/audit`, `/admin/bot`, `/admin/ops`, `/admi
 | `accounts` | `/login /logout /register /invite /account` | conventional URLs |
 | `video` | `/media` | content-addressed files |
 | the skeleton features (`dashboard`, `gallery`, `contacts`, `about`) | the skeleton's exact URLs: `/ui/ping` (dashboard, whose page is also `skeleton`'s root, and sits at `/dashboard`, its own prefix, on `full`'s lab host), `/data /contacts /search /api/search /components /forms /ui /validate /about` (`SK/app/src/routes.odin`) | parity needs them byte-identical (§18) |
-| the platform | `web.ROUTES` on a site's main host: `/healthz /livez /readyz /metrics /sitemap.xml /BingSiteAuth.xml /<indexnow-key>.txt`; `hub.ROUTES` (`/events`) on every host that mounts topics (M2); `web.PUBLIC_ROUTES` on every host: `/static /robots.txt /favicon.ico /licenses /csp-report` | shared by every profile (LC §7) |
+| the platform | `web.ROUTES` on a site's main host: `/healthz /livez /readyz /metrics /sitemap.xml /BingSiteAuth.xml /<indexnow-key>.txt`; `hub.ROUTES` (`/events`) on every host that mounts topics (M2); `web.PUBLIC_ROUTES` on every host: `/static /robots.txt /favicon.ico /licenses`; `web.REPORT_ROUTES` (`/csp-report`) where the profile asks for CSP reports | shared by every profile (LC §7) |
 
 **One root per host** (D9, D27; RESOLUTIONS X5, X28; LC §7). Each host's table has exactly one `GET /` row, written in
 the profile's `routes.odin`, never in a package's `ROUTES`, so one package's page can sit at `/` in one profile and
@@ -1487,7 +1487,8 @@ import home_web "../../features/home/web"
 // The skeleton's src/routes.odin, as one line per mounted package plus the profile's own rows.
 ROUTES := [?]app.Mount{
 	{"platform", web.ROUTES[:]},                                    // the main host's: /healthz /livez /readyz /metrics /sitemap.xml …
-	{"platform", web.PUBLIC_ROUTES[:]},                             // every host's: /static /robots.txt /favicon.ico /licenses /csp-report
+	{"platform", web.PUBLIC_ROUTES[:]},                             // every host's: /static /robots.txt /favicon.ico /licenses
+	{"platform", web.REPORT_ROUTES[:]},                             // /csp-report
 	{"platform", hub.ROUTES[:]},                                    // /events: this host's TOPICS (M2)
 	{"home", {{.Get, "/", home_web.page_today, .Public, {}, 0}}},  // the root: Today
 	{"identity", identity.ROUTES[:]},                               // /login /logout: the nickname form
@@ -1737,9 +1738,10 @@ JOBS := [?][]workers.Job{
   matches no origin goes to the main host, where the canonical-host 301 still applies. In LC §16's prototype,
   `/dashboard` answers 200 on the lab host and 404 on the main one, `/chat` the reverse, `/scripting/live` only on the
   lab host and `/healthz` only on the main one.
-- **The platform's rows** come in three tables: `web.ROUTES` (the probes, `/metrics`, the sitemap and the ownership
-  proofs) for a site's main host, `web.PUBLIC_ROUTES` (static assets, `robots.txt`, `favicon.ico`, `/licenses`,
-  `/csp-report`) for every host, and `hub.ROUTES` (`/events`) for every host that mounts topics.
+- **The platform's rows** come in four tables: `web.ROUTES` (the probes, `/metrics`, the sitemap and the ownership
+  proofs) for a site's main host, `web.PUBLIC_ROUTES` (static assets, `robots.txt`, `favicon.ico`, `/licenses`) for
+  every host, `web.REPORT_ROUTES` (`/csp-report`) where the profile asks for CSP reports, and `hub.ROUTES`
+  (`/events`) for every host that mounts topics.
 - **Topics are per host too** (**NEW**): `/events` on houston-lab subscribes only to the families `hub.mount("lab",
   …)` gave it (the lab's stream demos), so a page there can't subscribe to Houston's topics even as a Guest.
 - **No session.** The lab host's `identity` field is false, so `front` runs no identity there: it reads no `sid`, sets
@@ -2742,8 +2744,11 @@ three have fixed sets in one table and are built only for a profile mounting `sc
 bit_set[web.Bundle]{.Scripting}` and `{.Compat_Htmx2, .Compat_Alpine}`; `tools/bundle` builds Main plus every bundle a
 reached package names, `web.Bundle` and its fixed table live in `platform/ext` beside `Ext`, and `tools/check exts`
 covers `BUNDLES` lines too (S0.10). The
-layout takes the bundle as a parameter. Links across bundles are full navigations (`hx-boost="false"`), because a
-body swap keeps the old document's CSP and scripts (11 §6.4, 05 §9). **Hyperscript** is a separate deferred file
+layout takes the bundle as a parameter. Links across bundles are full navigations, because a body swap keeps the old
+document's CSP and scripts (11 §6.4, 05 §9). **As built (M2):** a page on a fixed bundle links out unboosted (the
+layout boosts only on Main), and a boosted request for one (`HX-Boosted: true`) gets `HX-Redirect` to itself from
+`web.render_page`, so the browser loads it whole, whichever link it came from; each bundle's htmx-config JSON is
+`<bundle>.config.json` beside it, folded into a head constant per bundle. **Hyperscript** is a separate deferred file
 after the bundle, using upstream's shipped `.br`: both layouts are race-free, and separate keeps 175 KB cacheable
 when the extension set changes, for 1,151 B br more (11 §8.1).
 
@@ -2837,7 +2842,8 @@ in §17.4.
 **CSP reports** (D9, D20; RESOLUTIONS X11). `full`, `streams` and `lab` send `Reporting-Endpoints: csp="/csp-report"`
 and add `report-to csp` to their CSP (11 §5.1 calls both optional). `minimal` and `skeleton` never do: their CSP stays
 the skeleton's verbatim, and `minimal` keeps the skeleton's exact header set. `/csp-report` is a platform route that
-logs each report at warn and is rate-limited (§17.5).
+logs each report at warn and is rate-limited (§17.5). **As built (M2):** such a profile serves with
+`web.Header_Set.Reporting` and mounts `{"platform", web.REPORT_ROUTES[:]}`.
 
 ### 12.3 The 17 extensions
 

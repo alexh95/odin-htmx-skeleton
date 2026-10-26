@@ -115,17 +115,28 @@ main :: proc() {
 		)
 	}
 
-	// The htmx-config meta's JSON for pages on Main (§12.1), from the same union:
-	// an extension missing from its `extensions` allowlist registers as nothing.
-	// The layout folds it into a constant, so a profile with none (minimal,
-	// skeleton) keeps the skeleton's exact head.
-	config := `{"defaultSwap":"innerHTML"}`
-	if main_exts != {} {
-		config = strings.concatenate({`{"defaultSwap":"innerHTML","extensions":"`, ext.list(main_exts, context.temp_allocator), `"}`})
+	// Each bundle's htmx-config meta JSON (§12.1), from the same set: an extension
+	// missing from its `extensions` allowlist registers as nothing. Strict JSON, as
+	// hyperscript parses it too. Scripting's adds `safeEval`, under which hx-csp
+	// lets a nonced hx-on and hx-live run (11 §2.2). The layout folds each into a
+	// constant, so a profile with no extensions (minimal, skeleton) keeps the
+	// skeleton's exact head.
+	for b in ext.Bundle {
+		path := path_join(dir, strings.concatenate({strings.to_lower(fmt.tprint(b)), ".config.json"}))
+		if b not_in pages {
+			os.remove(path)
+			continue
+		}
+		set := b == .Main ? main_exts : ext.PAGE_EXTS[b]
+		config := `{"defaultSwap":"innerHTML"}`
+		if set != {} {
+			config = strings.concatenate({`{"defaultSwap":"innerHTML","extensions":"`, ext.list(set, context.temp_allocator), `"`, `,"safeEval":true}` if b == .Scripting else `}`})
+		}
+		if err := os.write_entire_file(path, transmute([]byte)config); err != nil {
+			fatal(fmt.tprintf("can't write %s: %v", path, err))
+		}
 	}
-	if err := os.write_entire_file(path_join(dir, "htmx-config.json"), transmute([]byte)config); err != nil {
-		fatal(fmt.tprintf("can't write %s/htmx-config.json: %v", dir, err))
-	}
+	os.remove(path_join(dir, "htmx-config.json")) // the name before page bundles had their own
 
 	// The stylesheet and the client's script, from the same reached files.
 	for out in ([]struct{name: string, data: []byte}{{"app.css", stylesheet(opt, files)}, {"app.js", client_js(opt, files)}}) {

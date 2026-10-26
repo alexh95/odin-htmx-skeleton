@@ -50,6 +50,18 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   RSS per stream. `docs/perf/STREAMS.md` records §18.4's fan-out, restart and per-stream budgets on the Linux leg:
   all met (3000 SSE subscribers p99 about 10 ms; 4000 clients back 1.7 s after a `kill -9`).
 
+- **Page bundles and route flags in the CSP** (PLAN §12.1-12.2): the fixed Scripting, Compat_Htmx2 and Compat_Alpine
+  bundles are embedded when a profile's packages name them, each with its own htmx-config (Scripting's with
+  `safeEval`); a page names its bundle in `web.render_page`, and a boosted request for a page on a fixed bundle gets
+  `HX-Redirect`, since a boosted swap would keep the old document's CSP and scripts. A `.Nonce_Csp` route's response
+  gets a fresh nonce: scripts by nonce or the pre-paint hash only, `no-store`, the nonce on the layout's scripts and
+  in place of the views' `hx-nonce` markers. A `.Private` page carries `hx-history="false"`. Boot check 6 covers
+  the page bundles.
+- **CSP violation reports** for `streams`, `lab` and `full` (`web.Header_Set.Reporting`): `Reporting-Endpoints` and
+  `report-to csp`, and `/csp-report` (`web.REPORT_ROUTES`) logs each at warn, 10 a minute per client.
+- **`headers.spec`** (e2e, api): each profile's exact header set, no COEP, no HSTS over http, `/csp-report` where
+  mounted.
+
 ### Changed
 - **An open stream holds 3 KiB, not 16** (the fork's F-17): its receive buffer is sized by kind, the scanner's buffer
   goes back at `stream_begin`, and the connection's arena once the handler returns. 4000 idle SSE streams took 68 MB
@@ -58,6 +70,8 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   the request's own `Host`, so a local run's pages can open their sockets; a deployment keeps the strict
   comparison with `SITE_URL` (D12 as built).
 - **A job that runs every minute or more often logs its runs at debug** (the lab's 500 ms beat), not at info.
+- **The lab sends the reporting header set** and mounts `/csp-report`.
+- **The htmx-config files are per bundle** (`app/build/<p>/<bundle>.config.json`; Main's was `htmx-config.json`).
 - **The test harnesses lift the per-client stream caps** for their servers (`e2e/helpers/server.ts`,
   `load-tests/run.sh`): one client opening hundreds of streams a minute is the suite, not a visitor.
 - **The unit tests build on `minimal`'s four families** (`.github/scripts/unit-tests.sh`): `platform/stream` reaches
