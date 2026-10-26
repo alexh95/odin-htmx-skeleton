@@ -37,6 +37,27 @@ const cands = want.length ? want : variants.filter((v) => v !== 'head' && v !== 
 const cells = [...new Set(rows.filter((r) => !onlyStore || r.store === onlyStore).map((r) => `${r.scenario}|${r.store}`))];
 const get = (s, st, v, r) => rows.findLast((x) => x.scenario === s && x.store === st && x.variant === v && x.round === r);
 
+// --baselines: S0.1's table, each baseline's median and noise band, and HEAD / v1.1.1 per cell.
+if (want[0] === '--baselines' || process.argv.includes('--baselines')) {
+  console.log('| cell | HEAD rps (band) | v1.1.1 rps (band) | HEAD / v1.1.1 (median of rounds) | faster |');
+  console.log('|---|---:|---:|---:|---|');
+  for (const cell of cells) {
+    const [s, st] = cell.split('|');
+    const rounds = [...new Set(rows.filter((x) => x.scenario === s && x.store === st).map((x) => x.round))].sort();
+    const A = [], B = [], R = [];
+    for (const r of rounds) {
+      const a = get(s, st, 'head', r), b = get(s, st, 'v111', r);
+      if (!a || !b || !a.rps || !b.rps) continue;
+      A.push(a.rps); B.push(b.rps); R.push(a.rps / b.rps);
+    }
+    if (!R.length) continue;
+    const band = (xs) => (Math.max(...xs) / Math.min(...xs)).toFixed(2);
+    const r = median(R);
+    console.log(`| ${s}@${st} | ${Math.round(median(A))} (${band(A)}) | ${Math.round(median(B))} (${band(B)}) | ${r.toFixed(2)} | ${r >= 1 ? 'HEAD' : 'v1.1.1'} |`);
+  }
+  process.exit(0);
+}
+
 const out = [];
 for (const cand of cands) {
   console.log(`\n## ${cand} against ${against === 'both' ? 'max(head, v111)' : against}\n`);

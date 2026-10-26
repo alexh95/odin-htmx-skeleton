@@ -1,8 +1,8 @@
 # Alex's answers
 
 Answers Alex gave in conversation, recorded as given. Each is followed by how the plan reads it. Where a reading is
-an interpretation, it is marked **(reading, to confirm)**. All three rounds are folded into `DECISIONS.md` and
-`PLAN.md`.
+an interpretation, it is marked **(reading, to confirm)**. Every round is folded into `DECISIONS.md` and
+`PLAN.md`; round 5 answers the gate questions M0's spikes raised.
 
 ## Round 1 (2026-10-25)
 
@@ -74,3 +74,14 @@ The questions as they were put to Alex.
 | Item | Alex said | What it means for the plan |
 |---|---|---|
 | Q33 (M14 Devices) | "Yes, add M14 Devices with the default scope: device registry and feed, cams, and the wall dashboard; live video, radio, mesh and WireGuard stay ideas." | **Answered.** M14 Devices is scheduled as an optional milestone after M12: the device registry and feed (with its ledger line), cams (an MJPEG fan-out as `multipart/x-mixed-replace`, LAN-only and members-only first) and the wall/TV dashboard. Its gates, proposed in D44, become its gates. Live video, the radio feed, the mesh bridge and WireGuard stay in the ideas list. |
+
+## Round 5 (2026-10-26)
+
+The gate questions M0's spikes S0.1, S0.4 and S0.5 raised, relayed by the planning session. Alex's message was cut off
+by the reply box's length limit; its last words are the button Alex clicked, "1 argon thread on ≤ 2 CPUs".
+
+| Item | Alex said | What it means for the plan |
+|---|---|---|
+| Q6 (`:memory:` parity) | "Q6 take the default (pick C, gate the failing :memory: cells against HEAD 709bc94 with a documented exception, never waive file-DB cells)" | **Answered: the default.** Candidate C (store v3, sort indexes, the ephemeral file unsynced, on tmpfs on Linux, and group commit through the writer task) is the `skeleton` profile's `:memory:` mode. The `:memory:` cells C fails against max(HEAD, v1.1.1) are gated against HEAD 709bc94 instead, each named in a documented exception (`tests/parity-waivers.txt`); a file-DB cell is never waived (S0.4). |
+| Q35 (the light routes' reference) | "light routes (static, seo) gate against HEAD 709bc94 only, store routes against max(HEAD, v1.1.1)" | **Answered.** On `static` and `seo` the gate compares the candidate with HEAD alone, because v1.1.1 is faster there only by lacking 1.2.0's security middleware (S0.1); every other scenario keeps max(HEAD, v1.1.1). |
+| Q34 (the login-storm budget) | "Q34 take the default (absolute budget, 1 argon thread on ≤ 2 CPUs" | **Answered: the default.** 50 logins/s under `cpus: 2.0`: other routes' p99 ≤ their base + 0.5 ms, the cgroup never throttled, every login answered; `ACCOUNTS_ARGON_THREADS` is 1 when the container has ≤ 2 CPUs, else 2 (S0.5). |

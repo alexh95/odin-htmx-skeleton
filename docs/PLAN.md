@@ -175,7 +175,7 @@ list are in §22.
 | Q3 | The showcase's name | **Houston** (ANSWERS #6) |
 | Q4 | Fork odin-http: where does the fork live, and when is the seam offered upstream? | **fork it, vendored in-tree** at `app/vendor/odin-http/` with `UPSTREAM.md`, no separate repo (ANSWERS #7, F3); an upstream offer after M2 goes through a fork made then |
 | Q5 | Install Odin dev-2026-10 in WSL2 for the Linux legs? | **yes** (ANSWERS Q5) |
-| Q6 | Only if S0.4 finds no passing `:memory:` mode: what does the gate do? | default (not yet raised): gate the failing `:memory:` cells against HEAD 709bc94 with a documented exception; file-DB cells never waived |
+| Q6 | Only if S0.4 finds no passing `:memory:` mode: what does the gate do? | **answered 2026-10-26** (round 5): the default; S0.4's candidate C, the failing `:memory:` cells gated against HEAD 709bc94 with a documented exception, file-DB cells never waived |
 | Q24 | apollo facts at M0 (for S0.12), and agents running ≤ 10-minute LAN load tests? | **yes to both** (ANSWERS Q24) |
 
 Also decided on 2026-10-25 (`docs/design/ANSWERS.md`):
@@ -207,6 +207,14 @@ Decided in the device discussion (2026-10-25 and 2026-10-26; `docs/design/DEVICE
 Decided in round 4 (2026-10-26; ANSWERS round 4):
 - **Q33**: yes, M14 Devices with the default scope, optional and after M12: the device registry and feed, cams and
   the wall dashboard; live video, the radio feed, the mesh bridge and WireGuard stay ideas (§22.3).
+
+Decided in round 5 (2026-10-26; ANSWERS round 5), on the gate questions M0's spikes raised:
+- **Q6**: the default. The `skeleton` profile's `:memory:` mode is S0.4's candidate C, and the `:memory:` cells it
+  fails are gated against HEAD 709bc94 with a documented exception each; file-DB cells are never waived (§11.3, §18.2).
+- **Q35**: the light routes, `static` and `seo`, gate against HEAD alone; the store routes against max(HEAD, v1.1.1)
+  (§18.2; S0.1).
+- **Q34**: the default. The login-storm budget is absolute, and the argon pool has 1 thread on ≤ 2 CPUs (§17.1,
+  §18.4; S0.5).
 
 Every other question, with its options and status, is in §22.7.
 
@@ -1982,7 +1990,7 @@ unknown variable inside a known prefix.
 | `BOT_BACKEND`, `BOT_LLAMA_URL` | mock; none | default backend, switchable by an admin at runtime on `/admin/bot` (D8); required for llama, never assumed (07 §2.2); on apollo, `http://<APOLLO_LAN_IP>:<LLAMA_PORT>` (§14.3; RESOLUTIONS X41) |
 | `BOT_LLAMA_KEY_FILE`, `BOT_SEED`, `BOT_DELAY_MS`, `BOT_CONCURRENCY` | unset | llama key; mock determinism and speed; concurrent generations |
 | `ACCOUNTS_REGISTRATION`, `ACCOUNTS_ADMIN_HASH` | invite; unset | registration mode (Q10); argon2id hash of the bootstrap admin |
-| `ACCOUNTS_ARGON_THREADS`, `ACCOUNTS_NICK_FROM` | 2 (1 with ≤ 2 CPUs, Q34); lan | argon pool threads; `nick` only for clients in `LAN_CIDRS` |
+| `ACCOUNTS_ARGON_THREADS`, `ACCOUNTS_NICK_FROM` | 2 (1 with ≤ 2 CPUs, Q34: answered); lan | argon pool threads; `nick` only for clients in `LAN_CIDRS` |
 | `GAMES_URL`, `GAMES_API_URL`, `GAMES_CATALOG` | unset | spark's origin; its API, whose presence selects `catalog_api` (§15.3); a `catalog_static` override |
 | `NOTES_CAP`, `CONTACTS_CAP` | 500, 2000 | the demo caps on `full`'s lab host, whose rows the jobs `notes.reset` and `contacts.reset` put back nightly at 04:00 local time; read only where `full` mounts these features on its lab host, so `skeleton` stays uncapped (§7.3, §11.6; RESOLUTIONS X38) |
 | `VIDEO_DIR`, `VIDEO_SIGN_KEY_FILE`, `VIDEO_CDN_URL` | /data/media; unset | media volume; signed-URL key; an optional bunny.net pull zone (stage 2; Q26) |
@@ -2460,9 +2468,16 @@ Spike S0.4 measures every `:memory:` cell, with the sort indexes installed (they
   `next_tick` after the batch commits (**NEW, UNVERIFIED (S0.4)**).
 
 **Decision rule.** The first candidate that passes every `:memory:` cell under D38's rule on both legs becomes the
-`skeleton` profile's default. The `write@mem` target is v1.1.1's 38,908 rps, not HEAD's 36,172. The file-DB cells
-already pass with v3 (1.2–2.7× v1.1.1). If none passes, Q6 applies before M1; its default gates the failing `:memory:`
-cells against HEAD with a documented exception and never waives a file-DB cell. No 1-loop leg is added: at one loop
+`skeleton` profile's default. If none passes, Q6 applies before M1; its default gates the failing `:memory:` cells
+against HEAD with a documented exception and never waives a file-DB cell.
+
+**What S0.4 found, and what Alex chose** (`docs/spikes/S0.4.md`; ANSWERS round 5, 2026-10-26). None passes every cell.
+**C is chosen**: the `skeleton` profile runs store v3 with the sort indexes, `MEMMODE=ephemeral` unsynced (on
+`/dev/shm` on Linux) and group commit through the writer task. On Linux, where the noise band is about 2 %, C passes
+search, api, detail, mixed and scale@20 against max(HEAD, v1.1.1) and misses pages, list and write by 4–9 %, because
+v1.1.1 sorts its 20 rows in Odin straight from RAM; those cells are gated against HEAD, each with a documented
+exception in `tests/parity-waivers.txt` (Q6's answer). C's write handlers answer after the batch commits, through
+F-13's deferred response. The file DB takes C too (R2a): v3's file-DB write measured 0.38–0.43× v1.1.1, C's 2.9–4.3×. No 1-loop leg is added: at one loop
 every variant is below v1.1.1 on list, pages and write (file-DB write 6,683 rps for v3 against 7,501; 12 §2).
 
 ### 11.4 Optional SQLite
@@ -3652,7 +3667,7 @@ tables the three grants that are judgement calls (Q31, below); the rest of this 
 - `Admin_Audit` is Admin only, where PF §6.1 let moderators see their own entries.
 
 **Passwords** (D35, S11). argon2id runs on the argon pool, never on a loop: `ACCOUNTS_ARGON_THREADS` 2 (1 when the
-container has ≤ 2 CPUs, as apollo's `full` does: Q34's default), at most that many concurrent verifies and a queue of
+container has ≤ 2 CPUs, as apollo's `full` does: Q34, answered 2026-10-26), at most that many concurrent verifies and a queue of
 32, then 503 "busy, retry"; the handler defers its response (F-13), and each worker keeps one buffer for argon's memory,
 so the pool holds threads × 19 MiB and never allocates per login. The parameters are OWASP's (19 MiB, t = 2, p = 1):
 S0.5 measured 19–32 ms per verify on the dev PC (medians, both OSes, a busy box; two at once barely slower), while the
@@ -3906,7 +3921,11 @@ v1.1.1 refuse 99.0–99.9 % of requests on Windows (12 §2), and S0.1 re-checks 
 measurement; server starts, `scale`'s 20k-row seeding and retries come on top (NEW estimate).
 
 **Pass rule, per cell:**
-- the median of the per-round paired ratios C / max(A, B) is ≥ 0.97;
+- the reference is max(A, B) on the store routes and HEAD (A) alone on the light routes, `static` and `seo`: v1.1.1 is
+  4–8 % faster there only because it lacks 1.2.0's security middleware, which the starter keeps (S0.1; Q35, answered
+  2026-10-26). The `:memory:` cells the chosen mode fails against max(A, B) are gated against HEAD with a documented
+  exception each (Q6, answered 2026-10-26); a file-DB cell is never waived;
+- the median of the per-round paired ratios C / reference is ≥ 0.97;
 - no round's ratio is below 0.85;
 - C's p99 is ≤ 1.10 × the p99 of the faster baseline.
 
@@ -3935,16 +3954,13 @@ round, and the retry with n = 5 absorbs the remaining swings (R13).
 
 ### 18.3 `:memory:` parity
 
-File-DB cells already pass with store v3 (reads 1.2–2.7× v1.1.1, write 0.98×, 12 §2). On `:memory:` no measured mode
-passes every cell: v3's ephemeral WAL file writes at 0.33× v1.1.1, and `single` + QPSG lists at 0.55× (D17). So the
-`:memory:` half of the gate depends on spike S0.4, which runs D17's candidates A, B and C under §18.2's rule before
-M1, and, if none passes, on Alex's answer to Q6. D17's table, the candidates, the decision rule and Q6's default are
-in §11.3.
+S0.4 measured D17's candidates A, B and C on both legs (§11.3): none passes every `:memory:` cell, C passes the most
+and is chosen, and its failing `:memory:` cells are gated against HEAD with documented exceptions (Q6, answered
+2026-10-26). On the file DB store v3's reads pass (1.1–2.6× v1.1.1) but its write failed (0.38–0.43×), so the file DB
+takes C's group commit too, which writes at 2.9–4.3×.
 
-**A watched margin** (RESOLUTIONS X17). Write on the file DB at 0.98× (a ratio of medians, 12 §2) clears the 0.97 bar
-narrowly on a noisy box. It is a watched margin, not an open question: S0.1's and S0.4's paired rounds settle it, and if
-the cell fails, the file DB also gets D17's candidate C (group commit of skeleton writes through the writer task). The
-risk register tracks it as R2a, a sub-item of the parity risk (§22.6).
+**The watched margin is settled** (RESOLUTIONS X17; R2a). 12 §2 read file-DB write at 0.98×; S0.4's paired rounds
+read v3 at 0.38–0.43×, so, as X17 provides, the file DB gets candidate C's group commit for skeleton writes.
 
 ### 18.4 Budgets
 
@@ -3962,7 +3978,7 @@ risk register tracks it as R2a, a sub-item of the parity risk (§22.6).
 | Fan-out, Linux, 4 loops | 1000 SSE subscribers p99 ≤ 100 ms; 3000 ≤ 200 ms; WS 1000 sockets × 20 messages delivered ≤ 2 s | 03 §10.4 (74 ms; 115–188 ms; 1.6 s) |
 | Restart | boot → `/readyz` ≤ 50 ms (file DB, 20k rows) plus the bind retry; 4000 clients back ≤ 3 s; stale cursors → replay or resync 100 % | 13 §3.3-3.4 |
 | Shutdown | ≤ 6 s with 500 SSE + 500 WS + a slowloris + a half-sent body + a non-closing idle peer | 13 §4.1 (13.2 s and > 30 s today) |
-| Login storm | 50 logins/s under `cpus: 2.0` with one argon thread: other routes' p99 ≤ their base + 0.5 ms, the cgroup never throttled, every login answered (200/401, or 503 at once past the queue); Q34's default, since the first budget, p99 within +10 %, failed in every setting (S0.5: +24 % to ×22 on a sub-millisecond p99, never by blocking a loop; +0.08–0.12 ms with one thread) | 07 §5.6; S0.5 |
+| Login storm | 50 logins/s under `cpus: 2.0` with one argon thread: other routes' p99 ≤ their base + 0.5 ms, the cgroup never throttled, every login answered (200/401, or 503 at once past the queue); Q34, answered 2026-10-26; the first budget, p99 within +10 %, failed in every setting (S0.5: +24 % to ×22 on a sub-millisecond p99, never by blocking a loop; +0.08–0.12 ms with one thread) | 07 §5.6; S0.5 |
 | Chat | writer task ≥ 50k msgs/s batched on a file WAL; send → another member's DOM on the LAN via NPM p95 ≤ 50 ms (NEW) | 12 §3.1 |
 | Bot (mock) | 1000 concurrent generations × 200 tokens at 20 Hz ≤ 1 core and ≤ +30 MB (NEW) | — |
 | Video | 256 MiB Range transfer ≤ 8 MB peak private memory (Linux splice UNVERIFIED) | 07 §0.2 (5.1 MB) |
@@ -4861,8 +4877,8 @@ RESOLUTIONS X27).
 | # | Risk | Likelihood / impact | Mitigation |
 |---|---|---|---|
 | R1 | The fork costs request-path throughput or stability | low / high | S0.2 before anything builds on it; hot path untouched; 03's contract tests in CI; a small vendored diff, re-applied per bump (ANSWERS F3) |
-| R2 | `:memory:` parity can't be met | medium / medium | S0.4's three candidates; Q6 decided before M1 |
-| R2a | File-DB write parity: 0.98× clears the 0.97 bar narrowly (12 §2), a watched margin | medium / medium | S0.1's and S0.4's paired rounds settle it; if the cell fails, the file DB also gets D17's candidate C (group commit of skeleton writes through the writer task) (RESOLUTIONS X17; §18.3) |
+| R2 | `:memory:` parity can't be met | medium / medium | measured by S0.4: no candidate passes every cell; Q6 answered (C, the failing `:memory:` cells gated against HEAD with documented exceptions, ANSWERS round 5) |
+| R2a | File-DB write parity: 0.98× clears the 0.97 bar narrowly (12 §2), a watched margin | medium / medium | settled by S0.4: v3's file-DB write measured 0.38–0.43×, so the file DB takes C's group commit too (RESOLUTIONS X17; §18.3), which writes at 2.9–4.3× |
 | R3 | core:nbio is young; Windows puts every connection on one loop, so cross-loop bugs show only on Linux | medium / high | Linux legs in parity, TSan, soak and linux-ops; pin dev-2026-10; bump to dev-2026-11 only through a parity re-run (09 §1.2); avoid unbuffered multi-sender `core:sync/chan` until then; TSan flags a plain read inside an `assert` in `core:nbio`'s cross-thread queue (`mpsc.odin:36`), suppressed by name until a bump fixes it (S0.9) |
 | R4 | The guard is formally UB (no returns_twice) | low / high | trivial guarded frame, volatile loads; dirty → exit 70; drills on both OSes every push |
 | R5 | htmx 4.0.0 bugs (history, SSE abort noise, hx-pending error) | high / low | pin; the known-error allowlist; history-cache first on the cut list; four-dev watched; bump gated by the per-extension e2e |
@@ -4906,8 +4922,9 @@ default the plan follows.
 
 | # | Question | Options | Recommended | Needed by | Status |
 |---|---|---|---|---|---|
-| Q6 | If S0.4 finds no `:memory:` mode passing every cell, what does the gate do? | gate the failing `:memory:` cells against HEAD 709bc94 (v1.2.0) with a documented exception / gate the file DB only and report `:memory:` / block M1 until a mode passes | **Gate the failing `:memory:` cells against HEAD**, file-DB cells never waived; asked with S0.4's numbers before M1 | M1 (only if S0.4 needs it) | default (not yet raised; conditional on S0.4) |
-| Q34 | The login-storm budget, after S0.5 failed its +10 % (§17.1, §18.4) | restate it in absolute terms (other routes' p99 ≤ base + 0.5 ms under `cpus: 2.0`, the cgroup never throttled) and size the argon pool by CPU (1 thread with ≤ 2 CPUs, else 2) / keep +10 % and cap logins lower (fewer than 50/s) / keep +10 % and give the argon pool CPUs of its own (a container of its own) | **Restate it, and 1 thread on ≤ 2 CPUs**: hashing costs a core whatever the design, and +10 % of a sub-millisecond p99 is less than one busy neighbour core costs; the per-client login limits (§17.5) stay in front, so 50/s can only come from many clients | M4 (`accounts`; the plan follows the default meanwhile) | default (not yet raised; S0.5, 2026-10-26) |
+| Q6 | If S0.4 finds no `:memory:` mode passing every cell, what does the gate do? | gate the failing `:memory:` cells against HEAD 709bc94 (v1.2.0) with a documented exception / gate the file DB only and report `:memory:` / block M1 until a mode passes | **Gate the failing `:memory:` cells against HEAD**, file-DB cells never waived; asked with S0.4's numbers before M1 | M1 (only if S0.4 needs it) | **Answered 2026-10-26** (round 5): the default; S0.4's candidate C, its failing `:memory:` cells gated against HEAD with documented exceptions |
+| Q34 | The login-storm budget, after S0.5 failed its +10 % (§17.1, §18.4) | restate it in absolute terms (other routes' p99 ≤ base + 0.5 ms under `cpus: 2.0`, the cgroup never throttled) and size the argon pool by CPU (1 thread with ≤ 2 CPUs, else 2) / keep +10 % and cap logins lower (fewer than 50/s) / keep +10 % and give the argon pool CPUs of its own (a container of its own) | **Restate it, and 1 thread on ≤ 2 CPUs**: hashing costs a core whatever the design, and +10 % of a sub-millisecond p99 is less than one busy neighbour core costs; the per-client login limits (§17.5) stay in front, so 50/s can only come from many clients | M4 (`accounts`; the plan follows the default meanwhile) | **Answered 2026-10-26** (round 5): the default, the absolute budget and 1 argon thread on ≤ 2 CPUs |
+| Q35 | The parity gate's reference on the light routes (§18.2; S0.1) | HEAD alone on `static` and `seo`, max(HEAD, v1.1.1) on the store routes / max(HEAD, v1.1.1) everywhere / a documented exception per light cell | **HEAD alone on the light routes** | M1 exit | **Answered 2026-10-26** (round 5): "light routes (static, seo) gate against HEAD 709bc94 only, store routes against max(HEAD, v1.1.1)" |
 | Q7 | _hyperscript pin | 0.9.94 (S15) / 0.9.93 until 0.9.94 has aged | **0.9.94**, SHA-pinned, bumped only through the behaviour suite | M1 (`pins`) | default (not yet raised) |
 | Q15 | Keep the Fly witness at odin-htmx.alexh95.com (please check the legacy allowance)? | keep (shared-cpu-1x 256 MB, about $2–3/month) / retire with a 301 / move it to apollo | **Keep** | M1 exit | **Answered 2026-10-25: keep**, with no allowance check; Alex is warned if it costs more than $10/month, checked at M0, at the M3 exit and every exit after it, and on any machine-size change (ANSWERS Q15; §20.6) |
 | Q17 | License the spark modules the starter adopts under zlib (and add a LICENSE to spark)? | yes, after scrubbing LAN and host details / no | **Yes** | M1 (first spark code, e.g. `limits.odin`) | **Answered 2026-10-25: yes**, zlib, and spark gets a LICENSE; the scrub of LAN and host details still applies (ANSWERS round 1; §21.6) |

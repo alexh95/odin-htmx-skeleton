@@ -1080,7 +1080,15 @@ against 7,501 for v1.1.1).
 **Rejected.** Declaring `MEMMODE=single` parity-passing (PF §3.6). RF §3.8's "should hold writes at HEAD's 36k" (wrong
 target). Gating on the file DB only without Alex.
 
-**Alex confirms:** yes (Q6, needed before M1 only if S0.4 finds no passing candidate: default (not yet raised)).
+**Measured and answered (S0.4; ANSWERS round 5, 2026-10-26).** No candidate passes every `:memory:` cell on both
+legs. C (B + group commit) passes the most and is chosen: the `skeleton` profile's `:memory:` mode is C. On Linux,
+where the noise band is about 2 %, C passes search, api, detail, mixed and scale@20 and misses pages, list and write by
+4–9 % against v1.1.1, which sorts its 20 rows in Odin straight from RAM; v3 alone writes at 0.06–0.09× on `:memory:`,
+B at 0.18–0.28× (tmpfs on Linux didn't save it), and A at 0.58–0.64×. Per Q6's answer those `:memory:` cells are gated against HEAD (709bc94) with a
+documented exception each. The file DB takes C too (X17): v3's file-DB write measured 0.38–0.43× v1.1.1, so R2a's
+fallback applies, and C writes at 2.9–4.3× on a file DB. No file-DB cell is waived.
+
+**Alex confirms:** yes (Q6 answered 2026-10-26: the default, candidate C; ANSWERS round 5).
 
 ### D18. Optional SQLite and the no-SQLite-build claim
 
@@ -1830,7 +1838,7 @@ overridden); Q9, Q30: default (not yet raised). The M11 hardware steps are Alex'
   for Admin and `Term_Write` (Q11); a profile (display name through spark's `clean_name`, avatar through uploads);
   `accounts_prefs` (theme, chat transport, mutes; X9).
 - **Passwords**: argon2id on the argon pool (`ACCOUNTS_ARGON_THREADS` 2, or 1 when the container has ≤ 2 CPUs as
-  apollo's `full` does, Q34's default; at most that many concurrent verifies, a queue of 32, 503 "busy, retry" beyond;
+  apollo's `full` does, Q34, answered 2026-10-26; at most that many concurrent verifies, a queue of 32, 503 "busy, retry" beyond;
   the handler defers its response, F-13; one reused buffer per worker), with OWASP's parameters (19 MiB, t = 2, p = 1):
   S0.5 measured 19–32 ms per verify on the dev PC, the 64 MiB preset 119–191 ms (out), and apollo's figure is
   UNVERIFIED (M4), printed by `--hash-password`; constant-time compares,
@@ -2033,7 +2041,10 @@ native; Linux on WSL2, Q5):
 - background CPU sampled before each block; a round re-run when it exceeds 20 %.
 
 **Pass, per cell**: the median of the per-round ratios C / max(A, B) is ≥ 0.97, no round is below 0.85, and p99 is ≤
-1.10 × the p99 of the faster baseline. A failing cell is re-run once with n = 5 and fails only if the re-run fails
+1.10 × the p99 of the faster baseline. On the light routes, `static` and `seo`, the reference is HEAD alone: v1.1.1 is
+4–8 % faster there only because it lacks 1.2.0's security middleware, which the starter keeps (S0.1; Q35, answered
+2026-10-26). The `:memory:` cells that the chosen `:memory:` mode fails against max(A, B) are gated against HEAD with a
+documented exception each (Q6, answered 2026-10-26); a file-DB cell is never waived. A failing cell is re-run once with n = 5 and fails only if the re-run fails
 too, because cells vary by up to 2× between rounds on this box (12 §10). **When**: at the M1 exit and at every
 milestone exit after it, M3 included (X25); results go to `perf/results/<version>-<leg>.csv` and
 `docs/perf/PARITY.md` with the box, toolchain and background load; nothing is waived without Alex. CI runs only a
@@ -2058,7 +2069,7 @@ class can't return (01 §14.4). No 1-loop leg (D17).
 | Fan-out, Linux, 4 loops | 1000 SSE subscribers p99 ≤ 100 ms; 3000 ≤ 200 ms; WS 1000 sockets × 20 messages delivered ≤ 2 s | 03 §10.4 (74 ms; 115–188 ms; 1.6 s) |
 | Restart | boot → `/readyz` ≤ 50 ms (file DB, 20k rows) plus the bind retry; 4000 clients back ≤ 3 s; stale cursors → replay or resync 100 % | 13 §3.3-3.4 |
 | Shutdown | ≤ 6 s with 500 SSE + 500 WS + a slowloris + a half-sent body + a non-closing idle peer | 13 §4.1 (13.2 s and > 30 s today) |
-| Login storm | 50 logins/s under `cpus: 2.0` with one argon thread: other routes' p99 ≤ their base + 0.5 ms, the cgroup never throttled, every login answered (Q34's default; the first budget, +10 %, failed in S0.5) | 07 §5.6; S0.5 |
+| Login storm | 50 logins/s under `cpus: 2.0` with one argon thread: other routes' p99 ≤ their base + 0.5 ms, the cgroup never throttled, every login answered (Q34, answered 2026-10-26; the first budget, +10 %, failed in S0.5) | 07 §5.6; S0.5 |
 | Chat | writer task ≥ 50k msgs/s batched on a file WAL; send → another member's DOM on the LAN via NPM p95 ≤ 50 ms (NEW) | 12 §3.1 |
 | Bot (mock) | 1000 concurrent generations × 200 tokens at 20 Hz ≤ 1 core and ≤ +30 MB (NEW) | — |
 | Video | 256 MiB Range transfer ≤ 8 MB peak private memory (Linux splice UNVERIFIED) | 07 §0.2 (5.1 MB) |
@@ -2489,8 +2500,8 @@ per-route e2e and load parity; the audit procedure; the generator with `minimal`
 | # | Risk | Likelihood / impact | Mitigation |
 |---|---|---|---|
 | R1 | The fork costs request-path throughput or stability | low / high | S0.2 before anything builds on it; hot path untouched; 03's contract tests in CI; a small vendored diff, reapplied per bump (D11) |
-| R2 | `:memory:` parity can't be met | medium / medium | S0.4's three candidates; Q6 decided before M1 |
-| R2a | (sub-item of R2) file-DB write sits at 0.98× (a ratio of medians, 12 §2), a narrow margin over 0.97 on a noisy box | medium / medium | a watched margin: S0.1's and S0.4's paired rounds settle it; if the cell fails, the file DB also gets D17's candidate C (group commit through the writer task) for skeleton writes (X17) |
+| R2 | `:memory:` parity can't be met | medium / medium | measured by S0.4: no candidate passes every cell; Q6 answered (C, the failing `:memory:` cells gated against HEAD with documented exceptions, ANSWERS round 5) |
+| R2a | (sub-item of R2) file-DB write sits at 0.98× (a ratio of medians, 12 §2), a narrow margin over 0.97 on a noisy box | medium / medium | settled by S0.4: v3's file-DB write measured 0.38–0.43×, so the file DB takes C's group commit too (X17), which writes at 2.9–4.3× |
 | R3 | core:nbio is young; Windows puts every connection on one loop, so cross-loop bugs show only on Linux | medium / high | Linux legs in parity, TSan, soak and linux-ops; pin dev-2026-10; bump to dev-2026-11 only through a parity re-run (09 §1.2); avoid unbuffered multi-sender `core:sync/chan` until then; TSan flags a plain read inside an `assert` in `core:nbio`'s cross-thread queue (`mpsc.odin:36`), suppressed by name until a bump fixes it (S0.9) |
 | R4 | The guard is formally UB (no returns_twice) | low / high | trivial guarded frame, volatile loads; dirty → exit 70; drills on both OSes every push |
 | R5 | htmx 4.0.0 bugs (history, SSE abort noise, hx-pending error) | high / low | pin; the known-error allowlist; history-cache first on the cut list; four-dev watched; bump gated by the per-extension e2e |
@@ -2659,8 +2670,9 @@ question raised with Alex and not overridden; "default (not yet raised)" for one
 | Q3 | The showcase's name | Houston / Patchbay / another | **Houston** | **Answered 2026-10-25: Houston** (ANSWERS #6; D28) |
 | Q4 | Fork odin-http: where does the fork live, and when is the seam offered upstream? | a separate repo (`alexh95/odin-http`) as a submodule, created now / vendored in-tree in this workspace / either, never upstream | **Fork now; offer upstream after M2** (round 1 named a separate repo; round 2 recommended in-tree) | **Answered 2026-10-25: fork it, vendored in-tree** at `app/vendor/odin-http/` with `UPSTREAM.md` (laytan fac113f plus F-1..F-13), no separate GitHub repo; the upstream offer after M2 goes through a fork made then (ANSWERS #7, F3; D11) |
 | Q5 | Install Odin dev-2026-10 in WSL2 for the Linux legs (parity, TSan)? | install in WSL2 / 03 §10.3's obj + lld recipe only / Linux legs in CI only | **Install in WSL2** (one-time dev tooling) | **Answered 2026-10-25: yes** (S0.9, D38) |
-| Q6 | If S0.4 finds no `:memory:` mode passing every cell, what does the gate do? | gate the failing `:memory:` cells against HEAD 709bc94 (v1.2.0, the parity baseline) with a documented exception / gate the file DB only and report `:memory:` / block M1 until a mode passes | **Gate the failing `:memory:` cells against HEAD**, file-DB cells never waived; asked with S0.4's numbers before M1 | default (not yet raised); conditional on S0.4 |
-| Q34 | The login-storm budget after S0.5 (D35, D38) | restate it in absolute terms (p99 ≤ base + 0.5 ms under `cpus: 2.0`, the cgroup never throttled) and size the argon pool by CPU (1 thread with ≤ 2 CPUs) / keep +10 % and cap logins lower / keep +10 % and give argon CPUs of its own | **Restate it, and 1 thread on ≤ 2 CPUs** (S0.5: a hash costs a core; +10 % of a sub-millisecond p99 is under one busy neighbour core) | default (not yet raised; S0.5, 2026-10-26) |
+| Q6 | If S0.4 finds no `:memory:` mode passing every cell, what does the gate do? | gate the failing `:memory:` cells against HEAD 709bc94 (v1.2.0, the parity baseline) with a documented exception / gate the file DB only and report `:memory:` / block M1 until a mode passes | **Gate the failing `:memory:` cells against HEAD**, file-DB cells never waived; asked with S0.4's numbers before M1 | **Answered 2026-10-26: the default**: candidate C, and the `:memory:` cells it fails gated against HEAD 709bc94 with a documented exception each; file-DB cells never waived (ANSWERS round 5; S0.4) |
+| Q34 | The login-storm budget after S0.5 (D35, D38) | restate it in absolute terms (p99 ≤ base + 0.5 ms under `cpus: 2.0`, the cgroup never throttled) and size the argon pool by CPU (1 thread with ≤ 2 CPUs) / keep +10 % and cap logins lower / keep +10 % and give argon CPUs of its own | **Restate it, and 1 thread on ≤ 2 CPUs** (S0.5: a hash costs a core; +10 % of a sub-millisecond p99 is under one busy neighbour core) | **Answered 2026-10-26: the default**: the absolute budget, and 1 argon thread on ≤ 2 CPUs (ANSWERS round 5; S0.5) |
+| Q35 | The parity gate's reference on the light routes (D38; S0.1) | HEAD alone on `static` and `seo`, max(HEAD, v1.1.1) on the store routes / max(HEAD, v1.1.1) everywhere (the starter must out-run v1.1.1, which lacks 1.2.0's security middleware) / a documented exception per light cell | **HEAD alone on the light routes** | **Answered 2026-10-26**: "light routes (static, seo) gate against HEAD 709bc94 only, store routes against max(HEAD, v1.1.1)" (ANSWERS round 5) |
 | Q7 | _hyperscript pin | 0.9.94 (S15) / 0.9.93 until 0.9.94 has aged | **0.9.94**, SHA-pinned, bumped only through the behaviour suite | default (not yet raised) |
 | Q8 | Terminal approach | line mode → PTY with the VT in the Pi agent, no xterm.js / server-side VT in a `--worker` subprocess / add an xterm.js lab | **Agent-side VT, no xterm.js**; `--worker vt` as the fallback | **Answered 2026-10-25: agent-side VT** (ANSWERS #9; D32) |
 | Q9 | The Pi beyond the LAN | LAN-only now, a WireGuard overlay if ever / TLS (OpenSSL) in the agent | **LAN-only**; WireGuard if ever needed, on the spare OpenWrt router or a container on apollo (an idea, D44) | default (not yet raised) |
