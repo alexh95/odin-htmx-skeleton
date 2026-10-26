@@ -1,0 +1,44 @@
+bundle minimal: 9 app files reached; extensions declared by: none
+bundle         exts    raw B   gzip B     br B  crc32     sha256
+Main              0    36716    13014    11736  97de26d3  e484d9171a9db30a39c8f16e3d709d4137f3211c659f8e6125816635033d593f
+
+bundle streams: 15 app files reached; extensions declared by:
+  features/bot/web                   EXTS sse, hx-multipart, browser-indicator, download
+  features/chat/transport_multipart  EXTS hx-multipart
+  features/chat/transport_poll       EXTS ptag
+  features/chat/transport_sse        EXTS sse
+  features/chat/transport_ws         EXTS ws
+  features/chat/web                  EXTS hx-pending, hx-prompt, upsert, hx-targets, download
+bundle         exts    raw B   gzip B     br B  crc32     sha256
+Main             10    71358    23540    20852  dc51c8b5  449aab470fc0a69db519b7b9189f05b14279de27342fbafeda839d7bea4d83f8
+
+bundle full: 21 app files reached; extensions declared by:
+  features/bot/web                   EXTS sse, hx-multipart, browser-indicator, download
+  features/chat/transport_multipart  EXTS hx-multipart
+  features/chat/transport_poll       EXTS ptag
+  features/chat/transport_sse        EXTS sse
+  features/chat/transport_ws         EXTS ws
+  features/chat/web                  EXTS hx-pending, hx-prompt, upsert, hx-targets, download
+  features/compat/web                BUNDLES Compat_Htmx2 Compat_Alpine
+  features/lab/web                   EXTS sse, ws, hx-multipart
+  features/lists/web                 EXTS sse, hx-pending, upsert
+  features/scripting/web             BUNDLES Scripting
+  features/video/web                 EXTS preload, history-cache, hx-head
+  features/wiki/web                  EXTS preload, history-cache
+bundle         exts    raw B   gzip B     br B  crc32     sha256
+Main             13    79790    26091    23022  c0d54f06  178b507ef1346c040be162d5d1086140729cd9bec96e320b0e73173227e7d8bf
+Scripting         6    85173    28253    25063  7a1b6bc8  d0e13f5ec725a1e14850c57afe1d70e53f52b155460ca6392077e0d4b0a45259
+Compat_Htmx2      1    38466    13499    12180  5a7df11f  210addc34d5a7c7319174706463786243d136762c9dd890bd8c6df3571a726bc
+Compat_Alpine     1    38487    13564    12249  cb18371a  95946bf84826c8aade1a6f6207bc293bbdc5e0c78825f16534bc9a06c1942acf
+
+bundle lab: 13 app files reached; extensions declared by:
+  features/compat/web                BUNDLES Compat_Htmx2 Compat_Alpine
+  features/lab/web                   EXTS sse, ws, hx-multipart
+  features/scripting/web             BUNDLES Scripting
+  features/wiki/web                  EXTS preload, history-cache
+bundle         exts    raw B   gzip B     br B  crc32     sha256
+Main              5    71391    23331    20777  f8278043  db79ddcc4a607ab310ef7582c878872f863a6ce92ee82d71dcf675dd54dbe094
+Scripting         6    85173    28253    25063  7a1b6bc8  d0e13f5ec725a1e14850c57afe1d70e53f52b155460ca6392077e0d4b0a45259
+Compat_Htmx2      1    38466    13499    12180  5a7df11f  210addc34d5a7c7319174706463786243d136762c9dd890bd8c6df3571a726bc
+Compat_Alpine     1    38487    13564    12249  cb18371a  95946bf84826c8aade1a6f6207bc293bbdc5e0c78825f16534bc9a06c1942acf
+
