@@ -833,7 +833,10 @@ upstream offer after M2 goes through a fork made then.
 - a multipart/mixed writer with CRLF framing (LF-only fails, 04 §4.3);
 - a Range sender (200, 206, suffix, 416, HEAD, If-Range, ETag) over F-3.
 
-Every stream response sends `X-Accel-Buffering: no` and `Cache-Control: no-cache` (08 §3.2).
+Every stream response sends `X-Accel-Buffering: no` and `Cache-Control: no-cache` (08 §3.2), and writes its first
+bytes with the headers (an SSE comment line, a multipart CRLF preamble), because WebKit resolves a streamed fetch only
+at its first body bytes (S0.3). The WS handshake lets a request without `Origin` through: it isn't a browser's, so it
+can't be cross-site hijacking (S0.3).
 
 `platform/stream/client` is one non-blocking chunked/SSE/WS client on `core:net` (NEW). It serves `bot/backend_llama`,
 `cmd/term-agent` and `tools/streamload`: one definition of the streaming client.
@@ -874,7 +877,8 @@ request arena (02 §2.7).
   copies the ring refs out under the mutex and writes the replay after releasing it (03 §10.5).
 - **Persisted topics publish after the writer task commits** (12 §9), carrying the SQLite rowid; memory topics
   publish immediately. Ids are never pre-allocated or seeded from `max(id)`.
-- **Ids and resume.** Every SSE event's `id:` is the hub sequence `<epoch>-<seq>` (process-wide, monotonic).
+- **Ids and resume.** Every SSE event's `id:` is the hub sequence `<epoch>-<seq>` (process-wide, monotonic; the epoch
+  is the boot time in milliseconds, so a restart within a second still changes it, S0.3).
   Persisted payloads carry their rowid in the DOM (`id="m-<rowid>"`, zero-padded `data-seq`). The page renders its
   stream URL as `/events?t=chat.room:12@88200,notify.user:42@5512,chat.presence:12&after=<epoch>-<seq>`, where
   `@rowid` is the newest rowid the page rendered for that persisted topic and `after` is the hub sequence at render
@@ -893,8 +897,9 @@ request arena (02 §2.7).
   `HX-Last-Part-ID` (rowid or hub sequence); polling uses the ptag as the cursor (last rowid).
 - **Authors**: the hub skips nobody. The author's POST or WS reply and the hub's copy carry the same id and dedupe by
   upsert, so the author's other tabs and devices get the message too.
-- **Limits**: 256 KiB queued per stream, then the consumer is closed as `Too_Slow` (SSE ends; WS closes with 1013;
-  both resume); 64 MiB queued in total, after which new streams get 503; `STREAMS_PER_USER` 8, `STREAMS_PER_CLIENT`
+- **Limits**: 256 KiB queued per stream, then the consumer is closed as `Too_Slow` (SSE ends; WS closes with 1013
+  when the next frame would pass the cap, then gets 2 s to read before the fork cuts it, F-1's `stream_end` deadline,
+  S0.3; both resume); 64 MiB queued in total, after which new streams get 503; `STREAMS_PER_USER` 8, `STREAMS_PER_CLIENT`
   16, `STREAMS_TOTAL` 8192 (≤ `MAX_CONNS`); 64 KiB per message; 20 stream connects per minute per client id.
 - **Heartbeat**: one timer per loop, every 20 s (`: hb` for SSE, a ping for WS). WS pong deadline 45 s, then the
   socket closes. 20 s is under NPM's 90 s, Fly's 60 s and Cloudflare's 125 s idle cuts (S20, 08 §0).

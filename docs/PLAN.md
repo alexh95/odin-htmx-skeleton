@@ -1878,13 +1878,17 @@ odin-http's own parser callbacks.
 | Piece | Contract | Evidence |
 |---|---|---|
 | SSE encoder | splits user text on CR, LF and CRLF into one `data:` line each, so a CR can't start an `event:` field | 03 §1 (hx-sse splits on all three); 03 §10.2 check 6 |
-| WS handshake | its own `Origin == SITE_URL` check (`SITE_URL_LAB` on a lab host, §7.3), because GET upgrades pass `same_origin` and carry no `Sec-Fetch-*`; version ≠ 13 → 426 | 04 §4.4; 03 §10.2 check 8 |
+| WS handshake | its own `Origin == SITE_URL` check (`SITE_URL_LAB` on a lab host, §7.3), because GET upgrades pass `same_origin` and carry no `Sec-Fetch-*`; a handshake without `Origin` is not a browser's, cannot be cross-site WebSocket hijacking, and passes (device clients such as `cmd/term-agent` authenticate by token instead; S0.3); version ≠ 13 → 426 | 04 §4.4; 03 §10.2 check 8; S0.3 |
 | WS codec | strict RFC 6455: RSV bits, UTF-8, control frames, masking, version; unmasked or RSV1 → 1002, bad UTF-8 → 1007, oversize → 1009 | 03 §10.2 checks 7 and 10; 03 §5.1 (spark's wsserver's RFC 6455 coverage table, taken as a checklist; the codec gets new unit tests, RESOLUTIONS X24) |
 | multipart writer | `multipart/mixed` with CRLF framing and a `Content-Length` per part, one chunk per part, flushed at once | 03 §1, §8; 04 §4.3 (LF-only swapped nothing) |
 | Range sender | 200, 206, suffix, 416, HEAD, If-Range, ETag, over F-3's `stream_sendfile` | 07 §0.2 (200, 206, suffix, 416, HEAD verified); the media route is in §15 |
 
 Every stream response sends `X-Accel-Buffering: no` and `Cache-Control: no-cache`, so nginx (NPM) flushes each event
-(08 §3.2). HTTP/1.0 peers get a close-delimited body (F-2). Each stream owns a `virtual.Arena` created at
+(08 §3.2). Every stream also writes its first bytes with the headers (an SSE comment line, a multipart CRLF preamble):
+WebKit resolves a streamed fetch only at its first body bytes, so a quiet SSE stream stayed "connecting" until the
+first heartbeat (19.6 s) and a slow first part held a multipart response, inside htmx's 60 s request timeout (S0.3).
+A slow WebSocket consumer gets close 1013 before its queue passes the cap, then 2 s to take it before the fork cuts it
+off (`stream_would_overflow`, and F-1's `stream_end` with a deadline; S0.3). HTTP/1.0 peers get a close-delimited body (F-2). Each stream owns a `virtual.Arena` created at
 `stream_begin` and destroyed one tick after `on_close`; the three allocator buckets are in §5.
 
 `platform/stream/client` is one non-blocking chunked, SSE and WS client on `core:net` (**NEW**). Its three users are
@@ -2142,7 +2146,9 @@ run id, so its replay holds the latest row of each run, capped at the ring size.
 
 ### 9.3 Ids, resume and the connect procedure
 
-Every SSE event's `id:` is the **hub sequence** `<epoch>-<seq>`, process-wide and monotonic. The epoch matters: 03's
+Every SSE event's `id:` is the **hub sequence** `<epoch>-<seq>`, process-wide and monotonic. The epoch is the boot time
+in milliseconds, so a restart inside the same second still starts a new epoch: with whole seconds, S0.3's restart spec
+got a replay from the new process's ring instead of `resync`. The epoch matters: 03's
 prototype restarted ids at 1, so a stale `Last-Event-ID` after a restart never triggered a resync (`resync_events: 0`
 in every storm run, 13 §3.6). Persisted payloads carry their rowid in the DOM (`id="m-<rowid>"`, a zero-padded
 `data-seq`, because upsert sorts with `localeCompare`, 07 §6.2). The page's stream URL names `topic@rowid` for each
@@ -2167,7 +2173,7 @@ M2 resume specs**, including one across a server restart (§19).
 
 | Limit | Value | When hit |
 |---|---|---|
-| queued bytes per stream | 256 KiB (`STREAM_MAX_QUEUED`) | the consumer is closed as `Too_Slow`: SSE ends, WS closes 1013; both resume |
+| queued bytes per stream | 256 KiB (`STREAM_MAX_QUEUED`) | the consumer is closed as `Too_Slow`: SSE ends; WS closes 1013 when the next frame would pass the cap and is cut after 2 s if it doesn't read (S0.3); both resume |
 | queued bytes in total | 64 MiB | new streams get 503 |
 | streams per user / per client / total | 8 / 16 / 8192 (`STREAMS_TOTAL` ≤ `MAX_CONNS`) | the new stream is refused with 503 (03 §7) |
 | message size | 64 KiB | publish rejects it; a WS frame past it closes 1009 |

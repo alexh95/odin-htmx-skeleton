@@ -1,0 +1,3 @@
+# prepare.sh's downloads and the built server
+server/static/
+server/bin/
