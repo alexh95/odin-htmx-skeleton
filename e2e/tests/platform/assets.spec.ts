@@ -9,13 +9,14 @@ test.describe('assets & API', { tag: '@platform' }, () => {
     expect((await res.text()).trim()).toBe('ok');
   });
 
-  test('htmx is the embedded copy (JS, ~36 KB)', async ({ request }) => {
+  test('htmx is the embedded copy (JS, ~36 KB), after its extensions\' header where it has some', async ({ request }) => {
     const res = await request.get('/static/htmx.min.js');
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type'] ?? '').toContain('javascript');
     const body = (await res.body()).toString();
     expect(body.length).toBeGreaterThan(25_000); // real htmx 4 (~36 KB), not a 404/empty
-    expect(body.startsWith('var htmx=')).toBe(true);
+    // minimal's and skeleton's bundle is htmx.min.js itself; one with extensions names them first.
+    expect(body).toMatch(/^(\/\* exts: [a-z0-9, -]+ \*\/\n)?var htmx=/);
   });
 
   test('app.css is served (embedded)', async ({ request }) => {

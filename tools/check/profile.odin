@@ -355,17 +355,18 @@ check_routes :: proc(t: ^Tree) {
 			}
 		}
 	}
-	// ROUTES only in web, switched impl and identity packages, and platform/web.
+	// ROUTES only in web, switched impl and identity packages, and the platform's
+	// two tables: platform/web's and platform/hub's (/events).
 	for q in t.pkgs {
 		switch q.kind {
 		case .Web, .Impl, .Identity, .Entry:
 			continue
 		case .Platform:
-			if q.path == "platform/web" { continue }
+			if q.path == "platform/web" || q.path == "platform/hub" { continue }
 		case .Other, .Models, .Domain, .Views, .Storetest, .Store, .Family_Root:
 		}
 		if vd, has := decl(q, "ROUTES"); has {
-			problem("routes", "%s: %s declares ROUTES; only web, switched impl and identity packages do", where_(vd.pos), q.path)
+			problem("routes", "%s: %s declares ROUTES; only web, switched impl and identity packages (and platform/web and platform/hub) do", where_(vd.pos), q.path)
 		}
 	}
 }

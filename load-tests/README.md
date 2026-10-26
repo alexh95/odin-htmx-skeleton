@@ -82,6 +82,9 @@ itself is scratch.
 | `home/home.js`       | `GET /` (minimal) | The notes card's read. |
 | `notes/notes.js`     | `POST /notes` | The notes card's one write. |
 | `about/about.js`     | `GET /about` | The page shell around the profile's copy. |
+| `lab/lab.js`         | the lab's pages, the resync refetch, a publish, `/lab/stats` | The contract pages, each rendering its live element and the hub's cursor. |
+| `lab/streams.js`     | `/lab/sse/tick`, `/lab/multipart`, `/lab/mp/count`, `/events` + `/lab/close` | Streams that end, measured whole; `/events` subscribed and ended by a kick (k6 returns from an SSE request only at its end: fan-out is `tools/streamload`'s, PLAN §19.1.7). |
+| `lab/sockets.js`     | the room page, then `/lab/ws/echo` and `/lab/ws/chat` | WebSocket round trips through `k6/websockets`, the room's through the hub. |
 
 The ten skeleton scenarios (static, seo, pages, list, search, api, detail, write, mixed, scale) are
 the parity gate's, unchanged from the skeleton so the same files measure HEAD and v1.1.1.

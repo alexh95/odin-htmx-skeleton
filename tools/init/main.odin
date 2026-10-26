@@ -200,7 +200,7 @@ upstream_repo :: proc() -> string {
 // The profiles whose brands init renames: every app/cmd/<profile>/ the template ships. A fixed
 // list, like every path init edits: one that's gone is a problem, and one it doesn't know about
 // shows in the closing report.
-PROFILES := [?]string{"skeleton", "minimal"}
+PROFILES := [?]string{"skeleton", "minimal", "lab"}
 
 brand_path :: proc(profile: string) -> string {
 	return strings.concatenate({"app/cmd/", profile, "/brand.odin"}, context.temp_allocator)

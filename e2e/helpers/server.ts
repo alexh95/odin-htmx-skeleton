@@ -34,15 +34,18 @@ function freePort(): Promise<number> {
 // exported DB_PATH would aim the suite's deletes at a real database. An empty
 // BIND_ALL/SITE_URL reads as unset, so the server stays on loopback with its
 // built-in canonical origin. /metrics takes this run's bearer, so stopServer can
-// read the counters. `env` overrides (a spec's own DB_PATH).
-export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {}): Promise<Server> {
+// read the counters. One client (this machine) opens far more streams than a
+// person would, so the per-client stream caps are lifted (§9.4); the totals stand.
+// `env` overrides (a spec's own DB_PATH); `port` reuses one (a restart).
+export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {}, port?: number): Promise<Server> {
   const appDir = appDirFrom(config);
   const coverage = coverageDir(appDir);
-  const port = await freePort();
+  port ??= await freePort();
   const proc = spawn(path.join(appDir, BIN), [], {
     cwd: appDir,
     env: {
       ...process.env, PORT: String(port), DB_PATH: ':memory:', BIND_ALL: '', SITE_URL: '',
+      STREAM_CONNECTS: '1000000', STREAMS_PER_CLIENT: '4096',
       METRICS_TOKEN_FILE: path.join(coverage, '.token'), ...env,
     },
   });
@@ -55,7 +58,7 @@ export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {
   const deadline = Date.now() + 20_000;
   while (proc.exitCode === null && proc.signalCode === null && Date.now() < deadline) {
     try {
-      if ((await get(port, '/healthz')).status === 200) return { port, proc, output: () => log, coverage };
+      if ((await get(port, '/healthz')).status === 200) return { port: port!, proc, output: () => log, coverage };
     } catch { /* not listening yet */ }
     await new Promise((r) => setTimeout(r, 100));
   }

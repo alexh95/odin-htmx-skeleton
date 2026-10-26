@@ -29,7 +29,28 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   then the topic's keyset replay from its store, else `event: resync`; `hub.kick` (SSE `kicked`, a socket's close
   code). A profile mounts its `TOPICS` with `hub.mount` in `main`, so one that doesn't stream links no hub code.
 
+- **The `lab` profile** (`app/cmd/lab/`, PLAN §7.1, §15.5): the stream contract pages, on an origin with no
+  sessions. The `lab` feature's `/lab/streams` pages use hx-sse, hx-ws and hx-multipart the way a real page does
+  (one layout SSE stream, one socket inside the swapped region, parts into their own targets), beside the endpoints
+  spike S0.3's checks drive: a ticking SSE answer, the WebSocket echo, a room through the hub, multipart parts and a
+  resumable multipart feed, publish and close for a `lab.feed` or `lab.room` topic, and `/lab/stats`. Published text
+  is escaped into a fixed fragment and every key is plain, since the lab is public. `./build.sh lab`; the client is
+  vanilla until the hyperscript client lands (M2's slice 4).
+- **The stream contract in e2e** (`e2e/tests/lab/`): S0.3's 29 contract checks, its plan checks and its 20 browser
+  checks, ported onto `platform/stream` and `platform/hub` (Chromium and WebKit locally, Firefox in CI), with
+  checks of the hub's per-topic rings; and load scenarios for every lab route (`load-tests/scenarios/lab/`).
+- **Every htmx 4.0.0 extension is pinned** (`app/vendor/htmx/PINS`, one SHA-256 per file, read by both prepare
+  scripts) and fetched by prepare, and the htmx-config meta's `extensions` allowlist comes from the profile's bundle
+  (`tools/bundle` writes it beside the bundle; a profile with none keeps the skeleton's exact head).
+- **Stream counters**: `app_streams_opened_total` and `app_streams_ended_total{why}` on `/metrics`.
+
 ### Changed
+- **A WebSocket handshake under a placeholder origin** (a dev run with no `SITE_URL`) accepts an `Origin` naming
+  the request's own `Host`, so a local run's pages can open their sockets; a deployment keeps the strict
+  comparison with `SITE_URL` (D12 as built).
+- **A job that runs every minute or more often logs its runs at debug** (the lab's 500 ms beat), not at info.
+- **The test harnesses lift the per-client stream caps** for their servers (`e2e/helpers/server.ts`,
+  `load-tests/run.sh`): one client opening hundreds of streams a minute is the suite, not a visitor.
 - **The unit tests build on `minimal`'s four families** (`.github/scripts/unit-tests.sh`): `platform/stream` reaches
   the family collections through `platform/web`.
 

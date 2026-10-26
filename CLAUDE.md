@@ -8,10 +8,11 @@ and gotchas that aren't obvious from the source and that are expensive to redisc
 A **starter** for server-rendered web apps: an **Odin** backend rendering HTML, **HTMX** on the
 front end, a SQLite or in-memory store, in one binary. A site is a **profile** (`app/cmd/<p>/`): a
 selection of **features** (`app/features/<f>/`) composed on a shared **platform**
-(`app/platform/`). Two profiles ship: `skeleton`, the 1.2.x contacts console rebuilt from features
-at its exact URLs (the worked example and the performance witness), and `minimal`, the one-page
-notes starter. **Read [`PHILOSOPHY.md`](PHILOSOPHY.md) first**, then [`docs/PLAN.md`](docs/PLAN.md)
-(the plan: layers, features, milestones) and [`docs/design/DECISIONS.md`](docs/design/DECISIONS.md);
+(`app/platform/`). Three profiles ship: `skeleton`, the 1.2.x contacts console rebuilt from features
+at its exact URLs (the worked example and the performance witness), `minimal`, the one-page
+notes starter, and `lab`, the stream contract pages (SSE, WebSocket and multipart; growing through
+M2). **Read [`PHILOSOPHY.md`](PHILOSOPHY.md) first**, then [`docs/PLAN.md`](docs/PLAN.md) (the plan:
+layers, features, milestones) and [`docs/design/DECISIONS.md`](docs/design/DECISIONS.md);
 [`docs/DATA.md`](docs/DATA.md) covers backups.
 
 ```
@@ -146,7 +147,7 @@ app/cmd/<p>/      brand.odin main.odin routes.odin routes_test.odin  ->  everyth
   f_models        features/f/models/  -> core, platform L1-L2
 
 platform  L4 app        -> identity:., store:. (the family's NAME), L1-L3; only cmd/* imports it
-          L3 web html client/* theme/*   (html -> client:., theme:.)
+          L3 web stream hub html client/* theme/*   (html -> client:., theme:.)
           L2 store store/sqlite store/memory env authz authz/anonymous obs guard workers markdown
           L1 sys sqlite ext escape
 ```
@@ -191,6 +192,19 @@ shared answers 500 and serving goes on; one that held a `guard.Mutex`, posted an
 inside SQLite is dirty: the server drains and exits 70. A loop that stops ticking, or a lock held
 too long, trips the watchdog (exit 70, naming the route and request). Take locks only through
 `guard.lock`/`guard.unlock`, and call `guard.posted()` after posting an op from a handler.
+
+## Streams and the hub (M2; PLAN §8.2, §9)
+
+- **`platform/stream`** holds the protocols over the fork's F-1: `stream.sse_begin`, `stream.ws_upgrade`,
+  `stream.multipart_begin`, each returning a `^stream.Conn` (or nil: admission answered 503 or 429). A stream
+  answers only from a row flagged `.Stream` (front sends `no-cache, no-transform` and `X-Accel-Buffering: no`).
+  Its state lives on the heap, freed a tick after its `on_close`; never in the request arena.
+- **`platform/hub`** fans events out: `hub.publish(topic, html, rowid, key)` from any thread. A package declares
+  its topic families in a `TOPICS` table (`hub.Topic{family = "chat.room", policy = .Queue, perm = …, allow = …,
+  replay = …}`), and a profile that streams calls `hub.init()` and `hub.mount("<host>", ..TOPICS[:])` in `main`
+  and mounts `{"platform", hub.ROUTES[:]}` (`/events`) on that host. A page opens one `#live` stream:
+  `/events?t=<topic>[@rowid],…&after=<hub.cursor_now()>`; a `resync` event asks it to refetch.
+- Published HTML is the server's own fragment around escaped text: never markup from a request.
 
 ## Code aesthetics (Odin)
 

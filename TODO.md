@@ -44,8 +44,9 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       resync, each policy, each cap); a TSan build of hub and stream on Linux with only the nbio mpsc suppression.
       Progress: the hub, the caps (in `platform/stream`, since they cover every stream) and `/events` (`hub.ROUTES`,
       mounted by the profile, with `hub.mount` for its `TOPICS`: PLAN §7.2, D13 as built) are in, with unit tests of
-      the rings, policies, cursors and topic names. Publish, drain, replay and resync are checked end to end by the
-      lab specs, so slice 5's `lab` feature and `cmd/lab` come next, before slices 3 and 4; TSan with slice 13.
+      the rings, policies, cursors and topic names. End to end: the lab specs (slice 5) pass on Windows in Chromium,
+      WebKit and the api project, replay, resync and the kick included, and drain and restart on a `TEST_ROUTES`
+      build. Left: the Linux leg (CI's lab e2e, slice 16) and TSan (slice 13).
 - [ ] **3. Page bundles and flags → CSP** (§12.1–12.2): `web.Bundle` and `BUNDLES` lines; `tools/bundle` builds
       Main plus every bundle a reached package names; the layout takes the bundle; the htmx-config meta from the
       union (strict JSON); `.Private` (no-store, noindex, `hx-history="false"`), `.Stream`, `.Nonce_Csp` (a nonce
@@ -65,7 +66,13 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       lab index until `landing` (M3), with `about`. *Check:* S0.3's 29 contract checks, plan checks and 20 extension
       checks as `e2e/tests/lab/` specs, green in chromium and webkit on both legs; `csp-clean`, `csp-enforced`,
       `harness-csp`, `streams-hxcsp` and `bundle-race`; load scenarios for every lab route; `lab` builds with no
-      SQLite library.
+      SQLite library. Progress: the `lab` feature and `cmd/lab` (on the vanilla client until slice 4; its root is the
+      lab index until `landing`) with S0.3's checks ported to `e2e/tests/lab/` and green on Windows (157 passed with
+      the platform specs, Chromium, WebKit, api), load scenarios for every lab route, route parity clean. Two
+      lessons in the port: a burst of five 60 KB frames passes the 256 KiB cap while the kernel still has room (the
+      never-reads check now fills the kernel first, one message at a time), and a k6 iteration cut off mid-await
+      stalls its VU's later awaits (the streams scenario lets the warmup's last iterations finish). Left:
+      `scripting` and `compat` (after slices 3 and 4) and the client-stack specs.
 - [ ] **6. `platform/stream/client` and `tools/streamload`** (§8.2, §19.1.7): one non-blocking chunked, SSE and WS
       client on `core:net`; a multi-threaded fan-out generator with publisher-stamped `data-t` for delivery
       percentiles. *Check:* the client's parsers under table-driven random bytes; fan-out (1000 × 50, 3000), restart

@@ -5,12 +5,13 @@ built into one self-contained binary. The server is Odin, the HTML is generated 
 HTMX is the only front-end library, and every asset is compiled into the binary and served from
 memory. There is no NPM and no bundler; the build is `odin` through one script.
 
-Two profiles ship today:
+Three profiles ship today:
 
 | Profile | Features | Store | Theme | What it is |
 |---|---|---|---|---|
 | `skeleton` | dashboard, gallery, contacts, about | SQLite | full (6 styles × 23 schemes) | the 1.2.x contacts console at its exact URLs: the worked example and the performance witness |
 | `minimal` | home, notes, about | memory (no SQLite library at all) | lite (one style, two schemes) | the one-page starter: a notes card added to over HTMX |
+| `lab` | lab, about | memory | full | the stream contract pages: SSE, WebSocket and multipart from Odin to htmx 4's extensions (M2; scripting and compat follow) |
 
 ## Run it
 
@@ -58,7 +59,7 @@ app/
 |---|---|
 | L1 | `sys` (the OS edge: traps, the open-file limit, clocks), `sqlite` (the binding), `ext` (htmx extensions), `escape` (`esc`, `url_encode`, `json_esc`) |
 | L2 | `store` (+ `store/sqlite`: store v3, the writer task, migrations, `--backup`; `store/memory`), `env` (the typed environment), `authz` (+ `authz/anonymous`), `obs` (logfmt, metrics, health), `guard` (crash containment, the watchdog), `workers`, `markdown` |
-| L3 | `web` (router, `front`'s helpers, responses, assets, the platform's routes), `stream` (SSE, WebSocket and multipart on the fork's streams), `html` (the layout and components), `client/*`, `theme/*` |
+| L3 | `web` (router, `front`'s helpers, responses, assets, the platform's routes), `stream` (SSE, WebSocket and multipart on the fork's streams), `hub` (topics, rings and `/events`), `html` (the layout and components), `client/*`, `theme/*` |
 | L4 | `app` (the `front` chain, `boot`, `check`, `serve`, `wait`, `shutdown`; only `cmd/*` imports it) |
 
 **A feature** is a set of packages: `models` (types and the store contract), `f` (the domain:

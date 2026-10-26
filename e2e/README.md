@@ -16,8 +16,12 @@ npm test                            # skeleton: three engines + the api project;
 ```
 
 `E2E_PROFILE` picks the profile under test: `skeleton` by default, in the three engines (Firefox
-only in CI: it can't start on the dev PC) plus the `api` project; any other profile in chromium plus
-`api` (`E2E_PROFILE=minimal npm test`).
+only in CI: it can't start on the dev PC) plus the `api` project; `lab` in the three engines too, and
+`streams` in chromium and webkit; any other profile in chromium plus `api` (`E2E_PROFILE=minimal
+npm test`). The servers run with the per-client stream caps lifted (`STREAM_CONNECTS`,
+`STREAMS_PER_CLIENT`): the suite is one client opening far more streams than a person would. The lab's
+drain-and-restart check needs a graceful stop, which a Windows child gets only from a
+`-define:TEST_ROUTES=true` build (`E2E_BUILD_FLAGS`); in a release build it skips there.
 
 Specs that never open a page (each talks HTTP, to the worker's server or its own) form the `api`
 project in `playwright.config.ts`, so they run once rather than once per engine.
@@ -75,6 +79,10 @@ tests/
   gallery/             components (tabs, accordion, toasts, modal, drawer) and forms (validation, sliders)
   contacts/            CRUD, paging, search, ids, escaping, writes, 422s, events (FK), persistence
   home/ notes/ about/  the minimal profile's pages: the notes card, adding and refusing a note, about
+  lab/                 the stream contract (spike S0.3's checks on the real stream and hub): protocol.spec
+                       (03's Node-side checks and PLAN §8.2/§9's, api), engine.spec (sockets from the page),
+                       extensions.spec (hx-sse, hx-ws, hx-multipart in the engine, the page contract, drain
+                       and restart), pages.spec; streams.ts holds the SSE reader and the raw WebSocket client
 ```
 
 The regression tests pin bugs fixed earlier: the modal keeps its field on a
