@@ -48,7 +48,7 @@ main :: proc() {
 	// A second run would trip over every edit the first one made. Say so plainly
 	// instead of listing them all.
 	if brand, err := os.read_entire_file("app/src/views/brand.odin", context.allocator);
-	   err == nil && !strings.contains(string(brand), UPSTREAM_BRAND_REPO) {
+	   err == nil && !strings.contains(string(brand), upstream_brand_repo()) {
 		fatal("this checkout is already renamed (brand.odin's BRAND_REPO isn't the upstream's); init runs once, on a fresh copy of the template")
 	}
 
@@ -194,7 +194,21 @@ host_of :: proc(url: string) -> string {
 
 // ---- rename -------------------------------------------------------------
 
-UPSTREAM_BRAND_REPO :: `BRAND_REPO :: "https://github.com/alexh95/odin-htmx-skeleton"`
+// The template's repo comes from tools/init/UPSTREAM, so a rename is one line there plus brand.odin's
+// BRAND_REPO in the same commit, not a literal here as well (10 §5.3).
+UPSTREAM :: #load("UPSTREAM", string)
+
+// The brand.odin line a fresh copy of the template carries: `BRAND_REPO :: "<the template's repo>"`.
+upstream_brand_repo :: proc() -> string {
+	text := UPSTREAM
+	for line in strings.split_lines_iterator(&text) {
+		if strings.has_prefix(line, "repo ") {
+			return strings.concatenate({`BRAND_REPO :: "`, strings.trim_space(line[len("repo "):]), `"`}, context.temp_allocator)
+		}
+	}
+	fatal("tools/init/UPSTREAM names no repo")
+	return ""
+}
 
 rename :: proc(opt: Options) {
 	name := opt.name
@@ -299,7 +313,7 @@ rename :: proc(opt: Options) {
 				`BRAND_HOME_TITLE :: "Odin + HTMX skeleton — server-rendered HTML, one binary"`,
 				strings.concatenate({`BRAND_HOME_TITLE :: "`, opt.suffix, ` — built with Odin + HTMX"`}),
 			},
-			{UPSTREAM_BRAND_REPO, strings.concatenate({`BRAND_REPO :: "`, opt.repo, `"`})},
+			{upstream_brand_repo(), strings.concatenate({`BRAND_REPO :: "`, opt.repo, `"`})},
 			{`SITE_URL := "https://odin-htmx.alexh95.com"`, strings.concatenate({`SITE_URL := "`, opt.site, `"`})},
 			// Blanked, never rewritten: a search-engine ownership token proves *this*
 			// deployment is ours. A fork serving it would be advertising a stranger's

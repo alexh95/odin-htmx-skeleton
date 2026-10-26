@@ -25,7 +25,7 @@ BRAND_HOME_TITLE :: "Odin + HTMX skeleton — server-rendered HTML, one binary"
 
 // The project's source repository, linked from the About page. Point this at
 // your fork.
-BRAND_REPO :: "https://github.com/alexh95/odin-htmx-skeleton"
+BRAND_REPO :: "https://github.com/alexh95/odin-htmx-starter"
 
 // The canonical origin: <link rel="canonical">, og:url, the absolute URLs in
 // /sitemap.xml, and the target of the *.fly.dev redirect in main.odin. The app

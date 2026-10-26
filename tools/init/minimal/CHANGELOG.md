@@ -10,7 +10,7 @@ entry under `[Unreleased]`** — see `CLAUDE.md`. Entries track
 
 ### Added
 - The project, started from the minimal starter (`tools/init --minimal`) of the
-  [odin-htmx-skeleton](https://github.com/alexh95/odin-htmx-skeleton) template: one Notes page over
+  [odin-htmx-starter](https://github.com/alexh95/odin-htmx-starter) template: one Notes page over
   the whole model → repository → service → view → controller stack on SQLite, the e2e and load
   suites, and the build / CI / deploy harness. The template's changelog lists what changed upstream
   since the version this started from: **TEMPLATE_VERSION**.

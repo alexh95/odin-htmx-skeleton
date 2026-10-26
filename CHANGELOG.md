@@ -19,6 +19,8 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   open; SIGTERM as well as SIGINT; a per-thread `date` header (the shared one tore under readers); and a
   3 s bind retry. The skeleton app takes the new defaults through `Default_Server_Opts`. Spikes S0.2,
   S0.3, S0.6 and S0.7 measure and drill them.
+- **`THIRD_PARTY_NOTICES`**: the notices of what the binaries contain (odin-http's MIT, Odin's zlib, the
+  Unicode data tables' licence) and credits for htmx and SQLite.
 - **`tools/bundle`** (prototype, spike S0.10): builds a profile's htmx bundles, with br and gzip, from
   the extensions its packages declare. **`tools/baseline`** (spike S0.1): rebuilds a skeleton release
   from git for the parity gate.
@@ -29,6 +31,9 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   now takes plain digits within `int` only (F-6), for every request.
 
 ### Changed
+- **The template is `alexh95/odin-htmx-starter` now** (the repo was renamed; the old URL redirects).
+  `BRAND_REPO` points there, and `tools/init` reads the template's repo from one file, `tools/init/UPSTREAM`,
+  instead of a literal of its own: a future rename is that line plus `brand.odin`'s, in one commit.
 - **odin-http is vendored in-tree** at `app/vendor/odin-http/`, replacing the `app/odin-http` git
   submodule: laytan/odin-http `fac113f` as published, package files only, with an `UPSTREAM.md` that
   names the base commit and will list every local change (decision D11 of the starter's plan,

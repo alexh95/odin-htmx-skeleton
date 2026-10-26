@@ -277,6 +277,9 @@ What the fixes for #13–#44 didn't finish, by area. Each names its issue where 
       against the `-o:speed` binary (#37); a CSS watch loop for local dev (#35).
 - [ ] **Auth will need**: a session CSRF token and `SameSite=Lax` cookies on top of today's
       `Sec-Fetch-Site`/`Origin` guard (#18).
+- [ ] **`init --minimal` and the planning docs**: since the starter's plan lives in `docs/` (`PLAN.md`, `BRIEF.md`,
+      `README.md`, `design/`, `spikes/`), a minimal fork inherits it, and init's report lists those files as
+      still naming the upstream. The generator (M2) strips them; until then the `minimal` CI job passes regardless.
 - [ ] **Upstream (odin-http)**: its shared `Date`-header buffer is rewritten every second while
       other threads read it. k6 saw 2 malformed `Date:` headers with NUL bytes in about 800k
       requests. Fixed in the vendored fork (F-11, `app/vendor/odin-http/UPSTREAM.md`); still to

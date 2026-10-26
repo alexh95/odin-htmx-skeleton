@@ -1,0 +1,4 @@
+# The template's own repository. init reads it at compile time (main.odin, #load): its once-only guard looks for
+# `BRAND_REPO :: "<repo>"` in app/src/views/brand.odin, and the rename rewrites that line. When the template's repo
+# moves, change this line and brand.odin's BRAND_REPO in the same commit (10 §5.3).
+repo https://github.com/alexh95/odin-htmx-starter
