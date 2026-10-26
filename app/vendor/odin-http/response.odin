@@ -7,6 +7,7 @@ import "core:mem/virtual"
 import "core:nbio"
 import "core:slice"
 import "core:strconv"
+import "core:strings"
 
 Response :: struct {
 	// Add your headers and cookies here directly.
@@ -268,7 +269,12 @@ _response_write_heading :: proc(r: ^Response, content_length: int) {
 	for header, value in r.headers._kv {
 		ws(b, header) // already has newlines escaped.
 		ws(b, ": ")
-		write_escaped_newlines(bstream, value)
+		// F-15: a value with no newline, which is nearly every one, is written whole.
+		if strings.index_byte(value, '\n') < 0 {
+			ws(b, value)
+		} else {
+			write_escaped_newlines(bstream, value)
+		}
 		ws(b, "\r\n")
 	}
 

@@ -101,7 +101,7 @@ respond_store_error :: proc(req: ^Request, res: ^Response, err: store.Error) {
 		status, msg = .Conflict, "That change conflicts with what is already stored."
 	case .Busy:
 		status, msg = .Service_Unavailable, "The server is busy. Try again in a moment."
-		http.headers_set(&res.headers, "retry-after", "1")
+		http.headers_set_unsafe(&res.headers, "retry-after", "1")
 	}
 	if is_htmx(req) {
 		respond_html(res, html.toast("error", msg, true), status)

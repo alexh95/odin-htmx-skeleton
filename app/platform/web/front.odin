@@ -67,21 +67,23 @@ csp :: proc() -> string { return sec.csp }
 // On every response, whatever produced it; a route's flags add their own.
 security_headers :: proc(res: ^Response, flags: Route_Flags, path: string) {
 	h := &res.headers
-	http.headers_set(h, "x-version", VERSION)
-	http.headers_set(h, "content-security-policy", sec.csp)
-	http.headers_set(h, "x-content-type-options", "nosniff")
-	http.headers_set(h, "x-frame-options", "DENY")
-	http.headers_set(h, "referrer-policy", "strict-origin-when-cross-origin")
+	// Constant lowercase keys: the unsafe setter skips headers_set's lowercased copy of each,
+	// which a profile of the write path put at 7 % (with F-15's header writing).
+	http.headers_set_unsafe(h, "x-version", VERSION)
+	http.headers_set_unsafe(h, "content-security-policy", sec.csp)
+	http.headers_set_unsafe(h, "x-content-type-options", "nosniff")
+	http.headers_set_unsafe(h, "x-frame-options", "DENY")
+	http.headers_set_unsafe(h, "referrer-policy", "strict-origin-when-cross-origin")
 	if sec.set == .Standard {
-		http.headers_set(h, "permissions-policy", "camera=(), microphone=(), geolocation=()")
-		http.headers_set(h, "cross-origin-opener-policy", "same-origin")
+		http.headers_set_unsafe(h, "permissions-policy", "camera=(), microphone=(), geolocation=()")
+		http.headers_set_unsafe(h, "cross-origin-opener-policy", "same-origin")
 		// The social card and the favicons are fetched by other sites' previews.
 		cross := path == "/static/og.png" || path == "/favicon.ico" || path == "/static/favicon.svg"
-		http.headers_set(h, "cross-origin-resource-policy", "cross-origin" if cross else "same-origin")
+		http.headers_set_unsafe(h, "cross-origin-resource-policy", "cross-origin" if cross else "same-origin")
 	}
 	if .Private in flags {
-		http.headers_set(h, "cache-control", "no-store")
-		http.headers_set(h, "x-robots-tag", "noindex, nofollow")
+		http.headers_set_unsafe(h, "cache-control", "no-store")
+		http.headers_set_unsafe(h, "x-robots-tag", "noindex, nofollow")
 	}
 }
 
@@ -116,7 +118,7 @@ canonical_redirect :: proc(site: ^Site, req: ^Request, res: ^Response) -> bool {
 	if req.url.query != "" {
 		target = strings.concatenate({target, "?", req.url.query}, context.temp_allocator)
 	}
-	http.headers_set(&res.headers, "location", target)
+	http.headers_set_unsafe(&res.headers, "location", target)
 	http.respond(res, Status.Moved_Permanently)
 	return true
 }
@@ -202,7 +204,7 @@ request_id :: proc(req: ^Request, res: ^Response, trusted: bool) -> string {
 		if v, ok := http.headers_get(req.headers, "x-request-id"); ok && len(v) <= 32 && safe_id(v) { id = v }
 	}
 	if id == "" { id = obs.next_request_id() }
-	http.headers_set(&res.headers, "x-request-id", id)
+	http.headers_set_unsafe(&res.headers, "x-request-id", id)
 	return id
 }
 
@@ -285,7 +287,9 @@ Deferred :: struct {
 	cid:    [8]byte,
 }
 
-defer_response :: proc(req: ^Request, res: ^Response, d: ^Deferred, on_gone: proc(user: rawptr) = nil, user: rawptr = nil) {
+// `watch` closes the connection as soon as the client leaves (F-13's poll): for work
+// that takes seconds. A store write answers within its batch, so it doesn't watch.
+defer_response :: proc(req: ^Request, res: ^Response, d: ^Deferred, on_gone: proc(user: rawptr) = nil, user: rawptr = nil, watch := false) {
 	c := ctx()
 	d.ctx = c
 	d.route = c.route
@@ -293,7 +297,7 @@ defer_response :: proc(req: ^Request, res: ^Response, d: ^Deferred, on_gone: pro
 	d.start = c_start
 	d.id_len = copy(d.id[:], c.id)
 	client_id(c.client, d.cid[:])
-	d.ref = http.response_defer(res, on_gone, user)
+	d.ref = http.response_defer(res, on_gone, user, watch)
 	c.deferred = true
 }
 

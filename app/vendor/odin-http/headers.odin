@@ -38,7 +38,7 @@ headers_set_unsafe :: #force_inline proc(h: ^Headers, k: string, v: string, loc 
 }
 
 headers_get :: proc(h: Headers, k: string) -> (string, bool) #optional_ok {
-	return h._kv[sanitize_key(h, k)]
+	return h._kv[k if canonical_key(k) else sanitize_key(h, k)]
 }
 
 /*
@@ -61,7 +61,7 @@ headers_entry_unsafe :: #force_inline proc(h: ^Headers, k: string, loc := #calle
 }
 
 headers_has :: proc(h: Headers, k: string) -> bool {
-	return sanitize_key(h, k) in h._kv
+	return (k if canonical_key(k) else sanitize_key(h, k)) in h._kv
 }
 
 /*
@@ -72,7 +72,18 @@ headers_has_unsafe :: #force_inline proc(h: Headers, k: string) -> bool {
 }
 
 headers_delete :: proc(h: ^Headers, k: string) -> (deleted_key: string, deleted_value: string) {
-	return delete_key(&h._kv, sanitize_key(h^, k))
+	return delete_key(&h._kv, k if canonical_key(k) else sanitize_key(h^, k))
+}
+
+// F-15: whether a key is already what sanitize_key would make of it (no upper case, no newline),
+// so a lookup can use it as is. A set still copies it: a parsed header's key can point into the
+// connection's read buffer, which the next request reuses.
+canonical_key :: proc(k: string) -> bool {
+	for i in 0 ..< len(k) {
+		c := k[i]
+		if c == '\n' || (c >= 'A' && c <= 'Z') { return false }
+	}
+	return true
 }
 
 /*
@@ -110,11 +121,14 @@ sanitize_key :: proc(h: Headers, k: string) -> string {
 
 	// general +4 in rare case of newlines, so we might not need to reallocate.
 	b := strings.builder_make(0, len(k)+4, allocator)
-	for c in k {
+	// F-15: byte by byte, not rune by rune: both changes are ASCII, so other bytes, a multi-byte
+	// rune's included, copy as they are.
+	for i in 0 ..< len(k) {
+		c := k[i]
 		switch c {
-		case 'A'..='Z': strings.write_rune(&b, c + 32)
+		case 'A'..='Z': strings.write_byte(&b, c + 32)
 		case '\n':      strings.write_string(&b, "\\n")
-		case:           strings.write_rune(&b, c)
+		case:           strings.write_byte(&b, c)
 		}
 	}
 	return strings.to_string(b)

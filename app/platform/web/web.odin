@@ -111,7 +111,7 @@ viewer :: proc(req: ^Request) -> authz.Viewer { return ctx().viewer }
 // (D8): `x-impl: chat.transport=sse`, and `impl=` in its access-log line.
 impl :: proc(res: ^Response, axis, name: string) {
 	v := strings.concatenate({axis, "=", name}, context.temp_allocator)
-	http.headers_set(&res.headers, "x-impl", v)
+	http.headers_set_unsafe(&res.headers, "x-impl", v)
 	if tl_ctx != nil { tl_ctx.impl = v }
 }
 

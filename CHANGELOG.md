@@ -11,7 +11,7 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes: `docs/spikes/`).
 
 ### Added
-- **The fork's changes to odin-http** (`app/vendor/odin-http/UPSTREAM.md` lists each, F-1 to F-14;
+- **The fork's changes to odin-http** (`app/vendor/odin-http/UPSTREAM.md` lists each, F-1 to F-15;
   F-3 waits for video): streams for SSE, WebSocket and multipart on the HTTP port; an `invoke` hook
   every server-owned callback runs through, so a crash guard can contain a crash in a handler, a stream
   or odin-http itself; idle, header and body timeouts, enforced by one 1 s sweep per thread rather than
@@ -132,6 +132,12 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   wire; a body-phase timeout now closes it (found by spike S0.7's timeouts phase).
 
 ### Changed
+- **Faster responses** (the fork's F-15, from a profile of the write path behind the parity gate):
+  header values are written whole rather than rune by rune, header lookups skip a lowercased copy
+  of a key that's already lower case, the platform sets its own headers without one, and a store
+  write's deferred response no longer polls its socket while it waits for the batch (F-13's watch is
+  now optional, for work that takes seconds). `write@mem` went from about 32.7k to 37.2k rps on the
+  dev PC, level with v1.1.1.
 - **The access log is logfmt**, one line per request with a request id, the route as registered,
   the status, the time in µs and a hashed client id (`ev=req id=… m=GET route="GET /data" st=200
   us=183 …`); still never the query. Every response carries `x-request-id`.

@@ -377,14 +377,19 @@ write_padded_int :: proc(w: io.Writer, i: int) -> io.Error {
 }
 
 @(private)
+// F-15: in spans between newlines, not rune by rune through the stream: that path was 12 %
+// of a write's CPU with the starter's headers (a 300-byte CSP among them). '\n' is one byte
+// in UTF-8, so a byte scan finds every one.
 write_escaped_newlines :: proc(w: io.Writer, v: string) -> io.Error {
-	for c in v {
-		if c == '\n' {
-			io.write_string(w, "\\n") or_return
-		} else {
-			io.write_rune(w, c) or_return
-		}
+	v := v
+	for {
+		i := strings.index_byte(v, '\n')
+		if i < 0 { break }
+		io.write_string(w, v[:i]) or_return
+		io.write_string(w, "\\n") or_return
+		v = v[i + 1:]
 	}
+	io.write_string(w, v) or_return
 	return nil
 }
 

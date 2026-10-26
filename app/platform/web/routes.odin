@@ -66,7 +66,7 @@ livez :: proc(req: ^Request, res: ^Response) {
 // Every critical module up and not draining; ?detail lists each module.
 readyz :: proc(req: ^Request, res: ^Response) {
 	ok, why := obs.ready()
-	if obs.is_draining() { http.headers_set(&res.headers, "x-draining", "1") }
+	if obs.is_draining() { http.headers_set_unsafe(&res.headers, "x-draining", "1") }
 	if query_get(req, "detail") != "" || has_query_key(req, "detail") {
 		b := strings.builder_make(context.temp_allocator)
 		strings.write_string(&b, "ready\n" if ok else "not ready\n")
@@ -101,7 +101,7 @@ metrics :: proc(req: ^Request, res: ^Response) {
 		allowed = len(given) == len(metrics_token) &&
 			crypto.compare_constant_time(transmute([]byte)given, transmute([]byte)metrics_token) == 1
 		if !allowed {
-			http.headers_set(&res.headers, "www-authenticate", "Bearer")
+			http.headers_set_unsafe(&res.headers, "www-authenticate", "Bearer")
 			respond_plain(res, "unauthorized", .Unauthorized)
 			return
 		}

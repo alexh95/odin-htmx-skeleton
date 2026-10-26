@@ -30,7 +30,11 @@ Deferred :: struct {
 
 // Call on the connection's loop, before returning from the handler without responding.
 // `on_gone` runs on the loop when the connection closes before `response_resume`.
-response_defer :: proc(res: ^Response, on_gone: proc(user: rawptr) = nil, user: rawptr = nil, loc := #caller_location) -> Response_Ref {
+// `watch` polls the socket meanwhile, so a peer that leaves is noticed at once: worth it for
+// work that takes seconds (a password hash); for a reply due within milliseconds (a store
+// write's batch) the two extra operations cost 7 % of the write path (M1's parity gate), and a
+// peer that left is found when the reply's send fails.
+response_defer :: proc(res: ^Response, on_gone: proc(user: rawptr) = nil, user: rawptr = nil, watch := true, loc := #caller_location) -> Response_Ref {
 	assert_has_td(loc)
 	c := res._conn
 	assert(c.state == .Active && !res.sent && !c.deferred.active, "response_defer: the response is not open", loc)
@@ -38,7 +42,7 @@ response_defer :: proc(res: ^Response, on_gone: proc(user: rawptr) = nil, user: 
 	c.deferred = {active = true, on_gone = on_gone, user = user}
 	td.deferred += 1
 	// A body read still in flight owns the socket's read side; the watch starts only on an idle scanner.
-	if c.scanner.recv_op == nil { _deferred_watch(c) }
+	if watch && c.scanner.recv_op == nil { _deferred_watch(c) }
 	return {loop = td.event_loop, socket = c.socket, gen = c.gen}
 }
 

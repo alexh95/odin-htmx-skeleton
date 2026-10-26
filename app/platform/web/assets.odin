@@ -120,7 +120,7 @@ serve_favicon_ico :: proc(req: ^Request, res: ^Response) {
 send_asset :: proc(req: ^Request, res: ^Response, a: ^Asset, fingerprinted: bool) {
 	body, enc := a.identity, 0
 	if len(a.br) > 0 || len(a.gz) > 0 {
-		http.headers_set(&res.headers, "vary", "Accept-Encoding")
+		http.headers_set_unsafe(&res.headers, "vary", "Accept-Encoding")
 		accept, _ := http.headers_get(req.headers, "accept-encoding")
 		switch {
 		case len(a.br) > 0 && accepts(accept, "br"):   body, enc = a.br, 1
@@ -129,17 +129,17 @@ send_asset :: proc(req: ^Request, res: ^Response, a: ^Asset, fingerprinted: bool
 	}
 	if fingerprinted {
 		// The hash is in the path, so the bytes for this URL can never change.
-		http.headers_set(&res.headers, "cache-control", "public, max-age=31536000, immutable")
+		http.headers_set_unsafe(&res.headers, "cache-control", "public, max-age=31536000, immutable")
 	} else {
 		// A bare name: revalidate after max-age with a cheap 304.
-		http.headers_set(&res.headers, "cache-control", "public, max-age=3600" if a.name != "favicon.ico" else "public, max-age=86400")
-		http.headers_set(&res.headers, "etag", a.etag[enc])
+		http.headers_set_unsafe(&res.headers, "cache-control", "public, max-age=3600" if a.name != "favicon.ico" else "public, max-age=86400")
+		http.headers_set_unsafe(&res.headers, "etag", a.etag[enc])
 		if match, ok := http.headers_get(req.headers, "if-none-match"); ok && match == a.etag[enc] {
 			http.respond(res, Status.Not_Modified)
 			return
 		}
 	}
-	if enc != 0 { http.headers_set(&res.headers, "content-encoding", "br" if enc == 1 else "gzip") }
+	if enc != 0 { http.headers_set_unsafe(&res.headers, "content-encoding", "br" if enc == 1 else "gzip") }
 	res.status = .OK
 	http.headers_set_content_type(&res.headers, a.content_type)
 	http.body_set(res, body)
