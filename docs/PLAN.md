@@ -2392,9 +2392,10 @@ D16 (S8, 12 §9):
   nbio loop, opened lazily through `@(thread_local)` (no init hook needed, 12 §2); `SQLITE_DBCONFIG_ENABLE_QPSG`
   (1007) on every connection before any prepare; WAL, `synchronous=NORMAL`, `journal_size_limit=64 MiB`,
   `busy_timeout` 5000. Several writer connections were rejected: 1.23M `SQLITE_BUSY` errors in 4 s (12 §3.4).
-- **The writer task.** A dedicated thread with a bounded queue commits every 10 ms or every 100 items (chat messages,
-  receipts, notifications, audit rows) and posts each write's continuation back to its originating loop, with one
-  `next_tick` per loop. The continuation is a named proc in the feature's web package, which publishes the persisted
+- **The writer task.** A dedicated thread with a bounded queue commits whatever is queued as soon as it is free, up to
+  100 items per transaction (chat messages, receipts, notifications, audit rows, the skeleton's request writes), and
+  posts each write's continuation back to its originating loop, with one `next_tick` per loop. It has no timer: a 10 ms
+  tick would add up to 10 ms to every request write (S0.4). The continuation is a named proc in the feature's web package, which publishes the persisted
   topic, so `platform/store/sqlite` never imports `hub`; a memory store calls it at once (LC §8). The writer queue,
   pool depth and `sqlite3_db_status` numbers are pushed to `platform/obs` on the store's own timer (LC §5).
 - **The query pool.** Two threads for anything that scans, ranks, exports, backs up or can hit a budget (bm25, dbview,
@@ -2461,11 +2462,14 @@ against v1.1.1; D17):
 | mixed | 28,782 | 13,883 | 22,025 | 0.77 | 37,150 | 1.29 |
 
 Spike S0.4 measures every `:memory:` cell, with the sort indexes installed (they add write cost), for three candidates:
-- **A**: `single` + QPSG + sort indexes + a dashboard aggregate cached for 1 s (12 §2.1, §9).
-- **B**: `ephemeral` + sort indexes + `synchronous=OFF` on the ephemeral file + the temp file on tmpfs (`/dev/shm`) on
-  Linux (**NEW, UNVERIFIED (S0.4)**).
-- **C**: B + group commit of concurrent skeleton writes through the writer task, the write handler answering on
-  `next_tick` after the batch commits (**NEW, UNVERIFIED (S0.4)**).
+- **A**: `single` + QPSG + sort indexes + a dashboard aggregate cached for 1 s (12 §2.1, §9); the cache makes the
+  dashboard lag a write by up to 1 s (0.3–0.7 s in S0.4's smoke), which the e2e `dashboard` spec can see.
+- **B**: `ephemeral` + sort indexes + the temp file on tmpfs (`/dev/shm`) on Linux, unsynced. Research 12's ephemeral
+  numbers already ran the file with `synchronous=OFF`, and WAL's `NORMAL` never syncs a commit, so on Windows B is v3
+  with the sort indexes: tmpfs is its one new lever (S0.4).
+- **C**: B + group commit of concurrent skeleton writes on the writer task (§11.1: whatever is queued, as soon as it is
+  free, up to 100 per `BEGIN IMMEDIATE` transaction, with each row read back inside it); each write handler answers
+  through F-13's deferred response after its batch commits (S0.4).
 
 **Decision rule.** The first candidate that passes every `:memory:` cell under D38's rule on both legs becomes the
 `skeleton` profile's default. If none passes, Q6 applies before M1; its default gates the failing `:memory:` cells

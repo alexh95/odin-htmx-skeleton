@@ -1,0 +1,732 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 02:35:09 +0200
+Subject: [PATCH] feat(repository): candidate C: group commit of contact writes
+
+S0.4 candidate C (PLAN 11.3; D17), on top of B. The four contact writes
+(create, edit, cycle, delete; /contacts and /forms/submit) are queued for
+a writer thread instead of taking the writer's lock on the loop. The
+thread takes every write waiting, up to 100, runs them in one
+BEGIN IMMEDIATE ... COMMIT, and posts each result back to the loop that
+queued it, one next_tick per loop per batch. The handler answers from
+that continuation, after the commit, with the row read back on the writer
+inside the transaction, so what a client sees is unchanged. A write that
+fails alone (a constraint, a missing row) fails alone; a lost transaction
+fails the whole batch. No timer: a lone write waits only for the hop.
+
+front logs a request only when its handler returned answered; the
+continuations log their own line.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ app/src/controllers/controllers.odin | 179 +++++++++++------
+ app/src/controllers/middleware.odin  |  15 +-
+ app/src/repository/db_test.odin      |  58 ++++++
+ app/src/repository/repo.odin         |   2 +
+ app/src/repository/writer.odin       | 274 +++++++++++++++++++++++++++
+ app/src/services/services.odin       |  36 ++++
+ app/src/sqlite/sqlite.odin           |   1 +
+ 7 files changed, 499 insertions(+), 66 deletions(-)
+ create mode 100644 app/src/repository/writer.odin
+
+diff --git a/app/src/controllers/controllers.odin b/app/src/controllers/controllers.odin
+index 014a744..e69f37a 100644
+--- a/app/src/controllers/controllers.odin
++++ b/app/src/controllers/controllers.odin
+@@ -217,25 +217,56 @@ contact_detail :: proc(req: ^http.Request, res: ^http.Response) {
+ 	}
+ }
+ 
++// ---- writes answered later -------------------------------------------------
++//
++// A write goes to the store's writer task (services.*_later), which commits
++// concurrent writes together, and its handler returns without answering. The
++// continuation answers on this loop once the write has committed, from a Later
++// in the request's arena: it lives until the answer has been sent.
++
++Later :: struct {
++	req:    ^http.Request,
++	res:    ^http.Response,
++	start:  time.Tick, // the handler's start: front's own few µs before it are not in the log
++	id:     int,
++	detail: bool, // contacts_update: answer with the drawer
++	drawer: bool, // contacts_delete: the delete came from the drawer
++}
++
++@(private = "file")
++later :: proc(req: ^http.Request, res: ^http.Response) -> ^Later {
++	l := new(Later, context.temp_allocator)
++	l^ = {req = req, res = res, start = time.tick_now()}
++	return l
++}
++
++// front logs a request when its handler returns answered; a continuation logs
++// its own.
++@(private = "file")
++answered :: proc(l: ^Later) {
++	access_log(l.req, l.res, l.start)
++}
++
+ contacts_create :: proc(req: ^http.Request, res: ^http.Response) {
+ 	form := request_form()
+ 	role, _ := models.role_from(form["role"])
+-	c, errs, err := services.create_contact(form["name"], form["email"], role, .Invited, 50)
++	errs := services.create_contact_later(form["name"], form["email"], role, .Invited, 50, "", false, later(req, res), proc(user: rawptr, c: models.Contact, err: services.Store_Error) {
++		l := (^Later)(user)
++		defer answered(l)
++		if err != .None {
++			respond_store_error(l.req, l.res, err)
++			return
++		}
++		b := strings.builder_make(context.temp_allocator)
++		views.view_contact_row(&b, c, true)
++		strings.write_string(&b, views.view_toast("success", "Contact added.", true))
++		respond_html(l.res, strings.to_string(b))
++	})
+ 	if len(errs) > 0 {
+ 		// 422, not 200: app.js resets a form only after a 2xx, so the user's input
+ 		// survives, and the form's hx-status:422 routes this into its error slot.
+ 		respond_html(res, views.view_field_msg(false, errs[0].msg), .Unprocessable_Content)
+-		return
+-	}
+-	if err != .None {
+-		respond_store_error(req, res, err)
+-		return
+ 	}
+-
+-	b := strings.builder_make(context.temp_allocator)
+-	views.view_contact_row(&b, c, true)
+-	strings.write_string(&b, views.view_toast("success", "Contact added.", true))
+-	respond_html(res, strings.to_string(b))
+ }
+ 
+ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
+@@ -245,42 +276,60 @@ contacts_update :: proc(req: ^http.Request, res: ^http.Response) {
+ 		return
+ 	}
+ 	form := request_form()
+-	action := form["action"]
++	l := later(req, res)
+ 	// view=detail → respond with the re-rendered detail drawer (the action came
+ 	// from the drawer); otherwise the table row.
+-	is_detail := form["view"] == "detail"
+-
+-	c: models.Contact
+-	err: services.Store_Error
+-	edit_errs: []services.Field_Error
+-	typed: models.Contact
+-	if action == "cycle" {
+-		c, err = services.cycle_status(id)
+-	} else if _, editing := form["name"]; editing {
+-		// full edit from the detail drawer
+-		role, _ := models.role_from(form["role"])
+-		status, _ := models.status_from(form["status"])
+-		score := clamp(to_int(form["score"]), 0, 100)
+-		typed = {id = id, name = form["name"], email = form["email"], role = role, status = status, score = score}
+-		c, edit_errs, err = services.update_contact(id, typed.name, typed.email, role, status, score)
+-	} else {
+-		c, err = services.get_contact(id)
++	l.detail = form["view"] == "detail"
++
++	updated :: proc(user: rawptr, c: models.Contact, err: services.Store_Error) {
++		l := (^Later)(user)
++		defer answered(l)
++		if err != .None {
++			respond_store_error(l.req, l.res, err)
++			return
++		}
++		answer_update(l.req, l.res, c, l.detail)
+ 	}
+ 
+-	if err != .None {
+-		respond_store_error(req, res, err)
++	if form["action"] == "cycle" {
++		services.cycle_status_later(id, l, updated)
+ 		return
+ 	}
+-	if len(edit_errs) > 0 {
+-		// The edit form comes back as typed, with the reason, in place of the one
+-		// that was sent: a refused edit keeps its input. 422 skips app.js's reset.
+-		if is_detail {
+-			respond_html(res, views.view_contact_edit_rejected(c, typed, edit_errs[0].msg), .Unprocessable_Content)
+-		} else {
+-			respond_html(res, views.view_field_msg(false, edit_errs[0].msg), .Unprocessable_Content)
++	if _, editing := form["name"]; !editing {
++		c, err := services.get_contact(id)
++		if err != .None {
++			respond_store_error(req, res, err)
++			return
+ 		}
++		answer_update(req, res, c, l.detail)
++		return
++	}
++	// full edit from the detail drawer
++	role, _ := models.role_from(form["role"])
++	status, _ := models.status_from(form["status"])
++	score := clamp(to_int(form["score"]), 0, 100)
++	typed := models.Contact{id = id, name = form["name"], email = form["email"], role = role, status = status, score = score}
++	c, edit_errs, err := services.update_contact_later(id, typed.name, typed.email, role, status, score, l, updated)
++	if len(edit_errs) == 0 {
++		return // queued: `updated` answers
++	}
++	if err != .None {
++		respond_store_error(req, res, err)
+ 		return
+ 	}
++	// The edit form comes back as typed, with the reason, in place of the one
++	// that was sent: a refused edit keeps its input. 422 skips app.js's reset.
++	if l.detail {
++		respond_html(res, views.view_contact_edit_rejected(c, typed, edit_errs[0].msg), .Unprocessable_Content)
++	} else {
++		respond_html(res, views.view_field_msg(false, edit_errs[0].msg), .Unprocessable_Content)
++	}
++}
++
++// What an update answers: the contact's table row, or from the drawer the
++// re-rendered drawer with the row behind it.
++@(private = "file")
++answer_update :: proc(req: ^http.Request, res: ^http.Response, c: models.Contact, is_detail: bool) {
+ 	if is_detail {
+ 		// the re-rendered drawer (main swap into the open drawer), plus a refresh of
+ 		// the table row behind it. A plain `hx-swap-oob` <tr> can't ride along: a
+@@ -313,18 +362,25 @@ contacts_delete :: proc(req: ^http.Request, res: ^http.Response) {
+ 		not_found(req, res)
+ 		return
+ 	}
+-	if err := services.delete_contact(id); err != .None {
+-		respond_store_error(req, res, err)
+-		return
+-	}
+-	// From the table row: empty body, the outerHTML swap removes the row. From the
+-	// detail drawer: the empty primary body closes the overlay, and an OOB swap
+-	// removes the now-stale table row behind it.
+-	if query_get(req, "from") == "drawer" {
+-		respond_html(res, fmt.tprintf(`<tr id="contact-%d" hx-swap-oob="delete"></tr>`, id))
+-	} else {
+-		respond_html(res, "")
+-	}
++	l := later(req, res)
++	l.id = id
++	l.drawer = query_get(req, "from") == "drawer"
++	services.delete_contact_later(id, l, proc(user: rawptr, _: models.Contact, err: services.Store_Error) {
++		l := (^Later)(user)
++		defer answered(l)
++		if err != .None {
++			respond_store_error(l.req, l.res, err)
++			return
++		}
++		// From the table row: empty body, the outerHTML swap removes the row. From the
++		// detail drawer: the empty primary body closes the overlay, and an OOB swap
++		// removes the now-stale table row behind it.
++		if l.drawer {
++			respond_html(l.res, fmt.tprintf(`<tr id="contact-%d" hx-swap-oob="delete"></tr>`, l.id))
++		} else {
++			respond_html(l.res, "")
++		}
++	})
+ }
+ 
+ // ---- forms --------------------------------------------------------------
+@@ -348,21 +404,22 @@ forms_submit :: proc(req: ^http.Request, res: ^http.Response) {
+ 	status, _ := models.status_from(form["status"])
+ 	// An unticked checkbox isn't posted at all; a ticked one posts "on".
+ 	notify := form["notify"] == "on"
+-	c, errs, err := services.create_contact(form["name"], form["email"], role, status, to_int(form["score"]), form["notes"], notify)
++	errs := services.create_contact_later(form["name"], form["email"], role, status, to_int(form["score"]), form["notes"], notify, later(req, res), proc(user: rawptr, c: models.Contact, err: services.Store_Error) {
++		l := (^Later)(user)
++		defer answered(l)
++		if err != .None {
++			respond_store_error(l.req, l.res, err)
++			return
++		}
++		b := strings.builder_make(context.temp_allocator)
++		strings.write_string(&b, views.view_form_result(c))
++		strings.write_string(&b, views.view_toast("success", "Saved to the SQLite store.", true))
++		respond_html(l.res, strings.to_string(b))
++	})
+ 	if len(errs) > 0 {
+ 		// Lands in #form-result like a success would; 422 keeps the form unreset.
+ 		respond_html(res, views.view_form_errors(errs), .Unprocessable_Content)
+-		return
+ 	}
+-	if err != .None {
+-		respond_store_error(req, res, err)
+-		return
+-	}
+-
+-	b := strings.builder_make(context.temp_allocator)
+-	strings.write_string(&b, views.view_form_result(c))
+-	strings.write_string(&b, views.view_toast("success", "Saved to the SQLite store.", true))
+-	respond_html(res, strings.to_string(b))
+ }
+ 
+ // ---- ui fragments -------------------------------------------------------
+diff --git a/app/src/controllers/middleware.odin b/app/src/controllers/middleware.odin
+index 4d32aff..b5cb07b 100644
+--- a/app/src/controllers/middleware.odin
++++ b/app/src/controllers/middleware.odin
+@@ -61,7 +61,9 @@ front :: proc(handler: ^http.Handler, req: ^http.Request, res: ^http.Response) {
+ 	}
+ 	if !has_body(req) {
+ 		next.handle(next, req, res)
+-		access_log(req, res, start)
++		if res.sent {
++			access_log(req, res, start)
++		}
+ 		return
+ 	}
+ 	// http.body may finish later, from the event loop, so what the callback
+@@ -70,7 +72,9 @@ front :: proc(handler: ^http.Handler, req: ^http.Request, res: ^http.Response) {
+ 	p^ = {next, req, res, start}
+ 	http.body(req, MAX_BODY, p, proc(user: rawptr, body: http.Body, err: http.Body_Error) {
+ 		p := (^Pending)(user)
+-		defer access_log(p.req, p.res, p.start)
++		defer if p.res.sent {
++			access_log(p.req, p.res, p.start)
++		}
+ 		if err != nil {
+ 			// The unread rest of the body is still on the wire, so odin-http will close
+ 			// the connection; say so, or a keep-alive client reuses a dead socket.
+@@ -88,9 +92,10 @@ front :: proc(handler: ^http.Handler, req: ^http.Request, res: ^http.Response) {
+ 
+ // One line per request: method, path (not the query, which can carry what a
+ // user typed), status and the time spent in the app. Logged once the handler
+-// has returned; every handler here responds before it does, so the status is
+-// final. At .Info, so LOG_LEVEL=warn silences it (see main).
+-@(private = "file")
++// has returned, if it answered; a handler whose write answers later (Later, in
++// controllers.odin) logs from its continuation. At .Info, so LOG_LEVEL=warn
++// silences it (see main).
++@(private)
+ access_log :: proc(req: ^http.Request, res: ^http.Response, start: time.Tick) {
+ 	method := req.is_head ? "HEAD" : http.method_string(req.line.(http.Requestline).method)
+ 	ms := time.duration_milliseconds(time.tick_since(start))
+diff --git a/app/src/repository/db_test.odin b/app/src/repository/db_test.odin
+index f0cce76..532305e 100644
+--- a/app/src/repository/db_test.odin
++++ b/app/src/repository/db_test.odin
+@@ -1,7 +1,9 @@
+ package repository
+ 
++import "../models"
+ import "../sqlite"
+ 
++import "base:runtime"
+ import "core:fmt"
+ import "core:log"
+ import "core:strings"
+@@ -223,3 +225,59 @@ every_page_reads_its_sort_index :: proc(t: ^testing.T) {
+ 		}
+ 	}
+ }
++
++// A batch of the writer task commits its writes together, and each gets the
++// answer it would have got alone: a failing one fails alone.
++@(test)
++a_batch_answers_each_write_as_if_alone :: proc(t: ^testing.T) {
++	sync.guard(&serial)
++	repo_open(":memory:")
++	defer repo_close()
++	repo_seed()
++	// A statement that fails inside the transaction: SQLite undoes it, not the batch.
++	exec("CREATE TEMP TRIGGER refuse BEFORE INSERT ON contacts WHEN NEW.name = 'refused' BEGIN SELECT RAISE(ABORT, 'refused'); END;")
++
++	writes := [?]Write {
++		{kind = .Create, args = {name = "Batch New", email = "batch.new@example.dev", role = .Support, status = .Invited, score = 50}},
++		{kind = .Update, id = 1, args = {name = "Batch Edit", email = "batch.edit@example.dev", role = .Manager, status = .Active, score = 77}},
++		{kind = .Cycle, id = 2},
++		{kind = .Delete, id = 3},
++		{kind = .Create, args = {name = "refused", email = "refused@example.dev"}},
++		{kind = .Update, id = 999_999, args = {name = "Nobody", email = "nobody@example.dev"}},
++		{kind = .Delete, id = 999_999},
++	}
++	before, _ := repo_get(2)
++	for i in 0 ..< len(writes) - 1 {
++		writes[i].next = &writes[i + 1]
++	}
++	context.logger = log.nil_logger() // the refused insert logs its error
++	commit_batch(&writes[0])
++	defer for &wr in writes {
++		wr.args = {}
++		heap_free_row(&wr)
++	}
++
++	testing.expect_value(t, writes[0].err, Error.None)
++	testing.expect(t, writes[0].row.id > 20 && writes[0].row.name == "Batch New", "the create reads back its row")
++	testing.expect_value(t, writes[1].err, Error.None)
++	testing.expect(t, writes[1].row.name == "Batch Edit" && writes[1].row.score == 77 && writes[1].row.role == .Manager, "the update reads back its row")
++	testing.expect_value(t, writes[2].err, Error.None)
++	testing.expect_value(t, writes[2].row.status, models.Status((int(before.status) + 1) % len(models.Status)))
++	testing.expect_value(t, writes[3].err, Error.None)
++	testing.expect_value(t, writes[4].err, Error.Constraint)
++	testing.expect_value(t, writes[5].err, Error.Not_Found)
++	testing.expect_value(t, writes[6].err, Error.Not_Found)
++
++	// Committed: a reader sees them.
++	got, _ := repo_get(writes[0].row.id)
++	testing.expect_value(t, got.name, "Batch New")
++	_, gone := repo_get(3)
++	testing.expect_value(t, gone, Error.Not_Found)
++}
++
++@(private = "file")
++heap_free_row :: proc(wr: ^Write) {
++	for s in ([]string{wr.row.name, wr.row.email, wr.row.notes}) {
++		delete(s, runtime.heap_allocator())
++	}
++}
+diff --git a/app/src/repository/repo.odin b/app/src/repository/repo.odin
+index 31a40bf..6ce2754 100644
+--- a/app/src/repository/repo.odin
++++ b/app/src/repository/repo.odin
+@@ -50,11 +50,13 @@ repo_open :: proc(path: string, mode := Mem_Mode.Ephemeral) {
+ 	prepare_contacts()
+ 	prepare_events()
+ 	prepare_reads(&w)
++	writer_start()
+ }
+ 
+ // Finalize statements and close the connections. Symmetry with repo_open; wire
+ // via `defer` in main.
+ repo_close :: proc() {
++	writer_stop()
+ 	finalize_contacts()
+ 	finalize_events()
+ 	finalize_reads(&w)
+diff --git a/app/src/repository/writer.odin b/app/src/repository/writer.odin
+new file mode 100644
+index 0000000..2e014be
+--- /dev/null
++++ b/app/src/repository/writer.odin
+@@ -0,0 +1,274 @@
++package repository
++
++import "../models"
++import "../sqlite"
++
++import "base:runtime"
++import "core:log"
++import "core:nbio"
++import "core:strings"
++import "core:sync"
++import "core:thread"
++
++// ---- the writer task: request writes, committed in groups ----------------
++//
++// A handler's write is queued, not run. One thread takes every write waiting
++// (up to MAX_BATCH), runs them in one transaction, and hands each result back
++// to the event loop that queued it, one next_tick per loop per batch, where the
++// handler's continuation answers. Concurrent writes then share one commit,
++// which is where a WAL write spends its time (the frames, the wal-index, the
++// file locks), and no loop waits on the writer's lock. The answer still comes
++// after the commit, and the read-back still runs on the writer inside the
++// transaction, so a client sees what it would have seen from a lone write.
++//
++// There is no timer: the thread commits what is queued at once, so a lone
++// write waits only for the hop between threads, and the writes that arrive
++// while a batch commits form the next one.
++
++MAX_BATCH :: 100
++
++// A queued write's result, on the loop that queued it. The row is in that
++// request's temp arena, like any read's; a delete hands back none.
++Write_Done :: #type proc(user: rawptr, row: models.Contact, err: Error)
++
++Write_Kind :: enum u8 {
++	Create,
++	Update,
++	Cycle,
++	Delete,
++}
++
++@(private)
++Write :: struct {
++	next:  ^Write,
++	kind:  Write_Kind,
++	id:    int, // Update, Cycle, Delete
++	args:  models.Contact, // Create, Update; its strings on the heap
++	row:   models.Contact, // the read-back; its strings on the heap
++	err:   Error,
++	loop:  ^nbio.Event_Loop,
++	arena: runtime.Allocator, // the request's temp allocator
++	user:  rawptr,
++	done:  Write_Done,
++}
++
++@(private = "file") queue: struct {
++	lock:       sync.Mutex,
++	cond:       sync.Cond,
++	head, tail: ^Write,
++	sleeping:   bool, // the writer waits on cond: wake it
++	stopping:   bool,
++}
++@(private = "file") writer: ^thread.Thread
++@(private = "file") writer_logger: log.Logger
++
++// ---- the contract: contacts.odin's writes, queued -----------------------
++//
++// Each is the repo_* write of the same name; `done` runs later, on the caller's
++// event loop, once the transaction holding the write has committed. Called
++// from a handler on an event-loop thread.
++
++repo_create_later :: proc(name, email: string, role: models.Role, status: models.Status, score: int, notes: string, notify: bool, user: rawptr, done: Write_Done) {
++	enqueue(.Create, 0, {name = name, email = email, role = role, status = status, score = score, notes = notes, notify = notify}, user, done)
++}
++
++repo_update_later :: proc(id: int, name, email: string, role: models.Role, status: models.Status, score: int, user: rawptr, done: Write_Done) {
++	enqueue(.Update, id, {name = name, email = email, role = role, status = status, score = score}, user, done)
++}
++
++repo_cycle_status_later :: proc(id: int, user: rawptr, done: Write_Done) {
++	enqueue(.Cycle, id, {}, user, done)
++}
++
++repo_delete_later :: proc(id: int, user: rawptr, done: Write_Done) {
++	enqueue(.Delete, id, {}, user, done)
++}
++
++// ---- lifecycle (repo_open / repo_close) ----------------------------------
++
++@(private)
++writer_start :: proc() {
++	writer_logger = context.logger
++	queue.stopping = false
++	writer = thread.create(writer_main)
++	thread.start(writer)
++}
++
++// Called after the server loop returns, so nothing queues behind it; the writes
++// still queued run first.
++@(private)
++writer_stop :: proc() {
++	if writer == nil {
++		return
++	}
++	sync.mutex_lock(&queue.lock)
++	queue.stopping = true
++	sync.mutex_unlock(&queue.lock)
++	sync.cond_signal(&queue.cond)
++	thread.join(writer)
++	thread.destroy(writer)
++	writer = nil
++}
++
++// ---- internals -----------------------------------------------------------
++
++@(private = "file")
++enqueue :: proc(kind: Write_Kind, id: int, args: models.Contact, user: rawptr, done: Write_Done) {
++	heap := runtime.heap_allocator()
++	wr := new(Write, heap)
++	wr^ = {
++		kind  = kind,
++		id    = id,
++		args  = args,
++		loop  = nbio.current_thread_event_loop(),
++		arena = context.temp_allocator,
++		user  = user,
++		done  = done,
++	}
++	wr.args.name = strings.clone(args.name, heap)
++	wr.args.email = strings.clone(args.email, heap)
++	wr.args.notes = strings.clone(args.notes, heap)
++
++	sync.mutex_lock(&queue.lock)
++	if queue.tail == nil {
++		queue.head = wr
++	} else {
++		queue.tail.next = wr
++	}
++	queue.tail = wr
++	wake := queue.sleeping
++	queue.sleeping = false
++	sync.mutex_unlock(&queue.lock)
++	if wake {
++		sync.cond_signal(&queue.cond)
++	}
++}
++
++@(private = "file")
++writer_main :: proc(_: ^thread.Thread) {
++	context.logger = writer_logger
++	for {
++		sync.mutex_lock(&queue.lock)
++		for queue.head == nil && !queue.stopping {
++			queue.sleeping = true
++			sync.cond_wait(&queue.cond, &queue.lock)
++		}
++		batch := queue.head
++		if batch == nil {
++			// stopping, and nothing left
++			sync.mutex_unlock(&queue.lock)
++			return
++		}
++		last := batch
++		for n := 1; n < MAX_BATCH && last.next != nil; n += 1 {
++			last = last.next
++		}
++		queue.head = last.next
++		if queue.head == nil {
++			queue.tail = nil
++		}
++		last.next = nil
++		sync.mutex_unlock(&queue.lock)
++
++		commit_batch(batch)
++		reply(batch)
++	}
++}
++
++// Runs every write of the batch in one transaction. A write that fails on its
++// own (a constraint, a missing row) fails alone: SQLite undoes that one
++// statement and the transaction goes on. When the transaction itself is lost
++// (BEGIN or COMMIT fails, or an error rolls it back), every write in it fails.
++@(private)
++commit_batch :: proc(batch: ^Write) {
++	// The read-backs are handed to other threads, so they go on the heap.
++	context.temp_allocator = runtime.heap_allocator()
++	sync.guard(&wlock)
++	ok := sqlite.exec(db, "BEGIN IMMEDIATE;", nil, nil, nil) == sqlite.OK
++	for wr := batch; ok && wr != nil; wr = wr.next {
++		wr.row, wr.err = apply(wr)
++		ok = sqlite.get_autocommit(db) == 0 // still inside the transaction
++	}
++	if ok && sqlite.exec(db, "COMMIT;", nil, nil, nil) == sqlite.OK {
++		return
++	}
++	log.errorf("store: a batch of writes failed: %s", sqlite.errmsg(db))
++	if sqlite.get_autocommit(db) == 0 {
++		sqlite.exec(db, "ROLLBACK;", nil, nil, nil)
++	}
++	for wr := batch; wr != nil; wr = wr.next {
++		wr.err = .Failed
++	}
++}
++
++@(private = "file")
++apply :: proc(wr: ^Write) -> (models.Contact, Error) {
++	a := wr.args
++	switch wr.kind {
++	case .Create:
++		return create_get_unlocked(a.name, a.email, a.role, a.status, a.score, a.notes, a.notify)
++	case .Update:
++		return update_unlocked(wr.id, a.name, a.email, a.role, a.status, a.score)
++	case .Cycle:
++		return cycle_unlocked(wr.id)
++	case .Delete:
++		return {}, delete_unlocked(wr.id)
++	}
++	return {}, .Failed
++}
++
++// Each loop gets its writes back in one next_tick, in the order they queued.
++@(private = "file")
++reply :: proc(batch: ^Write) {
++	link :: proc(head, tail: ^^Write, wr: ^Write) {
++		if tail^ == nil {
++			head^ = wr
++		} else {
++			tail^.next = wr
++		}
++		tail^ = wr
++	}
++	rest := batch
++	for rest != nil {
++		loop := rest.loop
++		mine, mine_tail, others, others_tail: ^Write
++		for wr := rest; wr != nil; {
++			next := wr.next
++			wr.next = nil
++			if wr.loop == loop {
++				link(&mine, &mine_tail, wr)
++			} else {
++				link(&others, &others_tail, wr)
++			}
++			wr = next
++		}
++		nbio.next_tick_poly(mine, deliver, l = loop)
++		rest = others
++	}
++}
++
++// On the loop that queued the writes: each continuation runs with its request's
++// temp allocator, and gets its row cloned into it.
++@(private = "file")
++deliver :: proc(_: ^nbio.Operation, list: ^Write) {
++	for wr := list; wr != nil; {
++		next := wr.next
++		context.temp_allocator = wr.arena
++		row := wr.row
++		row.name = strings.clone(row.name, wr.arena)
++		row.email = strings.clone(row.email, wr.arena)
++		row.notes = strings.clone(row.notes, wr.arena)
++		wr.done(wr.user, row, wr.err)
++		free_write(wr)
++		wr = next
++	}
++}
++
++@(private)
++free_write :: proc(wr: ^Write) {
++	heap := runtime.heap_allocator()
++	for s in ([]string{wr.args.name, wr.args.email, wr.args.notes, wr.row.name, wr.row.email, wr.row.notes}) {
++		delete(s, heap)
++	}
++	free(wr, heap)
++}
+diff --git a/app/src/services/services.odin b/app/src/services/services.odin
+index 733f2fa..e1c3f70 100644
+--- a/app/src/services/services.odin
++++ b/app/src/services/services.odin
+@@ -203,6 +203,42 @@ delete_contact :: proc(id: int) -> Store_Error {
+ 	return repository.repo_delete(id)
+ }
+ 
++// ---- contacts: writes answered later --------------------------------------
++//
++// The same four writes, validated the same way, but queued for the store's
++// writer task (repository/writer.odin), which commits concurrent writes
++// together: `done` runs later on this event loop, after the commit, with the
++// stored row. Refused input still comes back at once, and nothing is queued.
++
++Write_Done :: repository.Write_Done
++
++create_contact_later :: proc(name, email: string, role: models.Role, status: models.Status, score: int, notes: string, notify: bool, user: rawptr, done: Write_Done) -> []Field_Error {
++	if errs := validate_contact(name, email, notes); len(errs) > 0 {
++		return errs
++	}
++	repository.repo_create_later(strings.trim_space(name), strings.trim_space(email), role, status, clamp(score, 0, 100), strings.trim_space(notes), notify, user, done)
++	return nil
++}
++
++// Rejected input comes back with the stored contact, unchanged, as from
++// update_contact; then `done` never runs.
++update_contact_later :: proc(id: int, name, email: string, role: models.Role, status: models.Status, score: int, user: rawptr, done: Write_Done) -> (c: models.Contact, errs: []Field_Error, err: Store_Error) {
++	if errs = validate_contact(name, email); len(errs) > 0 {
++		c, err = repository.repo_get(id)
++		return
++	}
++	repository.repo_update_later(id, strings.trim_space(name), strings.trim_space(email), role, status, clamp(score, 0, 100), user, done)
++	return
++}
++
++cycle_status_later :: proc(id: int, user: rawptr, done: Write_Done) {
++	repository.repo_cycle_status_later(id, user, done)
++}
++
++delete_contact_later :: proc(id: int, user: rawptr, done: Write_Done) {
++	repository.repo_delete_later(id, user, done)
++}
++
+ // ---- dashboard ----------------------------------------------------------
+ 
+ // The dashboard's cards: counts, shares and spreads, all from one aggregate
+diff --git a/app/src/sqlite/sqlite.odin b/app/src/sqlite/sqlite.odin
+index 39b290b..4c60258 100644
+--- a/app/src/sqlite/sqlite.odin
++++ b/app/src/sqlite/sqlite.odin
+@@ -101,4 +101,5 @@ foreign lib {
+ 	db_handle :: proc(stmt: Stmt) -> DB --- // the connection a statement belongs to
+ 	stmt_status :: proc(stmt: Stmt, op: c.int, reset_counter: c.int) -> c.int ---
+ 	sql :: proc(stmt: Stmt) -> cstring --- // the text it was prepared from
++	get_autocommit :: proc(db: DB) -> c.int --- // 0 inside a transaction; nonzero once an error rolled it back
+ }

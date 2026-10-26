@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 02:30:41 +0200
+Subject: [PATCH] perf(repository): candidate B: the ephemeral file unsynced,
+ on tmpfs on Linux
+
+S0.4 candidate B (PLAN 11.3; D17): MEMMODE=ephemeral (the default) sets
+synchronous=OFF on its temp file, since nothing in it outlives the
+process; under WAL that drops only the checkpoint's sync, as NORMAL
+never syncs a commit. On Linux the file goes to /dev/shm when it exists,
+so its pages never reach a disk. A file DB is unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ app/src/repository/db.odin | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/app/src/repository/db.odin b/app/src/repository/db.odin
+index 257b6de..34bf806 100644
+--- a/app/src/repository/db.odin
++++ b/app/src/repository/db.odin
+@@ -101,6 +101,11 @@ db_open :: proc(path: string, mode := Mem_Mode.Ephemeral) {
+ 	exec("PRAGMA foreign_keys=ON;") // ON DELETE CASCADE and friends are off without it
+ 	exec("PRAGMA synchronous=NORMAL;") // safe under WAL, much faster than FULL
+ 	exec("PRAGMA journal_size_limit=67108864;") // 64 MiB: what a checkpoint leaves of the WAL file
++	if temp_path != "" {
++		// Nothing outlives the process, so nothing needs a sync: with WAL, NORMAL
++		// syncs only at a checkpoint, and OFF drops that too.
++		exec("PRAGMA synchronous=OFF;")
++	}
+ 	register_functions(db)
+ 	w.db = db
+ }
+@@ -172,8 +177,14 @@ ephemeral_path :: proc() -> string {
+ 	return path
+ }
+ 
++// On Linux a tmpfs (/dev/shm) when there is one, so the file never reaches a disk.
+ @(private = "file")
+ ephemeral_dir :: proc() -> string {
++	when ODIN_OS == .Linux {
++		if os.is_dir("/dev/shm") {
++			return "/dev/shm"
++		}
++	}
+ 	dir, err := os.temp_directory(context.temp_allocator)
+ 	if err != nil || dir == "" {
+ 		return "."

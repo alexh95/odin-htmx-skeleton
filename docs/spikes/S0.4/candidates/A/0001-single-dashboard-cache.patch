@@ -1,0 +1,157 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 02:30:21 +0200
+Subject: [PATCH] feat(repository): candidate A: single by default, the
+ dashboard cached 1 s
+
+S0.4 candidate A (PLAN 11.3; D17): DB_PATH=":memory:" defaults to
+MEMMODE=single (one in-RAM connection, QPSG, the sort indexes), and the
+dashboard's GROUP BY aggregate is reused for one second, because in
+single mode it sorts the table under the writer's lock that every other
+request waits on. The dashboard can lag a write by up to that second.
+MEMMODE=ephemeral still selects v3's WAL temp file.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ app/src/main.odin                | 14 ++++++------
+ app/src/repository/contacts.odin | 39 ++++++++++++++++++++++++++++++++
+ app/src/repository/db_test.odin  | 25 ++++++++++++++++++++
+ app/src/repository/repo.odin     |  1 +
+ 4 files changed, 72 insertions(+), 7 deletions(-)
+
+diff --git a/app/src/main.odin b/app/src/main.odin
+index d471681..e3f803b 100644
+--- a/app/src/main.odin
++++ b/app/src/main.odin
+@@ -87,14 +87,14 @@ main :: proc() {
+ 	}
+ 	controllers.canonical_redirect = !controllers.placeholder_origin(views.SITE_URL)
+ 
+-	// MEMMODE picks how ":memory:" is served (repository.Mem_Mode): `ephemeral`,
+-	// a WAL temp file read by every loop at once, or `single`, one in-RAM
+-	// connection whose reads queue on the writer's lock.
+-	mem_mode := repository.Mem_Mode.Ephemeral
++	// MEMMODE picks how ":memory:" is served (repository.Mem_Mode): `single`, one
++	// in-RAM connection whose reads queue on the writer's lock (this build's
++	// default), or `ephemeral`, a WAL temp file read by every loop at once.
++	mem_mode := repository.Mem_Mode.Single
+ 	switch v, _ := os.lookup_env(env[:], "MEMMODE"); v {
+-	case "single":
+-		mem_mode = .Single
+-	case "", "ephemeral":
++	case "ephemeral":
++		mem_mode = .Ephemeral
++	case "", "single":
+ 	case:
+ 		fmt.eprintfln("MEMMODE=%s: expected ephemeral or single", v)
+ 		os.exit(2)
+diff --git a/app/src/repository/contacts.odin b/app/src/repository/contacts.odin
+index 84682ac..3c9bbe3 100644
+--- a/app/src/repository/contacts.odin
++++ b/app/src/repository/contacts.odin
+@@ -8,6 +8,7 @@ import "core:fmt"
+ import "core:slice"
+ import "core:strings"
+ import "core:sync"
++import "core:time"
+ 
+ // ---- contacts table -----------------------------------------------------
+ //
+@@ -214,8 +215,46 @@ repo_delete :: proc(id: int) -> Error {
+ 	return delete_unlocked(id)
+ }
+ 
++// ---- the dashboard aggregate, cached ------------------------------------
++//
++// The GROUP BY behind the dashboard sorts the whole table, and in Single mode it
++// does so under the writer's lock, which every other request then waits on. Its
++// answer is reused for STATS_TTL, so the dashboard can lag the table by that long.
++
++STATS_TTL :: time.Second
++
++@(private = "file") stats_cache: struct {
++	lock:  sync.Mutex,
++	valid: bool,
++	at:    time.Tick,
++	value: models.Contact_Stats,
++}
++
+ // Counts by status and role, the score spread per status, and the score sum.
+ repo_contact_stats :: proc() -> (models.Contact_Stats, Error) {
++	{
++		sync.guard(&stats_cache.lock)
++		if stats_cache.valid && time.tick_since(stats_cache.at) < STATS_TTL {
++			return stats_cache.value, .None
++		}
++	}
++	out, err := contact_stats()
++	if err == .None {
++		sync.guard(&stats_cache.lock)
++		stats_cache.valid, stats_cache.at, stats_cache.value = true, time.tick_now(), out
++	}
++	return out, err
++}
++
++// Drops the cached aggregate: a store opened again starts from its own table.
++@(private)
++forget_contact_stats :: proc() {
++	sync.guard(&stats_cache.lock)
++	stats_cache.valid = false
++}
++
++@(private = "file")
++contact_stats :: proc() -> (models.Contact_Stats, Error) {
+ 	r := read_begin();defer read_end(r)
+ 	st := r.contacts.q_stats
+ 	defer sqlite.reset(st)
+diff --git a/app/src/repository/db_test.odin b/app/src/repository/db_test.odin
+index f0cce76..94cf1a7 100644
+--- a/app/src/repository/db_test.odin
++++ b/app/src/repository/db_test.odin
+@@ -1,5 +1,6 @@
+ package repository
+ 
++import "../models"
+ import "../sqlite"
+ 
+ import "core:fmt"
+@@ -223,3 +224,27 @@ every_page_reads_its_sort_index :: proc(t: ^testing.T) {
+ 		}
+ 	}
+ }
++
++// The dashboard's aggregate is reused for STATS_TTL: a write inside that window
++// is not in it yet, and is once the cache has gone.
++@(test)
++the_dashboard_aggregate_is_cached :: proc(t: ^testing.T) {
++	sync.guard(&serial)
++	repo_open(":memory:", .Single)
++	defer repo_close()
++	repo_seed()
++	total :: proc(s: models.Contact_Stats) -> (n: int) {
++		for k in s.by_status {
++			n += k
++		}
++		return
++	}
++	before, _ := repo_contact_stats()
++	_, err := repo_create("Cache Probe", "cache.probe@example.dev", .Sales, .Active, 40, "", false)
++	testing.expect_value(t, err, Error.None)
++	cached, _ := repo_contact_stats()
++	testing.expect_value(t, total(cached), total(before))
++	forget_contact_stats()
++	fresh, _ := repo_contact_stats()
++	testing.expect_value(t, total(fresh), total(before) + 1)
++}
+diff --git a/app/src/repository/repo.odin b/app/src/repository/repo.odin
+index 31a40bf..5b416d2 100644
+--- a/app/src/repository/repo.odin
++++ b/app/src/repository/repo.odin
+@@ -46,6 +46,7 @@ finalize_reads :: proc(r: ^Conn) {
+ 
+ repo_open :: proc(path: string, mode := Mem_Mode.Ephemeral) {
+ 	db_open(path, mode)
++	forget_contact_stats()
+ 	migrate(MIGRATIONS[:])
+ 	prepare_contacts()
+ 	prepare_events()

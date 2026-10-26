@@ -1000,9 +1000,12 @@ without a context; digest critic). Unlocking and continuing after a dirty trap (
   read-only connection per nbio loop, opened lazily through `@(thread_local)`; `SQLITE_DBCONFIG_ENABLE_QPSG` (1007)
   on every connection before any prepare; WAL, `synchronous=NORMAL`, `journal_size_limit=64 MiB`, `busy_timeout`
   5000.
-- **The writer task**: a dedicated thread with a bounded queue that commits every 10 ms or every 100 items (chat
-  messages, receipts, notifications, audit rows), then runs each write's continuation on its originating loop, with
-  one `next_tick` per loop per batch (12 §3.1: 56–59k msgs/s batched 10 per transaction against 18–19k autocommit).
+- **The writer task**: a dedicated thread with a bounded queue that commits whatever is queued as soon as it is free,
+  up to 100 items per transaction (chat messages, receipts, notifications, audit rows, and the skeleton's request
+  writes, S0.4's candidate C), so writes that arrive during a commit form the next batch; then it runs each write's
+  continuation on its originating loop, with one `next_tick` per loop per batch (12 §3.1: 56–59k msgs/s batched 10 per
+  transaction against 18–19k autocommit). It has no timer: a fixed 10 ms tick, the first design, would add up to 10 ms
+  to every request write against a p99 bar near 16 ms (S0.4).
   The continuation is the caller's own next step (`Store_Insert` carries it; the memory family calls it at once): on
   the web side it publishes the persisted topic and responds, so `store/sqlite` never imports `hub` (LC §8).
 - **A 2-thread query pool** for anything that scans, ranks, exports, backs up or can hit a budget (bm25, dbview,
@@ -1063,11 +1066,13 @@ loops, 200 VUs, against v1.1.1):
 
 So spike **S0.4** decides before M1, measuring every cell with the sort indexes installed (they add write cost).
 Candidates:
-- **A**: `single` + QPSG + sort indexes + a dashboard aggregate cached for 1 s (12 §2.1, §9).
-- **B**: `ephemeral` + sort indexes + `synchronous=OFF` on the ephemeral file (durability means nothing there) + the
-  temp file on tmpfs (`/dev/shm`) on Linux (NEW, UNVERIFIED).
-- **C**: B + group commit of concurrent skeleton writes through the writer task, so the write handler answers on
-  `next_tick` after the batch commits (NEW, UNVERIFIED).
+- **A**: `single` + QPSG + sort indexes + a dashboard aggregate cached for 1 s (12 §2.1, §9); the cache makes the
+  dashboard lag a write by up to 1 s (S0.4).
+- **B**: `ephemeral` + sort indexes + the temp file on tmpfs (`/dev/shm`) on Linux, unsynced; on Windows B is v3 with
+  the sort indexes, since research 12's ephemeral file already ran unsynced and WAL's `NORMAL` never syncs a commit
+  (S0.4).
+- **C**: B + group commit of concurrent skeleton writes through the writer task (D16), each write handler answering
+  through F-13's deferred response after its batch commits (S0.4).
 
 The first candidate that passes every `:memory:` cell under D38's rule on both legs becomes the `skeleton` profile's
 default. If none does, Q6 applies. The `write@mem` target is v1.1.1's 38,908 rps, not HEAD's 36,172. The file-DB

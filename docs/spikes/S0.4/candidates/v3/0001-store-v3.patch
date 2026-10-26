@@ -1,0 +1,973 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 02:28:51 +0200
+Subject: [PATCH] feat(repository): store v3: per-loop readers, QPSG and
+ MEMMODE
+
+One writer connection under wlock, and one read-only connection per
+event-loop thread, opened lazily through a thread_local. Every connection
+turns SQLITE_DBCONFIG_ENABLE_QPSG on before it prepares anything, so a
+bound LIMIT/OFFSET no longer re-prepares the page statement on each call.
+The writer keeps WAL, synchronous=NORMAL and busy_timeout, and adds
+journal_size_limit=64 MiB. A write reads its row back on the writer under
+wlock, so a client sees exactly what it wrote.
+
+DB_PATH=":memory:" is served in one of two modes, MEMMODE: ephemeral
+(default), a WAL database in a temp file deleted on close and swept at
+the next boot if the process died; or single, one in-RAM connection
+whose reads take the writer's lock.
+
+Tests: a reader thread sees the writer's commits on its own connection;
+1000 pages with changing bound LIMIT/OFFSET re-prepare 0 times in both
+modes (the PLAN 18.2 micro-guard).
+
+Spike S0.4 (docs/spikes/S0.4.md), base of candidates A, B and C.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ app/src/main.odin                |  21 ++-
+ app/src/repository/contacts.odin | 213 ++++++++++++++++-----------
+ app/src/repository/db.odin       | 243 +++++++++++++++++++++++++++----
+ app/src/repository/db_test.odin  |  61 ++++++++
+ app/src/repository/events.odin   |  27 +++-
+ app/src/repository/repo.odin     |  32 +++-
+ app/src/sqlite/sqlite.odin       |  15 ++
+ 7 files changed, 488 insertions(+), 124 deletions(-)
+
+diff --git a/app/src/main.odin b/app/src/main.odin
+index 6d10b46..d471681 100644
+--- a/app/src/main.odin
++++ b/app/src/main.odin
+@@ -87,7 +87,20 @@ main :: proc() {
+ 	}
+ 	controllers.canonical_redirect = !controllers.placeholder_origin(views.SITE_URL)
+ 
+-	repository.repo_open(db_path)
++	// MEMMODE picks how ":memory:" is served (repository.Mem_Mode): `ephemeral`,
++	// a WAL temp file read by every loop at once, or `single`, one in-RAM
++	// connection whose reads queue on the writer's lock.
++	mem_mode := repository.Mem_Mode.Ephemeral
++	switch v, _ := os.lookup_env(env[:], "MEMMODE"); v {
++	case "single":
++		mem_mode = .Single
++	case "", "ephemeral":
++	case:
++		fmt.eprintfln("MEMMODE=%s: expected ephemeral or single", v)
++		os.exit(2)
++	}
++
++	repository.repo_open(db_path, mem_mode)
+ 	defer repository.repo_close() // runs after the server loop returns (clean shutdown)
+ 	if seed, _ := os.lookup_env(env[:], "SEED"); db_path == ":memory:" || seed == "1" {
+ 		repository.repo_seed()
+@@ -103,8 +116,8 @@ main :: proc() {
+ 	s: http.Server
+ 	http.server_shutdown_on_interrupt(&s)
+ 
+-	// N event-loop threads, one per core by default; the store is guarded by an
+-	// RW_Mutex (see repository/db.odin) so handlers can run concurrently. THREADS
++	// N event-loop threads, one per core by default; each reads on its own
++	// connection (see repository/db.odin) so handlers run concurrently. THREADS
+ 	// overrides the count — load-tests sweep it (THREADS=1 reproduces the old
+ 	// single-thread baseline against the same binary).
+ 	opts := http.Default_Server_Opts
+@@ -127,7 +140,7 @@ main :: proc() {
+ 	}
+ 
+ 	fmt.printfln("odin-htmx-skeleton listening on http://%s:%d (%d threads)", host, port, opts.thread_count)
+-	log.infof("version %s, store %s, site %s", controllers.VERSION, db_path, views.SITE_URL)
++	log.infof("version %s, store %s%s, site %s", controllers.VERSION, db_path, db_path == ":memory:" ? fmt.tprintf(" (%v)", mem_mode) : "", views.SITE_URL)
+ 	routes := http.router_handler(&router)
+ 	if err := http.listen_and_serve(&s, http.middleware_proc(&routes, controllers.front), endpoint, opts); err != nil {
+ 		fmt.eprintfln("server error: %v", err)
+diff --git a/app/src/repository/contacts.odin b/app/src/repository/contacts.odin
+index 6c7b9d6..84682ac 100644
+--- a/app/src/repository/contacts.odin
++++ b/app/src/repository/contacts.odin
+@@ -18,11 +18,18 @@ import "core:sync"
+ // rows asked for are copied out: the cost of a request follows the page size,
+ // not the table. (Loading the whole table into Odin to do it took a 20k-row
+ // table to ~100-260 ms a request, under the global lock.)
++//
++// The writes' statements live on the writer only. Every read statement is
++// prepared once per connection (Contacts_Read, in Conn): on each loop's reader,
++// and on the writer for the read-back after a write.
++
++@(private = "file") q_create, q_update, q_cycle, q_delete: sqlite.Stmt
+ 
+-@(private = "file") q_get, q_create, q_update, q_cycle, q_delete, q_count, q_stats: sqlite.Stmt
+-@(private = "file") q_match, q_filter_count, q_related: sqlite.Stmt
+-// One prepared statement per sort key and direction: ORDER BY can't be bound.
+-@(private = "file") q_page: [Contact_Sort][2]sqlite.Stmt
++Contacts_Read :: struct {
++	q_get, q_count, q_stats, q_match, q_filter_count, q_related: sqlite.Stmt,
++	// One prepared statement per sort key and direction: ORDER BY can't be bound.
++	q_page: [Contact_Sort][2]sqlite.Stmt,
++}
+ 
+ @(private = "file") COLUMNS :: "id,name,email,role,status,score,notes,notify"
+ @(private = "file") SQL_GET: cstring : "SELECT " + COLUMNS + " FROM contacts WHERE id=? LIMIT 1"
+@@ -63,27 +70,38 @@ Contact_Sort :: enum {
+ 
+ @(private)
+ prepare_contacts :: proc() {
+-	prep(SQL_GET, &q_get)
+ 	prep(SQL_CREATE, &q_create);prep(SQL_UPDATE, &q_update)
+ 	prep(SQL_CYCLE, &q_cycle);prep(SQL_DELETE, &q_delete)
+-	prep(SQL_COUNT, &q_count);prep(SQL_STATS, &q_stats)
+-	prep(SQL_MATCH, &q_match);prep(SQL_FILTER_COUNT, &q_filter_count);prep(SQL_RELATED, &q_related)
+-	for &by_dir, key in q_page {
++}
++
++@(private)
++finalize_contacts :: proc() {
++	for st in ([]sqlite.Stmt{q_create, q_update, q_cycle, q_delete}) {
++		sqlite.finalize(st)
++	}
++}
++
++@(private)
++prepare_contacts_read :: proc(conn: sqlite.DB, r: ^Contacts_Read) {
++	prep_on(conn, SQL_GET, &r.q_get)
++	prep_on(conn, SQL_COUNT, &r.q_count);prep_on(conn, SQL_STATS, &r.q_stats)
++	prep_on(conn, SQL_MATCH, &r.q_match);prep_on(conn, SQL_FILTER_COUNT, &r.q_filter_count);prep_on(conn, SQL_RELATED, &r.q_related)
++	for &by_dir, key in r.q_page {
+ 		for &st, desc in by_dir {
+ 			// id breaks ties, so a page boundary never splits equal rows unpredictably.
+ 			dir := desc == 1 ? "DESC" : "ASC"
+ 			sql := fmt.tprintf("SELECT %s FROM contacts %s ORDER BY %s %s, id %s LIMIT ?5 OFFSET ?6", COLUMNS, WHERE, order_by(key), dir, dir)
+-			prep(csql(sql), &st)
++			prep_on(conn, csql(sql), &st)
+ 		}
+ 	}
+ }
+ 
+ @(private)
+-finalize_contacts :: proc() {
+-	for st in ([]sqlite.Stmt{q_get, q_create, q_update, q_cycle, q_delete, q_count, q_stats, q_match, q_filter_count, q_related}) {
++finalize_contacts_read :: proc(r: ^Contacts_Read) {
++	for st in ([]sqlite.Stmt{r.q_get, r.q_count, r.q_stats, r.q_match, r.q_filter_count, r.q_related}) {
+ 		sqlite.finalize(st)
+ 	}
+-	for by_dir in q_page {
++	for by_dir in r.q_page {
+ 		for st in by_dir {
+ 			sqlite.finalize(st)
+ 		}
+@@ -129,8 +147,8 @@ order_by :: proc(key: Contact_Sort) -> string {
+ 
+ // One page of the filtered table, sorted by key, and how many rows match.
+ repo_page :: proc(f: Contact_Filter, key: Contact_Sort, desc: bool, limit, offset: int) -> (rows: []models.Contact, err: Error) {
+-	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+-	st := q_page[key][desc ? 1 : 0]
++	r := read_begin();defer read_end(r)
++	st := r.contacts.q_page[key][desc ? 1 : 0]
+ 	defer sqlite.reset(st)
+ 	bind_filter(st, f)
+ 	sqlite.bind_int64(st, 5, i64(limit));sqlite.bind_int64(st, 6, i64(offset))
+@@ -138,107 +156,84 @@ repo_page :: proc(f: Contact_Filter, key: Contact_Sort, desc: bool, limit, offse
+ }
+ 
+ repo_filter_count :: proc(f: Contact_Filter) -> (int, Error) {
+-	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+-	defer sqlite.reset(q_filter_count)
+-	bind_filter(q_filter_count, f)
++	r := read_begin();defer read_end(r)
++	st := r.contacts.q_filter_count
++	defer sqlite.reset(st)
++	bind_filter(st, f)
+ 	err: Error
+-	if next_row(q_filter_count, &err) {
+-		return int(sqlite.column_int64(q_filter_count, 0)), .None
++	if next_row(st, &err) {
++		return int(sqlite.column_int64(st, 0)), .None
+ 	}
+ 	return 0, err
+ }
+ 
+ // The first `limit` matches in id order: the search dropdown and the JSON API.
+ repo_match :: proc(f: Contact_Filter, limit: int) -> ([]models.Contact, Error) {
+-	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+-	defer sqlite.reset(q_match)
+-	bind_filter(q_match, f)
+-	sqlite.bind_int64(q_match, 5, i64(limit))
+-	return collect(q_match)
++	r := read_begin();defer read_end(r)
++	st := r.contacts.q_match
++	defer sqlite.reset(st)
++	bind_filter(st, f)
++	sqlite.bind_int64(st, 5, i64(limit))
++	return collect(st)
+ }
+ 
+ // Others with the same role as contact `id`, in id order.
+ repo_related :: proc(id: int, role: models.Role, limit: int) -> ([]models.Contact, Error) {
+-	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+-	defer sqlite.reset(q_related)
+-	sqlite.bind_int(q_related, 1, c.int(role));bind_id(q_related, 2, id)
+-	sqlite.bind_int64(q_related, 3, i64(limit))
+-	return collect(q_related)
++	r := read_begin();defer read_end(r)
++	st := r.contacts.q_related
++	defer sqlite.reset(st)
++	sqlite.bind_int(st, 1, c.int(role));bind_id(st, 2, id)
++	sqlite.bind_int64(st, 3, i64(limit))
++	return collect(st)
+ }
+ 
+ repo_get :: proc(id: int) -> (models.Contact, Error) {
+-	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+-	return get_unlocked(id)
++	r := read_begin();defer read_end(r)
++	return get_on(r, id)
+ }
+ 
+ repo_create :: proc(name, email: string, role: models.Role, status: models.Status, score: int, notes: string, notify: bool) -> (models.Contact, Error) {
+-	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+-	id, err := create_unlocked(name, email, role, status, score, notes, notify)
+-	if err != .None {
+-		return {}, err
+-	}
+-	return get_unlocked(id) // read back as the temp-cloned snapshot, atomically
++	sync.guard(&wlock)
++	return create_get_unlocked(name, email, role, status, score, notes, notify)
+ }
+ 
+ repo_update :: proc(id: int, name, email: string, role: models.Role, status: models.Status, score: int) -> (models.Contact, Error) {
+-	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+-	defer sqlite.reset(q_update)
+-	bind_text(q_update, 1, name);bind_text(q_update, 2, email)
+-	sqlite.bind_int(q_update, 3, c.int(role));sqlite.bind_int(q_update, 4, c.int(status))
+-	sqlite.bind_int(q_update, 5, c.int(score));bind_id(q_update, 6, id)
+-	if err := step_done(q_update); err != .None {
+-		return {}, err
+-	}
+-	if sqlite.changes(db) == 0 {
+-		return {}, .Not_Found
+-	}
+-	return get_unlocked(id)
++	sync.guard(&wlock)
++	return update_unlocked(id, name, email, role, status, score)
+ }
+ 
+ // Advance the status one step round the cycle (Active → Invited → Disabled → …).
+ repo_cycle_status :: proc(id: int) -> (models.Contact, Error) {
+-	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+-	defer sqlite.reset(q_cycle)
+-	bind_id(q_cycle, 1, id);sqlite.bind_int(q_cycle, 2, c.int(len(models.Status)))
+-	if err := step_done(q_cycle); err != .None {
+-		return {}, err
+-	}
+-	if sqlite.changes(db) == 0 {
+-		return {}, .Not_Found
+-	}
+-	return get_unlocked(id)
++	sync.guard(&wlock)
++	return cycle_unlocked(id)
+ }
+ 
+ // Deleting a contact cascades to its events (events.*_id ON DELETE CASCADE).
+ repo_delete :: proc(id: int) -> Error {
+-	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+-	defer sqlite.reset(q_delete)
+-	bind_id(q_delete, 1, id)
+-	if err := step_done(q_delete); err != .None {
+-		return err
+-	}
+-	return sqlite.changes(db) > 0 ? .None : .Not_Found
++	sync.guard(&wlock)
++	return delete_unlocked(id)
+ }
+ 
+ // Counts by status and role, the score spread per status, and the score sum.
+ repo_contact_stats :: proc() -> (models.Contact_Stats, Error) {
+-	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+-	defer sqlite.reset(q_stats)
+-	sqlite.bind_int(q_stats, 1, models.SCORE_BANDS)
++	r := read_begin();defer read_end(r)
++	st := r.contacts.q_stats
++	defer sqlite.reset(st)
++	sqlite.bind_int(st, 1, models.SCORE_BANDS)
+ 	out: models.Contact_Stats
+ 	err: Error
+-	for next_row(q_stats, &err) {
+-		status := int(sqlite.column_int(q_stats, 0))
+-		role := int(sqlite.column_int(q_stats, 1))
+-		band := clamp(int(sqlite.column_int(q_stats, 2)), 0, models.SCORE_BANDS - 1)
+-		n := int(sqlite.column_int64(q_stats, 3))
++	for next_row(st, &err) {
++		status := int(sqlite.column_int(st, 0))
++		role := int(sqlite.column_int(st, 1))
++		band := clamp(int(sqlite.column_int(st, 2)), 0, models.SCORE_BANDS - 1)
++		n := int(sqlite.column_int64(st, 3))
+ 		if status < 0 || status >= len(models.Status) || role < 0 || role >= len(models.Role) {
+ 			continue // a row from a newer enum than this binary; skip, don't index past the end
+ 		}
+ 		out.by_status[models.Status(status)] += n
+ 		out.by_role[models.Role(role)] += n
+ 		out.by_score[models.Status(status)][band] += n
+-		out.score_sum += int(sqlite.column_int64(q_stats, 4))
++		out.score_sum += int(sqlite.column_int64(st, 4))
+ 	}
+ 	return out, err
+ }
+@@ -277,12 +272,13 @@ scan_contact :: proc(st: sqlite.Stmt) -> models.Contact {
+ }
+ 
+ @(private = "file")
+-get_unlocked :: proc(id: int) -> (models.Contact, Error) {
+-	defer sqlite.reset(q_get)
+-	bind_id(q_get, 1, id)
++get_on :: proc(r: ^Conn, id: int) -> (models.Contact, Error) {
++	st := r.contacts.q_get
++	defer sqlite.reset(st)
++	bind_id(st, 1, id)
+ 	err: Error
+-	if next_row(q_get, &err) {
+-		return scan_contact(q_get), .None
++	if next_row(st, &err) {
++		return scan_contact(st), .None
+ 	}
+ 	return {}, err == .None ? .Not_Found : err
+ }
+@@ -300,12 +296,63 @@ create_unlocked :: proc(name, email: string, role: models.Role, status: models.S
+ 	return int(sqlite.last_insert_rowid(db)), .None
+ }
+ 
++// The writes, each one statement and then the read-back of its row on the
++// writer. The caller holds wlock.
++
++@(private)
++create_get_unlocked :: proc(name, email: string, role: models.Role, status: models.Status, score: int, notes: string, notify: bool) -> (models.Contact, Error) {
++	id, err := create_unlocked(name, email, role, status, score, notes, notify)
++	if err != .None {
++		return {}, err
++	}
++	return get_on(&w, id)
++}
++
++@(private)
++update_unlocked :: proc(id: int, name, email: string, role: models.Role, status: models.Status, score: int) -> (models.Contact, Error) {
++	defer sqlite.reset(q_update)
++	bind_text(q_update, 1, name);bind_text(q_update, 2, email)
++	sqlite.bind_int(q_update, 3, c.int(role));sqlite.bind_int(q_update, 4, c.int(status))
++	sqlite.bind_int(q_update, 5, c.int(score));bind_id(q_update, 6, id)
++	if err := step_done(q_update); err != .None {
++		return {}, err
++	}
++	if sqlite.changes(db) == 0 {
++		return {}, .Not_Found
++	}
++	return get_on(&w, id)
++}
++
++@(private)
++cycle_unlocked :: proc(id: int) -> (models.Contact, Error) {
++	defer sqlite.reset(q_cycle)
++	bind_id(q_cycle, 1, id);sqlite.bind_int(q_cycle, 2, c.int(len(models.Status)))
++	if err := step_done(q_cycle); err != .None {
++		return {}, err
++	}
++	if sqlite.changes(db) == 0 {
++		return {}, .Not_Found
++	}
++	return get_on(&w, id)
++}
++
++@(private)
++delete_unlocked :: proc(id: int) -> Error {
++	defer sqlite.reset(q_delete)
++	bind_id(q_delete, 1, id)
++	if err := step_done(q_delete); err != .None {
++		return err
++	}
++	return sqlite.changes(db) > 0 ? .None : .Not_Found
++}
++
+ // Package-visible to repo_seed (repo.odin); caller holds the lock.
+ @(private)
+ count_contacts :: proc() -> int {
+-	defer sqlite.reset(q_count)
+-	if sqlite.step(q_count) == sqlite.ROW {
+-		return int(sqlite.column_int(q_count, 0))
++	st := w.contacts.q_count
++	defer sqlite.reset(st)
++	if sqlite.step(st) == sqlite.ROW {
++		return int(sqlite.column_int(st, 0))
+ 	}
+ 	return 0
+ }
+diff --git a/app/src/repository/db.odin b/app/src/repository/db.odin
+index 5c0ff3a..257b6de 100644
+--- a/app/src/repository/db.odin
++++ b/app/src/repository/db.odin
+@@ -9,6 +9,7 @@ import "core:encoding/hex"
+ import "core:fmt"
+ import "core:log"
+ import "core:os"
++import "core:strconv"
+ import "core:strings"
+ import "core:sync"
+ import "core:unicode"
+@@ -22,22 +23,48 @@ import "core:unicode/utf8"
+ // app's own wiring — which migrations, which statements, the seed — lives in
+ // repo.odin, and each table in its own file.
+ //
+-// Backend is chosen by DB_PATH (see main): ":memory:" (the test/dev default — a
+-// real in-RAM SQLite, gone on exit) or a file that persists.
++// Backend is chosen by DB_PATH (see main): ":memory:" (the test/dev default,
++// gone on exit) or a file that persists.
+ //
+-// Concurrency v1: ONE shared connection, the RW_Mutex taken EXCLUSIVELY for every
+-// op — reads included. A single connection's prepared statements are shared
+-// mutable state (bound params + cursor), so two threads stepping them under a
+-// *shared* read lock would corrupt each other. Parallel reads come back when we
+-// move to per-thread WAL connections, deferred until the load tests demand it
+-// (docs/DATA_IMPL.md §4). The RW_Mutex type is kept for exactly that future.
++// Concurrency v3 (store v3): ONE writer connection, guarded by wlock, and one
++// read-only connection per event-loop thread, opened on that thread's first read
++// (a thread_local, so the server needs no thread hook). A loop runs its handlers
++// one at a time, so a reader's prepared statements are never stepped by two
++// callers at once and need no lock, and WAL lets every reader read while the
++// writer writes. A write reads its row back on the writer, under wlock, so a
++// client sees exactly what it wrote. Every connection turns QPSG on before it
++// prepares anything: a bound LIMIT then never re-prepares a statement.
++//
++// ":memory:" comes in two modes (Mem_Mode, MEMMODE in main). A plain in-RAM
++// database is private to the connection that opened it, and SQLite's ways of
++// sharing one (shared cache, memdb) serialise or starve readers, so:
++// - Ephemeral, the default: a WAL database in a temp file that this process
++//   deletes on close and the next boot sweeps if the process died. It runs
++//   the same code path as a file DB.
++// - Single: one in-RAM connection, and every read takes wlock (the v1 model).
+ //
+ // Allocator discipline: every string handed back is cloned into
+ // context.temp_allocator (clone_col), so nothing returned points into a statement
+ // buffer a later step/reset could invalidate.
+ 
+-@(private) db: sqlite.DB
+-@(private) lock: sync.RW_Mutex
++Mem_Mode :: enum {
++	Ephemeral,
++	Single,
++}
++
++@(private) db: sqlite.DB // the writer
++@(private) wlock: sync.Mutex // one writer at a time, with the read-back that follows its write
++@(private) w: Conn // the writer's read statements: read-backs, and every read in Single mode
++
++@(private = "file") shared_reads: bool // readers get their own connections (not Single)
++@(private = "file") open_path: cstring // what a reader opens
++@(private = "file") temp_path: string // Ephemeral: the file to delete on close
++@(private = "file") generation: int // bumped per db_open, so a thread drops a reader from an earlier one
++@(private = "file") readers: [dynamic]^Conn // every reader opened, closed by db_close
++@(private = "file") readers_lock: sync.Mutex
++
++@(thread_local, private = "file") tl_reader: ^Conn
++@(thread_local, private = "file") tl_generation: int
+ 
+ // What a store call can fail with, returned as a value for the layers above to
+ // branch on. The SQLite message itself goes to the log, not to the client.
+@@ -49,17 +76,153 @@ Error :: enum {
+ }
+ 
+ @(private)
+-db_open :: proc(path: string) {
+-	cpath := strings.clone_to_cstring(path, context.temp_allocator)
+-	if sqlite.open_v2(cpath, &db, sqlite.OPEN_READWRITE | sqlite.OPEN_CREATE, nil) != sqlite.OK {
++db_open :: proc(path: string, mode := Mem_Mode.Ephemeral) {
++	open := path
++	shared_reads = true
++	if path == ":memory:" {
++		switch mode {
++		case .Single:
++			shared_reads = false
++		case .Ephemeral:
++			temp_path = ephemeral_path()
++			open = temp_path
++		}
++	}
++	open_path = strings.clone_to_cstring(open)
++	generation += 1
++	readers = make([dynamic]^Conn, runtime.heap_allocator())
++	if sqlite.open_v2(open_path, &db, sqlite.OPEN_READWRITE | sqlite.OPEN_CREATE, nil) != sqlite.OK {
+ 		fatal("open")
+ 	}
+-	exec("PRAGMA journal_mode=WAL;") // many readers + one writer (a no-op on :memory:)
++	// Before any prepare: QPSG applies to the statements prepared after it.
++	sqlite.db_config(db, sqlite.DBCONFIG_ENABLE_QPSG, c.int(1), rawptr(nil))
++	exec("PRAGMA journal_mode=WAL;") // many readers + one writer (a no-op on a real :memory:)
+ 	exec("PRAGMA busy_timeout=5000;") // wait, don't fail, on a brief write lock
+ 	exec("PRAGMA foreign_keys=ON;") // ON DELETE CASCADE and friends are off without it
+ 	exec("PRAGMA synchronous=NORMAL;") // safe under WAL, much faster than FULL
+-	if sqlite.create_function_v2(db, "contains_ci", 2, sqlite.UTF8 | sqlite.DETERMINISTIC, nil, sql_contains_ci, nil, nil, nil) != sqlite.OK {
+-		fatal("create_function")
++	exec("PRAGMA journal_size_limit=67108864;") // 64 MiB: what a checkpoint leaves of the WAL file
++	register_functions(db)
++	w.db = db
++}
++
++@(private = "file")
++register_functions :: proc(conn: sqlite.DB) {
++	if sqlite.create_function_v2(conn, "contains_ci", 2, sqlite.UTF8 | sqlite.DETERMINISTIC, nil, sql_contains_ci, nil, nil, nil) != sqlite.OK {
++		fatal_on(conn, "create_function")
++	}
++}
++
++// The connection this thread reads on, and read_end to give it back. In Single
++// mode that is the writer, under its lock.
++@(private)
++read_begin :: proc() -> ^Conn {
++	if !shared_reads {
++		sync.mutex_lock(&wlock)
++		return &w
++	}
++	if tl_reader != nil && tl_generation == generation {
++		return tl_reader
++	}
++	return open_reader()
++}
++
++@(private)
++read_end :: proc(r: ^Conn) {
++	if !shared_reads {
++		sync.mutex_unlock(&wlock)
++	}
++}
++
++@(private = "file")
++open_reader :: proc() -> ^Conn {
++	r := new(Conn, runtime.heap_allocator())
++	if sqlite.open_v2(open_path, &r.db, sqlite.OPEN_READONLY | sqlite.OPEN_NOMUTEX, nil) != sqlite.OK {
++		fatal_on(r.db, "open (reader)")
++	}
++	sqlite.db_config(r.db, sqlite.DBCONFIG_ENABLE_QPSG, c.int(1), rawptr(nil))
++	sqlite.busy_timeout(r.db, 5000)
++	register_functions(r.db)
++	prepare_reads(r)
++	sync.guard(&readers_lock)
++	append(&readers, r)
++	tl_reader, tl_generation = r, generation
++	return r
++}
++
++// ---- ephemeral files ----------------------------------------------------
++//
++// <temp dir>/skel-mem-<pid>-<n>.db (and its -wal and -shm). A process killed
++// before it closes leaves them, so the first open of a boot deletes those of
++// processes that are gone.
++
++@(private = "file") EPHEMERAL_PREFIX :: "skel-mem-"
++@(private = "file") ephemeral_seq: int
++@(private = "file") swept: bool
++
++@(private = "file")
++ephemeral_path :: proc() -> string {
++	dir := ephemeral_dir()
++	if !swept {
++		swept = true
++		sweep_ephemeral(dir)
++	}
++	n := sync.atomic_add(&ephemeral_seq, 1)
++	path := fmt.aprintf("%s/%s%d-%d.db", dir, EPHEMERAL_PREFIX, os.get_pid(), n)
++	remove_db_files(path)
++	return path
++}
++
++@(private = "file")
++ephemeral_dir :: proc() -> string {
++	dir, err := os.temp_directory(context.temp_allocator)
++	if err != nil || dir == "" {
++		return "."
++	}
++	return dir
++}
++
++@(private = "file")
++sweep_ephemeral :: proc(dir: string) {
++	files, err := os.read_all_directory_by_path(dir, context.temp_allocator)
++	if err != nil {
++		return
++	}
++	for f in files {
++		if !strings.has_prefix(f.name, EPHEMERAL_PREFIX) {
++			continue
++		}
++		rest := f.name[len(EPHEMERAL_PREFIX):]
++		dash := strings.index_byte(rest, '-')
++		if dash <= 0 {
++			continue
++		}
++		pid, ok := strconv.parse_int(rest[:dash], 10)
++		if !ok || pid == os.get_pid() || process_alive(pid) {
++			continue
++		}
++		os.remove(f.fullpath)
++	}
++}
++
++// Whether a process with this id runs. On Windows the answer is "no" for all of
++// them: SQLite opens its files without FILE_SHARE_DELETE, so a live server's
++// files refuse the remove and only a dead one's go. Elsewhere, with no /proc to
++// ask, every file is left alone.
++@(private = "file")
++process_alive :: proc(pid: int) -> bool {
++	when ODIN_OS == .Linux {
++		return os.exists(fmt.tprintf("/proc/%d", pid))
++	} else when ODIN_OS == .Windows {
++		return false
++	} else {
++		return true
++	}
++}
++
++@(private = "file")
++remove_db_files :: proc(path: string) {
++	for suffix in ([]string{"", "-wal", "-shm"}) {
++		os.remove(fmt.tprintf("%s%s", path, suffix))
+ 	}
+ }
+ 
+@@ -132,10 +295,27 @@ sql_contains_ci :: proc "c" (ctx: sqlite.Context, argc: c.int, argv: [^]sqlite.V
+ }
+ 
+ // Checkpoints the WAL on a file DB. Runs after the server loop returns, so no
+-// request is in flight.
++// request is in flight and no reader is in use.
+ @(private)
+ db_close :: proc() {
++	{
++		sync.guard(&readers_lock)
++		for r in readers {
++			finalize_reads(r)
++			sqlite.close(r.db)
++			free(r, runtime.heap_allocator())
++		}
++		delete(readers)
++		readers = nil
++	}
+ 	sqlite.close(db)
++	if temp_path != "" {
++		remove_db_files(temp_path)
++		delete(temp_path)
++		temp_path = ""
++	}
++	delete(open_path)
++	open_path = nil
+ }
+ 
+ // ---- migrations ---------------------------------------------------------
+@@ -297,8 +477,8 @@ repo_backup :: proc(src, dest: string) -> (problem: string) {
+ 
+ // Whether the store answers at all: the readiness half of /healthz.
+ repo_ping :: proc() -> bool {
+-	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
+-	return sqlite.exec(db, "SELECT 1;", nil, nil, nil) == sqlite.OK
++	r := read_begin();defer read_end(r)
++	return sqlite.exec(r.db, "SELECT 1;", nil, nil, nil) == sqlite.OK
+ }
+ 
+ // ---- shared helpers (caller holds the lock) -----------------------------
+@@ -310,10 +490,16 @@ exec :: proc(sql: cstring) {
+ 	}
+ }
+ 
++// Prepare on the writer.
+ @(private)
+ prep :: proc(sql: cstring, out: ^sqlite.Stmt) {
+-	if sqlite.prepare_v2(db, sql, -1, out, nil) != sqlite.OK {
+-		fatal("prepare")
++	prep_on(db, sql, out)
++}
++
++@(private)
++prep_on :: proc(conn: sqlite.DB, sql: cstring, out: ^sqlite.Stmt) {
++	if sqlite.prepare_v2(conn, sql, -1, out, nil) != sqlite.OK {
++		fatal_on(conn, "prepare")
+ 	}
+ }
+ 
+@@ -340,7 +526,7 @@ step_done :: proc(st: sqlite.Stmt) -> Error {
+ 	if rc == sqlite.DONE {
+ 		return .None
+ 	}
+-	return step_error(rc)
++	return step_error(st, rc)
+ }
+ 
+ // Advance a read; false at the end of the rows or on an error, which lands in
+@@ -353,14 +539,14 @@ next_row :: proc(st: sqlite.Stmt, err: ^Error) -> bool {
+ 	case sqlite.DONE:
+ 		return false
+ 	case:
+-		err^ = step_error(rc)
++		err^ = step_error(st, rc)
+ 		return false
+ 	}
+ }
+ 
+ @(private = "file")
+-step_error :: proc(rc: c.int) -> Error {
+-	log.errorf("sqlite step failed (%d): %s", rc, sqlite.errmsg(db))
++step_error :: proc(st: sqlite.Stmt, rc: c.int) -> Error {
++	log.errorf("sqlite step failed (%d): %s", rc, sqlite.errmsg(sqlite.db_handle(st)))
+ 	// The low byte is the primary result code; the rest says which constraint.
+ 	return (rc & 0xff) == sqlite.CONSTRAINT ? .Constraint : .Failed
+ }
+@@ -405,6 +591,11 @@ csql :: proc(s: string) -> cstring {
+ // back as an Error (step_done / next_row) and the request fails, not the server.
+ @(private)
+ fatal :: proc(what: string) {
+-	fmt.eprintfln("sqlite %s failed: %s", what, sqlite.errmsg(db))
++	fatal_on(db, what)
++}
++
++@(private)
++fatal_on :: proc(conn: sqlite.DB, what: string) {
++	fmt.eprintfln("sqlite %s failed: %s", what, sqlite.errmsg(conn))
+ 	os.exit(1)
+ }
+diff --git a/app/src/repository/db_test.odin b/app/src/repository/db_test.odin
+index dd15d97..013d394 100644
+--- a/app/src/repository/db_test.odin
++++ b/app/src/repository/db_test.odin
+@@ -7,6 +7,7 @@ import "core:log"
+ import "core:strings"
+ import "core:sync"
+ import "core:testing"
++import "core:thread"
+ 
+ // ---- tests for the plumbing: `odin test src/repository` -----------------
+ //
+@@ -136,3 +137,63 @@ contains_ci_folds_case_rune_by_rune :: proc(t: ^testing.T) {
+ 	testing.expect_value(t, scalar_int("SELECT contains_ci('Alan Turing', 'hopper')"), 0)
+ 	testing.expect_value(t, scalar_int("SELECT contains_ci(NULL, 'x')"), 0)
+ }
++
++// ---- store v3: the app's store, opened as main opens it -------------------
++
++@(test)
++a_loop_reads_on_its_own_connection_and_sees_every_commit :: proc(t: ^testing.T) {
++	sync.guard(&serial)
++	repo_open(":memory:")
++	defer repo_close()
++	c, err := repo_create("Reader Probe", "reader.probe@example.dev", .Sales, .Active, 40, "", false)
++	testing.expect_value(t, err, Error.None)
++
++	Probe :: struct {
++		id:           int,
++		conn:         ^Conn,
++		err:          Error,
++		found, fresh: bool,
++	}
++	p := Probe{id = c.id}
++	th := thread.create_and_start_with_poly_data(&p, proc(p: ^Probe) {
++		r := read_begin()
++		p.conn = r
++		read_end(r)
++		got, err := repo_get(p.id)
++		p.err, p.found = err, got.name == "Reader Probe"
++		// A second write, after this thread's reader has read: its next read
++		// starts a new snapshot and sees it.
++		_, _ = repo_update(p.id, "Reader Probe 2", "reader.probe@example.dev", .Sales, .Active, 41)
++		again, _ := repo_get(p.id)
++		p.fresh = again.name == "Reader Probe 2" && again.score == 41
++	})
++	thread.join(th)
++	thread.destroy(th)
++
++	testing.expect_value(t, p.err, Error.None)
++	testing.expect(t, p.found, "the reader thread did not see the writer's row")
++	testing.expect(t, p.fresh, "the reader thread did not see a later commit")
++	mine := read_begin()
++	read_end(mine)
++	testing.expect(t, p.conn != &w && mine != &w && p.conn != mine, "each thread should read on its own connection")
++}
++
++// The micro-guard for the bound-LIMIT re-prepare (PLAN §18.2): with QPSG a page
++// statement binds a new LIMIT and OFFSET on every call and is never re-prepared.
++@(test)
++a_bound_limit_never_reprepares :: proc(t: ^testing.T) {
++	for mode in Mem_Mode {
++		sync.guard(&serial)
++		repo_open(":memory:", mode)
++		defer repo_close()
++		repo_seed()
++		for i in 0 ..< 1000 {
++			_, err := repo_page({status = -1}, .Name, false, 1 + i % 7, i % 13)
++			testing.expect_value(t, err, Error.None)
++		}
++		r := read_begin()
++		reprepares := sqlite.stmt_status(r.contacts.q_page[.Name][0], sqlite.STMTSTATUS_REPREPARE, 0)
++		read_end(r)
++		testing.expectf(t, reprepares == 0, "%v: %d re-prepares in 1000 pages", mode, reprepares)
++	}
++}
+diff --git a/app/src/repository/events.odin b/app/src/repository/events.odin
+index 167f153..942dddb 100644
+--- a/app/src/repository/events.odin
++++ b/app/src/repository/events.odin
+@@ -4,7 +4,6 @@ import "../models"
+ import "../sqlite"
+ 
+ import "core:c"
+-import "core:sync"
+ import "core:time"
+ 
+ // ---- events table -------------------------------------------------------
+@@ -14,7 +13,11 @@ import "core:time"
+ // JOINs back to contacts to resolve the other party — the multi-table query.
+ // Events are seeded only (no user-facing write path yet).
+ 
+-@(private = "file") q_event_create, q_timeline, q_event_count: sqlite.Stmt
++@(private = "file") q_event_create: sqlite.Stmt
++
++Events_Read :: struct {
++	q_timeline, q_event_count: sqlite.Stmt,
++}
+ 
+ @(private = "file") SQL_EVENT_CREATE: cstring : "INSERT INTO events(actor_id,target_id,kind,at,note) VALUES(?,?,?,?,?)"
+ @(private = "file") SQL_EVENT_COUNT: cstring : "SELECT count(*) FROM events"
+@@ -31,20 +34,29 @@ import "core:time"
+ @(private)
+ prepare_events :: proc() {
+ 	prep(SQL_EVENT_CREATE, &q_event_create)
+-	prep(SQL_TIMELINE, &q_timeline)
+-	prep(SQL_EVENT_COUNT, &q_event_count)
+ }
+ 
+ @(private)
+ finalize_events :: proc() {
+ 	sqlite.finalize(q_event_create)
+-	sqlite.finalize(q_timeline)
+-	sqlite.finalize(q_event_count)
++}
++
++@(private)
++prepare_events_read :: proc(conn: sqlite.DB, r: ^Events_Read) {
++	prep_on(conn, SQL_TIMELINE, &r.q_timeline)
++	prep_on(conn, SQL_EVENT_COUNT, &r.q_event_count)
++}
++
++@(private)
++finalize_events_read :: proc(r: ^Events_Read) {
++	sqlite.finalize(r.q_timeline)
++	sqlite.finalize(r.q_event_count)
+ }
+ 
+ // The detail drawer's activity feed: real interactions, other party resolved.
+ event_timeline :: proc(contact_id: int) -> ([]models.Interaction, Error) {
+-	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
++	r := read_begin();defer read_end(r)
++	q_timeline := r.events.q_timeline
+ 	defer sqlite.reset(q_timeline)
+ 	bind_id(q_timeline, 1, contact_id)
+ 	out := make([dynamic]models.Interaction, context.temp_allocator)
+@@ -70,6 +82,7 @@ event_timeline :: proc(contact_id: int) -> ([]models.Interaction, Error) {
+ 
+ @(private)
+ count_events :: proc() -> int {
++	q_event_count := w.events.q_event_count
+ 	defer sqlite.reset(q_event_count)
+ 	if sqlite.step(q_event_count) == sqlite.ROW {
+ 		return int(sqlite.column_int(q_event_count, 0))
+diff --git a/app/src/repository/repo.odin b/app/src/repository/repo.odin
+index 5b8c7a6..743e337 100644
+--- a/app/src/repository/repo.odin
++++ b/app/src/repository/repo.odin
+@@ -1,5 +1,7 @@
+ package repository
+ 
++import "../sqlite"
++
+ import "core:sync"
+ 
+ // ---- repository: this app's store ---------------------------------------
+@@ -19,20 +21,42 @@ import "core:sync"
+ 	{"0003_contact_notes.sql", #load("migrations/0003_contact_notes.sql", string)},
+ }
+ 
++// One connection and every table's read statements on it: each loop's reader
++// has one, and so has the writer, for the read-back after a write.
++Conn :: struct {
++	db:       sqlite.DB,
++	contacts: Contacts_Read,
++	events:   Events_Read,
++}
++
++@(private)
++prepare_reads :: proc(r: ^Conn) {
++	prepare_contacts_read(r.db, &r.contacts)
++	prepare_events_read(r.db, &r.events)
++}
++
++@(private)
++finalize_reads :: proc(r: ^Conn) {
++	finalize_contacts_read(&r.contacts)
++	finalize_events_read(&r.events)
++}
++
+ // ---- lifecycle (called from main, around repo_seed) ---------------------
+ 
+-repo_open :: proc(path: string) {
+-	db_open(path)
++repo_open :: proc(path: string, mode := Mem_Mode.Ephemeral) {
++	db_open(path, mode)
+ 	migrate(MIGRATIONS[:])
+ 	prepare_contacts()
+ 	prepare_events()
++	prepare_reads(&w)
+ }
+ 
+-// Finalize statements and close the connection. Symmetry with repo_open; wire
++// Finalize statements and close the connections. Symmetry with repo_open; wire
+ // via `defer` in main.
+ repo_close :: proc() {
+ 	finalize_contacts()
+ 	finalize_events()
++	finalize_reads(&w)
+ 	db_close()
+ }
+ 
+@@ -41,7 +65,7 @@ repo_close :: proc() {
+ // purpose is never refilled with demo rows. One transaction = one fsync;
+ // events seed after contacts so the FK targets exist.
+ repo_seed :: proc() {
+-	sync.rw_mutex_lock(&lock);defer sync.rw_mutex_unlock(&lock)
++	sync.guard(&wlock)
+ 	exec("BEGIN;")
+ 	if count_contacts() == 0 {
+ 		seed_contacts()
+diff --git a/app/src/sqlite/sqlite.odin b/app/src/sqlite/sqlite.odin
+index 1dfef13..39b290b 100644
+--- a/app/src/sqlite/sqlite.odin
++++ b/app/src/sqlite/sqlite.odin
+@@ -45,8 +45,18 @@ BLOB :: 4
+ NULL :: 5
+ 
+ // open_v2 flags.
++OPEN_READONLY :: 0x00000001
+ OPEN_READWRITE :: 0x00000002
+ OPEN_CREATE :: 0x00000004
++OPEN_NOMUTEX :: 0x00008000 // one thread at a time uses this connection: no mutex per call
++
++// db_config verbs. QPSG, the query planner stability guarantee, keeps a plan from
++// depending on bound values, so binding a new LIMIT no longer re-prepares the
++// statement on its next step.
++DBCONFIG_ENABLE_QPSG :: 1007
++
++// stmt_status counters.
++STMTSTATUS_REPREPARE :: 5
+ 
+ // create_function_v2 flags: the text encoding the function receives, and that
+ // its result depends only on its arguments (so SQLite may use it in an index).
+@@ -86,4 +96,9 @@ foreign lib {
+ 	value_text :: proc(v: Value) -> [^]u8 --- // call before value_bytes
+ 	value_bytes :: proc(v: Value) -> c.int ---
+ 	result_int :: proc(ctx: Context, v: c.int) ---
++	db_config :: proc(db: DB, op: c.int, #c_vararg args: ..any) -> c.int ---
++	busy_timeout :: proc(db: DB, ms: c.int) -> c.int ---
++	db_handle :: proc(stmt: Stmt) -> DB --- // the connection a statement belongs to
++	stmt_status :: proc(stmt: Stmt, op: c.int, reset_counter: c.int) -> c.int ---
++	sql :: proc(stmt: Stmt) -> cstring --- // the text it was prepared from
+ }

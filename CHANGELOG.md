@@ -11,14 +11,16 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes: `docs/spikes/`).
 
 ### Added
-- **The fork's changes to odin-http** (`app/vendor/odin-http/UPSTREAM.md` lists each, F-1 to F-12;
+- **The fork's changes to odin-http** (`app/vendor/odin-http/UPSTREAM.md` lists each, F-1 to F-13;
   F-3 waits for video): streams for SSE, WebSocket and multipart on the HTTP port; an `invoke` hook
   every server-owned callback runs through, so a crash guard can contain a crash in a handler, a stream
-  or odin-http itself; idle, header and body timeouts; a connection cap that answers 503 instead of
-  stalling at the open-file limit; a shutdown bounded at about 5.6 s with streams, slow and stuck peers
-  open; SIGTERM as well as SIGINT; a per-thread `date` header (the shared one tore under readers); and a
-  3 s bind retry. The skeleton app takes the new defaults through `Default_Server_Opts`. Spikes S0.2,
-  S0.3, S0.6 and S0.7 measure and drill them.
+  or odin-http itself; idle, header and body timeouts, enforced by one 1 s sweep per thread rather than
+  a timer on every read (per-read timers cost 2–4 % on the lightest route); a connection cap that
+  answers 503 instead of stalling at the open-file limit; a shutdown bounded at about 5.6 s with
+  streams, slow and stuck peers open; SIGTERM as well as SIGINT; a per-thread `date` header (the shared
+  one tore under readers); a 3 s bind retry; and deferred responses, whose generation check drops a
+  worker's reply to a connection that has gone. The skeleton app takes the new defaults through
+  `Default_Server_Opts`. Spikes S0.2, S0.3, S0.5, S0.6 and S0.7 measure and drill them.
 - **`THIRD_PARTY_NOTICES`**: the notices of what the binaries contain (odin-http's MIT, Odin's zlib, the
   Unicode data tables' licence) and credits for htmx and SQLite.
 - **`tools/bundle`** (prototype, spike S0.10): builds a profile's htmx bundles, with br and gzip, from
@@ -29,6 +31,9 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
 - **`OPTIONS *` with a negative `Content-Length` no longer aborts the process.** 1.2.1 refused a bad
   `Content-Length` in `front`, but odin-http answers `OPTIONS *` itself; the fork's `_body_length`
   now takes plain digits within `int` only (F-6), for every request.
+- **A request body cut off part way closes its connection.** odin-http marked the body read before
+  scanning it, so after the 400 the connection stayed alive with the rest of the body unread on the
+  wire; a body-phase timeout now closes it (found by spike S0.7's timeouts phase).
 
 ### Changed
 - **The template is `alexh95/odin-htmx-starter` now** (the repo was renamed; the old URL redirects).
