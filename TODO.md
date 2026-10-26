@@ -42,6 +42,10 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       MiB in all, 8/16/8192 streams, 64 KiB messages, 20 connects a minute per client → 429), a 20 s heartbeat per
       loop, kicks with close codes; `/events` in `platform/app`. *Check:* hub unit tests (publish, drain, replay,
       resync, each policy, each cap); a TSan build of hub and stream on Linux with only the nbio mpsc suppression.
+      Progress: the hub, the caps (in `platform/stream`, since they cover every stream) and `/events` (`hub.ROUTES`,
+      mounted by the profile, with `hub.mount` for its `TOPICS`: PLAN §7.2, D13 as built) are in, with unit tests of
+      the rings, policies, cursors and topic names. Publish, drain, replay and resync are checked end to end by the
+      lab specs, so slice 5's `lab` feature and `cmd/lab` come next, before slices 3 and 4; TSan with slice 13.
 - [ ] **3. Page bundles and flags → CSP** (§12.1–12.2): `web.Bundle` and `BUNDLES` lines; `tools/bundle` builds
       Main plus every bundle a reached package names; the layout takes the bundle; the htmx-config meta from the
       union (strict JSON); `.Private` (no-store, noindex, `hx-history="false"`), `.Stream`, `.Nonce_Csp` (a nonce

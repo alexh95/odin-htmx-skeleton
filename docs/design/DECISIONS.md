@@ -871,9 +871,13 @@ request arena (02 §2.7).
 
 - **Topics** are named `<feature>.<family>:<key>` (`chat.room:12`, `notify.user:42`, `games.players`). Each family is
   declared once, as a row of its web package's `TOPICS` table, `hub.Topic{family, policy = .Queue | .Latest | .Sample,
-  ring = 256, persisted, subscribe, deliver}`, and the profile's `routes.odin` mounts the tables per host (D5, D7).
-  `subscribe` runs when a page subscribes, as a GET runs a route's handler: the perm check (the old `auth`), then, for a
-  persisted topic, the keyset replay by rowid (the old `replay`). `deliver` is a server-side row the hub runs once per
+  ring = 256, persisted, perm, allow, replay, deliver}`, and the profile mounts the tables per host (D5, D7). A
+  subscription runs the row as a GET runs a route's handler: the perm, then `allow` for the key, then, for a persisted
+  topic, the keyset replay by rowid. **As built (M2):** D13's single `subscribe` is split into those three, and `main`
+  mounts the tables with `hub.mount("<host>", ..TOPICS[:])` beside a `hub.ROUTES` line (`/events`) in the host's
+  routes, rather than through `app.Host`, so `platform/app` never calls the hub and a profile that doesn't stream
+  links none of it. Each ring also holds at most `HUB_RING_BYTES` (1 MiB), and a topic with no publish for 10 minutes
+  lets its ring go (a cursor from before then is resynced). `deliver` is a server-side row the hub runs once per
   publish; room mode is its only use (`bot.ask` and `chat.reply`, D6; NEW: not prototyped). **Topics are per host**:
   `/events` on a host subscribes only to the families mounted there, so a houston-lab page can't subscribe to Houston's
   topics even as a Guest (NEW). A publish to a family no table mounts reaches no row and is dropped and counted.

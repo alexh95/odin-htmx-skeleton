@@ -26,6 +26,7 @@ Part_Header :: struct {
 	name, value: string, // HX-Target, HX-Swap, HX-Select, HX-Trigger, HX-Part-ID …
 }
 
+// nil when admission refused the stream (the 503 or 429 has been sent).
 multipart_begin :: proc(res: ^web.Response, kind := Multipart_Kind.Mixed, user: rawptr = nil, on_close: Close_Proc = nil) -> ^Conn {
 	HEX := "0123456789abcdef"
 	rnd: [8]byte
@@ -37,8 +38,8 @@ multipart_begin :: proc(res: ^web.Response, kind := Multipart_Kind.Mixed, user: 
 		boundary[4 + 2 * i] = HEX[x & 15]
 	}
 	type := "multipart/mixed; boundary=" if kind == .Mixed else "multipart/parallel; boundary="
-	web.set_header(res, "content-type", strings.concatenate({type, string(boundary[:])}, context.temp_allocator))
-	c := open(res, .Chunked, .Multipart, user, on_close)
+	c := open(res, .Chunked, .Multipart, strings.concatenate({type, string(boundary[:])}, context.temp_allocator), user, on_close)
+	if c == nil { return nil }
 	c.boundary = boundary
 	// A preamble, which the parser discards (RFC 2046 §5.1.1), goes out with the
 	// headers: WebKit resolves a streamed fetch only at its first body bytes (S0.3).

@@ -428,7 +428,7 @@ A feature owns `/<name>`, `/admin/<name>` and `/api/<name>`; each exception is l
 | `dashboard` | `/dashboard`, `/ui/ping`; its page is `skeleton`'s root row at `/` (the skeleton's page, `SK/app/src/routes.odin:35`) and sits at `/dashboard` on `full`'s lab host | the skeleton's exact URLs, for parity |
 | `gallery` | `/components /forms /ui /validate` | the same |
 | `contacts` | `/data /contacts /search /api/search` | the same; so global search is `find` at `/find` (`SK/app/src/routes.odin:42`) |
-| platform | `web.ROUTES`, a site's main host: `/healthz /livez /readyz /metrics /sitemap.xml /BingSiteAuth.xml /<indexnow-key>.txt`; `web.PUBLIC_ROUTES`, every host: `/events /static /robots.txt /favicon.ico /licenses /csp-report` | owned by no feature |
+| platform | `web.ROUTES`, a site's main host: `/healthz /livez /readyz /metrics /sitemap.xml /BingSiteAuth.xml /<indexnow-key>.txt`; `web.PUBLIC_ROUTES`, every host: `/static /robots.txt /favicon.ico /licenses /csp-report`; `hub.ROUTES`, every host that mounts topics: `/events` (M2) | owned by no feature |
 
 `/` is no feature's prefix: each host's one `GET /` row is written in the profile's `routes.odin` and names the root
 feature's handler (§6.3; LC §7). Product names (Comms, Capcom, Logbook …) are nav labels in `brand.odin`, never
@@ -478,7 +478,7 @@ D10's names and defaults; types, meanings and the `*_FILE` rule are in §8.
 | store | `MEMMODE` (single\|ephemeral; default `ephemeral`, except the `skeleton` profile, whose mode D17 picks); the store family is the build's, so there is no `STORE` |
 | connections | `MAX_CONNS` (fd soft limit − 64), `HEADER_TIMEOUT_MS` 10000, `IDLE_TIMEOUT_MS` 75000, `BODY_TIMEOUT_MS` 30000, `DRAIN_DEADLINE_MS` 5000 |
 | proxy and LAN | `TRUST_PROXY` (**empty = trust no peer**; on apollo, the stack Caddy's fixed address as a /32, RESOLUTIONS X43; §17.8), `LAN_CIDRS` 192.168.0.0/16 |
-| streams | `STREAM_HEARTBEAT_S` 20, `STREAM_MAX_QUEUED` 256KiB, `STREAMS_PER_USER` 8, `STREAMS_PER_CLIENT` 16, `STREAMS_TOTAL` 8192, `HUB_RING` 256 |
+| streams | `STREAM_HEARTBEAT_S` 20, `STREAM_MAX_QUEUED` 256KiB, `STREAMS_PER_USER` 8, `STREAMS_PER_CLIENT` 16, `STREAMS_TOTAL` 8192, `STREAM_CONNECTS` 20, `STREAM_QUEUED_TOTAL` 64MiB, `HUB_RING` 256, `HUB_RING_BYTES` 1MiB |
 | secrets and cookies | `METRICS_TOKEN_FILE`, `SESSION_KEY_FILE`, `COOKIE_SECURE` auto |
 | build-time `-define` | `VERSION`, `TEST_ROUTES` (crash-drill routes; release images assert 404), `PROFILE` (spall) |
 
@@ -1218,7 +1218,7 @@ follow it: `/admin/accounts`, `/admin/audit`, `/admin/bot`, `/admin/ops`, `/admi
 | `accounts` | `/login /logout /register /invite /account` | conventional URLs |
 | `video` | `/media` | content-addressed files |
 | the skeleton features (`dashboard`, `gallery`, `contacts`, `about`) | the skeleton's exact URLs: `/ui/ping` (dashboard, whose page is also `skeleton`'s root, and sits at `/dashboard`, its own prefix, on `full`'s lab host), `/data /contacts /search /api/search /components /forms /ui /validate /about` (`SK/app/src/routes.odin`) | parity needs them byte-identical (§18) |
-| the platform | `web.ROUTES` on a site's main host: `/healthz /livez /readyz /metrics /sitemap.xml /BingSiteAuth.xml /<indexnow-key>.txt`; `web.PUBLIC_ROUTES` on every host: `/events /static /robots.txt /favicon.ico /licenses /csp-report` | shared by every profile (LC §7) |
+| the platform | `web.ROUTES` on a site's main host: `/healthz /livez /readyz /metrics /sitemap.xml /BingSiteAuth.xml /<indexnow-key>.txt`; `hub.ROUTES` (`/events`) on every host that mounts topics (M2); `web.PUBLIC_ROUTES` on every host: `/static /robots.txt /favicon.ico /licenses /csp-report` | shared by every profile (LC §7) |
 
 **One root per host** (D9, D27; RESOLUTIONS X5, X28; LC §7). Each host's table has exactly one `GET /` row, written in
 the profile's `routes.odin`, never in a package's `ROUTES`, so one package's page can sit at `/` in one profile and
@@ -1487,7 +1487,8 @@ import home_web "../../features/home/web"
 // The skeleton's src/routes.odin, as one line per mounted package plus the profile's own rows.
 ROUTES := [?]app.Mount{
 	{"platform", web.ROUTES[:]},                                    // the main host's: /healthz /livez /readyz /metrics /sitemap.xml …
-	{"platform", web.PUBLIC_ROUTES[:]},                             // every host's: /static /events /robots.txt /favicon.ico /licenses /csp-report
+	{"platform", web.PUBLIC_ROUTES[:]},                             // every host's: /static /robots.txt /favicon.ico /licenses /csp-report
+	{"platform", hub.ROUTES[:]},                                    // /events: this host's TOPICS (M2)
 	{"home", {{.Get, "/", home_web.page_today, .Public, {}, 0}}},  // the root: Today
 	{"identity", identity.ROUTES[:]},                               // /login /logout: the nickname form
 	{"notes", notes_web.ROUTES[:]},                                 // /notes
@@ -1499,8 +1500,9 @@ ROUTES := [?]app.Mount{
 	{"about", about_web.ROUTES[:]},                                 // /about
 }
 
-// Subscribable topics, mounted the same way: a subscription to chat.room:12 runs that row's subscribe
-// (perm, then the keyset replay by rowid, D13), as a GET runs a route's handler.
+// Subscribable topics, mounted per host by main's hub.mount("main", ..TOPICS[:]): a subscription to
+// chat.room:12 runs that row as a GET runs a route's handler (its perm, its allow, then the keyset replay by
+// rowid, D13).
 TOPICS := [?][]hub.Topic{
 	home_web.TOPICS[:],     // home.presence
 	chat_web.TOPICS[:],     // chat.room, chat.presence, chat.typing, chat.reply
@@ -1510,7 +1512,7 @@ TOPICS := [?][]hub.Topic{
 }
 
 // One host. The third field says front runs the identity here (nick, which sets a cookie).
-HOSTS := [?]app.Host{{"main", "SITE_URL", true, ROUTES[:], TOPICS[:], NAV[:]}}
+HOSTS := [?]app.Host{{"main", "SITE_URL", true, ROUTES[:], NAV[:]}}
 
 // Scheduled jobs: platform/workers runs each row on its schedule; the jobs feature's "run now" looks a row up
 // by its id, as the router looks up a route.
@@ -1523,9 +1525,12 @@ JOBS := [?][]workers.Job{
 - **Tables are package-level**, because a slice literal inside a proc points into its frame (09 §4.4). Mounting another
   package's table, `chat_web.ROUTES[:]`, and writing the profile's own rows inline, `{{.Get, "/", …}}`, both compile
   under `-vet -strict-style` and run (14 (3) variant B; LC §16).
-- **`app.Host`** is `{name, site_env, identity, routes, topics, nav}`: the host's log and metrics label, the env var
-  that names its origin, whether `front` runs the identity there, and its three tables. The prototype's host held the
-  routes only; topics and nav per host are **NEW**.
+- **`app.Host`** is `{name, site_env, identity, routes, nav}`: the host's log and metrics label, the env var that
+  names its origin, whether `front` runs the identity there, its routes and its nav. The prototype's host held the
+  routes only; nav per host is **NEW**. **Topics per host** (**NEW**) are mounted by `main` with
+  `hub.mount("<host>", ..TOPICS[:])` after `hub.init()`, beside a `{"platform", hub.ROUTES[:]}` line (`/events`) in
+  that host's routes, not through `app.Host` (as built, M2): `platform/app` then never calls the hub, so a profile
+  that doesn't stream links none of it (the skeleton's binary sits at its 2.75 MiB budget to the byte).
 - **`app.Mount`** is `{feature, rows}` (M1): a mounted table says whose it is. `bin --features` lists the features
   from the mounts (with the build's family members: profile, store, identity, client, theme), `bin --routes` prints
   each row's feature, and the test suites choose their specs from that list (§19.1.2). The profile's own inline rows
@@ -1572,6 +1577,9 @@ main :: proc() {
 	// …
 	home_web.init(HOME_CARDS[:])
 	find_web.init(FIND_SOURCES[:])
+	hub.init()                             // the hub's and the streams' env rows (M2)
+	hub.mount("main", ..MAIN_TOPICS[:])    // each host's topic tables
+	hub.mount("lab", ..LAB_TOPICS[:])
 	app.check(HOSTS[:], JOBS[:], BUNDLE_EXTS)   // step 4: the boot checks (§6.1); --features, --routes, --limits answer here
 
 	store_sqlite.open()                    // step 5: --backup and --adopt-profile, then DB_PATH and MEMMODE (§11)
@@ -1705,10 +1713,11 @@ LAB_ROUTES := [?][]web.Route{
 	compat_web.ROUTES[:],                                        // /compat/*: .Lab_Host
 }
 
-// MAIN_TOPICS and LAB_TOPICS are mounted the same way; LAB_TOPICS holds lab_web.TOPICS only.
+// MAIN_TOPICS and LAB_TOPICS are mounted by main: hub.mount("main", ..MAIN_TOPICS[:]) and
+// hub.mount("lab", ..LAB_TOPICS[:]); LAB_TOPICS holds lab_web.TOPICS only. Each table also mounts hub.ROUTES.
 HOSTS := [?]app.Host{
-	{"main", "SITE_URL",     true,  MAIN_ROUTES[:], MAIN_TOPICS[:], NAV[:]},
-	{"lab",  "SITE_URL_LAB", false, LAB_ROUTES[:],  LAB_TOPICS[:],  LAB_NAV[:]},
+	{"main", "SITE_URL",     true,  MAIN_ROUTES[:], NAV[:]},
+	{"lab",  "SITE_URL_LAB", false, LAB_ROUTES[:],  LAB_NAV[:]},
 }
 
 JOBS := [?][]workers.Job{
@@ -1728,11 +1737,11 @@ JOBS := [?][]workers.Job{
   matches no origin goes to the main host, where the canonical-host 301 still applies. In LC §16's prototype,
   `/dashboard` answers 200 on the lab host and 404 on the main one, `/chat` the reverse, `/scripting/live` only on the
   lab host and `/healthz` only on the main one.
-- **The platform's rows** come in two tables: `web.ROUTES` (the probes, `/metrics`, the sitemap and the ownership
-  proofs) for a site's main host, and `web.PUBLIC_ROUTES` (static assets, `/events`, `robots.txt`, `favicon.ico`,
-  `/licenses`, `/csp-report`) for every host.
-- **Topics are per host too** (**NEW**): `/events` on houston-lab subscribes only to the families in `LAB_TOPICS` (the
-  lab's stream demos), so a page there can't subscribe to Houston's topics even as a Guest.
+- **The platform's rows** come in three tables: `web.ROUTES` (the probes, `/metrics`, the sitemap and the ownership
+  proofs) for a site's main host, `web.PUBLIC_ROUTES` (static assets, `robots.txt`, `favicon.ico`, `/licenses`,
+  `/csp-report`) for every host, and `hub.ROUTES` (`/events`) for every host that mounts topics.
+- **Topics are per host too** (**NEW**): `/events` on houston-lab subscribes only to the families `hub.mount("lab",
+  …)` gave it (the lab's stream demos), so a page there can't subscribe to Houston's topics even as a Guest.
 - **No session.** The lab host's `identity` field is false, so `front` runs no identity there: it reads no `sid`, sets
   no cookie, and the Viewer is the anonymous Guest. Houston's `sid` is a host-only cookie, so browsers never send it
   there anyway (§17.1, §17.2).
@@ -2029,6 +2038,7 @@ unknown variable inside a known prefix.
 | `LAN_CIDRS` | 192.168.0.0/16 | what `.Lan_Only` and `ACCOUNTS_NICK_FROM=lan` accept |
 | `STREAM_HEARTBEAT_S`, `STREAM_MAX_QUEUED` | 20, 256KiB | per-loop heartbeat; per-stream queue cap before `Too_Slow` (§9) |
 | `STREAMS_PER_USER`, `STREAMS_PER_CLIENT`, `STREAMS_TOTAL`, `HUB_RING` | 8, 16, 8192, 256 | stream caps; replay ring per topic (§9) |
+| `STREAM_CONNECTS`, `STREAM_QUEUED_TOTAL`, `HUB_RING_BYTES` | 20, 64MiB, 1MiB | stream connects a minute per client (429 past it); bytes queued to all streams (new streams 503 past it); bytes per topic's ring (§9; M2) |
 | `METRICS_TOKEN_FILE`, `SESSION_KEY_FILE` | unset | bearer token for `/metrics` (§10); secret key for signed cookies and tokens |
 | `COOKIE_SECURE` | auto | `Secure` when the request arrived as https through a trusted proxy (§17) |
 
@@ -2180,10 +2190,13 @@ HTTP/2 (stage 1b on) SSE streams share one connection (08 §3.2). Each WebSocket
   author's other tabs and devices get the message too.
 
 **Topics** are named `<feature>.<family>:<key>` and declared per package in a `TOPICS` table next to its routes, which
-the profile's `routes.odin` mounts per host as it mounts `ROUTES` (D13; LC §6, §8). A row is `{family, policy, ring,
-persisted, subscribe, deliver}` (spellings illustrative), for example `{"chat.room", .Queue, 256, true,
-subscribe_room, nil}`. `subscribe` runs on a subscription, as a GET runs a route's handler: the perm check, then, for a
-persisted topic, the keyset replay by rowid (§9.3). `deliver`, set only on a server-side row such as `bot.ask`, runs
+the profile mounts per host as it mounts `ROUTES`, with `hub.mount("<host>", ..TOPICS[:])` in `main` (D13; LC §6, §8).
+A row is `hub.Topic{family, policy, ring, persisted, perm, allow, replay, deliver}` (as built, M2: D13's `subscribe`
+is split into the three it did), for example `{family = "chat.room", policy = .Queue, persisted = true, perm =
+.Chat_Read, allow = room_member, replay = room_after}`. A subscription runs the row as a GET runs a route's handler:
+the perm, then `allow` for the key (a room's members, a user's own notifications), then for a persisted topic the
+keyset replay by rowid (§9.3). A loop joins the hub when it gets its first subscriber, so no thread hook is needed and
+a loop with none gets no messages (M2). `deliver`, set only on a server-side row such as `bot.ask`, runs
 once per publish (§6.2; **NEW**). `/events` on a host subscribes only to the families its table mounts, so a
 houston-lab page can't subscribe to Houston's topics (§7.3; **NEW**). `.Queue` caps each consumer and drops the slow
 one; `.Latest` keeps the newest message per publish key and never grows past its ring; `.Sample` drops intermediate
@@ -2239,13 +2252,13 @@ M2 resume specs**, including one across a server restart (§19).
 | Limit | Value | When hit |
 |---|---|---|
 | queued bytes per stream | 256 KiB (`STREAM_MAX_QUEUED`) | the consumer is closed as `Too_Slow`: SSE ends; WS closes 1013 when the next frame would pass the cap and is cut after 2 s if it doesn't read (S0.3); both resume |
-| queued bytes in total | 64 MiB | new streams get 503 |
+| queued bytes in total | 64 MiB (`STREAM_QUEUED_TOTAL`) | new streams get 503 |
 | streams per user / per client / total | 8 / 16 / 8192 (`STREAMS_TOTAL` ≤ `MAX_CONNS`) | the new stream is refused with 503 (03 §7) |
 | message size | 64 KiB | publish rejects it; a WS frame past it closes 1009 |
-| stream connects | 20 per minute per client id | 429 with `Retry-After` |
+| stream connects | 20 per minute per client id (`STREAM_CONNECTS`) | 429 with `Retry-After` |
 | heartbeat | one timer per loop, every 20 s: `: hb` for SSE, a ping for WS; under NPM's 90 s, Fly's 60 s and Cloudflare's 125 s idle cuts (S20, 08 §0) | dead peers surface as send errors |
 | WS pong deadline | 45 s | the socket closes |
-| replay ring | 256 per topic (`HUB_RING`) | older gaps go to keyset replay or resync |
+| replay ring | 256 per topic (`HUB_RING`), at most 1 MiB (`HUB_RING_BYTES`, M2); a topic with no publish for 10 min lets its ring go | older gaps go to keyset replay or resync |
 
 | Close code | Used for | hx-ws reconnects? |
 |---|---|---|

@@ -10,9 +10,10 @@ package stream
 //   multipart.odin  multipart/mixed and /parallel: CRLF framing, a Content-Length per part.
 //
 // Every stream is a Conn registered on its loop. One timer per loop, armed while
-// the loop has streams, sends SSE a comment line and a socket a ping every 20 s,
-// under NPM's 90 s, Fly's 60 s and Cloudflare's 125 s idle cuts, and closes a
-// socket the peer has sent nothing on for WS_PONG_DEADLINE (§9.4). A stream
+// the loop has streams, sends SSE a comment line and a socket a ping every
+// STREAM_HEARTBEAT_S (20 s, under NPM's 90 s, Fly's 60 s and Cloudflare's 125 s
+// idle cuts), and closes a socket the peer has sent nothing on for
+// WS_PONG_DEADLINE (§9.4). Admission caps every stream (limits.odin). A stream
 // answers only from a `.Stream` row: front sends its no-buffering headers.
 //
 // Allocation (§5.4): a Conn and its buffers come from the heap and are freed one
@@ -30,7 +31,8 @@ import "../guard"
 import "../sys"
 import "../web"
 
-HEARTBEAT        :: 20 * time.Second
+// A socket that has sent nothing for this long is closed (§9.4); the heartbeat's
+// ping, every STREAM_HEARTBEAT_S (20 s), is what a live browser answers.
 WS_PONG_DEADLINE :: 45 * time.Second
 
 Proto :: enum u8 {
@@ -50,6 +52,8 @@ Conn :: struct {
 	ended:      web.Stream_End, // set before on_close
 	gone:       bool,           // on_close has run: nothing more is written
 	slot:       int,            // its index in this loop's list
+	client:     u64,            // admission's keys (limits.odin)
+	member:     u64,
 
 	// WebSocket (ws.odin)
 	on_message: Message_Proc,
@@ -71,6 +75,7 @@ here: struct {
 	conns:    [dynamic]^Conn,
 	beat:     ^nbio.Operation,
 	stopping: bool, // the server is shutting down: no timer is armed again
+	stat:     ^Loop_Stat,
 }
 
 // Queues bytes on the stream; false once it is ending, gone or too slow.
@@ -95,18 +100,30 @@ queued :: proc(c: ^Conn) -> int { return 0 if c.gone else web.stream_queued(c.s)
 
 // ---- the Conn's life ------------------------------------------------------------
 
+// nil when admission refused the stream: the response has been sent.
 @(private)
-open :: proc(res: ^web.Response, kind: web.Stream_Kind, proto: Proto, user: rawptr, on_close: Close_Proc) -> ^Conn {
+open :: proc(res: ^web.Response, kind: web.Stream_Kind, proto: Proto, content_type: string, user: rawptr, on_close: Close_Proc) -> ^Conn {
+	client, member, ok := admit(res)
+	if !ok { return nil }
+	if content_type != "" { web.set_header(res, "content-type", content_type) }
+	if here.stat == nil {
+		here.stat = new(Loop_Stat, heap())
+		guard.lock(&adm.mu)
+		if adm.loops.allocator.procedure == nil { adm.loops.allocator = heap() }
+		append(&adm.loops, here.stat)
+		guard.unlock(&adm.mu)
+	}
 	c := new(Conn, heap())
 	c.proto, c.user, c.on_close = proto, user, on_close
+	c.client, c.member = client, member
 	c.seen_ns = sys.mono_ns()
-	c.s = web.stream_begin(res, kind, c, ws_on_data if proto == .Ws else nil, closed)
+	c.s = web.stream_begin(res, kind, c, ws_on_data if proto == .Ws else nil, closed, lim.max_queued)
 	c.s.on_shutdown = shutdown
 	c.s.on_crash = crashed
 	if here.conns.allocator.procedure == nil { here.conns.allocator = heap() }
 	c.slot = len(here.conns)
 	append(&here.conns, c)
-	if here.beat == nil && !here.stopping { here.beat = nbio.timeout(HEARTBEAT, beat) }
+	if here.beat == nil && !here.stopping { here.beat = nbio.timeout(lim.heartbeat, beat) }
 	return c
 }
 
@@ -123,6 +140,7 @@ closed :: proc(s: ^web.Stream, why: web.Stream_End) {
 		nbio.remove(here.beat)
 		here.beat = nil
 	}
+	release(c)
 	if c.on_close != nil { c.on_close(c) }
 	nbio.next_tick_poly(c, proc(_: ^nbio.Operation, c: ^Conn) {
 		delete(c.assembly.frag)
@@ -161,7 +179,7 @@ beat :: proc(_: ^nbio.Operation) {
 	here.beat = nil
 	guard.call(proc(_: rawptr) { beat_all() }, nil)
 	free_all(context.temp_allocator)
-	if len(here.conns) > 0 && !here.stopping { here.beat = nbio.timeout(HEARTBEAT, beat) }
+	if len(here.conns) > 0 && !here.stopping { here.beat = nbio.timeout(lim.heartbeat, beat) }
 }
 
 // Backwards, and re-checking the length: a write can close a stream, which
@@ -187,6 +205,7 @@ beat_all :: proc() {
 			// No comment syntax between parts; a feed that sits idle sends its own (chat's transport D).
 		}
 	}
+	refresh_queued()
 }
 
 // How many streams this loop holds.

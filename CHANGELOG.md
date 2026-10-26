@@ -19,6 +19,15 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   loop sends heartbeats every 20 s and closes a socket silent for 45 s. A `.Stream` route gets
   `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`. Unit tests cover the encoder, the codec
   (frame errors, fragments, UTF-8 across fragments, close codes) and the part framing.
+- **Stream admission** (§9.4): 503 past `STREAMS_TOTAL` (8192), `STREAMS_PER_CLIENT` (16), `STREAMS_PER_USER` (8) or
+  `STREAM_QUEUED_TOTAL` (64 MiB queued to all streams), and 429 with `Retry-After` past `STREAM_CONNECTS` (20 a
+  minute from one client); `STREAM_HEARTBEAT_S` and `STREAM_MAX_QUEUED` set the heartbeat and the per-stream cap.
+- **`platform/hub`** (PLAN §9, D13): `hub.publish` from any thread, with one wakeup per loop per burst and the
+  encoding done once per transport on each loop; a ring per topic following its row's policy (`.Queue`, `.Latest`
+  per publish key, `.Sample`), at most `HUB_RING` (256) messages and `HUB_RING_BYTES` (1 MiB); `<epoch ms>-<seq>`
+  ids; `/events` (`hub.ROUTES`) with each topic's perm and `allow`, then D13's resume: `Last-Event-ID`, then `after`,
+  then the topic's keyset replay from its store, else `event: resync`; `hub.kick` (SSE `kicked`, a socket's close
+  code). A profile mounts its `TOPICS` with `hub.mount` in `main`, so one that doesn't stream links no hub code.
 
 ### Changed
 - **The unit tests build on `minimal`'s four families** (`.github/scripts/unit-tests.sh`): `platform/stream` reaches

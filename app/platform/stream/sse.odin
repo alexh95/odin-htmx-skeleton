@@ -15,12 +15,12 @@ SSE_OPEN :: ": open\n\n"
 // out and surfaces a dead peer as a send error.
 SSE_HEARTBEAT :: ": hb\n\n"
 
-// Answers with an SSE stream. Copy what the stream needs from the request first:
-// once the handler returns, the request arena is scratch.
+// Answers with an SSE stream, or nil when admission refused it (the 503 or 429
+// has been sent). Copy what the stream needs from the request first: once the
+// handler returns, the request arena is scratch.
 sse_begin :: proc(res: ^web.Response, user: rawptr = nil, on_close: Close_Proc = nil) -> ^Conn {
-	web.set_header(res, "content-type", SSE_CONTENT_TYPE)
-	c := open(res, .Chunked, .Sse, user, on_close)
-	write(c, SSE_OPEN)
+	c := open(res, .Chunked, .Sse, SSE_CONTENT_TYPE, user, on_close)
+	if c != nil { write(c, SSE_OPEN) }
 	return c
 }
 

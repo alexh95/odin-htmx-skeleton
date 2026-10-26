@@ -49,6 +49,7 @@ Upgrade_Error :: enum u8 {
 	Bad_Version,
 	Bad_Key,
 	Foreign_Origin,
+	Refused, // admission: 503 or 429 (limits.odin)
 }
 
 // Answers the upgrade, or refuses it with a status, and returns the socket's
@@ -97,7 +98,8 @@ ws_upgrade :: proc(
 	web.set_header(res, "upgrade", "websocket")
 	web.set_header(res, "connection", "Upgrade")
 	web.set_header(res, "sec-websocket-accept", accept_key(key))
-	c = open(res, .Raw, .Ws, user, on_close)
+	c = open(res, .Raw, .Ws, "", user, on_close)
+	if c == nil { return nil, .Refused }
 	c.on_message = on_message
 	c.assembly.frag.allocator = heap()
 	c.rate.per_s = max_rate
