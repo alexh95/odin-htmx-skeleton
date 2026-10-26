@@ -167,16 +167,32 @@ stream_write_string :: proc(s: ^Stream, str: string) -> bool {
 }
 
 // Ends the stream once everything queued is sent. A chunked stream then serves the
-// connection's next request; a raw or close-delimited one closes it.
-stream_end :: proc(s: ^Stream) {
+// connection's next request; a raw or close-delimited one closes it. With a deadline, a peer that
+// hasn't taken the rest by then is cut off and the stream ends as Too_Slow: a protocol can then
+// queue a last message to a slow consumer (a WebSocket's close 1013) and still bound the wait.
+stream_end :: proc(s: ^Stream, deadline: time.Duration = 0) {
 	if s.done || s.ending { return }
 	if s.framed { append(&s.queue, "0\r\n\r\n") }
 	s.ending = true
 	if s.send_op == nil && len(s.queue) == 0 {
 		_stream_finish(s, .Ended)
-	} else {
-		_stream_kick(s)
+		return
 	}
+	_stream_kick(s)
+	if deadline > 0 && s.aux_op == nil {
+		s.aux_op = nbio.timeout_poly(deadline, s, proc(_: ^nbio.Operation, s: ^Stream) {
+			_stream_invoke(s, proc(s: ^Stream) {
+				s.aux_op = nil
+				_stream_finish(s, .Too_Slow)
+			})
+		})
+	}
+}
+
+// True when writing `n` more bytes would pass the stream's cap, so a protocol can end the stream
+// with a last message (and stream_end's deadline) instead of having stream_write drop it.
+stream_would_overflow :: proc(s: ^Stream, n: int) -> bool {
+	return stream_queued(s) + n + 32 > s.max_queued
 }
 
 stream_queued :: proc(s: ^Stream) -> int { return len(s.queue) + len(s.flight) }

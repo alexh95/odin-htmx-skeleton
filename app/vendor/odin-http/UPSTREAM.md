@@ -20,7 +20,7 @@ it touches. The WS codec, the SSE encoder, the multipart writer, Range parsing a
 
 | # | Change | Files | Status |
 |---|---|---|---|
-| F-1 | Streams: a `Streaming` connection state, `Connection.stream`, and `stream.odin` (`stream_begin`, `stream_write`, `stream_end`, `stream_queued`, `stream_loop`, `on_data`, `on_close`, `on_shutdown`); chunked, raw (after a 101) and close-delimited bodies; a send queue capped at 256 KiB (`Too_Slow`) | `stream.odin`, `server.odin` | M0 spike (S0.2, S0.3) |
+| F-1 | Streams: a `Streaming` connection state, `Connection.stream`, and `stream.odin` (`stream_begin`, `stream_write`, `stream_end` with an optional deadline, `stream_queued`, `stream_would_overflow`, `stream_loop`, `on_data`, `on_close`, `on_shutdown`); chunked, raw (after a 101) and close-delimited bodies; a send queue capped at 256 KiB (`Too_Slow`), and an end with a deadline so a protocol can send a slow consumer a last message (WebSocket 1013) and still cut it off | `stream.odin`, `server.odin` | M0 spike (S0.2, S0.3) |
 | F-2 | HTTP/1.0 peers get a close-delimited stream body instead of chunked | `stream.odin` | M0 spike |
 | F-3 | `stream_sendfile` on `nbio.sendfile`, for Range responses | — | planned (M9's video) |
 | F-4 | `Server_Opts.on_thread_init` and `on_thread_shutdown`, with each thread's index | `server.odin` | M0 spike (S0.6, S0.7) |
