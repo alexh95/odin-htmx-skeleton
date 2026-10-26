@@ -428,6 +428,26 @@ join_loop :: proc() {
 	sync.atomic_add(&local.inbox.subs, 1)
 }
 
+// ---- numbers ---------------------------------------------------------------------------
+
+Numbers :: struct {
+	cursor:          string, // the hub sequence now
+	loops:           int,    // loops that have had a subscriber
+	loops_with_subs: int,    // loops with one now: fan-out spans more than one on Linux (03 §10.4)
+}
+
+numbers :: proc(allocator := context.temp_allocator) -> (n: Numbers) {
+	guard.lock(&h.mu)
+	seq := h.seq
+	n.loops = len(h.inboxes)
+	for b in h.inboxes {
+		if sync.atomic_load(&b.subs) > 0 { n.loops_with_subs += 1 }
+	}
+	guard.unlock(&h.mu)
+	n.cursor = cursor(seq, allocator)
+	return
+}
+
 @(private)
 add_sub :: proc(s: ^Sub) {
 	s.slot = len(local.subs)

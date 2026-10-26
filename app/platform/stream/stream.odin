@@ -28,6 +28,7 @@ import "core:nbio"
 import "core:time"
 
 import "../guard"
+import "../obs"
 import "../sys"
 import "../web"
 
@@ -103,6 +104,7 @@ queued :: proc(c: ^Conn) -> int { return 0 if c.gone else web.stream_queued(c.s)
 // nil when admission refused the stream: the response has been sent.
 @(private)
 open :: proc(res: ^web.Response, kind: web.Stream_Kind, proto: Proto, content_type: string, user: rawptr, on_close: Close_Proc) -> ^Conn {
+	assert(inited, "platform/stream: call hub.init() (or stream.init()) at boot, before app.check")
 	client, member, ok := admit(res)
 	if !ok { return nil }
 	if content_type != "" { web.set_header(res, "content-type", content_type) }
@@ -124,6 +126,7 @@ open :: proc(res: ^web.Response, kind: web.Stream_Kind, proto: Proto, content_ty
 	c.slot = len(here.conns)
 	append(&here.conns, c)
 	if here.beat == nil && !here.stopping { here.beat = nbio.timeout(lim.heartbeat, beat) }
+	obs.inc(counters.opened)
 	return c
 }
 
@@ -141,6 +144,7 @@ closed :: proc(s: ^web.Stream, why: web.Stream_End) {
 		here.beat = nil
 	}
 	release(c)
+	obs.inc(counters.ended[why])
 	if c.on_close != nil { c.on_close(c) }
 	nbio.next_tick_poly(c, proc(_: ^nbio.Operation, c: ^Conn) {
 		delete(c.assembly.frag)

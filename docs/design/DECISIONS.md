@@ -846,7 +846,9 @@ Every stream response sends `X-Accel-Buffering: no` and `Cache-Control: no-cache
 compresses a stream), and writes its first
 bytes with the headers (an SSE comment line, a multipart CRLF preamble), because WebKit resolves a streamed fetch only
 at its first body bytes (S0.3). The WS handshake lets a request without `Origin` through: it isn't a browser's, so it
-can't be cross-site hijacking (S0.3).
+can't be cross-site hijacking (S0.3). **As built (M2):** while the host's origin is still the brand's placeholder (a
+dev run with no `SITE_URL`), an `Origin` naming the request's own `Host` passes too, so a local run's pages can open
+their sockets; a deployment names its origin and gets the strict comparison.
 
 `platform/stream/client` is one non-blocking chunked/SSE/WS client on `core:net` (NEW). It serves `bot/backend_llama`,
 `cmd/term-agent` and `tools/streamload`: one definition of the streaming client.

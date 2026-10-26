@@ -107,7 +107,9 @@ scheduler :: proc() {
 
 			job := sched.jobs[i]
 			ok := guard.call(proc(data: rawptr) { (proc())(data)() }, rawptr(job.run))
-			if l, lok := obs.begin(.Info if ok else .Error, "jobs", "run"); lok {
+			// A job that runs every minute or more often (the lab's beat) logs its runs
+			// at debug; its counts are in the job's state either way.
+			if l, lok := obs.begin((.Debug if job.every < time.Minute else .Info) if ok else .Error, "jobs", "run"); lok {
 				obs.str(&l, "job", job.id)
 				obs.num(&l, "ms", (sys.mono_ns() - now) / 1e6)
 				if !ok { obs.str(&l, "result", "crashed") }

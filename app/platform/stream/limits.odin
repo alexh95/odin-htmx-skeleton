@@ -34,13 +34,16 @@ lim := struct {
 	heartbeat: time.Duration,
 } {8192, 8, 16, 20, 64 << 20, web.STREAM_MAX_QUEUED, 20 * time.Second}
 
-// Records the rows before app.check, so --limits prints them; a profile that
-// streams calls it through hub.init.
+// Records the rows before app.check, so --limits prints them, and registers the
+// counters; a profile that streams calls it through hub.init.
 init :: proc() {
-	@(static) done: bool
-	if done { return }
-	done = true
+	if inited { return }
+	inited = true
 	env.record("", ENV[:])
+	counters.opened = obs.register_counter("app_streams_opened_total", "", "streams opened (SSE, WebSocket, multipart)")
+	for why in web.Stream_End {
+		counters.ended[why] = obs.register_counter("app_streams_ended_total", END_LABELS[why], "streams ended, by why")
+	}
 	lim.total = env.int_("STREAMS_TOTAL")
 	lim.per_user = env.int_("STREAMS_PER_USER")
 	lim.per_client = env.int_("STREAMS_PER_CLIENT")
@@ -57,6 +60,27 @@ init :: proc() {
 	obs.limit("stream", "queued_total", i64(lim.queued), "B")
 	obs.limit("stream", "queued_per_stream", i64(lim.max_queued), "B")
 }
+
+@(private) inited: bool
+
+@(private)
+counters: struct {
+	opened: obs.Counter,
+	ended:  [web.Stream_End]obs.Counter,
+}
+
+@(private, rodata)
+END_LABELS := [web.Stream_End]string {
+	.Ended       = `why="ended"`,
+	.Peer_Closed = `why="peer_closed"`,
+	.Send_Failed = `why="send_failed"`,
+	.Too_Slow    = `why="too_slow"`,
+	.Shutdown    = `why="shutdown"`,
+	.Crashed     = `why="crashed"`,
+}
+
+// How many streams have ended for `why`, process-wide.
+ended :: proc(why: web.Stream_End) -> u64 { return obs.counter_value(counters.ended[why]) }
 
 @(private)
 Client_Count :: struct {

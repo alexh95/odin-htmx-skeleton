@@ -63,7 +63,9 @@ Upgrade_Error :: enum u8 {
 // WebSocket hijacking). A handshake without Origin is not a browser's, can't be
 // that, and passes, as the cross-site guard lets such requests pass; a device
 // client authenticates by token instead (S0.3). The origin is the host's own
-// (SITE_URL, or SITE_URL_LAB on a lab host, §7.3).
+// (SITE_URL, or SITE_URL_LAB on a lab host, §7.3); while that is still the
+// brand's placeholder (a dev run with no SITE_URL), an Origin naming the
+// request's own Host passes instead, as the browser's page came from it.
 ws_upgrade :: proc(
 	req: ^web.Request,
 	res: ^web.Response,
@@ -90,7 +92,7 @@ ws_upgrade :: proc(
 		web.respond_status(res, .Bad_Request)
 		return nil, .Bad_Key
 	}
-	if origin, ok := web.header(req, "origin"); ok && origin != web.ctx().site.origin {
+	if origin, ok := web.header(req, "origin"); ok && !own_origin(req, origin) {
 		web.respond_status(res, .Forbidden)
 		return nil, .Foreign_Origin
 	}
@@ -332,6 +334,18 @@ ws_on_data :: proc(s: ^web.Stream, data: []byte) -> (consumed: int) {
 		}
 	}
 	return
+}
+
+@(private)
+own_origin :: proc(req: ^web.Request, origin: string) -> bool {
+	site := web.ctx().site.origin
+	if origin == site { return true }
+	if !web.placeholder_origin(site) { return false }
+	host, _ := web.header(req, "host")
+	for scheme in ([?]string{"http://", "https://"}) {
+		if len(origin) == len(scheme) + len(host) && strings.has_prefix(origin, scheme) && origin[len(scheme):] == host { return true }
+	}
+	return false
 }
 
 @(private)
