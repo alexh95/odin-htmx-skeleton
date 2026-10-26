@@ -77,7 +77,13 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       client on `core:net`; a multi-threaded fan-out generator with publisher-stamped `data-t` for delivery
       percentiles. *Check:* the client's parsers under table-driven random bytes; fan-out (1000 × 50, 3000), restart
       (4000 back ≤ 3 s), replay and resync, and back-pressure measured on Linux into `docs/perf/`, against §9.5 and
-      §18.4.
+      §18.4. Done but the random-bytes tables: the parsers' tests split every input at every byte; streamload's
+      fanout, restart and hold runs meet every §18.4 row on Linux (`docs/perf/STREAMS.md`), per-stream RSS once the
+      fork's F-17 was in (16.2 KiB an idle stream before, 3.0 after). Follow-ups: random-bytes tables for the client's
+      parsers (slice 13's fuzz tier 2); streamload into the nightly soak (slice 13).
+- [ ] **The skeleton's size budget** (asked of Alex 2026-10-27): F-17 put the skeleton at 2,884,096 B, 512 B past its
+      2.75 MiB (it had 16 B of slack in .text), so CI's Windows size check fails until Alex picks: (a) 3 MiB
+      (recommended), (b) SQLite's OMIT flags (about 69 KB), (c) keep 2.75 MiB. Slices 3 and 4 also touch skeleton code.
 - [ ] **7. `notify` (memory)** (§14.2): models, domain, the memory store (200 per user), views, web (`/notify`, the
       bell, `notify_web.send`), `notify.user:<uid>` over `#live` with hx-targets on `.notify-count`. *Check:* e2e and
       load, both suites reaching every route.

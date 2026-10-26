@@ -43,8 +43,17 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   scripts) and fetched by prepare, and the htmx-config meta's `extensions` allowlist comes from the profile's bundle
   (`tools/bundle` writes it beside the bundle; a profile with none keeps the skeleton's exact head).
 - **Stream counters**: `app_streams_opened_total` and `app_streams_ended_total{why}` on `/metrics`.
+- **`platform/stream/client`** (PLAN §8.2): the one non-blocking HTTP, SSE and WebSocket client, on core:nbio, with
+  incremental parsers for the response head, chunked bodies, SSE and the server's frames. **`tools/streamload`**
+  (§19.1.7) drives it: thousands of SSE and WebSocket clients over a few event-loop threads, a publisher whose stamped
+  messages give delivery percentiles, a restart mode that counts clients back and how SSE resumed, and a hold mode for
+  RSS per stream. `docs/perf/STREAMS.md` records §18.4's fan-out, restart and per-stream budgets on the Linux leg:
+  all met (3000 SSE subscribers p99 about 10 ms; 4000 clients back 1.7 s after a `kill -9`).
 
 ### Changed
+- **An open stream holds 3 KiB, not 16** (the fork's F-17): its receive buffer is sized by kind, the scanner's buffer
+  goes back at `stream_begin`, and the connection's arena once the handler returns. 4000 idle SSE streams took 68 MB
+  over idle; now 12 MB (WS 20 MB), inside §18.4's 6 KiB a stream.
 - **A WebSocket handshake under a placeholder origin** (a dev run with no `SITE_URL`) accepts an `Origin` naming
   the request's own `Host`, so a local run's pages can open their sockets; a deployment keeps the strict
   comparison with `SITE_URL` (D12 as built).

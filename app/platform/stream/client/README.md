@@ -1,0 +1,10 @@
+# platform/stream/client
+
+The one non-blocking HTTP, SSE and WebSocket client (PLAN §8.2, D12): a `Conn` on the event loop of the thread that
+opens it (core:nbio), reporting through callbacks: `on_open` after the response head, `on_sse` per event, `on_ws` per
+message, `on_body` per decoded read of a plain response (chunked or not), `on_close` with why. Its parsers (the head, a
+chunked body, SSE with CR, LF and CRLF line ends, the server's WebSocket frames) are incremental and unit-tested. Plain
+HTTP only. Its users: `tools/streamload` (M2), the bot's llama binding (M7) and the Pi's terminal agent (M11). Layer L3
+(PLAN §5.1); it imports core only.
+
+Audited: none yet (new in M2; `docs/audit/M2.md`)
