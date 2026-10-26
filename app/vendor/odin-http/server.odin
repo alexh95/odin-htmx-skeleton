@@ -524,7 +524,7 @@ connection_close :: proc(c: ^Connection, loc := #caller_location) {
 	assert_has_td(loc)
 
 	if c.state >= .Closing {
-		log.infof("connection %i already closing/closed", c.socket)
+		log.debugf("connection %i already closing/closed", c.socket)
 		return
 	}
 

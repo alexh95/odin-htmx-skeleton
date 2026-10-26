@@ -33,6 +33,7 @@ it touches. The WS codec, the SSE encoder, the multipart writer, Range parsing a
 | F-11 | The `date` header is formatted per thread, once per second of its loop's clock, instead of in one shared buffer a timer rewrote under the readers | `server.odin` | M0 spike (S0.2) |
 | F-12 | `listen` logs an error naming io_uring and seccomp when the event loop can't start, instead of asserting, and retries a bind that fails with `Address_In_Use` for `bind_retry` (3 s) | `server.odin` | M0 spike (S0.7) |
 | F-13 | Deferred responses: `response_defer` hands out a `Response_Ref` (loop, socket, a per-thread request generation) and `response_resume` returns the Response on that loop, or nil once the connection is gone or has moved on; while deferred, a poll on the socket closes the connection when the peer leaves and calls the application's `on_gone`; a thread's shutdown waits (to `drain_deadline`) for the refs it still owes | `deferred.odin`, `server.odin`, `response.odin` | M0 spike (S0.5) |
+| F-14 | The chunked body decoder refuses bad input instead of asserting: chunk data not followed by CRLF answers 400 (upstream asserted), trailer fields are discarded, at most 32 lines (upstream parsed them into the request's read-only headers, which asserted), and a chunk size is 1–15 plain hex digits (strconv took a sign and `_` and wrapped past 64 bits). Found by the M1 audit (`docs/audit/M1.md`, M1-01): one client could stop the process with about 101 such requests a minute | `body.odin` | M1 audit |
 
 "M0 spike" means the change is in and the named spikes exercise it (`docs/spikes/`); M1 productionises it with its own
 tests (PLAN §22.3). Spike S0.2 measures F-1 and F-5..F-12 under the skeleton's k6 suite before anything builds on them.
@@ -42,3 +43,5 @@ tests (PLAN §22.3). Spike S0.2 measures F-1 and F-5..F-12 under the skeleton's 
 1. Copy the new upstream commit's package files over this directory (same list as above), keeping this file.
 2. Re-apply the local changes, one commit each, and update the table and the base line above.
 3. Re-run the stream contract suite and the parity gate (PLAN §18) before anything ships on the new base.
+
+Audited: bf831da 2026-10-26 docs/audit/M1.md (F-1…F-13; F-14, which fixes the audit's M1-01, is audit debt until it is re-read)

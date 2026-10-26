@@ -119,6 +119,24 @@ stays off and Fly keeps serving 6d37506.
       1.0 MB only without the social card. Also seen: on Linux a client that half-closes right after
       its request often gets no response (the malformed run's "none": 5,560 of 10,000 against 1,250 on
       Windows); no crash, but worth the audit's look.
+- [ ] **The M1 audit's open findings** (`docs/audit/M1.md`; M1-01 CRITICAL, M1-06 and M1-08 are
+      fixed). MEDIUM, owner M2 (the stream substrate reworks the drain and the deferred paths):
+      M1-02 a response send has no deadline (a client that never reads holds the connection);
+      M1-03 the watchdog's and the dirty crash's exits log before they arm the exit, so a stalled
+      stderr hangs them; M1-04 a crash in a write continuation after `web.resume` leaves its
+      connection open; M1-05 at shutdown the writer can post replies into a released loop, and the
+      store close has no deadline; M1-07 a reader that can't be opened at runtime exits the process
+      (open readers in the loop's init hook, answer 500 at runtime). LOW, owner M2 or later: M1-09
+      request identity per thread where requests interleave; M1-10 the drain's log lines aren't
+      flushed; M1-11 half-closed clients and resets (likely the Linux "none" count in the drills);
+      M1-12 callbacks outside the guard; M1-13 `tools/check locks` and `entry-points`, plain
+      `sync.Mutex` in four packages; M1-14 Markdown's quadratic worst case; M1-15 the watchdog's lock
+      limit equals busy_timeout; M1-16 unchecked setup results. Also `web.count_and_log` and
+      `store_sqlite.query_drain` have no caller.
+- [ ] **`Audited:` stamps for the packages without a README**: the M1 audit stamps the features,
+      `platform/web` and the fork (`UPSTREAM.md`); the other platform packages, the stores and the
+      profiles need a README (or `tools/check audit-debt` another place to read stamps). F-14, M1-06's
+      and M1-08's fixes are audit debt until an independent re-read.
 - [ ] **`--limits` misses the store's rows** (`DB_PATH`, `SEED`, `MEMMODE`): `store_sqlite.open`
       records them at step 5, after `app.check` answers the CLI at step 4. Record them in an init
       before `app.check` (PLAN §8.5: every row printed, secrets masked).

@@ -147,7 +147,9 @@ writer_run :: proc() {
 			ping()
 			continue
 		}
-		guard.call(commit_batch, head)
+		// A trap mid-batch is dirty (the process drains and exits 70), and the batch
+		// never reached COMMIT: every op answers Failed, not the .None it was queued with.
+		if !guard.call(commit_batch, head) { fail_batch(head, "the batch crashed") }
 		obs.inc(wq.batches)
 		obs.inc(wq.writes, u64(n))
 		post_replies(head)

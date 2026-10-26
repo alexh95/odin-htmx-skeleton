@@ -168,6 +168,9 @@ mounted :: proc(h: Host) -> (s: web.Site) {
 // §8.6 steps 6-10: everything that serves, then the banner. Returns once every
 // loop runs.
 serve :: proc(hosts: []Host, jobs: [][]workers.Job, brand: ^html.Brand, headers := web.Header_Set.Standard) {
+	// odin-http logs through core:log, whose default discards every line (F-8's
+	// accept errors, F-12's io_uring hint). The threads started from here inherit it.
+	context.logger = obs.logger()
 	for &s, i in st.sites {
 		s.brand = brand
 		origin := env.str(hosts[i].site_env) if hosts[i].site_env == "SITE_URL" else os.get_env(hosts[i].site_env, context.allocator)

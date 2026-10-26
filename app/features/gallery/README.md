@@ -14,3 +14,5 @@ Beyond `/gallery`, `/admin/gallery` and `/api/gallery` (D9):
 | `/forms` | the skeleton's forms page and its submit, at their exact URLs |
 | `/ui` | the overlay, tab and toast fragments the components page swaps in (`/ui/ping` is dashboard's) |
 | `/validate` | the email check the forms page runs as you type |
+
+Audited: bf831da 2026-10-26 docs/audit/M1.md

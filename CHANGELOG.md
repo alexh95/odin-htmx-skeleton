@@ -11,7 +11,7 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes: `docs/spikes/`).
 
 ### Added
-- **The fork's changes to odin-http** (`app/vendor/odin-http/UPSTREAM.md` lists each, F-1 to F-13;
+- **The fork's changes to odin-http** (`app/vendor/odin-http/UPSTREAM.md` lists each, F-1 to F-14;
   F-3 waits for video): streams for SSE, WebSocket and multipart on the HTTP port; an `invoke` hook
   every server-owned callback runs through, so a crash guard can contain a crash in a handler, a stream
   or odin-http itself; idle, header and body timeouts, enforced by one 1 s sweep per thread rather than
@@ -107,6 +107,16 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   and `run.sh`'s `BUILD_FLAGS` pass extra odin flags.
 
 ### Fixed
+- **One client could stop the server with chunked request bodies** (CRITICAL, found by the M1 audit,
+  `docs/audit/M1.md` M1-01). odin-http's chunked decoder asserted on chunk data not followed by CRLF
+  and on any trailer field, on every route (a response drains an unread body); the guard contained
+  each as a crash, so about 101 a minute tripped the burst rule and the server exited. The fork's
+  F-14 answers 400 instead, discards trailers under a cap and parses chunk sizes strictly; the drills'
+  malformed set carries those requests now.
+- **A write batch that crashed was answered as committed** (M1-06): its ops now answer 500 while the
+  process drains.
+- **odin-http's own log lines were discarded** (M1-08): the server's threads log through `obs` now,
+  F-8's accept errors and F-12's io_uring hint included.
 - **Boot takes 12–17 ms again on Windows, not 170–180.** The ephemeral store's sweep for files a dead
   process left listed the whole temp directory (3,900 entries here); the files now live in an
   `odin-htmx-starter/` directory of their own. The sweep also asks the OS whether each file's process

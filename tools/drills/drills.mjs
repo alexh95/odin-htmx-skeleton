@@ -266,6 +266,14 @@ const MALFORMED = [
   'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n-5\r\nhello\r\n0\r\n\r\n',
   'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\nffffffffffffffffff\r\n',
   'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: gzip\r\n\r\n',
+  // F-14: chunk data not followed by CRLF, a trailer field (on a write and on a GET, whose unread
+  // body the response drains), and chunk sizes with a sign, a separator or past 64 bits.
+  'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhelloXX\r\n0\r\n\r\n',
+  'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n0\r\nX-Trailer: 1\r\n\r\n',
+  'GET / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n0\r\nX-Trailer: 1\r\n\r\n',
+  'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n+5\r\nhello\r\n0\r\n\r\n',
+  'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n1_0\r\n0123456789abcdef\r\n0\r\n\r\n',
+  'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n8000000000000005\r\nhello\r\n0\r\n\r\n',
   'GET / HTTP/1.1\r\n\r\n',
   'GET / HTTP/2.0\r\nHost: x\r\n\r\n',
   'GET /' + 'a'.repeat(9000) + ' HTTP/1.1\r\nHost: x\r\n\r\n',

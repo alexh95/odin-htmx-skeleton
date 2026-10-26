@@ -23,3 +23,5 @@ The platform's rows, mounted as `"platform"` by every profile (D9, PLAN §6.3):
 | `/favicon.ico` | crawlers look for it at the root |
 | `/licenses` | the notices of what the binary contains |
 | `/__test` | the crash drills and `/__test/shutdown`, in a `-define:TEST_ROUTES=true` build only (PLAN §19.1.10); a release build answers 404 |
+
+Audited: bf831da 2026-10-26 docs/audit/M1.md

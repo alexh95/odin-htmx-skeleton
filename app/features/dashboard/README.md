@@ -12,3 +12,5 @@ Beyond `/dashboard`, `/admin/dashboard` and `/api/dashboard` (D9):
 | Prefix | Why |
 |---|---|
 | `/ui/ping` | the skeleton's ping fragment, at its exact URL (PLAN §6.3); gallery owns the rest of `/ui` |
+
+Audited: bf831da 2026-10-26 docs/audit/M1.md
