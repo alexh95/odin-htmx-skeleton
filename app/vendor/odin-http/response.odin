@@ -289,6 +289,9 @@ response_send :: proc(r: ^Response, conn: ^Connection, loc := #caller_location) 
 	assert(!r.sent, "response has already been sent", loc)
 	r.sent = true
 
+	// F-13: answering a deferred response ends its watch.
+	_deferred_end(conn, gone = false)
+
 	check_body :: proc(res: rawptr, body: Body, err: Body_Error) {
 		res := cast(^Response)res
 		will_close: bool

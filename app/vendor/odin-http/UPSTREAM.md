@@ -32,6 +32,7 @@ it touches. The WS codec, the SSE encoder, the multipart writer, Range parsing a
 | F-10 | SIGTERM as well as SIGINT; the second-signal check is a process-wide flag (upstream read a thread-local that is nil on a thread that isn't the server's); `server_is_closing` | `server.odin` | M0 spike (S0.7) |
 | F-11 | The `date` header is formatted per thread, once per second of its loop's clock, instead of in one shared buffer a timer rewrote under the readers | `server.odin` | M0 spike (S0.2) |
 | F-12 | `listen` logs an error naming io_uring and seccomp when the event loop can't start, instead of asserting, and retries a bind that fails with `Address_In_Use` for `bind_retry` (3 s) | `server.odin` | M0 spike (S0.7) |
+| F-13 | Deferred responses: `response_defer` hands out a `Response_Ref` (loop, socket, a per-thread request generation) and `response_resume` returns the Response on that loop, or nil once the connection is gone or has moved on; while deferred, a poll on the socket closes the connection when the peer leaves and calls the application's `on_gone`; a thread's shutdown waits (to `drain_deadline`) for the refs it still owes | `deferred.odin`, `server.odin`, `response.odin` | M0 spike (S0.5) |
 
 "M0 spike" means the change is in and the named spikes exercise it (`docs/spikes/`); M1 productionises it with its own
 tests (PLAN §22.3). Spike S0.2 measures F-1 and F-5..F-12 under the skeleton's k6 suite before anything builds on them.

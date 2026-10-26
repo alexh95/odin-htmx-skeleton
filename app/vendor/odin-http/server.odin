@@ -147,6 +147,11 @@ Server_Thread :: struct {
 	// second while other threads read it (torn reads put NUL bytes in about 2 in 800k headers).
 	date:       Server_Date,
 
+	// F-13: the last request generation handed out on this thread, and the refs to deferred
+	// responses not yet resumed (shutdown waits for them).
+	next_gen:   u64,
+	deferred:   int,
+
 	// free_temp_blocks:       map[int]queue.Queue(^Block),
 	// free_temp_blocks_count: int,
 }
@@ -384,6 +389,9 @@ _server_thread_shutdown :: proc(s: ^Server, loc := #caller_location) {
 			}
 		}
 
+		// F-13: a reply still owed to this loop keeps it alive until the deadline.
+		if !past_deadline { waiting += td.deferred }
+
 		if waiting == 0 { break }
 
 		err := nbio.tick(SHUTDOWN_INTERVAL)
@@ -486,6 +494,9 @@ Connection :: struct {
 	temp_allocator: virtual.Arena,
 	loop:           Loop,
 	stream:         ^Stream,
+	// F-13: this request's generation (unique per thread), and its deferred response, if any.
+	gen:            u64,
+	deferred:       Deferred,
 }
 
 // Loop/request cycle state.
@@ -506,6 +517,9 @@ connection_close :: proc(c: ^Connection, loc := #caller_location) {
 	}
 
 	log.debugf("closing connection: %i", c.socket)
+
+	// F-13: a deferred response's watch ends here, and the application hears its peer is gone.
+	_deferred_end(c, gone = true)
 
 	c.state = .Closing
 
@@ -604,6 +618,7 @@ _invoke :: #force_inline proc(s: ^Server, fn: proc(a, b: rawptr), a, b: rawptr) 
 @(private)
 connection_crashed :: proc(c: ^Connection) {
 	scanner_cancel(&c.scanner)
+	_deferred_end(c, gone = true)
 
 	if c.state == .Streaming && c.stream != nil {
 		stream_crashed(c.stream)
@@ -643,6 +658,9 @@ conn_handle_reqs :: proc(c: ^Connection) {
 
 @(private)
 conn_handle_req :: proc(c: ^Connection, allocator := context.temp_allocator) {
+	td.next_gen += 1
+	c.gen = td.next_gen
+
 	// F-7: waiting for the next request is the idle phase; the first byte of it starts the header
 	// deadline (scanner_on_read), and the end of the headers starts the body deadline.
 	scanner_set_phase(&c.scanner, .Idle)
