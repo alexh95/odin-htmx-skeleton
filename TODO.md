@@ -104,7 +104,7 @@ stays off and Fly keeps serving 6d37506.
       profiles, `NO_SQLITE=1` on Linux; actionlint wasn't run (no local install; the Docker image was
       refused). `linux-ops` and the nightly ASan land with slice 10's drills, which they run. Open
       until the push: the green run itself.
-- [ ] **10. Drills and budgets.** Crash drills (panic, bounds, div, nil, stack, lock, async, sqlite, hang)
+- [x] **10. Drills and budgets.** Crash drills (panic, bounds, div, nil, stack, lock, async, sqlite, hang)
       on both OSes; the fuzz smoke; the shutdown bound with slowloris, half body and idle peers; restart;
       the fd ceiling; `skeleton` ≤ 2.75 MB, idle ≤ 10 MB, boot → `/readyz` ≤ 50 ms. Done: every drill
       passes for both profiles on Windows and on Linux (WSL): pure 500 with 20/20 bystanders, dirty exit
@@ -157,13 +157,19 @@ stays off and Fly keeps serving 6d37506.
       records them at step 5, after `app.check` answers the CLI at step 4. Record them in an init
       before `app.check` (PLAN §8.5: every row printed, secrets masked). Done: `store_sqlite.init()`
       in the skeleton's `main` before `app.check` (`open` records them itself if a profile skips it).
-- [ ] **11. The parity gate** on both legs (`skeleton` against 709bc94 and v1.1.1; §18.2 with Q6's and
-      Q35's references), into `docs/perf/PARITY.md`; the 01 (A) checklist.
+- [x] **11. The parity gate** on both legs (`skeleton` against 709bc94 and v1.1.1; §18.2 with Q6's and
+      Q35's references), into `docs/perf/PARITY.md`; the 01 (A) checklist. Done: PASS on both legs, 20 of
+      20 cells each counting §18.2's n = 5 re-runs (Windows `8c4f1a9`, Linux `72590f6`, the box quiet);
+      Linux `write@mem` at 0.99 of HEAD on its re-run, under the 0.93 floor Alex accepted (round 6). The
+      checklist is 40 of 40, CI's run on the restated budgets pending the next push. Both legs' drills
+      pass at `72590f6`, budgets included (skeleton 2,883,584 B, exactly 2.75 MiB: no headroom left).
 - [ ] **12. Audit and release prep.** `docs/audit/M1.md` by an agent that didn't write the code, 0 open
       CRITICAL/HIGH; `Audited:` stamps; CLAUDE.md, README and app/README rewritten for the starter (and
       the docs still describing `app/src`: docs/DATA.md, DATA_IMPL.md, STRIP.md, USE_CASES.md's
       `init --minimal`, e2e/PLAN.md, load-tests/PLAN.md — rewritten or removed, PLAN §4);
-      CHANGELOG's 2.0.0 entry; then ask Alex about tagging v2.0.0.
+      CHANGELOG's 2.0.0 entry; then ask Alex about tagging v2.0.0. Done but the tag: the audit and two
+      independent re-reads (0 open CRITICAL or HIGH; M1-01 and M1-17 fixed), stamps in every package
+      README, the docs rewritten, the CHANGELOG's 2.0.0 summary. Waiting on Alex: the v2.0.0 tag.
 
 ## Roadmap to 1.0 — template-ize (Phase F) — ✅ shipped as v1.0.0 (2026-07-01)
 

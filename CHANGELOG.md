@@ -13,7 +13,8 @@ its first milestone, M1, meant to ship as **2.0.0**: the request path rebuilt as
 features (`app/features/`) with a store per family (`app/stores/`), and two profiles (`app/cmd/`): `skeleton`, the
 1.2.x console at its exact URLs, and `minimal`, the one-page notes starter. Behind them: the vendored odin-http fork
 (F-1 to F-16), a crash guard, logfmt and metrics, store v3 (per-loop readers, a group-committing writer task),
-`tools/check`, CI through `build.sh`, crash drills and the parity gate (`docs/perf/PARITY.md`).
+`tools/check`, CI through `build.sh`, crash drills and the parity gate (`docs/perf/PARITY.md`: PASS on both legs, 20
+of 20 cells each, against v1.2.0 and v1.1.1).
 
 **Breaking, for a fork of 1.2.x:** `app/src` is gone (its code lives on as the `skeleton` profile's features); a
 profile is built through `build.sh`/`build.bat <profile>`, never `odin build` directly; `tools/init --minimal` is
