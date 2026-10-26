@@ -3,7 +3,9 @@
 **Date** 2026-10-25, revised 2026-10-26 · **Status** draft; Alex's answers of 2026-10-25 folded in, rounds 1–3,
 including #1 (direct calls, no DI) through `docs/design/LEAN-COMPOSITION.md`, as round 3 chose it; the device roles of
 2026-10-25 and 2026-10-26 folded in (`docs/design/DEVICES-SUMMARY.md`, §20.8); round 4 of 2026-10-26 folded in (Q33:
-M14 Devices is scheduled)
+M14 Devices is scheduled); round 5 of 2026-10-26 folded in (Q6, Q34, Q35: the gate's references and the storm
+budget). **M0 is done** (2026-10-26): the transition, and a decision record for each of S0.1–S0.12 in `docs/spikes/`,
+whose changes are folded in below; M1 is next
 
 **How this was made.** A research round (`docs/research/`, notes 01–13), then a design round (`docs/design/`);
 `docs/design/DECISIONS.md` (D1–D45, Appendices A–C) is the source of truth for everything below. The lead architect's
