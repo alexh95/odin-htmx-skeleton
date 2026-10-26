@@ -16,6 +16,107 @@ copy-and-start ergonomics and good defaults matter more than feature depth.
 > items (**bulk actions**, a **named console identity**) are **out of scope as goals** — they'd just
 > be cruft a copier deletes — and survive only as "example extensions you might add."
 
+## M2 — stream substrate, `streams` and the lab pages, generator v1 (v2.1.0)
+
+The starter's second milestone ([`docs/PLAN.md`](docs/PLAN.md) §22.3, M2's row; §8.2 streams, §9 the hub, §12 the
+client stack, §14.1–14.3 chat, notify and bot, §15.4–15.5 ops, status and the lab pages, §7.4 the generator, §19.1
+the tests). Slices in order, each done only when its check passes; a later slice builds only on earlier ones (§22.4).
+The S0.3 prototype (`docs/spikes/S0.3/server/`) and its specs (`e2e/spikes/S0.3/`) are where slices 1, 2 and 5
+start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only when Alex says so; `FLY_DEPLOY` stays off.
+
+- [ ] **1. Stream protocols** (`platform/stream`, L3, over F-1 through `platform/web`, which stays the one importer of
+      odin-http): the SSE encoder (CR, LF and CRLF each start a `data:` line; ids, named events; `: open` with the
+      headers), the WS handshake (`Origin` = the host's origin, or none; version 13, else 426), the strict RFC 6455
+      codec (RSV, masking, control frames, fragmentation, UTF-8 across fragments; 1002, 1007, 1009 at 64 KiB), ping
+      and the 45 s pong deadline, 1013 before the queue passes its cap with F-1's 2 s deadline, 1012 on drain, 1011
+      from `on_crash`; the multipart writer (boundary, CRLF framing, `Content-Length` per part, a preamble); the
+      `.Stream` flag's headers; a `virtual.Arena` per stream. *Check:* unit tests from spark's RFC 6455 coverage
+      table (03 §5.1, X24), the SSE encoder and a multipart round trip, leaks fatal; `tools/check imports` knows the
+      package.
+- [ ] **2. The hub** (`platform/hub`, §9.2–9.4): a shard per loop from F-4's thread hooks, one wakeup per loop per
+      burst, the hub mutex a `guard.Mutex`, a ring per topic (`HUB_RING` 256), one refcounted message encoded once
+      per transport, `.Queue`/`.Latest` (with the publish key)/`.Sample`, `TOPICS` rows mounted per host
+      (`{family, policy, ring, persisted, subscribe, deliver}`), `<epoch ms>-<seq>` ids, the connect procedure
+      (`Last-Event-ID`, then `after`, then the row's keyset replay, else `resync`), the caps (256 KiB per stream, 64
+      MiB in all, 8/16/8192 streams, 64 KiB messages, 20 connects a minute per client → 429), a 20 s heartbeat per
+      loop, kicks with close codes; `/events` in `platform/app`. *Check:* hub unit tests (publish, drain, replay,
+      resync, each policy, each cap); a TSan build of hub and stream on Linux with only the nbio mpsc suppression.
+- [ ] **3. Page bundles and flags → CSP** (§12.1–12.2): `web.Bundle` and `BUNDLES` lines; `tools/bundle` builds
+      Main plus every bundle a reached package names; the layout takes the bundle; the htmx-config meta from the
+      union (strict JSON); `.Private` (no-store, noindex, `hx-history="false"`), `.Stream`, `.Nonce_Csp` (a nonce
+      per response, the `hx-nonce` marker the writer replaces, no-store) and the `.Lab_Host` mount rule;
+      `Reporting-Endpoints`, `report-to` and a rate-limited `/csp-report` in `streams` and `lab`; boot check 6 over
+      every bundle. *Check:* CSP-builder unit tests; `headers.spec` (api) per flag class; `minimal`'s and
+      `skeleton`'s headers unchanged.
+- [ ] **4. `client/hyperscript` and `html.behave`** (§12.4, D22): _hyperscript 0.9.94 core pinned (SHA, upstream
+      `.br`) by prepare and in `pins`; the `client` family's second member; the `Behaviour` table and `html.behave`
+      (`_="install X"` or `data-behave="x"`); the gate in app.js; the platform's core `._hs` set with its vanilla
+      twins. The skeleton's markup stays as it is. *Check:* behave's output per client in a unit test; the gate
+      refuses an injected `_` and an injected `text/hyperscript` script (a lab spec); `escaping.spec`'s `_` and
+      `data-behave` rules.
+- [ ] **5. The lab pages and `cmd/lab`** (§15.5): features `lab` (`/lab/streams`: the SSE, WS and multipart contract
+      pages and the WS echo), `scripting` (`/scripting/*`: the nonce class, `live`, `streams`, `tt`) and `compat`
+      (`/compat/htmx2`, `/compat/alpine`); `cmd/lab` on memory, anonymous, hyperscript and full, its root row the
+      lab index until `landing` (M3), with `about`. *Check:* S0.3's 29 contract checks, plan checks and 20 extension
+      checks as `e2e/tests/lab/` specs, green in chromium and webkit on both legs; `csp-clean`, `csp-enforced`,
+      `harness-csp`, `streams-hxcsp` and `bundle-race`; load scenarios for every lab route; `lab` builds with no
+      SQLite library.
+- [ ] **6. `platform/stream/client` and `tools/streamload`** (§8.2, §19.1.7): one non-blocking chunked, SSE and WS
+      client on `core:net`; a multi-threaded fan-out generator with publisher-stamped `data-t` for delivery
+      percentiles. *Check:* the client's parsers under table-driven random bytes; fan-out (1000 × 50, 3000), restart
+      (4000 back ≤ 3 s), replay and resync, and back-pressure measured on Linux into `docs/perf/`, against §9.5 and
+      §18.4.
+- [ ] **7. `notify` (memory)** (§14.2): models, domain, the memory store (200 per user), views, web (`/notify`, the
+      bell, `notify_web.send`), `notify.user:<uid>` over `#live` with hx-targets on `.notify-count`. *Check:* e2e and
+      load, both suites reaching every route.
+- [ ] **8. `chat` (memory, four transports)** (§14.1): models, domain (2,000 runes, the 10-minute edit window, the
+      caps), the memory store (100 per room, `CHAT_RING_BYTES`), `transport_{ws,sse,poll,multipart}` with their
+      `EXTS`, `chat_web`'s switch (cookie, `?transport=`, `CHAT_TRANSPORT`; `x-impl`), topics `chat.room`,
+      `chat.presence`, `chat.typing`, read receipts by POST, the post and frame limits, `Composer` and `AutoScroll`
+      twinned. *Check:* the chat specs once per transport (`@chat-ws` …), resume without duplicates across
+      `setOffline` and a server restart; a load scenario per transport.
+- [ ] **9. `bot` (memory, mock)** (§14.3): models, the conversations' memory store, `backend_mock` (`BOT_SEED`,
+      `BOT_DELAY_MS`), `bot_web`'s backend switch (`.Llama` joins at M7), SSE delivery (the four frames,
+      `hx:release`) and multipart delivery, Stop, `bot.health`, the guest and member limits. *Check:* e2e per
+      delivery (deterministic with `BOT_SEED`); Stop ≤ 100 ms; load with 1000 mock generations and a Stop storm.
+- [ ] **10. `ops` and `status` (basic)** (§15.4): ops's 1 Hz `.Sample` publisher rendering obs's registry once into
+      OOB fragments and SVG sparklines on `ops.panel`, refreshed by SSE, `?mode=poll` (ptag 304s) or multipart;
+      `last-crash.txt` after a restart. `status`: one `multipart/parallel` response of each module's health, a
+      ptag poll variant. *Check:* e2e per refresh mode; load.
+- [ ] **11. `cmd/streams`** (§7.1): home, notes, chat, notify, bot, ops, status, about on memory, vanilla and lite, with
+      the identity Alex settles for it (below); `build.*`, `tools/init`'s `PROFILES`, CI's matrix.
+      *Check:* builds with no SQLite library; its e2e in chromium and webkit; its bundle's size recorded (§12.1's
+      UNVERIFIED (M2)); route coverage with 0 unexplained waivers.
+- [ ] **12. `tools/check topics` and `exts`**: every `TOPICS` row mounted per host, families unique and in their
+      feature's prefix; `BUNDLE_EXTS` names every mounted package with `EXTS` or `BUNDLES`. *Check:* a bad fixture
+      trips each.
+- [ ] **13. Stream drills** (§19.1.10): `wsdata` → 1011 with the server up; shutdown ≤ 6 s with 500 SSE + 500 WS
+      (WS got 1012); the fd ceiling with 3000 streams; restart, 4000 back ≤ 3 s; TSan with 0 reports on hub, stream,
+      workers and store/sqlite (S0.11, one nbio suppression, S0.9); the 1 h soak. *Check:* `tools/drills` on both
+      legs and in CI's `linux-ops`; TSan and soak as nightly jobs.
+- [ ] **14. M1's carried findings** (`docs/audit/M1.md`, owner M2): the MEDIUMs M1-02 (a send deadline), M1-03,
+      M1-04 with M1-26 (a crash in a continuation or a stream's end), M1-05 and M1-07, now that streams rework the
+      drain and the deferred paths; the profile's follow-ups (the connection arena's mutex and header reserves as a
+      fork change, one read transaction per page, `tools/profile`). *Check:* each finding's own regression test or
+      drill, and the parity gate.
+- [ ] **15. Generator v1** (`tools/init` compose mode, §7.4): `--list [--json]` (committed as `docs/catalog.json`,
+      checked fresh in CI), `--explain`, `--profile`, `--features`, `--add`, `--without`, the family commands,
+      `--dry-run`, `--verify` (scratch copy, `build.*`, `tools/check profile`, `--features --json` against the plan),
+      `--yes`; edits planned against the parsed profile files, any miss aborting with nothing written. *Check:* the
+      generator CI job with a rotating singleton per push; a plan that misses aborts cleanly.
+- [ ] **16. CI**: `streams` (chromium, webkit) and `lab` (all three, Firefox included) e2e; `e2e-proxy` ({streams,
+      lab} × chromium through `deploy/Caddyfile` and through nginx with the config apollo's NPM version generates;
+      X26, X40); nightly Autobahn|Testsuite against the lab's WS echo (X24), TSan and soak; `pins` with hyperscript.
+      *Check:* every job green on a pushed commit.
+- [ ] **17. Exit**: the parity gate on both legs; the budgets (bundle sizes, idle, no SQLite in `minimal`, `streams`
+      and `lab`); `docs/audit/M2.md` by an agent that didn't write the code, 0 open CRITICAL/HIGH (M1-04 and M1-26
+      are due here); `Audited:` stamps; CHANGELOG's 2.1.0 entry; then ask Alex about tagging v2.1.0.
+
+**Asked of Alex (2026-10-26), before slices 7–11:** (1) §7.1 builds `streams` on the `nick` identity, while §22.3
+puts nick with accounts at M4: build `features/accounts/identity_nick` in M2? (2) `/admin/ops` needs `Admin_Ops`,
+which only Admin holds, and nick only ever gives User, so nobody could open ops in `streams`. (3) §17.1 says off-LAN
+visitors to a nick witness "can read but not post", but a Guest has no `Chat_Read` in D35's table.
+
 ## M1 — request-path substrate, `skeleton` at parity (v2.0.0)
 
 The starter's first milestone of code ([`docs/PLAN.md`](docs/PLAN.md) §22.3, M1's row; M0's spikes are
