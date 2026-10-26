@@ -29,7 +29,8 @@ on_crash :: proc(c: ^guard.Crash) {
 	if !c.dirty { return }
 	if sync.atomic_exchange(&st.stop_once, true) { return }
 	sync.atomic_store(&st.exit_code, 70)
-	write_crash_file(c.why)
+	id, route := obs.current_request()
+	write_crash_file(c.why, id, route)
 	thread.create_and_start(proc() {
 		time.sleep(DIRTY_HARD_EXIT)
 		if l, ok := obs.begin(.Fatal, "app", "exit"); ok {
@@ -44,17 +45,17 @@ on_crash :: proc(c: ^guard.Crash) {
 
 // The watchdog's: a stalled loop or a stuck lock. Nothing can drain.
 @(private)
-on_fatal :: proc(why: string) {
-	write_crash_file(why)
+on_fatal :: proc(why, id, route: string) {
+	write_crash_file(why, id, route)
 	obs.flush()
 	os.exit(70)
 }
 
+// The watchdog's thread has no request of its own, so the caller names it.
 @(private)
-write_crash_file :: proc(why: string) {
+write_crash_file :: proc(why, id, route: string) {
 	path := env.str("CRASH_FILE")
 	if path == "" { return }
-	id, route := obs.current_request()
 	_ = os.write_entire_file(path, transmute([]byte)fmt.tprintf("%v exit 70: %s (route %q, request %s)\n", time.now(), why, route, id))
 }
 

@@ -25,3 +25,6 @@ Thumbs.db
 
 # The parity gate's baseline binaries (load-tests/lib/parity.sh builds them with tools/baseline).
 perf/baseline/
+
+# A dirty crash's or a watchdog exit's reason (CRASH_FILE's default).
+last-crash.txt

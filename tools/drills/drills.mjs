@@ -89,7 +89,9 @@ function freePort() {
 
 // A server, fresh: its output, exit code and exit time are kept. An empty env value means unset.
 function start(bin, env = {}, port = freePort(), { ulimit = 0 } = {}) {
-  const all = Object.fromEntries(Object.entries({ PORT: String(port), THREADS: '4', LOG_LEVEL: 'info', ...env }).filter(([, v]) => v !== ''));
+  const all = Object.fromEntries(Object.entries({
+    PORT: String(port), THREADS: '4', LOG_LEVEL: 'info', CRASH_FILE: `app/build/last-crash-${port}.txt`, ...env,
+  }).filter(([, v]) => v !== ''));
   let child;
   if (WSL || LINUX) {
     const vars = Object.entries({ ...all, ...(WSL ? { BIND_ALL: '1' } : {}) }).map(([k, v]) => `${k}=${v}`);

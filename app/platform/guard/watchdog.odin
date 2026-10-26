@@ -19,7 +19,7 @@ import "../obs"
 STALL :: 10 * time.Second
 LOCK_LIMIT :: 5 * time.Second
 
-On_Fatal :: #type proc(why: string)
+On_Fatal :: #type proc(why, id, route: string) // id and route: the stalled request, if any
 
 @(private)
 Watched :: struct {
@@ -85,5 +85,5 @@ _fatal :: proc(why: string, loop: int, age_ns: i64, id, route: string) {
 		obs.end(&l)
 	}
 	obs.flush()
-	if wd.on_fatal != nil { wd.on_fatal(why) }
+	if wd.on_fatal != nil { wd.on_fatal(why, id, route) }
 }
