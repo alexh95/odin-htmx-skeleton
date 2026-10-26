@@ -15,12 +15,15 @@ Alex can answer, and the M0 spike records are in [spikes/](spikes/).
 | [BRIEF.md](BRIEF.md) | Alex's request, as given (2026-10-25) |
 | [PLAN.md](PLAN.md) | The plan: 22 sections |
 | [design/DECISIONS.md](design/DECISIONS.md) | Source of truth: decisions D1–D45 (ADR style) and questions Q1–Q33 |
-| [design/ANSWERS.md](design/ANSWERS.md) | Alex's answers to the plan's questions (rounds 1–4), as given, with how the plan reads each |
+| [design/ANSWERS.md](design/ANSWERS.md) | Alex's answers to the plan's questions (rounds 1–7), as given, with how the plan reads each |
 | [design/RESOLUTIONS.md](design/RESOLUTIONS.md) | How the lead resolved the last open items (X1–X43) |
 | [design/LEAN-COMPOSITION.md](design/LEAN-COMPOSITION.md) | The no-DI composition mechanism for ANSWERS #1, which round 3 chose ("LC") |
 | [design/DEVICES-SUMMARY.md](design/DEVICES-SUMMARY.md) | The home devices' roles in the plan (device classes only), from the device discussion with Alex (2026-10-25 and 2026-10-26) |
 | [design/SETTLED.md](design/SETTLED.md) | Working assumptions (S1–S22) that experiments settled before the design round |
 | [spikes/](spikes/) | M0's decision records, `S0.<n>.md`: each spike's criterion, result and decision (PLAN §22.2) |
+| [audit/](audit/) | Each milestone's independent audit, `M<n>.md`, with its re-reads and the profile (PLAN §19.2) |
+| [perf/PARITY.md](perf/PARITY.md) | The parity gate at the last milestone exit: method, both legs, the exceptions (PLAN §18.2) |
+| [testing/](testing/) | A milestone's pass by hand in a browser, `M<n>.md`: what to run, try and look at |
 
 ## Local-only docs (git-ignored)
 
