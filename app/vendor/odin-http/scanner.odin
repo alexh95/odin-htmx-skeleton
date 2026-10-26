@@ -7,6 +7,7 @@ import "base:intrinsics"
 import "core:bufio"
 import "core:nbio"
 import "core:net"
+import "core:time"
 
 Scan_Callback :: #type proc(user_data: rawptr, token: string, err: bufio.Scanner_Error)
 Split_Proc    :: #type proc(split_data: rawptr, data: []byte, at_eof: bool) -> (advance: int, token: []byte, err: bufio.Scanner_Error, final_token: bool)
@@ -49,6 +50,39 @@ Scanner :: struct /* #no_copy */ {
 	could_be_too_short:           bool,
 	user_data:                    rawptr,
 	callback:                     Scan_Callback,
+
+	// F-7: the read in flight (so shutdown and a crash can cancel it), what the connection is
+	// waiting for, and when that wait ends (zero: never).
+	recv_op:                      ^nbio.Operation,
+	phase:                        Scan_Phase,
+	deadline:                     time.Time,
+}
+
+// F-7: which of the server's timeouts applies to the scanner's reads.
+Scan_Phase :: enum u8 {
+	Idle,    // waiting for a request: Server_Opts.idle_timeout
+	Headers, // the request line and headers: header_timeout, from the request's first byte
+	Body,    // the body: body_timeout, from the end of the headers
+}
+
+scanner_set_phase :: proc(s: ^Scanner, phase: Scan_Phase) {
+	s.phase = phase
+	timeout: time.Duration
+	opts := &s.connection.server.opts
+	switch phase {
+	case .Idle:    timeout = opts.idle_timeout
+	case .Headers: timeout = opts.header_timeout
+	case .Body:    timeout = opts.body_timeout
+	}
+	s.deadline = time.time_add(nbio.now(), timeout) if timeout > 0 else {}
+}
+
+// Cancels the read in flight, if any; its callback won't run.
+scanner_cancel :: proc(s: ^Scanner) {
+	if s.recv_op != nil {
+		nbio.remove(s.recv_op)
+		s.recv_op = nil
+	}
 }
 
 INIT_BUF_SIZE :: 1024
@@ -201,11 +235,23 @@ scanner_scan :: proc(
 	s.could_be_too_short = could_be_too_short
 
 	assert_has_td()
-	// TODO: some kinda timeout on this.
-	nbio.recv_poly(s.connection.socket, {s.buf[s.end:len(s.buf)]}, s, scanner_on_read)
+	// F-7: the read ends at the phase's deadline.
+	timeout := nbio.NO_TIMEOUT
+	if s.deadline != {} {
+		timeout = max(time.diff(nbio.now(), s.deadline), time.Millisecond)
+	}
+	s.recv_op = nbio.recv_poly(s.connection.socket, {s.buf[s.end:len(s.buf)]}, s, scanner_on_read, timeout = timeout)
 }
 
 scanner_on_read :: proc(op: ^nbio.Operation, s: ^Scanner) {
+	s.recv_op = nil
+	c := s.connection
+	if !_invoke(c.server, proc(a, b: rawptr) { _scanner_on_read((^nbio.Operation)(a), (^Scanner)(b)) }, op, s) {
+		connection_crashed(c)
+	}
+}
+
+_scanner_on_read :: proc(op: ^nbio.Operation, s: ^Scanner) {
 	context.temp_allocator = virtual.arena_allocator(&s.connection.temp_allocator)
 
 	defer scanner_scan(s, s.user_data, s.callback)
@@ -214,6 +260,10 @@ scanner_on_read :: proc(op: ^nbio.Operation, s: ^Scanner) {
 		#partial switch op.recv.err.(net.TCP_Recv_Error) {
 		case .Connection_Closed, .Invalid_Argument:
 			// EBADF (bad file descriptor) happens when OS closes socket.
+			s._err = .EOF
+			return
+		case .Timeout:
+			// F-7: a peer that took too long reads as one that left.
 			s._err = .EOF
 			return
 		}
@@ -231,6 +281,11 @@ scanner_on_read :: proc(op: ^nbio.Operation, s: ^Scanner) {
 	if op.recv.received < 0 || len(s.buf) - s.end < op.recv.received {
 		s._err = .Bad_Read_Count
 		return
+	}
+
+	// F-7: the first byte of a request starts its header deadline.
+	if s.phase == .Idle {
+		scanner_set_phase(s, .Headers)
 	}
 
 	s.end += op.recv.received

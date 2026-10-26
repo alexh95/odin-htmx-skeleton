@@ -40,6 +40,40 @@ Server_Opts :: struct {
 	// The thread count to use, defaults to your core count - 1.
 	thread_count:            int,
 
+	// F-4: called on each server thread once its event loop runs (index 0 is the thread that
+	// called `serve`), and again when that thread starts shutting down. Use it to register
+	// per-loop state and timers, and to cancel those timers, so shutdown doesn't wait on them.
+	on_thread_init:          proc(s: ^Server, thread_index: int),
+	on_thread_shutdown:      proc(s: ^Server, thread_index: int),
+
+	// F-5: when set, every completion callback the server owns (accept, the request scanner's
+	// reads, the handler dispatch inside them, response sends, stream operations and the server's
+	// timers) runs through this. A crash guard installed here returns false when the callback did
+	// not return normally; the server then answers 500 if nothing was sent yet and closes that
+	// connection (a stream gets its `on_crash`). nil calls the callbacks directly.
+	invoke:                  Invoke_Proc,
+
+	// F-7: how long a peer may take. 0 means no limit (upstream's behaviour).
+	// From a request's first byte to the end of its headers. Default 10 s.
+	header_timeout:          time.Duration,
+	// Waiting for a new connection's first request, or a kept-alive connection's next one. Default 75 s.
+	idle_timeout:            time.Duration,
+	// Reading a request body, by the handler or by the server draining it. Default 30 s.
+	body_timeout:            time.Duration,
+
+	// F-8: connections past this get a 503 and are closed. 0 derives it: the open-file soft limit
+	// minus 64 where there is one (Linux, macOS), else no limit. -1 means no limit.
+	max_connections:         int,
+
+	// F-9: at shutdown, how long requests that are still being handled get before their
+	// connections are cut. Idle connections close at once and streams get `STREAM_SHUTDOWN_GRACE`.
+	// Default 5 s.
+	drain_deadline:          time.Duration,
+
+	// F-12: how long `listen` retries a bind that fails with Address_In_Use (a restart right after
+	// a kill can find the old socket still held). Default 3 s; 0 tries once.
+	bind_retry:              time.Duration,
+
 	// // The initial size of the temp_allocator for each connection, defaults to 256KiB and doubles
 	// // each time it needs to grow.
 	// // NOTE: this value is assigned globally, running multiple servers with a different value will
@@ -55,9 +89,18 @@ Default_Server_Opts := Server_Opts {
 	redirect_head_to_get    = true,
 	limit_request_line      = 8000,
 	limit_headers           = 8000,
+	header_timeout          = 10 * time.Second,
+	idle_timeout            = 75 * time.Second,
+	body_timeout            = 30 * time.Second,
+	drain_deadline          = 5 * time.Second,
+	bind_retry              = 3 * time.Second,
 	// initial_temp_block_cap  = 256 * mem.Kilobyte,
 	// max_free_blocks_queued  = 64,
 }
+
+// F-5: runs `fn(a, b)`. Returns false when `fn` did not return normally, which only a crash guard
+// can make happen (a longjmp back into this frame).
+Invoke_Proc :: #type proc(fn: proc(a, b: rawptr), a, b: rawptr) -> (returned: bool)
 
 Server_State :: enum {
 	Uninitialized,
@@ -87,9 +130,9 @@ Server :: struct {
 	// The main thread waits on this to clean up global data and return.
 	threads_closed: sync.Wait_Group,
 
-	// Updated every second with an updated date, this speeds up the server considerably
-	// because it would otherwise need to call time.now() and format the date on each response.
-	date:           Server_Date,
+	// F-8: open connections across all threads, and the cap derived from the options.
+	conn_count:     int,
+	max_conns:      int,
 }
 
 Server_Thread :: struct {
@@ -98,6 +141,11 @@ Server_Thread :: struct {
 	conns:      map[net.TCP_Socket]^Connection,
 	state:      Server_State,
 	accept:     ^nbio.Operation,
+	index:      int,
+
+	// F-11: the date header, per thread. Upstream shared one buffer that a timer rewrote every
+	// second while other threads read it (torn reads put NUL bytes in about 2 in 800k headers).
+	date:       Server_Date,
 
 	// free_temp_blocks:       map[int]queue.Queue(^Block),
 	// free_temp_blocks_count: int,
@@ -126,17 +174,47 @@ listen :: proc(
 	// initial_block_cap = int(s.opts.initial_temp_block_cap)
 	// max_free_blocks_queued = int(s.opts.max_free_blocks_queued)
 
-	acquire_err := nbio.acquire_thread_event_loop()
-	// TODO: error handling.
-	assert(acquire_err == nil)
+	if acquire_err := nbio.acquire_thread_event_loop(); acquire_err != nil {
+		_log_event_loop_error(acquire_err)
+		return net.Listen_Error.Unsupported_Socket
+	}
 
-	s.tcp_sock, err = nbio.listen_tcp(endpoint)
+	// F-12: a restart right after a kill can find the address still held; retry for a while.
+	start := time.tick_now()
+	for {
+		s.tcp_sock, err = nbio.listen_tcp(endpoint)
+		if !_is_address_in_use(err) || time.tick_since(start) >= s.opts.bind_retry { break }
+		time.sleep(100 * time.Millisecond)
+	}
 	if err != nil {
+		log.errorf("http: could not listen on %v: %v", net.endpoint_to_string(endpoint, context.temp_allocator), err)
 		nbio.run()
 		nbio.release_thread_event_loop()
 		server_shutdown(s)
 	}
 	return
+}
+
+@(private)
+_is_address_in_use :: proc(err: net.Network_Error) -> bool {
+	#partial switch e in err {
+	case net.Bind_Error:   return e == .Address_In_Use
+	case net.Listen_Error: return e == .Address_In_Use
+	}
+	return false
+}
+
+@(private)
+_log_event_loop_error :: proc(err: nbio.General_Error) {
+	when ODIN_OS == .Linux {
+		log.errorf(
+			"http: the event loop could not start (%v). core:nbio needs io_uring on Linux; a container's " +
+			"seccomp profile can block io_uring_setup (Docker's default one does): run it under a profile " +
+			"that allows io_uring.", err,
+		)
+	} else {
+		log.errorf("http: the event loop could not start: %v", err)
+	}
 }
 
 serve :: proc(s: ^Server, h: Handler) -> (err: net.Network_Error) {
@@ -147,15 +225,18 @@ serve :: proc(s: ^Server, h: Handler) -> (err: net.Network_Error) {
 		s.opts.thread_count = os.get_processor_core_count()
 	}
 
+	s.max_conns = s.opts.max_connections
+	if s.max_conns == 0 { s.max_conns = _default_max_connections() }
+
 	thread_count := max(1, s.opts.thread_count)
 	sync.wait_group_add(&s.threads_closed, thread_count)
 	s.threads = make([]Server_Thread, thread_count, s.conn_allocator)
+	for &td, i in s.threads {
+		td.index = i
+	}
 	for &td in s.threads[1:] {
 		td.thread = thread.create_and_start_with_poly_data2(s, &td, _server_thread_init, context)
 	}
-
-	// Start keeping track of and caching the date for the required date header.
-	server_date_start(s)
 
 	_server_thread_init(s, &s.threads[0])
 
@@ -195,6 +276,8 @@ _server_thread_init :: proc(s: ^Server, ttd: ^Server_Thread) {
 
 	td.event_loop = nbio.current_thread_event_loop()
 
+	if s.opts.on_thread_init != nil { s.opts.on_thread_init(s, td.index) }
+
 	log.debug("accepting connections")
 
 	td.accept = nbio.accept_poly(s.tcp_sock, s, on_accept)
@@ -226,6 +309,10 @@ _server_thread_init :: proc(s: ^Server, ttd: ^Server_Thread) {
 @(private)
 SHUTDOWN_INTERVAL :: time.Millisecond * 100
 
+// F-9: how long a thread waits for operations still pending once its connections are gone.
+@(private)
+SHUTDOWN_FINAL_WAIT :: time.Millisecond * 500
+
 // Starts a graceful shutdown.
 //
 // Some error logs will be generated but all active connections are finished
@@ -248,48 +335,62 @@ _server_thread_shutdown :: proc(s: ^Server, loc := #caller_location) {
 
 	td.state = .Closing
 	defer delete(td.conns)
-	// defer {
-	// 	blocks: int
-	// 	for _, &bucket in td.free_temp_blocks {
-	// 		for block in queue.pop_front_safe(&bucket) {
-	// 			blocks += 1
-	// 			free(block)
-	// 		}
-	// 		queue.destroy(&bucket)
-	// 	}
-	// 	delete(td.free_temp_blocks)
-	// 	log.infof("had %i temp blocks to spare", blocks)
-	// }
 
+	// F-9: stop accepting at once, so the listen backlog stops feeding this thread.
+	if td.accept != nil {
+		nbio.remove(td.accept)
+		td.accept = nil
+	}
+
+	// F-4: the application cancels its per-loop timers and tells its streams.
+	if s.opts.on_thread_shutdown != nil { s.opts.on_thread_shutdown(s, td.index) }
+
+	// F-9: every wait is bounded. Idle connections are closed now (their pending read cancelled),
+	// streams end within STREAM_SHUTDOWN_GRACE, and requests still being handled get
+	// `drain_deadline`, after which their sockets are shut down and left for the process exit.
+	start := time.tick_now()
 	for {
+		past_deadline := s.opts.drain_deadline > 0 && time.tick_since(start) >= s.opts.drain_deadline
+		waiting := 0
 		for sock, conn in td.conns {
 			#partial switch conn.state {
-			case .Active:
-				log.infof("shutdown: connection %i still active", sock)
+			case .Active, .Will_Close:
+				if past_deadline {
+					log.infof("shutdown: connection %i still active at the drain deadline, cutting it", sock)
+					net.shutdown(conn.socket, .Both)
+				} else {
+					waiting += 1
+				}
+			case .Streaming:
+				stream_shutdown(conn.stream)
+				waiting += 1
 			case .New, .Idle, .Pending:
-				log.infof("shutdown: closing connection %i", sock)
+				log.debugf("shutdown: closing connection %i", sock)
+				scanner_cancel(&conn.scanner)
 				connection_close(conn)
+				waiting += 1
 			case .Closing:
 				log.debugf("shutdown: connection %i is closing", sock)
+				waiting += 1
 			case .Closed:
 				log.warn("closed connection in connections map, maybe a race or logic error")
 			}
 		}
 
-		if len(td.conns) == 0 {
-			break
-		}
+		if waiting == 0 { break }
 
-		err := nbio.tick()
-		fmt.assertf(err == nil, "IO tick error during shutdown: %v")
+		err := nbio.tick(SHUTDOWN_INTERVAL)
+		fmt.assertf(err == nil, "IO tick error during shutdown: %v", err)
 	}
 
 	td.state = .Cleaning
 
-	nbio.remove(td.accept)
-	td.accept = nil
-
-	nbio.run()
+	// Whatever is still pending (an application timer nobody cancelled, a send to a peer that stopped
+	// reading) gets a short while, not forever.
+	final := time.tick_now()
+	for nbio.num_waiting() > 0 && time.tick_since(final) < SHUTDOWN_FINAL_WAIT {
+		nbio.tick(SHUTDOWN_INTERVAL)
+	}
 	nbio.release_thread_event_loop()
 
 	td.state = .Closed
@@ -301,26 +402,36 @@ _server_thread_shutdown :: proc(s: ^Server, loc := #caller_location) {
 on_interrupt_server: ^Server
 @(private)
 on_interrupt_context: runtime.Context
+@(private)
+on_interrupt_seen: Atomic(bool)
 
-// Registers a signal handler to shutdown the server gracefully on interrupt signal.
+// Registers a signal handler to shutdown the server gracefully on SIGINT or SIGTERM (F-10: a
+// container runtime stops PID 1 with SIGTERM). A second signal exits at once.
 // Can only be called once in the lifetime of the program because of a hacky interaction with libc.
 server_shutdown_on_interrupt :: proc(s: ^Server) {
 	on_interrupt_server = s
 	on_interrupt_context = context
 
-	libc.signal(
-		libc.SIGINT,
-		proc "cdecl" (_: i32) {
-			context = on_interrupt_context
+	on_signal :: proc "cdecl" (_: i32) {
+		context = on_interrupt_context
 
-			// Force close on second signal.
-			if td.state == .Closing {
-				os.exit(1)
-			}
+		// Force close on second signal. The signal can land on any thread, so this is a
+		// process-wide flag, not the thread's state (upstream read `td`, which is nil off the
+		// server's threads).
+		if sync.atomic_exchange(&on_interrupt_seen.raw, true) {
+			os.exit(1)
+		}
 
-			server_shutdown(on_interrupt_server)
-		},
-	)
+		server_shutdown(on_interrupt_server)
+	}
+
+	libc.signal(libc.SIGINT, on_signal)
+	libc.signal(libc.SIGTERM, on_signal)
+}
+
+// True once a shutdown has started, e.g. for a readiness probe to answer 503 while draining.
+server_is_closing :: proc(s: ^Server) -> bool {
+	return atomic_load(&s.closing)
 }
 
 // Taken from Go's implementation,
@@ -338,6 +449,7 @@ Connection_State :: enum {
 	Pending, // Pending a client to attach.
 	New, // Got client, waiting to service first request.
 	Active, // Servicing request.
+	Streaming, // F-1: a Stream owns the connection (stream.odin): SSE, chunked, or upgraded.
 	Idle, // Waiting for next request.
 	Will_Close, // Closing after the current response is sent.
 	Closing, // Going to close, cleaning up.
@@ -366,6 +478,7 @@ Connection :: struct {
 	scanner:        Scanner,
 	temp_allocator: virtual.Arena,
 	loop:           Loop,
+	stream:         ^Stream,
 }
 
 // Loop/request cycle state.
@@ -406,6 +519,7 @@ connection_close :: proc(c: ^Connection, loc := #caller_location) {
 
 			scanner_destroy(&c.scanner)
 			delete_key(&td.conns, c.socket)
+			sync.atomic_sub(&c.server.conn_count, 1)
 			free(c, c.server.conn_allocator)
 		})
 	})
@@ -413,23 +527,38 @@ connection_close :: proc(c: ^Connection, loc := #caller_location) {
 
 @(private)
 on_accept :: proc(op: ^nbio.Operation, server: ^Server) {
+	_invoke(server, proc(a, b: rawptr) { _on_accept((^nbio.Operation)(a), (^Server)(b)) }, op, server)
+}
+
+@(private)
+_on_accept :: proc(op: ^nbio.Operation, server: ^Server) {
 	td.accept = nil
 
 	if op.accept.err != nil {
-		#partial switch op.accept.err {
-		case .Insufficient_Resources:
-			log.error("Connection limit reached, trying again in a bit")
-			nbio.timeout_poly(time.Second, server, proc(_: ^nbio.Operation, server: ^Server) {
-				td.accept = nbio.accept_poly(server.tcp_sock, server, on_accept)
-			})
-			return
-		}
+		if td.state != .Serving { return }
 
-		fmt.panicf("accept error: %v", op.accept.err)
+		// F-8: never panic here; log and accept again. Out of descriptors, wait for some to free up.
+		if op.accept.err == .Insufficient_Resources {
+			log.error("Connection limit reached, trying again in a bit")
+			nbio.timeout_poly(time.Second, server, _accept_again)
+		} else {
+			log.errorf("accept error: %v", op.accept.err)
+			nbio.timeout_poly(10 * time.Millisecond, server, _accept_again)
+		}
+		return
 	}
 
 	// Accept next connection.
 	td.accept = nbio.accept_poly(server.tcp_sock, server, on_accept)
+
+	// F-8: past the cap, answer 503 and close, without allocating a connection.
+	if server.max_conns > 0 && sync.atomic_load(&server.conn_count) >= server.max_conns {
+		nbio.send_poly(op.accept.client, {transmute([]byte)string(OVER_CAPACITY_RESPONSE)}, op.accept.client, proc(op: ^nbio.Operation, sock: net.TCP_Socket) {
+			nbio.close(sock)
+		})
+		return
+	}
+	sync.atomic_add(&server.conn_count, 1)
 
 	c := new(Connection, server.conn_allocator)
 	c.state = .New
@@ -442,6 +571,54 @@ on_accept :: proc(op: ^nbio.Operation, server: ^Server) {
 	log.debugf("new connection with thread, got %d conns", len(td.conns))
 	conn_handle_reqs(c)
 }
+
+@(private)
+_accept_again :: proc(_: ^nbio.Operation, server: ^Server) {
+	if td.state != .Serving || td.accept != nil { return }
+	td.accept = nbio.accept_poly(server.tcp_sock, server, on_accept)
+}
+
+// F-8: what a connection past `max_connections` gets.
+@(private)
+OVER_CAPACITY_RESPONSE :: "HTTP/1.1 503 \r\nconnection: close\r\ncontent-length: 0\r\nretry-after: 1\r\n\r\n"
+
+// F-5: runs `fn` through the server's `invoke`, when one is set.
+@(private)
+_invoke :: #force_inline proc(s: ^Server, fn: proc(a, b: rawptr), a, b: rawptr) -> (returned: bool) {
+	if s.opts.invoke == nil {
+		fn(a, b)
+		return true
+	}
+	return s.opts.invoke(fn, a, b)
+}
+
+// F-5: a callback on this connection crashed and the guard recovered. Whatever the request had
+// reached, the connection can't be trusted to continue: answer 500 if nothing was sent, then close.
+@(private)
+connection_crashed :: proc(c: ^Connection) {
+	scanner_cancel(&c.scanner)
+
+	if c.state == .Streaming && c.stream != nil {
+		stream_crashed(c.stream)
+		return
+	}
+
+	if c.state >= .Closing { return }
+
+	if c.state == .Active && !c.loop.res.sent {
+		c.loop.res.sent = true
+		connection_set_state(c, .Will_Close)
+		nbio.send_poly(c.socket, {transmute([]byte)string(CRASHED_RESPONSE)}, c, proc(_: ^nbio.Operation, c: ^Connection) {
+			connection_close(c)
+		})
+		return
+	}
+
+	connection_close(c)
+}
+
+@(private)
+CRASHED_RESPONSE :: "HTTP/1.1 500 \r\nconnection: close\r\ncontent-type: text/plain\r\ncontent-length: 15\r\n\r\nInternal error."
 
 @(private)
 conn_handle_reqs :: proc(c: ^Connection) {
@@ -459,6 +636,10 @@ conn_handle_reqs :: proc(c: ^Connection) {
 
 @(private)
 conn_handle_req :: proc(c: ^Connection, allocator := context.temp_allocator) {
+	// F-7: waiting for the next request is the idle phase; the first byte of it starts the header
+	// deadline (scanner_on_read), and the end of the headers starts the body deadline.
+	scanner_set_phase(&c.scanner, .Idle)
+
 	on_rline1 :: proc(loop: rawptr, token: string, err: bufio.Scanner_Error) {
 		l := cast(^Loop)loop
 
@@ -563,6 +744,8 @@ conn_handle_req :: proc(c: ^Connection, allocator := context.temp_allocator) {
 	}
 
 	on_headers_end :: proc(l: ^Loop) {
+		scanner_set_phase(&l.conn.scanner, .Body)
+
 		if !headers_validate_for_server(&l.req.headers) {
 			log.warn("request headers are invalid")
 			headers_set_close(&l.res.headers)
@@ -619,27 +802,20 @@ conn_handle_req :: proc(c: ^Connection, allocator := context.temp_allocator) {
 @(private)
 Server_Date :: struct {
 	buf_backing: [DATE_LENGTH]byte,
-	buf:         bytes.Buffer,
+	second:      i64,
 }
 
-@(private)
-server_date_start :: proc(s: ^Server) {
-	s.date.buf.buf = slice.into_dynamic(s.date.buf_backing[:])
-	server_date_update(nil, s)
-}
-
-// Updates the time and schedules itself for after a second.
-@(private)
-server_date_update :: proc(_: ^nbio.Operation, s: ^Server) {
-	if atomic_load(&s.closing) { return }
-
-	nbio.timeout_poly(time.Second, s, server_date_update)
-
-	bytes.buffer_reset(&s.date.buf)
-	date_write(bytes.buffer_to_stream(&s.date.buf), time.now())
-}
-
+// F-11: each thread formats its own date header, at most once per second of its event loop's clock
+// (nbio's time, cached per tick), so no thread reads a buffer another one is writing.
 @(private)
 server_date :: proc(s: ^Server) -> string {
-	return string(s.date.buf_backing[:])
+	now := nbio.now()
+	second := time.to_unix_seconds(now)
+	if second != td.date.second || td.date.buf_backing[0] == 0 {
+		buf: bytes.Buffer
+		buf.buf = slice.into_dynamic(td.date.buf_backing[:])
+		date_write(bytes.buffer_to_stream(&buf), now)
+		td.date.second = second
+	}
+	return string(td.date.buf_backing[:])
 }

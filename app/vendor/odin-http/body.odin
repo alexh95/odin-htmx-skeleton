@@ -125,7 +125,11 @@ _body_length :: proc(req: ^Request, max_length: int = -1, user_data: rawptr, cb:
 		return
 	}
 
-	ilen, lenok := strconv.parse_int(len, 10)
+	// F-6: upstream parsed this with strconv.parse_int, which takes a sign, `_` separators and wraps
+	// past 64 bits, and checked only the upper bound: "-5" (or 9223372036854775808) reached
+	// `assert(n >= 0)` in scan_num_bytes and aborted the process. Only plain digits within `int`
+	// pass; anything else answers 400 (Bad_Read_Count).
+	ilen, lenok := parse_content_length(len)
 	if !lenok {
 		cb(user_data, "", .Bad_Read_Count)
 		return
@@ -149,6 +153,18 @@ _body_length :: proc(req: ^Request, max_length: int = -1, user_data: rawptr, cb:
 
 	req._body_ok = true
 	scanner_scan(req._scanner, user_data, cb)
+}
+
+// RFC 9110 8.6: Content-Length = 1*DIGIT, within int.
+parse_content_length :: proc(s: string) -> (n: int, ok: bool) {
+	if len(s) == 0 { return }
+	for c in transmute([]byte)s {
+		if c < '0' || c > '9' { return 0, false }
+		d := int(c - '0')
+		if n > (max(int) - d) / 10 { return 0, false }
+		n = n * 10 + d
+	}
+	return n, true
 }
 
 /*
