@@ -4,13 +4,12 @@
 # Local-only planning material (ANSWERS F4; D45). The repo is public:
 # - docs/private/ holds the real site values behind the public docs' placeholders (docs/private/SITE.md);
 # - the research notes, the three proposals and the outline name LAN and host details and are superseded by
-#   DECISIONS.md and PLAN.md, which cite them in place;
-# - _ref/ is a read-only reference clone of the skeleton at 709bc94, removed at M0.
+#   DECISIONS.md and PLAN.md, which cite them in place. (`_ref/`, the planning's reference clone of the skeleton at
+#   709bc94, went at M0: tag v1.2.0 names the same tree.)
 /docs/private/
 /docs/research/
 /docs/design/proposal-*.md
 /docs/design/OUTLINE.md
-/_ref/
 
 # From the skeleton's root .gitignore (709bc94).
 # Build artifacts and fetched deps under app/ are ignored by app/.gitignore.

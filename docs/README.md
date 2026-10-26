@@ -35,8 +35,8 @@ still cite them in place ("08 §3", "RF §11.2"); the citations are for agents w
 | `docs/design/proposal-*.md` | The three competing designs (risk-first, product-first, composition-first) | Superseded by DECISIONS.md, and they name LAN and host details |
 | `docs/design/OUTLINE.md` | How PLAN.md was cut into sections for the writers | A working file for the writing round |
 
-`SK/<path>:<line>` citations resolve against tag v1.2.0 (709bc94), so the read-only reference clone the planning used,
-`_ref/` (git-ignored), is no longer needed and goes at M0 (D1 step 5).
+`SK/<path>:<line>` citations resolve against tag v1.2.0 (709bc94); the read-only reference clone the planning used,
+`_ref/`, went at M0 (D1 step 5).
 
 How it was made: research agents read the skeleton, odin-http, spark and the htmx and _hyperscript sources, ran
 experiments (prototypes and measurements, kept in the session scratchpad) and wrote notes 01–09. A critic found the
