@@ -122,6 +122,9 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   `odin-htmx-starter/` directory of their own. The sweep also asks the OS whether each file's process
   still runs (`sys.process_alive`): on Windows it had assumed a live server's files can't be deleted,
   and two servers booting at once proved otherwise (`disk I/O error` at `journal_mode=WAL`).
+- **`--limits` prints the store's rows** (`DB_PATH`, `SEED`, `MEMMODE`): `store_sqlite.init()`
+  records them before `app.check` answers the CLI. A bad value there now stops boot with the other
+  boot problems (exit 2) instead of at the store's open (exit 1).
 - **`CMD=test build.sh <p>` reports no leaks**: the boot checks' tables, which a server keeps for
   its life, now live in an arena the test destroys (about 150 leak lines per run before). The
   skeleton's tests also cover the router.

@@ -7,6 +7,7 @@ package app
 //
 //   app.boot("skeleton")               // CLI short-circuits, NOFILE, logs, the guard, the platform's env
 //   … each feature's init …            // records and reads its env rows, declares its limits
+//   store_sqlite.init()                // SQLite profiles: the store's env rows
 //   app.check(HOSTS[:], JOBS[:], BUNDLE_EXTS)   // the boot checks; --features, --routes, --limits answer here
 //   store_sqlite.open(…); migrate …    // SQLite profiles only
 //   app.serve(HOSTS[:], JOBS[:], &BRAND)        // assets, CSP, bind, loops, the banner; returns once they run

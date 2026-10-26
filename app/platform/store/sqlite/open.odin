@@ -27,11 +27,21 @@ import "../../sys"
 APP_ID :: 0x4F485354 // 'OHST' in the header's application_id (12 §5)
 APP_NAME :: "odin-htmx-starter"
 
+// §8.6 step 3: the store's env rows, recorded before app.check so --limits prints
+// them; open reads them.
+init :: proc() {
+	if env_recorded { return }
+	env.record("", ENV[:])
+	env_recorded = true
+}
+
+@(private) env_recorded: bool
+
 // `profile` is the build's ("skeleton"), recorded in the database so another
 // profile doesn't open it by accident. `legacy` names the feature that adopts a
 // database the skeleton wrote (its schema_version rows); "" adopts none.
 open :: proc(profile: string, legacy := "") {
-	env.record("", ENV[:])
+	init()
 	for p in env.problems() {
 		if strings.has_prefix(p, "DB_PATH") || strings.has_prefix(p, "SEED") || strings.has_prefix(p, "MEMMODE") {
 			fatal("store: %s", p)

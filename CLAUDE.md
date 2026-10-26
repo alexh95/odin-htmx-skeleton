@@ -164,7 +164,7 @@ platform  L4 app        -> identity:., store:. (the family's NAME), L1-L3; only 
 - **A profile is four hand-written files.** `routes.odin` mounts tables, one line each, as
   `app.Mount{"<feature>", <pkg>.ROUTES[:]}` (the root row is written there, never inside a
   package's table); `main.odin` is the boot sequence as plain calls (`app.boot`, each feature's
-  `init`, `app.check`, `store_sqlite.open` and one `migrate` per store, `app.serve`, `app.wait`,
+  `init` and `store_sqlite.init`, `app.check`, `store_sqlite.open` and one `migrate` per store, `app.serve`, `app.wait`,
   `app.shutdown`, `store_sqlite.close`, `app.exit`); `brand.odin` holds the names, the nav and the
   pages' copy; `routes_test.odin` runs the boot checks under `CMD=test`.
 - **Prefixes**: a feature owns `/<f>`, `/admin/<f>` and `/api/<f>`; anything else is listed with a

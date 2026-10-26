@@ -2052,7 +2052,8 @@ with a message.
 3. **Logger and typed env**: per-thread logfmt buffers, then the platform's env rows (`app.boot`); then each feature's
    `init`, in dependency order (notify before its producers), records and reads its own rows in `platform/env` and
    declares its limits to obs, starting nothing; `home_web.init` and `find_web.init` take `HOME_CARDS` and
-   `FIND_SOURCES`. A bad value is fatal.
+   `FIND_SOURCES`. A bad value is fatal. A SQLite profile's `store_sqlite.init()` records the store's rows (`DB_PATH`,
+   `SEED`, `MEMMODE`) here too, so step 4 prints them (as built in M1).
 4. **`app.check(HOSTS, JOBS, BUNDLE_EXTS)`** runs the boot checks of §6.1 per host, including `BUNDLE_EXTS` against the
    embedded bundle's `/* exts: … */` header (D19); `--features`, `--routes` and `--limits` answer here, with every row
    recorded, and exit.

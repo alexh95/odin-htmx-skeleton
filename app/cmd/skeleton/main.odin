@@ -17,6 +17,7 @@ BUNDLE_EXTS :: dashboard_web.EXTS + gallery_web.EXTS + contacts_web.EXTS + about
 main :: proc() {
 	app.boot("skeleton")
 	about_web.init(ABOUT)
+	store_sqlite.init() // DB_PATH, SEED, MEMMODE: recorded here so --limits prints them
 	app.check(HOSTS[:], nil, BUNDLE_EXTS)
 
 	// The store (§8.6 step 5): a skeleton database (709bc94 or v1.1.1) is adopted
