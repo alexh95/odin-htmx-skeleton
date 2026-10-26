@@ -67,8 +67,8 @@ test("minimal's bundle is the skeleton's htmx.min.js: same SHA-256, same crc32 n
   const minimal = readFileSync(path.join(out(), 'minimal', 'main.js'));
   expect(sha256(minimal)).toBe(PINS.htmxMinSha256);
   // The skeleton's own copy, when prepare has fetched it.
-  const skeleton = path.join(process.env.S010_REPO!, 'app', 'static', 'htmx.min.js');
-  test.skip(!existsSync(skeleton), 'app/static/htmx.min.js absent: run app/prepare first');
+  const skeleton = path.join(process.env.S010_REPO!, 'app', 'vendor', 'htmx', 'htmx.min.js');
+  test.skip(!existsSync(skeleton), 'app/vendor/htmx/htmx.min.js absent: run app/prepare first');
   const sk = readFileSync(skeleton);
   expect(sha256(minimal)).toBe(sha256(sk));
   expect(crcName(minimal)).toBe(crcName(sk));

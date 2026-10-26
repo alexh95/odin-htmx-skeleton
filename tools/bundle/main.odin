@@ -18,6 +18,8 @@ package main
 //      is htmx.min.js byte for byte, with no header: `minimal` and `skeleton`
 //      keep the skeleton's file and its crc32 name.
 //   4. Precompress each with `brotli -q 11` and `gzip -9 -n` (see compress).
+//   5. Write the profile's app.css (the theme's sheet, then each reached
+//      feature's static CSS) and its client's app.js, precompressed the same way.
 //
 // The ext tables come from the app's own leaf package, imported here, so the
 // header this writes and the boot check that reads it can't disagree on a
@@ -56,6 +58,8 @@ Decl :: struct {
 
 main :: proc() {
 	opt := parse_args(os.args[1:])
+	// Absolute, because build.{sh,bat} cd to the repo root before the scan build writes there.
+	opt.repo, opt.htmx, opt.out = abs(opt.repo), abs(opt.htmx), abs(opt.out)
 	dir := path_join(opt.out, opt.profile)
 	if err := os.make_directory_all(dir); err != nil {
 		fatal(fmt.tprintf("can't create %s: %v", dir, err))
@@ -109,6 +113,90 @@ main :: proc() {
 			b, fmt.tprint(card(set)), fmt.tprint(len(js)), size_or_dash(gz), size_or_dash(br), hash.crc32(js), sum,
 		)
 	}
+
+	// The stylesheet and the client's script, from the same reached files.
+	for out in ([]struct{name: string, data: []byte}{{"app.css", stylesheet(opt, files)}, {"app.js", client_js(opt, files)}}) {
+		path := path_join(dir, out.name)
+		if err := os.write_entire_file(path, out.data); err != nil {
+			fatal(fmt.tprintf("can't write %s: %v", path, err))
+		}
+		gz, br := compress(path, tools)
+		fmt.printfln("%-14s %4s %8s %8s %8s  %08x", out.name, "", fmt.tprint(len(out.data)), size_or_dash(gz), size_or_dash(br), hash.crc32(out.data))
+	}
+}
+
+// ---- 5. the stylesheet and the client's script ----------------------------
+//
+// One stylesheet per profile: the platform's (app/platform/static/app.css) for the
+// build's theme, then each reached feature's static/*.css, in feature order. The
+// lite theme is the full sheet with every `/* full-only: … */` … `/* /full-only */`
+// region cut out, so the two never drift; the marker lines go in both.
+
+THEME_LITE :: "platform/theme/lite/"
+
+stylesheet :: proc(opt: Options, files: []string) -> []byte {
+	lite := false
+	for f in files {
+		if strings.has_prefix(f, THEME_LITE) { lite = true; break }
+	}
+	b := strings.builder_make()
+	src := string(read(path_join(opt.repo, "app/platform/static/app.css")))
+	cutting := false
+	for line in strings.split_lines_iterator(&src) {
+		t := strings.trim_space(line)
+		if strings.has_prefix(t, "/* full-only") {
+			cutting = lite
+			continue
+		}
+		if t == "/* /full-only */" {
+			cutting = false
+			continue
+		}
+		if cutting { continue }
+		strings.write_string(&b, line)
+		strings.write_byte(&b, '\n')
+	}
+	for f in reached_features(files) {
+		dir := path_join(opt.repo, "app/features", f, "static")
+		entries, err := os.read_all_directory_by_path(dir, context.temp_allocator)
+		if err != nil { continue }
+		names := make([dynamic]string, context.temp_allocator)
+		for e in entries {
+			if strings.has_suffix(e.name, ".css") { append(&names, e.name) }
+		}
+		slice.sort(names[:])
+		for n in names {
+			strings.write_string(&b, "\n")
+			strings.write_bytes(&b, read(path_join(dir, n)))
+		}
+	}
+	return b.buf[:]
+}
+
+// The build's client member owns app.js (its delegated listener and behaviours).
+client_js :: proc(opt: Options, files: []string) -> []byte {
+	PREFIX :: "platform/client/"
+	for f in files {
+		if !strings.has_prefix(f, PREFIX) { continue }
+		member := f[len(PREFIX):]
+		member = member[:strings.index_byte(member, '/')]
+		return read(path_join(opt.repo, "app/platform/client", member, "app.js"))
+	}
+	fatal("the build reaches no client member (app/platform/client/<member>/): check build.sh's -collection:client")
+	return nil
+}
+
+// The features the build reaches, from their packages' paths, in name order.
+reached_features :: proc(files: []string) -> []string {
+	out := make([dynamic]string)
+	for f in files {
+		if !strings.has_prefix(f, "features/") { continue }
+		rest := f[len("features/"):]
+		name := rest[:strings.index_byte(rest, '/')]
+		if !slice.contains(out[:], name) { append(&out, name) }
+	}
+	slice.sort(out[:])
+	return out[:]
 }
 
 // ---- 1. the compiler's file list ----------------------------------------

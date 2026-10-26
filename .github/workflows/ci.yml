@@ -296,7 +296,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: |
-            app/static/htmx.min.js
+            app/vendor/htmx/htmx.min.js
             app/vendor/sqlite
           key: prepared-${{ hashFiles('app/prepare.sh') }}-jammy
 
@@ -368,7 +368,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: |
-            app/static/htmx.min.js
+            app/vendor/htmx/htmx.min.js
             app/vendor/sqlite
           key: prepared-${{ hashFiles('app/prepare.sh') }}-jammy
 

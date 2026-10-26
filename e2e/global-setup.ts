@@ -23,7 +23,7 @@ function prepared(appDir: string): boolean {
   const pin = (name: string) => pins.match(new RegExp(`^${name}=(\\w+)`, 'm'))?.[1];
   const lib = at(process.platform === 'win32' ? 'vendor/sqlite/sqlite3.lib' : 'vendor/sqlite/sqlite3.a');
   try {
-    const htmx = createHash('sha256').update(readFileSync(at('static/htmx.min.js'))).digest('hex');
+    const htmx = createHash('sha256').update(readFileSync(at('vendor/htmx/htmx.min.js'))).digest('hex');
     const stamp = readFileSync(at('vendor/sqlite/.stamp'), 'utf8').trim();
     return htmx === pin('HTMX_SHA256') && stamp === pin('SQLITE_SHA256')
       && statSync(lib).mtimeMs >= statSync(at('vendor/sqlite/sqlite3.c')).mtimeMs;

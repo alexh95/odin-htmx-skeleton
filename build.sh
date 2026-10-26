@@ -2,7 +2,9 @@
 # build.sh <profile> [odin flags...]: the one place a profile's family flags live (PLAN §7.2).
 #   CMD=build (default) | check | test | run
 #   VERSION=<tag or commit> becomes -define:VERSION (default dev), sent as x-version.
-# Every path here is relative to the repo root; the binary lands in app/bin/<profile>.
+#   OUT=<path> builds there instead (tools/bundle's scan build, beside a running binary).
+# Every path here is relative to the repo root; the binary lands in app/bin/<profile>, and the
+# assets prepare built for the profile (app/build/<profile>/) are embedded from BUILD_DIR.
 # run.*, prepare.*, CI, the Dockerfile, the e2e setup and load-tests/run.sh all call this.
 set -eu
 cd "$(dirname "$0")"
@@ -24,8 +26,8 @@ esac
 
 cmd="${CMD:-build}"
 case "$cmd" in
-  build|run) out="-out:app/bin/$p$exe" ;;
-  test)      out="-out:app/bin/$p-test$exe" ;;
+  build|run) out="-out:${OUT:-app/bin/$p$exe}" ;;
+  test)      out="-out:${OUT:-app/bin/$p-test$exe}" ;;
   check)     out="" ;;
   *) echo "build.sh: unknown CMD '$cmd' (build, check, test, run)" >&2; exit 2 ;;
 esac
@@ -35,5 +37,5 @@ mkdir -p app/bin
 exec odin "$cmd" "app/cmd/$src" $out \
   -collection:store="app/stores/$store" -collection:identity="app/$id" \
   -collection:client="app/platform/client/$client" -collection:theme="app/platform/theme/$theme" \
-  -define:VERSION="${VERSION:-dev}" \
+  -define:VERSION="${VERSION:-dev}" -define:BUILD_DIR="../../build/$p" \
   -vet -strict-style -warnings-as-errors "$@"

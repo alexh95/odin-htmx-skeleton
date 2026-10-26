@@ -1,5 +1,7 @@
 bin/
-static/htmx.min.js
+vendor/htmx/htmx.min.js
+# tools/bundle's output, per profile: prepare writes it, build.sh embeds it.
+build/
 *.exe
 *.pdb
 

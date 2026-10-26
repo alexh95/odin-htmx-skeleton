@@ -2,7 +2,9 @@
 rem build.bat PROFILE [odin flags...]: the one place a profile's family flags live (PLAN 7.2).
 rem   set CMD=build (default) ^| check ^| test ^| run
 rem   set VERSION=TAG becomes -define:VERSION (default dev), sent as x-version.
-rem Every path here is relative to the repo root; the binary lands in app\bin\PROFILE.exe.
+rem   set OUT=PATH builds there instead (tools/bundle's scan build, beside a running binary).
+rem Every path here is relative to the repo root; the binary lands in app\bin\PROFILE.exe, and
+rem the assets prepare built for the profile (app\build\PROFILE\) are embedded from BUILD_DIR.
 rem (No angle brackets in these comments: cmd still parses redirections on a rem line.)
 rem The same table as build.sh: change both together.
 setlocal
@@ -29,16 +31,17 @@ set "REST=%*"
 call set "REST=%%REST:*%P%=%%"
 
 if "%CMD%"=="" set "CMD=build"
-set "OUT="
-if "%CMD%"=="build" set "OUT=-out:app/bin/%P%.exe"
-if "%CMD%"=="run" set "OUT=-out:app/bin/%P%.exe"
-if "%CMD%"=="test" set "OUT=-out:app/bin/%P%-test.exe"
 if not "%CMD%"=="build" if not "%CMD%"=="run" if not "%CMD%"=="test" if not "%CMD%"=="check" (
   echo build.bat: unknown CMD '%CMD%' ^(build, check, test, run^) 1>&2
   exit /b 2
 )
+set "BIN=app/bin/%P%.exe"
+if "%CMD%"=="test" set "BIN=app/bin/%P%-test.exe"
+if not "%OUT%"=="" set "BIN=%OUT%"
+set "OUTFLAG="
+if not "%CMD%"=="check" set "OUTFLAG=-out:%BIN%"
 if "%VERSION%"=="" set "VERSION=dev"
 if not exist "app\bin\" mkdir app\bin
 
-odin %CMD% app/cmd/%SRC% %OUT% -collection:store=app/stores/%STORE% -collection:identity=app/%ID% -collection:client=app/platform/client/%CLIENT% -collection:theme=app/platform/theme/%THEME% -define:VERSION=%VERSION% -vet -strict-style -warnings-as-errors%REST%
+odin %CMD% app/cmd/%SRC% %OUTFLAG% -collection:store=app/stores/%STORE% -collection:identity=app/%ID% -collection:client=app/platform/client/%CLIENT% -collection:theme=app/platform/theme/%THEME% -define:VERSION=%VERSION% -define:BUILD_DIR=../../build/%P% -vet -strict-style -warnings-as-errors%REST%
 exit /b %errorlevel%

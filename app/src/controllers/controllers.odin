@@ -500,7 +500,7 @@ indexnow_key :: proc(req: ^http.Request, res: ^http.Response) {
 // The binary is fully self-contained: nothing is read from disk at runtime, so a
 // redeploy is the only way assets change — which matches the deployment model.
 // prepare.* fetches htmx before the first build.
-HTMX_JS :: #load("../../static/htmx.min.js")
+HTMX_JS :: #load("../../vendor/htmx/htmx.min.js")
 APP_CSS :: #load("../../platform/static/app.css")
 APP_JS :: #load("../../platform/client/vanilla/app.js")
 FAVICON :: #load("../../platform/static/favicon.svg")

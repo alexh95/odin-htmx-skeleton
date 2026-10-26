@@ -137,7 +137,7 @@ favicon_ico :: proc(req: ^http.Request, res: ^http.Response) {
 // Every asset is embedded into the binary at compile time (#load; paths relative
 // to this file: src/controllers -> app/static) and served from memory, so the
 // binary is fully self-contained. prepare.* fetches htmx before the first build.
-HTMX_JS :: #load("../../static/htmx.min.js")
+HTMX_JS :: #load("../../vendor/htmx/htmx.min.js")
 APP_CSS :: #load("../../platform/static/app.css")
 APP_JS :: #load("../../platform/client/vanilla/app.js")
 FAVICON :: #load("../../platform/static/favicon.svg")

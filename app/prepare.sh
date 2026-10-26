@@ -18,19 +18,20 @@ sha256_of() {
 
 # htmx, pinned exactly (version + SHA-256) for reproducible builds — same
 # discipline as ODIN_VERSION and the SQLite amalgamation. Bump both together.
+mkdir -p vendor/htmx
 HTMX_VERSION=4.0.0
 HTMX_SHA256=e484d9171a9db30a39c8f16e3d709d4137f3211c659f8e6125816635033d593f
-if [ -f static/htmx.min.js ] && [ "$(sha256_of static/htmx.min.js)" = "$HTMX_SHA256" ]; then
+if [ -f vendor/htmx/htmx.min.js ] && [ "$(sha256_of vendor/htmx/htmx.min.js)" = "$HTMX_SHA256" ]; then
   echo "[skip] htmx $HTMX_VERSION already present."
 else
   echo "[get ] downloading htmx $HTMX_VERSION ..."
   url="https://unpkg.com/htmx.org@$HTMX_VERSION/dist/htmx.min.js"
-  if command -v curl >/dev/null 2>&1; then curl -fsSL "$url" -o static/htmx.min.js
-  else wget -qO static/htmx.min.js "$url"; fi
-  got="$(sha256_of static/htmx.min.js)"
+  if command -v curl >/dev/null 2>&1; then curl -fsSL "$url" -o vendor/htmx/htmx.min.js
+  else wget -qO vendor/htmx/htmx.min.js "$url"; fi
+  got="$(sha256_of vendor/htmx/htmx.min.js)"
   if [ "$got" != "$HTMX_SHA256" ]; then
     echo "error: htmx checksum mismatch: expected $HTMX_SHA256, got $got" >&2
-    rm -f static/htmx.min.js; exit 1
+    rm -f vendor/htmx/htmx.min.js; exit 1
   fi
 fi
 
@@ -95,5 +96,17 @@ else
   printf '%s\n' "$SQLITE_FLAGS" > "$SQLITE_DIR/.flags"
 fi
 
+# Each profile's assets (tools/bundle, PLAN §12.1): its htmx bundle, its stylesheet and its
+# client's app.js, with a .br and a .gz beside each, in build/<profile>/, where build.sh's
+# BUILD_DIR embeds them from. Cheap, so it runs every time: an edited asset is picked up.
+echo "[bndl] building the profiles' assets ..."
+(
+  cd .. && odin build tools/bundle -out:app/bin/bundle -o:minimal >/dev/null &&
+  for d in app/cmd/*/; do # every profile this checkout has
+    [ -f "$d/main.odin" ] || continue
+    ./app/bin/bundle "$(basename "$d")" >/dev/null || exit 1
+  done
+) || { echo "error: tools/bundle failed (on Linux it needs brotli and gzip: apt-get install -y brotli)" >&2; exit 1; }
+
 echo
-echo "Ready. Start the server with:  ./run.sh"
+echo "Ready. Build a profile from the repo root:  ./build.sh skeleton"

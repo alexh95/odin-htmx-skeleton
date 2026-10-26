@@ -11,9 +11,10 @@ rem odin's -out: writes into bin\ but won't create it; a fresh clone has no bin\
 if not exist "bin\" mkdir bin
 
 rem htmx, pinned exactly (version + SHA-256) for reproducible builds.
+if not exist "vendor\htmx\" mkdir vendor\htmx
 set "HTMX_URL=https://unpkg.com/htmx.org@4.0.0/dist/htmx.min.js"
 set "HTMX_SHA256=e484d9171a9db30a39c8f16e3d709d4137f3211c659f8e6125816635033d593f"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $f='static\htmx.min.js'; $w='%HTMX_SHA256%'; if((Test-Path $f) -and ((Get-FileHash $f -Algorithm SHA256).Hash.ToLower() -eq $w)){Write-Host '[skip] htmx already present.';exit 0}; Write-Host '[get ] downloading htmx ...'; Invoke-WebRequest -UseBasicParsing '%HTMX_URL%' -OutFile $f; $g=(Get-FileHash $f -Algorithm SHA256).Hash.ToLower(); if($g -ne $w){Remove-Item $f -Force; Write-Error \"htmx checksum mismatch: expected $w got $g\"; exit 1}"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $f='vendor\htmx\htmx.min.js'; $w='%HTMX_SHA256%'; if((Test-Path $f) -and ((Get-FileHash $f -Algorithm SHA256).Hash.ToLower() -eq $w)){Write-Host '[skip] htmx already present.';exit 0}; Write-Host '[get ] downloading htmx ...'; Invoke-WebRequest -UseBasicParsing '%HTMX_URL%' -OutFile $f; $g=(Get-FileHash $f -Algorithm SHA256).Hash.ToLower(); if($g -ne $w){Remove-Item $f -Force; Write-Error \"htmx checksum mismatch: expected $w got $g\"; exit 1}"
 if errorlevel 1 goto :fail
 
 rem --- SQLite amalgamation (pinned; fetched + compiled, mirroring the htmx fetch) ---
@@ -77,8 +78,22 @@ echo   3^) run this from an "x64 Native Tools Command Prompt for VS 2022"
 goto :fail
 
 :ready
+rem Each profile's assets (tools/bundle, PLAN 12.1): its htmx bundle, its stylesheet and its
+rem client's app.js, with a .br and a .gz beside each, in build\PROFILE\, where build.bat's
+rem BUILD_DIR embeds them from. Cheap, so it runs every time: an edited asset is picked up.
+rem Without brotli or gzip (Git for Windows ships both) a dev build ships fewer encodings.
+echo [bndl] building the profiles' assets ...
+pushd ..
+odin build tools/bundle -out:app/bin/bundle.exe -o:minimal >nul || (popd & goto :fail)
+rem Every profile this checkout has.
+for /d %%d in (app\cmd\*) do (
+  if exist "%%d\main.odin" (
+    app\bin\bundle.exe %%~nxd >nul || (popd & goto :fail)
+  )
+)
+popd
 echo.
-echo Ready. Start the server with:  run.bat
+echo Ready. Build a profile from the repo root:  build.bat skeleton
 exit /b 0
 
 :fail

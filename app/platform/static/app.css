@@ -1,4 +1,4 @@
-/* odin-htmx-skeleton — one stylesheet, driven by variables.
+/* odin-htmx-starter — one stylesheet, driven by variables.
    The whole theme is two token sets (dark default, light override). Components
    read tokens, never raw colours, so re-theming is local to :root. */
 
@@ -73,6 +73,7 @@
   --shadow-lg: 0 30px 70px -34px rgba(40, 50, 90, .4);
 }
 
+/* full-only: the modern schemes past midnight and daylight */
 [data-style="modern"][data-scheme="nebula"] {
   --violet: #c45cff;
   --indigo: #9a5cff;
@@ -163,6 +164,8 @@
   --muted:   #a6bfd9;
   --faint:   #7188a8;
 }
+
+/* /full-only */
 
 /* ---- base ------------------------------------------------------------- */
 
@@ -332,12 +335,15 @@ a { color: inherit; text-decoration: none; }
 .swatch:focus-visible { outline: none; box-shadow: var(--ring); }
 .swatch[aria-pressed="true"] { border-color: var(--text); box-shadow: var(--ring); }
 
+/* full-only: the showroom, the gallery's */
 /* ---- /components style showroom --------------------------------------- */
 .showroom-grid { display: grid; gap: 12px; }
 .showroom-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .showroom-name { flex: none; width: 96px; font-weight: 600; font-size: .9rem; color: var(--text); }
 .showroom-swatches { display: flex; flex-wrap: wrap; gap: 9px; }
 .showroom-swatches .swatch { width: 30px; height: 30px; }
+
+/* /full-only */
 
 /* ---- layout / cards --------------------------------------------------- */
 
@@ -741,6 +747,7 @@ tr.htmx-swapping { animation: row-out 220ms var(--ease) forwards; }
   * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
 
+/* full-only: the five styles past modern */
 /* =====================================================================
    STYLE: Skeuomorphic — tactile depth from gradients + layered shadows,
    no image assets. Panels are raised, fields recessed, buttons press. The
@@ -1224,6 +1231,8 @@ tr.htmx-swapping { animation: row-out 220ms var(--ease) forwards; }
 [data-style="arcade"] input[type="range"]::-webkit-slider-thumb {
   background: var(--violet); border: 2px solid #fff; box-shadow: 0 0 12px var(--violet);
 }
+
+/* /full-only */
 
 /* =====================================================================
    RESPONSIVE — phone / small-tablet. Last in the file so these layout

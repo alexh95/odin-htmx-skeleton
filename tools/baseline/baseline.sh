@@ -43,7 +43,7 @@ case "$(uname -s)" in
   *) LIB=sqlite3.a; EXE= ;;
 esac
 PREP="$ROOT/app"
-[ -f "$PREP/vendor/sqlite/$LIB" ] && [ -f "$PREP/static/htmx.min.js" ] || {
+[ -f "$PREP/vendor/sqlite/$LIB" ] && [ -f "$PREP/vendor/htmx/htmx.min.js" ] || {
   echo "this checkout's app/ isn't prepared: run app/prepare.* first" >&2; exit 1; }
 
 # The ref must pin what this checkout prepared, or the comparison isn't like for like.
@@ -68,7 +68,7 @@ else
 fi
 mkdir -p "$APP/vendor/sqlite" "$APP/bin"
 cp "$PREP/vendor/sqlite/$LIB" "$PREP/vendor/sqlite/sqlite3.h" "$APP/vendor/sqlite/"
-cp "$PREP/static/htmx.min.js" "$APP/static/htmx.min.js"
+cp "$PREP/vendor/htmx/htmx.min.js" "$APP/static/htmx.min.js"
 
 if [ -n "$GUARD" ]; then
   [ -n "$FORK" ] || { echo "--guard needs --fork" >&2; exit 2; }
