@@ -36,7 +36,7 @@ profile needs none). `run` serves a SQLite profile from a local `data.db` seeded
 or `PORT` overrides 8080.
 
 `build.sh <profile>` (`build.bat` on Windows) is the one place a profile's build flags live: its four
-family collections, `-vet -strict-style -warnings-as-errors`, `VERSION` (sent as `x-version`) and the
+family collections, `-vet -strict-style -warnings-as-errors` with the further vet flags, `VERSION` (sent as `x-version`) and the
 directory its bundled assets are embedded from. `CMD=check|test|run` swaps the odin command; extra
 arguments go to odin (`-o:speed`, `-define:TEST_ROUTES=true`).
 

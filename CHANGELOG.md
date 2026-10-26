@@ -141,6 +141,9 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   write's deferred response no longer polls its socket while it waits for the batch (F-13's watch is
   now optional, for work that takes seconds). `write@mem` went from about 32.7k to 37.2k rps on the
   dev PC, level with v1.1.1.
+- **Stricter builds**: `build.{sh,bat}`, CI's store checks and the unit tests add `-vet-cast
+  -vet-semicolon -vet-tabs -vet-using-param -disallow-do` to `-vet -strict-style
+  -warnings-as-errors` (PLAN §19.2.4); the tree passes them with no change.
 - **Less work per request** (the same profile, on the Linux leg): the request id is formatted by
   hand instead of through `fmt`, the access log's hashed client id is computed only when the line is
   written (it was computed at `LOG_LEVEL=warn` too), and the router tries only the rows of the

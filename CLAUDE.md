@@ -80,7 +80,8 @@ sh .github/scripts/unit-tests.sh   # every package with tests, leaks fatal
 node tools/drills/drills.mjs skeleton   # crash, shutdown, restart, fd and budget drills
 ```
 
-A clean build is **zero warnings**: `build.sh` passes `-vet -strict-style -warnings-as-errors`. A
+A clean build is **zero warnings**: `build.sh` passes `-vet -strict-style -warnings-as-errors` and the further vet
+flags (`-vet-cast -vet-semicolon -vet-tabs -vet-using-param -disallow-do`; PLAN §19.2.4). A
 profile is built only through `build.sh`/`build.bat`, never `odin build` by hand: each needs its four
 family collections (`store:`, `identity:`, `client:`, `theme:`) and its asset directory. The two
 scripts hold the same table; change both together. `prepare` writes each profile's bundled assets

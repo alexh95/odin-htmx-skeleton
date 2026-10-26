@@ -61,7 +61,7 @@ jobs:
         run: |
           for d in app/stores/*/*/; do
             echo "== $d"
-            odin check "$d" -no-entry-point -vet -strict-style -warnings-as-errors || exit 1
+            odin check "$d" -no-entry-point -vet -vet-cast -vet-semicolon -vet-tabs -vet-using-param -disallow-do -strict-style -warnings-as-errors || exit 1
           done
       - name: Unit tests (0 leaks, 0 bad frees)
         run: sh .github/scripts/unit-tests.sh

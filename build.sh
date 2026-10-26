@@ -38,4 +38,4 @@ exec odin "$cmd" "app/cmd/$src" $out \
   -collection:store="app/stores/$store" -collection:identity="app/$id" \
   -collection:client="app/platform/client/$client" -collection:theme="app/platform/theme/$theme" \
   -define:VERSION="${VERSION:-dev}" -define:BUILD_DIR="../../build/$p" \
-  -vet -strict-style -warnings-as-errors "$@"
+  -vet -vet-cast -vet-semicolon -vet-tabs -vet-using-param -disallow-do -strict-style -warnings-as-errors "$@"

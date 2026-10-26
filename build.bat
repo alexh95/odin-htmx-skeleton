@@ -43,5 +43,5 @@ if not "%CMD%"=="check" set "OUTFLAG=-out:%BIN%"
 if "%VERSION%"=="" set "VERSION=dev"
 if not exist "app\bin\" mkdir app\bin
 
-odin %CMD% app/cmd/%SRC% %OUTFLAG% -collection:store=app/stores/%STORE% -collection:identity=app/%ID% -collection:client=app/platform/client/%CLIENT% -collection:theme=app/platform/theme/%THEME% -define:VERSION=%VERSION% -define:BUILD_DIR=../../build/%P% -vet -strict-style -warnings-as-errors%REST%
+odin %CMD% app/cmd/%SRC% %OUTFLAG% -collection:store=app/stores/%STORE% -collection:identity=app/%ID% -collection:client=app/platform/client/%CLIENT% -collection:theme=app/platform/theme/%THEME% -define:VERSION=%VERSION% -define:BUILD_DIR=../../build/%P% -vet -vet-cast -vet-semicolon -vet-tabs -vet-using-param -disallow-do -strict-style -warnings-as-errors%REST%
 exit /b %errorlevel%

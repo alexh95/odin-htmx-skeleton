@@ -1445,7 +1445,7 @@ esac
 exec odin "${CMD:-build}" "app/cmd/${src:-$p}" \
   -collection:store=app/stores/$store -collection:identity=app/$id \
   -collection:client=app/platform/client/$client -collection:theme=app/platform/theme/$theme \
-  -vet -strict-style -warnings-as-errors "$@"
+  -vet -vet-cast -vet-semicolon -vet-tabs -vet-using-param -disallow-do -strict-style -warnings-as-errors "$@"
 ```
 
 `run.*`, `prepare.*`, CI, the Dockerfile, the e2e global setup, `load-tests/run.sh`, `tools/watch` and `tools/init
@@ -4276,7 +4276,7 @@ exit rule and a stamp per package, so the repo always knows which code is unaudi
 
 | Cadence | Checks |
 |---|---|
-| Every push (CI) | `CMD=check ./build.sh <p>` for every profile, and `odin check app/stores/<family>/<f> -no-entry-point` for every store in both families on its own, with `-vet -strict-style -warnings-as-errors` (the skeleton's bar, clean today: 02 §2.1, 09 §3); domains, views, web packages, switched implementations and identities reach a collection, so they are checked under each selecting profile's line, never alone (LC §11); the further vet flags of 02 §2.1 (`-vet-cast -vet-semicolon -vet-tabs -disallow-do -vet-using-param`) adopted at M1 once clean; `tools/check` imports (D4, with the collection rules of §5.1), profile, routes (per host), topics, contracts, exts (§6.1), locks (no `sync` lock outside the guard helpers), entry-points (every `nbio.*_poly`, `stream_begin`, thread and timer callback wrapped by `guard_call` or waived with a reason), tables (package-level `[?]T`, never slice literals inside a proc), names (table, CSS, topic, job and env prefixes), parity, pins, catalog freshness; unit tests under a `Tracking_Allocator` with `ODIN_TEST_FAIL_ON_BAD_MEMORY` (0 leaks, 0 bad frees); the fuzz smoke; the crash drills; the shutdown bound; restart; the watchdog; the observability microbench (logfmt ≤ 1 µs, metrics ≤ 100 ns) |
+| Every push (CI) | `CMD=check ./build.sh <p>` for every profile, and `odin check app/stores/<family>/<f> -no-entry-point` for every store in both families on its own, with `-vet -strict-style -warnings-as-errors` (the skeleton's bar, clean today: 02 §2.1, 09 §3); domains, views, web packages, switched implementations and identities reach a collection, so they are checked under each selecting profile's line, never alone (LC §11); the further vet flags of 02 §2.1 (`-vet-cast -vet-semicolon -vet-tabs -disallow-do -vet-using-param`), adopted at M1 with 0 errors; `tools/check` imports (D4, with the collection rules of §5.1), profile, routes (per host), topics, contracts, exts (§6.1), locks (no `sync` lock outside the guard helpers), entry-points (every `nbio.*_poly`, `stream_begin`, thread and timer callback wrapped by `guard_call` or waived with a reason), tables (package-level `[?]T`, never slice literals inside a proc), names (table, CSS, topic, job and env prefixes), parity, pins, catalog freshness; unit tests under a `Tracking_Allocator` with `ODIN_TEST_FAIL_ON_BAD_MEMORY` (0 leaks, 0 bad frees); the fuzz smoke; the crash drills; the shutdown bound; restart; the watchdog; the observability microbench (logfmt ≤ 1 µs, metrics ≤ 100 ns) |
 | Nightly | ASan over e2e and a short load (Windows and Linux); TSan (Linux) over the hub, streams, store, workers and terminal grid; the 1 h soak; the fd ceiling; libFuzzer targets; Autobahn\|Testsuite against the lab's WS echo (X24); singletons, pairwise and selection fuzzing; a generated `--identity envadmin` selection, so the identity no hosted profile selects is checked and built (LC §11; **NEW**) |
 | Every milestone exit | a written audit, `docs/audit/M<n>.md`, by an agent that did not write the code: the 02 §2.8 rubric (§19.2.2), 13's pure/dirty zone rules, the fork's diff line by line, a spall trace and a Linux `perf` flame graph of the slice's hottest route, and `-vet-unused-procedures -vet-packages:…` as an aid; findings ranked by severity. **Exit needs 0 open CRITICAL or HIGH**; MEDIUM findings go to TODO with an owner milestone |
 | Audit stamps | each package README records `Audited: <commit> <date> <report>`; `tools/check audit-debt` counts changed lines since each package's stamp; a release (every milestone exit) is blocked while any package has more than 300 unaudited changed lines or any open CRITICAL/HIGH (CF §9.3) |
@@ -4315,8 +4315,9 @@ On the skeleton it reported 13 hits, mostly false positives: `@(test)` procs and
 `bind_double` and `bind_null` (09 §3: "an audit aid, not a gate"). It also needs `-vet-packages:<names>` (02 §2.1).
 So the milestone auditor runs it and sorts real dead code from noise. Of the other extra vet flags, `-vet-cast`,
 `-vet-semicolon`, `-vet-tabs` and `-disallow-do` already pass with 0 errors on the prepared skeleton (09 §3);
-`-vet-using-param` was not in that run, so whether it passes is **UNVERIFIED (M1)**. All five join the per-push gate at
-M1 once clean (D39).
+`-vet-using-param` was not in that run. All five join the per-push gate at M1 once clean (D39). **As built (M1):** all
+five pass with 0 errors on both profiles, every store alone, `tools/check`, `tools/bundle`, `tools/init` and the unit
+tests, and `build.{sh,bat}`, CI's store checks and `unit-tests.sh` carry them.
 
 #### 19.2.5 What an audit report contains
 
@@ -4374,7 +4375,7 @@ agent's; if Alex upgrades it, the job's pin follows.
 - **The same Odin tooling.** The pin is Odin dev-2026-10 (84bc3fc), the same release the skeleton's CI and
   Dockerfile pin and spark's builder builds, so there is no drift today (09 §0, §1.1). The skeleton's commands go
   through one script: every job builds, checks and tests through `build.{sh,bat} <profile>` at the repo root
-  (`CMD=check|test|run`, `-vet -strict-style -warnings-as-errors` on its line), because each command needs the four
+  (`CMD=check|test|run`, `-vet -strict-style -warnings-as-errors` and the further vet flags on its line), because each command needs the four
   family flags and Odin has no response files (14 (1); 09 §5's flag-free build is overturned, LC §12). `prepare.*`,
   `run.*`, the Dockerfile, the e2e global setup, `load-tests/run.sh` and `tools/init --verify` call it too, and
   `ols.json` pins the editor to `full`'s families (D40; LC §3); the pin guard (now the `pins` job) and `tools/init`

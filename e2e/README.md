@@ -23,7 +23,7 @@ Specs that never open a page (each talks HTTP, to the worker's server or its own
 project in `playwright.config.ts`, so they run once rather than once per engine.
 
 `global-setup.ts` builds the profile once through `../build.sh <profile>` (`build.bat` on Windows),
-which holds every flag (`-vet -strict-style -warnings-as-errors`). It runs `prepare` first only
+which holds every flag (`-vet -strict-style -warnings-as-errors` and the further vet flags). It runs `prepare` first only
 when prepare's outputs are missing or don't match its pins, so a run needs `odin` (and its
 linker), plus **a C toolchain** whenever prepare has work to do (it compiles SQLite; on Windows,
 that means an x64 Native Tools prompt). A prepare failure stops the run. It then asks the binary
