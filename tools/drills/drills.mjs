@@ -256,6 +256,27 @@ async function phaseHang() {
 }
 
 // Tier 1 of the fuzz plan (PLAN §19.1.9): 10k malformed requests, raw, each on its own socket.
+// F-16's payloads and the status each must get (the malformed phase checks them one by one too):
+// one-byte chunks by the thousand, under both caps on a write (12k overflowed a Windows loop's stack
+// before the scan trampoline, M1-17) and past the framing cap on a GET's drain (60k: 300 KB of
+// framing against 256 KiB); a size line and a trailer line past 4 KiB (M1-18, M1-24); a body that
+// ends inside a trailer (M1-19; the drill half-closes); a bare LF and trailing whitespace in framing
+// (M1-20).
+const CHUNKED = (target, body) => `${target} HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n${body}`;
+const F16 = [
+  // The profile's write, under its cap: minimal's notes take 4 KiB, so 500 chunks there (refused early, a
+  // bigger body's unread rest would reset the connection before the 413 is read); the depth is skeleton's.
+  PROFILE === 'minimal'
+    ? [CHUNKED('POST /notes', '1\r\na\r\n'.repeat(500) + '0\r\n\r\n'), '422']
+    : [CHUNKED('POST /contacts', '1\r\na\r\n'.repeat(12000) + '0\r\n\r\n'), '422'],
+  [CHUNKED('GET /healthz', '1\r\na\r\n'.repeat(60000) + '0\r\n\r\n'), '413'],
+  [CHUNKED('POST /', '1;' + 'x'.repeat(5000) + '\r\na\r\n0\r\n\r\n'), '413'],
+  [CHUNKED('POST /', '1\r\na\r\n0\r\nX-T: ' + 'y'.repeat(5000) + '\r\n\r\n'), '413'],
+  [CHUNKED('POST /', '1\r\na\r\n0\r\nX-T: y'), '400'],
+  [CHUNKED('POST /', '5\nhello\r\n0\r\n\r\n'), '400'],
+  [CHUNKED('POST /', '5  \r\nhello\r\n0\r\n\r\n'), '400'],
+];
+
 const MALFORMED = [
   'GET / HTTP/1.1\r\nHost: x\r\nContent-Length: -5\r\n\r\n',
   'GET / HTTP/1.1\r\nHost: x\r\nContent-Length: 9223372036854775808\r\n\r\n',
@@ -277,15 +298,7 @@ const MALFORMED = [
   'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n+5\r\nhello\r\n0\r\n\r\n',
   'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n1_0\r\n0123456789abcdef\r\n0\r\n\r\n',
   'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n8000000000000005\r\nhello\r\n0\r\n\r\n',
-  // F-16: one-byte chunks by the thousand, under both caps on a write (12k overflowed a Windows loop's
-  // stack before the scan trampoline, M1-17) and past them on a GET's drain; a size line past 4 KiB
-  // (M1-18); a trailer line past it (M1-19); a bare LF and trailing whitespace in framing (M1-20).
-  'POST /contacts HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n' + '1\r\na\r\n'.repeat(12000) + '0\r\n\r\n',
-  'GET /healthz HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n' + '1\r\na\r\n'.repeat(50000) + '0\r\n\r\n',
-  'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n1;' + 'x'.repeat(5000) + '\r\na\r\n0\r\n\r\n',
-  'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n1\r\na\r\n0\r\nX-T: ' + 'y'.repeat(5000) + '\r\n\r\n',
-  'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n5\nhello\r\n0\r\n\r\n',
-  'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n5  \r\nhello\r\n0\r\n\r\n',
+  ...F16.map(([payload]) => payload),
   'GET / HTTP/1.1\r\n\r\n',
   'GET / HTTP/2.0\r\nHost: x\r\n\r\n',
   'GET /' + 'a'.repeat(9000) + ' HTTP/1.1\r\nHost: x\r\n\r\n',
@@ -322,6 +335,10 @@ async function phaseMalformed() {
   }
   const alive = (await get(s.port, '/livez')).status === 200 && s.exited === null;
   record(`malformed: ${N} requests, /livez 200 after, 0 deaths`, alive, JSON.stringify(codes));
+  const got = [];
+  for (const [payload, want] of F16) got.push([(await raw(s.port, payload)).slice(9, 12) || 'none', want]);
+  record('malformed: each chunked-framing payload gets its status (F-16)', got.every(([g, w]) => g === w),
+    got.map(([g, w]) => (g === w ? g : `${g}≠${w}`)).join(' '));
   await stop(s);
 }
 

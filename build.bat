@@ -40,6 +40,7 @@ if "%CMD%"=="test" set "BIN=app/bin/%P%-test.exe"
 if not "%OUT%"=="" set "BIN=%OUT%"
 set "OUTFLAG="
 if not "%CMD%"=="check" set "OUTFLAG=-out:%BIN%"
+if "%CMD%"=="test" set "OUTFLAG=-out:%BIN% -define:ODIN_TEST_FAIL_ON_BAD_MEMORY=true"
 if "%VERSION%"=="" set "VERSION=dev"
 if not exist "app\bin\" mkdir app\bin
 

@@ -42,7 +42,8 @@ response_defer :: proc(res: ^Response, on_gone: proc(user: rawptr) = nil, user: 
 	c.deferred = {active = true, on_gone = on_gone, user = user}
 	td.deferred += 1
 	// A body read still in flight owns the socket's read side; the watch starts only on an idle scanner.
-	if watch && c.scanner.recv_op == nil { _deferred_watch(c) }
+	// F-16: a read queued by the scan trampoline (a handler's body() inside the header scan) is one too.
+	if watch && c.scanner.recv_op == nil && c.scanner.next_callback == nil { _deferred_watch(c) }
 	return {loop = td.event_loop, socket = c.socket, gen = c.gen}
 }
 

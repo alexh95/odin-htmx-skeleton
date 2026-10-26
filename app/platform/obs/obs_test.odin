@@ -25,6 +25,7 @@ lines_ids_counters_and_health :: proc(t: ^testing.T) {
 		str(&l, "q", `a"b=c`)
 		str(&l, "empty", "")
 		str(&l, "esc", "a\x1b[2Jb\x7f")
+		str(&l, "c1", "\u009b2J\xff é")
 		num(&l, "st", 200)
 		end(&l)
 	}
@@ -32,7 +33,7 @@ lines_ids_counters_and_health :: proc(t: ^testing.T) {
 	testing.expect(t, !below)
 	line := buffered()
 	testing.expect(t, strings.has_prefix(line, "ts="), line)
-	testing.expect(t, strings.has_suffix(line, ` lvl=info mod=http ev=req route="GET /data" m=GET q="a\"b=c" empty="" esc="a\x1b[2Jb\x7f" st=200`+"\n"), line)
+	testing.expect(t, strings.has_suffix(line, ` lvl=info mod=http ev=req route="GET /data" m=GET q="a\"b=c" empty="" esc="a\x1b[2Jb\x7f" c1="\xc2\x9b2J\xff é" st=200`+"\n"), line)
 	tl_buf.n = 0
 
 	// Request ids: <boot>-<loop>-<seq>, the seq per thread.

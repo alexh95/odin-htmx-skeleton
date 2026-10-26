@@ -225,7 +225,7 @@ _body_chunked :: proc(req: ^Request, max_length: int = -1, user_data: rawptr, cb
 
 		// start scanning trailer headers: field lines, where a bare LF is allowed (RFC 9112 2.2).
 		if size == 0 {
-			s.req._scanner.split = scan_lines
+			s.req._scanner.split = scan_trailer_lines
 			scanner_scan(s.req._scanner, s, on_scan_trailer)
 			return
 		}
@@ -359,8 +359,10 @@ _body_chunked :: proc(req: ^Request, max_length: int = -1, user_data: rawptr, cb
 	scanner_scan(s.req._scanner, s, on_scan)
 }
 
-// F-16: the longest chunk-size line or line end the decoder scans (Go's net/http allows
-// 4096), and the framing a capped body may carry whatever its cap.
+// F-16: the longest chunk-size line, line end or trailer line the decoder scans (Go's
+// net/http allows 4096), and the framing a capped body may carry whatever its cap. The
+// splits hold the line bound: the scanner's max_token_size is checked only when its buffer
+// must grow, and a request's buffer never shrinks, so it bounded nothing there (M1-24).
 MAX_CHUNK_LINE :: 4096
 MIN_FRAMING :: 4096
 
@@ -370,11 +372,24 @@ MIN_FRAMING :: 4096
 @(private)
 scan_crlf_lines :: proc(split_data: rawptr, data: []byte, at_eof: bool) -> (advance: int, token: []byte, err: bufio.Scanner_Error, final_token: bool) {
 	for b, i in data {
-		if b != '\n' { continue }
+		if b != '\n' {
+			if i > MAX_CHUNK_LINE { return 0, nil, .Too_Long, false } // the line and its CR
+			continue
+		}
 		if i == 0 || data[i - 1] != '\r' { return 0, nil, .Bad_Read_Count, false }
 		return i + 1, data[:i - 1], nil, false
 	}
 	return 0, nil, nil, false
+}
+
+// F-16: a trailer field line, as bufio.scan_lines reads one, at most MAX_CHUNK_LINE bytes.
+@(private)
+scan_trailer_lines :: proc(split_data: rawptr, data: []byte, at_eof: bool) -> (advance: int, token: []byte, err: bufio.Scanner_Error, final_token: bool) {
+	for b, i in data {
+		if b == '\n' { break }
+		if i > MAX_CHUNK_LINE { return 0, nil, .Too_Long, false }
+	}
+	return bufio.scan_lines(data, at_eof)
 }
 
 // F-14: the most trailer field lines a chunked body may carry before it is refused.

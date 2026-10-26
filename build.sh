@@ -27,13 +27,13 @@ esac
 cmd="${CMD:-build}"
 case "$cmd" in
   build|run) out="-out:${OUT:-app/bin/$p$exe}" ;;
-  test)      out="-out:${OUT:-app/bin/$p-test$exe}" ;;
+  test)      out="-out:${OUT:-app/bin/$p-test$exe} -define:ODIN_TEST_FAIL_ON_BAD_MEMORY=true" ;;
   check)     out="" ;;
   *) echo "build.sh: unknown CMD '$cmd' (build, check, test, run)" >&2; exit 2 ;;
 esac
 mkdir -p app/bin
 
-# shellcheck disable=SC2086 # $out is one flag or none
+# shellcheck disable=SC2086 # $out is the output flag (and, for test, leaks fatal) or nothing
 exec odin "$cmd" "app/cmd/$src" $out \
   -collection:store="app/stores/$store" -collection:identity="app/$id" \
   -collection:client="app/platform/client/$client" -collection:theme="app/platform/theme/$theme" \

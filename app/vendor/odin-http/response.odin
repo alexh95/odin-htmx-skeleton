@@ -304,6 +304,8 @@ response_send :: proc(r: ^Response, conn: ^Connection, loc := #caller_location) 
 
 		if err != nil {
 			// Any read error should close the connection.
+			// F-16: the access line, written when the handler answered, has the handler's status.
+			log.infof("the unread request body was refused: %v, answering %v", err, body_error_status(err))
 			response_status(res, body_error_status(err))
 			headers_set_close(&res.headers)
 			will_close = true

@@ -21,6 +21,7 @@ import "core:log"
 import "core:os"
 import "core:strings"
 import "core:sync"
+import "core:unicode/utf8"
 
 import "../sys"
 
@@ -155,22 +156,26 @@ str :: proc(l: ^Line, key, value: string) {
 		return
 	}
 	strings.write_byte(&l.b, '"')
-	for i in 0 ..< len(value) {
+	for i := 0; i < len(value); {
+		n, raw := control_at(value, i)
+		if raw { // a terminal escape, say, from a request line: each byte as \xNN
+			hex := "0123456789abcdef"
+			for c in transmute([]byte)value[i:i + n] {
+				strings.write_string(&l.b, `\x`)
+				strings.write_byte(&l.b, hex[c >> 4])
+				strings.write_byte(&l.b, hex[c & 0xf])
+			}
+			i += n
+			continue
+		}
 		switch c := value[i]; c {
 		case '"', '\\': strings.write_byte(&l.b, '\\'); strings.write_byte(&l.b, c)
 		case '\n':      strings.write_string(&l.b, `\n`)
 		case '\r':      strings.write_string(&l.b, `\r`)
 		case '\t':      strings.write_string(&l.b, `\t`)
-		case:
-			if c < 0x20 || c == 0x7f { // a terminal escape, say, from a request line
-				hex := "0123456789abcdef"
-				strings.write_string(&l.b, `\x`)
-				strings.write_byte(&l.b, hex[c >> 4])
-				strings.write_byte(&l.b, hex[c & 0xf])
-			} else {
-				strings.write_byte(&l.b, c)
-			}
+		case:           strings.write_string(&l.b, value[i:i + n])
 		}
+		i += n
 	}
 	strings.write_byte(&l.b, '"')
 }
@@ -203,13 +208,25 @@ end :: proc(l: ^Line) {
 @(private)
 needs_quotes :: proc(s: string) -> bool {
 	if s == "" { return true }
-	for i in 0 ..< len(s) {
-		switch c := s[i]; c {
+	for i := 0; i < len(s); {
+		switch s[i] {
 		case ' ', '"', '=', '\\': return true
-		case: if c < 0x20 || c == 0x7f { return true }
 		}
+		n, raw := control_at(s, i)
+		if raw || s[i] < 0x20 { return true }
+		i += n
 	}
 	return false
+}
+
+// The character at s[i]: its length, and whether it is written as raw bytes (\xNN): a C0
+// control other than \n \r \t, DEL, a C1 control (U+0080..U+009F) or a byte that isn't UTF-8.
+@(private)
+control_at :: proc(s: string, i: int) -> (n: int, raw: bool) {
+	c := s[i]
+	if c < 0x80 { return 1, (c < 0x20 && c != '\n' && c != '\r' && c != '\t') || c == 0x7f }
+	r, size := utf8.decode_rune_in_string(s[i:])
+	return size, (r == utf8.RUNE_ERROR && size == 1) || (r >= 0x80 && r <= 0x9f)
 }
 
 // core:log's procs (odin-http's own warnings, a feature's log.warnf) as logfmt

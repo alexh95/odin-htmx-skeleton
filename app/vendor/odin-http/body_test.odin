@@ -1,5 +1,6 @@
 package http
 
+import "core:strings"
 import "core:testing"
 
 // F-14 and F-16's chunk framing, the parts that need no connection: the size and the line end.
@@ -31,6 +32,7 @@ chunk_framing :: proc(t: ^testing.T) {
 		testing.expectf(t, ok == c.ok && (!ok || n == c.n), "%q: %v %v", c.line, n, ok)
 	}
 
+	longest := strings.repeat("a", MAX_CHUNK_LINE, context.temp_allocator)
 	Line :: struct {
 		data:    string,
 		advance: int,
@@ -45,10 +47,22 @@ chunk_framing :: proc(t: ^testing.T) {
 		{"5\r", 0, "", false},
 		{"5\nhello", 0, "", true}, // a bare LF is bad framing
 		{"\n", 0, "", true},
+		{strings.concatenate({longest, "\r\n"}, context.temp_allocator), MAX_CHUNK_LINE + 2, longest, false},
+		{strings.concatenate({longest, "a\r"}, context.temp_allocator), 0, "", true}, // past the bound, ended or not
 	}
 	for c in lines {
 		advance, token, err, _ := scan_crlf_lines(nil, transmute([]byte)c.data, false)
 		testing.expectf(t, advance == c.advance && string(token) == c.token && (err != nil) == c.bad,
-			"%q: advance %d token %q err %v", c.data, advance, string(token), err)
+			"%q: advance %d token %q err %v", c.data[:min(len(c.data), 16)], advance, string(token), err)
 	}
+	// An empty line is a token, not "no token yet": the scanner tells them apart by nil.
+	_, empty, _, _ := scan_crlf_lines(nil, transmute([]byte)string("\r\n"), false)
+	testing.expect(t, empty != nil)
+
+	// Trailer lines take a bare LF (they are field lines) but not past the bound.
+	_, tok, err, _ := scan_trailer_lines(nil, transmute([]byte)string("X-T: 1\nrest"), false)
+	testing.expectf(t, string(tok) == "X-T: 1" && err == nil, "%q %v", string(tok), err)
+	_, _, err, _ = scan_trailer_lines(nil, transmute([]byte)strings.concatenate({longest, "aa"}, context.temp_allocator), false)
+	testing.expect(t, err != nil)
+	free_all(context.temp_allocator)
 }

@@ -125,10 +125,11 @@ place by the skeleton's contacts store (its first three migrations keep their ha
   audit's re-read and confirmed: 12,000 one-byte chunks overflowed a Windows loop's stack). odin-http scanned
   each buffered token one call deeper than the last; a scan asked for from a scan callback now waits for the
   callback to return (the fork's F-16). Chunk framing also counts against the body cap, chunk lines are at most
-  4 KiB and end in CRLF only, and a broken trailer is an error, not the end of the body (M1-18..M1-21).
+  4 KiB and end in CRLF only, and a broken trailer is an error, not the end of the body (M1-18..M1-21, M1-24).
 - **A client's malformed request no longer logs at warn or error** (M1-22): the fork's parse and send failures log
-  at info, and a log value's control bytes are written as `\xNN`, so nothing a client sends reaches a terminal
-  as an escape sequence.
+  at info, and a log value's control bytes (C0, DEL, C1) and bytes that aren't UTF-8 are written as `\xNN`, so
+  nothing a client sends reaches a terminal as an escape sequence (M1-29).
+- **`CMD=test build.sh <p>` fails on a leak**, as the unit tests do (M1-28).
 - **One client could stop the server with chunked request bodies** (CRITICAL, found by the M1 audit,
   `docs/audit/M1.md` M1-01). odin-http's chunked decoder asserted on chunk data not followed by CRLF
   and on any trailer field, on every route (a response drains an unread body); the guard contained
