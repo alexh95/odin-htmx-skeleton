@@ -45,8 +45,14 @@ for mirror in default canonical canonical kernel kernel; do
     kernel)    use_mirror https://mirrors.edge.kernel.org/ubuntu https://mirrors.edge.kernel.org/ubuntu ;;
   esac
   # `update` exits 0 even when index fetches fail ("ignored, or old ones
-  # used"), so success is judged by the install.
-  if $sudo apt-get $opts update && $sudo apt-get $opts install -y --no-install-recommends "$@"; then
+  # used"), so success is judged by the install. On 2026-10-26 the azure
+  # mirror didn't time out but trickled, about 2 MB a minute, until two e2e
+  # jobs hit their 25-minute limit inside one attempt; apt has no low-speed
+  # abort, so the index update and the download each get a deadline, and the
+  # packages install (dpkg, never interrupted) only once they are all here.
+  if timeout 120 $sudo apt-get $opts update \
+    && timeout 240 $sudo apt-get $opts install -y --no-install-recommends --download-only "$@" \
+    && $sudo apt-get $opts install -y --no-install-recommends "$@"; then
     exit 0
   fi
   echo "apt attempt $attempt/5 ($mirror mirror) failed" >&2
