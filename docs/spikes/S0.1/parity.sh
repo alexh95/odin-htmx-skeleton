@@ -11,6 +11,9 @@
 # can carry its own env: VENV_<name>="KEY=value KEY2=value" (e.g. a memory mode), and a store can
 # be limited per variant with VSTORES_<name>="mem".
 #
+# ROUND_FIRST numbers the rounds from there (default 1): a block re-run with the same round number
+# and scenario is appended to RESULTS, and analyze.mjs takes the last row of each run.
+#
 # Env: K6, THREADS (16), VUS (200), SCALE_VUS (20), WARMUP (3s), DURATION (10s), PORT_BASE (9800),
 # TMPDIR for file DBs. Runs in Git Bash on Windows and in Linux (WSL2); in WSL it reads the
 # Windows host's CPU through typeperf.exe, since the VM can't see the host's load.
@@ -90,8 +93,9 @@ run_one() { # round scenario store name binary
   fi
 }
 
-r=1
-while [ "$r" -le "$ROUNDS" ]; do
+r="${ROUND_FIRST:-1}"
+last=$((r + ROUNDS - 1))
+while [ "$r" -le "$last" ]; do
   for s in $SCEN; do
     bg="$(bgcpu)"
     for st in $STORES; do

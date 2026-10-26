@@ -1,6 +1,11 @@
 // The parity gate's pass rule (PLAN §18.2) over parity.sh's CSV.
 //
-//   node analyze.mjs <results.csv> [candidate ...]     (default candidates: every variant but head, v111)
+//   node analyze.mjs <results.csv> [--against head|v111|both] [--store mem|file] [candidate ...]
+//
+// --against both (the default) is the parity gate's max(A, B); S0.2 compares the fork against head
+// alone, because that build keeps head's store. --store keeps one store's cells. Candidates default
+// to every variant but head and v111. A block re-run later (the same round, scenario and store,
+// appended to the CSV) replaces the earlier rows: the last row per run wins.
 //
 // Per cell (scenario × store), per round: ratio = C.rps / max(A.rps, B.rps), A = head (709bc94),
 // B = v111, all from the same round, which ran back to back. A cell passes when
@@ -12,7 +17,16 @@
 
 import { readFileSync } from 'node:fs';
 
-const [file, ...want] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const file = args.shift();
+let against = 'both', onlyStore = '';
+const want = [];
+while (args.length) {
+  const a = args.shift();
+  if (a === '--against') against = args.shift();
+  else if (a === '--store') onlyStore = args.shift();
+  else want.push(a);
+}
 const rows = readFileSync(file, 'utf8').trim().split('\n').slice(1).map((l) => {
   const [round, scenario, store, variant, vus, rps, p50, p90, p95, p99, max, fail_rate, bytes, bg] = l.split(',');
   return { round: +round, scenario, store, variant, rps: +rps || 0, p99: +p99 || 0, fail: +fail_rate || 0, bg: +bg || 0 };
@@ -20,12 +34,12 @@ const rows = readFileSync(file, 'utf8').trim().split('\n').slice(1).map((l) => {
 const median = (xs) => { const s = [...xs].sort((a, b) => a - b); const n = s.length; return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : NaN; };
 const variants = [...new Set(rows.map((r) => r.variant))];
 const cands = want.length ? want : variants.filter((v) => v !== 'head' && v !== 'v111');
-const cells = [...new Set(rows.map((r) => `${r.scenario}|${r.store}`))];
-const get = (s, st, v, r) => rows.find((x) => x.scenario === s && x.store === st && x.variant === v && x.round === r);
+const cells = [...new Set(rows.filter((r) => !onlyStore || r.store === onlyStore).map((r) => `${r.scenario}|${r.store}`))];
+const get = (s, st, v, r) => rows.findLast((x) => x.scenario === s && x.store === st && x.variant === v && x.round === r);
 
 const out = [];
 for (const cand of cands) {
-  console.log(`\n## ${cand} against max(head, v111)\n`);
+  console.log(`\n## ${cand} against ${against === 'both' ? 'max(head, v111)' : against}\n`);
   console.log('| cell | head rps (band) | v111 rps (band) | ' + cand + ' rps | ratios per round | median | min | p99 ratio | bg | pass |');
   console.log('|---|---:|---:|---:|---|---:|---:|---:|---|---|');
   let passed = 0, total = 0;
@@ -36,7 +50,7 @@ for (const cand of cands) {
     for (const r of rounds) {
       const a = get(s, st, 'head', r), b = get(s, st, 'v111', r), c = get(s, st, cand, r);
       if (!a || !b || !c || !c.rps) continue;
-      const best = a.rps >= b.rps ? a : b;
+      const best = against === 'head' ? a : against === 'v111' ? b : (a.rps >= b.rps ? a : b);
       ratios.push(c.rps / best.rps);
       p99r.push(c.p99 / best.p99);
       A.push(a.rps); B.push(b.rps); C.push(c.rps); bgs.push(c.bg);

@@ -12,6 +12,7 @@
 #             pristine fac113f vendored at c8a4037.
 #   --guard   with --fork: the crash guard (docs/spikes/S0.6/guardlab/guard) is installed as the
 #             fork's F-5 invoke hook, as M1's profiles will have it.
+#   --no-timeouts  with --fork: F-7's idle, header and body timeouts off, to measure what they cost.
 #
 # htmx and the SQLite library are not fetched: they come from this checkout's prepared app/
 # (run app/prepare.* first), after checking that <ref>'s prepare pins the same versions. So every
@@ -23,11 +24,12 @@ set -eu
 REF="${1:?usage: baseline.sh <ref> <out-binary> [--fork] [--guard]}"
 OUT="${2:?usage: baseline.sh <ref> <out-binary> [--fork] [--guard]}"
 shift 2
-FORK=""; GUARD=""
+FORK=""; GUARD=""; NOTIMEOUTS=""
 for a in "$@"; do
   case "$a" in
     --fork)  FORK=1 ;;
     --guard) GUARD=1 ;;
+    --no-timeouts) NOTIMEOUTS=1 ;;
     *) echo "unknown flag: $a" >&2; exit 2 ;;
   esac
 done
@@ -87,7 +89,20 @@ if [ -n "$GUARD" ]; then
   grep -q 'opts.invoke = guard.invoke' "$APP/src/main.odin" || { echo "guard patch didn't apply" >&2; exit 1; }
 fi
 
-VERSION="$SHA${FORK:+-fork}${GUARD:+-guard}"
+if [ -n "$NOTIMEOUTS" ]; then
+  [ -n "$FORK" ] || { echo "--no-timeouts needs --fork" >&2; exit 2; }
+  awk '
+    /opts := http.Default_Server_Opts/ {
+      print
+      print "	opts.header_timeout, opts.idle_timeout, opts.body_timeout = 0, 0, 0"
+      next
+    }
+    { print }
+  ' "$APP/src/main.odin" > "$APP/src/main.odin.new"
+  mv "$APP/src/main.odin.new" "$APP/src/main.odin"
+fi
+
+VERSION="$SHA${FORK:+-fork}${GUARD:+-guard}${NOTIMEOUTS:+-notimeouts}"
 ( cd "$APP" && odin build src -out:"bin/demo$EXE" -o:speed -define:VERSION="$VERSION" )
 mkdir -p "$(dirname "$OUT")"
 cp "$APP/bin/demo$EXE" "$OUT"
