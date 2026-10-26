@@ -20,6 +20,24 @@ or M2 keeps (the fork's changes, the stream prototype, `tools/bundle`, `tools/ba
 | S0.11 Tuned SQLite | S10's flags across OSes | [S0.11.md](S0.11.md) |
 | S0.12 apollo facts | the host's numbers | [S0.12.md](S0.12.md) |
 
+## The Fly witness at M0
+
+PLAN §20.6's cost check, and the M0 exit gate's "`x-version: 6d37506` on the Fly witness and its cost recorded":
+
+| Check (2026-10-26) | Result |
+|---|---|
+| `curl -sI https://odin-htmx.alexh95.com/` | `x-version: 6d37506` (v1.2.1), deployed by the re-run of 6d37506's CI (run 40229122156, attempt 2: the chromium e2e job and then `Deploy (Fly.io)` succeeded) |
+| `odin-htmx-skeleton.fly.dev` | 301 to `https://odin-htmx.alexh95.com/`, `x-version: 6d37506`, served from fra |
+| addresses | a shared IPv4 (no charge) and an IPv6 (no charge); no dedicated IPv4 |
+| machine (from `fly.toml`) | one `shared-cpu-1x` with 256 MB in fra, `min_machines_running = 1` |
+| monthly cost | **about $2.50**: Fly's price list (read 2026-10-26) gives $2.19 per 30 days for that size in its cheapest regions, and fra costs about 15 % more (its 1 GB price is $7.73 against $6.70); EU egress is $0.02/GB, and the witness's traffic is small (26 views in 14 days, 10 §0) |
+| over $10/month? | no: no warning to Alex |
+
+The figure is an estimate from the configuration and the public price list: `flyctl` is not logged in on the dev PC,
+so the invoice wasn't read. A second machine that `fly launch` may have created stays stopped between requests and
+costs its root filesystem only ($0.15/GB/month). Alex can confirm the amount on Fly's billing page; the next check is
+at the M3 exit (§20.6).
+
 ## How a record reads
 
 ```
