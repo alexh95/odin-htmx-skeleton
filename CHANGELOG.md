@@ -27,6 +27,18 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   the extensions its packages declare. **`tools/baseline`** (spike S0.1): rebuilds a skeleton release
   from git for the parity gate.
 
+- **The starter's platform packages** (`app/platform/`, milestone M1), each checked alone on Windows,
+  Linux and macOS and unit-tested on both legs: `sys` (the OS layer under the crash guard, the
+  open-file limit, a fast clock), `ext` (the htmx extension table, moved from `tools/bundle`'s
+  fixture), `escape` (the injection boundary: `w esc url_encode json_esc`), `sqlite` (the binding;
+  every call marks the thread as inside SQLite), `guard` (crash containment: a crash that touched
+  nothing shared answers 500 and serving goes on, any other drains and exits 70; a watchdog turns a
+  stalled loop or a stuck lock into an exit), `obs` (logfmt lines in per-thread buffers, request ids,
+  per-thread counters, module health and declared limits), `env` (the typed environment table),
+  `authz` (roles, permissions and the identity contract, with the default anonymous identity),
+  `store` (what every store shares), `markdown` (a safe Markdown subset from spark, with input and
+  nesting caps) and `workers` (bounded pools that answer on the submitting loop, and a job
+  scheduler). `app/src` is unchanged until the profiles replace it.
 - **`build.sh` / `build.bat <profile>`** at the repo root: the one place a profile's build flags
   live (its store, identity, client and theme collections, `-vet -strict-style
   -warnings-as-errors`, `VERSION`), with `CMD=check|test|run`. The starter's profiles (`minimal`,

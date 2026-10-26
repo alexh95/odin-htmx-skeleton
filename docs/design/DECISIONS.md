@@ -347,8 +347,11 @@ The rules that are not table rows:
 - **Preferences travel on the `Viewer`** that the identity loads (theme, chat transport, mutes from `accounts_prefs`,
   X9), so chat, notify and `platform/html` read them without importing accounts (NEW).
 
-Platform layers: **L1 bindings and leaf tables** `platform/sys`, `platform/sqlite` (core only), `platform/ext` (the
-closed `Ext` enum and its tables, no imports, re-exported as `web.Ext`; X33); **L2 core** `platform/store` (with
+Platform layers: **L1 bindings and leaf tables** `platform/sys` (with the thread-local counters the guard classifies
+by, since `platform/sqlite` raises `in_sqlite`), `platform/sqlite` (core only), `platform/ext` (the
+closed `Ext` enum and its tables, no imports, re-exported as `web.Ext`; X33), `platform/escape` (`w esc url_encode
+json_esc`, one definition below `platform/markdown`, which renders at write time in L2; `platform/html` re-exports
+it; M1); **L2 core** `platform/store` (with
 `Search_Hit`, which domains return), `store/sqlite`, `store/memory`, `env` (the typed env table, D10), `authz`,
 `authz/anonymous`, `obs`, `guard`, `workers`, `markdown`; **L3 I/O** `platform/web`, `stream`, `stream/client`, `hub`,
 `html`, `client/hyperscript`, `client/vanilla`, `theme/full`, `theme/lite`; **L4** `platform/app` (`front`, boot, the

@@ -30,12 +30,14 @@ stays off and Fly keeps serving 6d37506.
       D16's `SQLITE_FLAGS`, recorded in `vendor/sqlite/.flags` so a flag change rebuilds the lib (S0.11).
       *Check:* an unknown profile is refused; `app/src` builds and passes its store and views tests on
       the tuned lib on Windows and Linux.
-- [ ] **2. Platform L1–L2**, each checking alone: `sys`, `ext`, `sqlite` (`in_sqlite` around every call),
-      `guard` (S0.6), `obs` (logfmt buffers, request ids, per-thread counters, health, limits), `env`
+- [x] **2. Platform L1–L2**, each checking alone: `sys`, `ext`, `sqlite` (`in_sqlite` around every call),
+      `escape` (the injection boundary, below `markdown`), `guard` (S0.6), `obs` (logfmt buffers,
+      request ids, per-thread counters, health, limits), `env`
       (the typed table), `authz`, `authz/anonymous`, `store`, `markdown`, `workers` (pools, `next_tick`
       replies over F-13, the scheduler). *Check:* `odin check -no-entry-point` per package with the strict
       flags; `odin test` per package under a `Tracking_Allocator` (guard classification, logfmt, env
-      parsing, markdown caps, a worker reply to a gone connection).
+      parsing, markdown caps, worker replies on the submitting loop). Follow-ups: daily jobs at a local
+      time (M4's nightly resets); the jobs page's run history (M5).
 - [ ] **3. Store families.** `store/sqlite` (v3, `MEMMODE` ephemeral/single, the boot sweep, tmpfs; the
       writer task with group commit and no timer; the query pool; the reader reset pulled from guard;
       `migrate` adopting 709bc94 and v1.1.1 databases; `--backup`, `--adopt-profile`) and `store/memory`.

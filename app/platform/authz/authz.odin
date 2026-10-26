@@ -8,7 +8,7 @@ package authz
 // per item (own message, room moderator). The build's identity, a member of the
 // `identity:` family, loads the Viewer through the contract below.
 
-import http "../../vendor/odin-http"
+import "core:net"
 
 Role :: enum u8 {
 	Guest,
@@ -75,7 +75,15 @@ can :: proc(v: Viewer, p: Perm) -> bool {
 	return p == .Public || p in ROLE_PERMS[v.role]
 }
 
+// What front hands the identity, before the body is read: only platform/web
+// touches odin-http's types, so the contract carries the parts an identity reads.
+Ask :: struct {
+	cookies: string,      // the Cookie header, as sent
+	client:  net.Address, // the trusted client address (§17.8)
+	https:   bool,        // arrived as https through a trusted proxy (COOKIE_SECURE=auto)
+}
+
 // The identity contract: each member of the `identity:` family declares
-// `_ : authz.Load_Viewer : load_viewer` in its contract.odin. It may set a cookie
-// on `res` (a rotated session), and runs before the body is read.
-Load_Viewer :: #type proc(req: ^http.Request, res: ^http.Response) -> Viewer
+// `_ : authz.Load_Viewer : load_viewer` in its contract.odin. `set_cookie` is a
+// Set-Cookie value for front to send (a rotated session), or "".
+Load_Viewer :: #type proc(ask: Ask) -> (v: Viewer, set_cookie: string)

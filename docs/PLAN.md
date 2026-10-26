@@ -336,21 +336,22 @@ Below L4, platform imports a feature only through a family collection: `platform
 
 | Package | L | Holds |
 |---|---|---|
-| `platform/sys` | 1 | glibc `_setjmp`, sigaction and sigaltstack, the Windows VEH and `_resetstkoflw`, setrlimit, the vDSO clock |
-| `platform/sqlite` | 1 | the SQLite binding (core only); keeps the `in_sqlite` counter |
+| `platform/sys` | 1 | glibc `_setjmp`, sigaction and sigaltstack, the Windows VEH and `_resetstkoflw`, setrlimit, the vDSO clock; the thread-local counters the guard classifies by (here because `platform/sqlite`, L1, raises `in_sqlite`) |
+| `platform/sqlite` | 1 | the SQLite binding (core only); raises `in_sqlite` around every call |
+| `platform/escape` | 1 | the injection boundary, `w esc url_encode json_esc`: a leaf, so `platform/markdown` (L2) escapes with it and `platform/html` re-exports it (M1, **NEW**) |
 | `platform/ext` | 1 | the closed `Ext` enum of htmx extensions with its registration-name and file tables; imports nothing; re-exported as `web.Ext` (RESOLUTIONS X33) |
 | `platform/store` | 2 | what every store shares: `Migration`, `Error`, `enum_from_int`, `Search_Hit` (domains return it) and `Find_Source` (a row of `main`'s `FIND_SOURCES`) |
 | `platform/store/sqlite` | 2 | store v3: the writer connection, per-loop readers, the writer task, the query pool (D16); `open` and `migrate`, which answer `--backup` and `--adopt-profile`; the pure-trap reader reset, pulled from guard's recovery count before each reader use and on a per-loop 1 s timer (S0.6); `sqlite3_db_status` numbers pushed to obs (LC §5) |
 | `platform/store/memory` | 2 | rings and maps behind guarded locks, ids `<epoch>-<seq>` |
 | `platform/env` | 2 | the typed env table (D10): the platform's rows and each feature's, recorded by its `init`; features read their rows here, never through `platform/app` (LC §5) |
 | `platform/workers` | 2 | the argon, query, llama and jobs pools, the scheduler over the mounted `JOBS` (`run_now`, `cancel`, each run's state as data), generation checks |
-| `platform/authz` | 2 | `Role`, `Perm`, `ROLE_PERMS`, `Viewer` (it carries the member's preferences), the identity contract `Load_Viewer` |
+| `platform/authz` | 2 | `Role`, `Perm`, `ROLE_PERMS`, `Viewer` (it carries the member's preferences), the identity contract `Load_Viewer`, which takes an `Ask` (the Cookie header, the client address, https) and returns the Viewer and a Set-Cookie value, so no identity sees odin-http's types |
 | `platform/authz/anonymous` | 2 | `authz_anonymous`, the default identity (every viewer is the Guest): a member of the `identity` family (§2.8) |
 | `platform/obs` | 2 | logfmt, request ids, counters and health state (`platform/web` serves `/metrics` and `/livez /readyz /healthz` from them), the health, limits and numbers features push (§10.4), spall |
-| `platform/guard` | 2 | `guard_call`, the thread-local counters, `guarded_mutex`, the trap handler, the watchdog |
-| `platform/markdown` | 2 | the markdown renderer (depth cap 32, input cap 64 KiB) |
+| `platform/guard` | 2 | `guard_call`, the counters' helpers, `guarded_mutex`, the trap handler, the watchdog |
+| `platform/markdown` | 2 | the markdown renderer (depth cap 32, input cap 64 KiB), escaping through `platform/escape` |
 | `platform/web` | 3 | the prefix router (one map per host), CSP flags, `Req_Ctx`, `respond_*`, `web.Request` and `web.Response` (odin-http's types, re-exported), body caps, the trusted-proxy client address, the limiter, assets, robots/sitemap/Bing/IndexNow, `/licenses`; `web.Route`, and the platform's two tables: `web.ROUTES` (a site's main host: `/metrics /livez /readyz /healthz` over obs's data, the sitemap, the ownership proofs) and `web.PUBLIC_ROUTES` (every host: static assets, `/events`, `robots.txt`, `favicon.ico`, `/licenses`, `/csp-report`) |
-| `platform/html` | 3 | `w esc url_encode json_esc`, the layout, NAV, `Home_Card`, components, `behave`; it imports the `client:` and `theme:` families |
+| `platform/html` | 3 | `w esc url_encode json_esc` (re-exported from `platform/escape`), the layout, NAV, `Home_Card`, components, `behave`; it imports the `client:` and `theme:` families |
 | `platform/stream` | 3 | the SSE encoder, the WS handshake and codec, the multipart writer, the Range sender (D12) |
 | `platform/stream/client` | 3 | the non-blocking chunked, SSE and WS client (D12) |
 | `platform/hub` | 3 | topics mounted per host from `TOPICS` tables, publish, a row's `deliver`, per-loop inboxes, rings, replay (D13) |
@@ -788,7 +789,7 @@ app/cmd/<p>/   brand.odin main.odin routes.odin routes_test.odin   (all hand-wri
 platform  L4 app      ─► identity:., L1–L3                       (only cmd/* imports it; it holds front)
           L3 web html hub stream stream/client client/* theme/*   (html ─► client:., theme:.)
           L2 store store/sqlite store/memory env authz authz/anonymous obs guard workers markdown
-          L1 sys sqlite ext
+          L1 sys sqlite ext escape
 ```
 
 Each feature `f` is a set of packages (D4, with RESOLUTIONS X30 applied to the web row and LC §5's models and stores):
@@ -823,7 +824,7 @@ Each feature `f` is a set of packages (D4, with RESOLUTIONS X30 applied to the w
   RESOLUTIONS X9), so chat, notify and `platform/html` read them without importing accounts (**NEW**).
 
 **Platform layers** (D4, with RESOLUTIONS X30, X33; LC §5): **L1 bindings and leaf tables** `platform/sys`,
-`platform/sqlite` (core only), `platform/ext` (no imports); **L2 core** `store`, `store/sqlite`, `store/memory`, `env`,
+`platform/sqlite` (core only), `platform/ext` and `platform/escape` (no imports beyond core); **L2 core** `store`, `store/sqlite`, `store/memory`, `env`,
 `workers`, `authz`, `authz/anonymous`, `obs`, `guard`, `markdown`; **L3 I/O** `platform/web`, `stream`,
 `stream/client`, `hub`, `html`, `client/hyperscript`, `client/vanilla`, `theme/full`, `theme/lite`; **L4 composition**
 `platform/app`. A layer imports its own layer and the layers below it, never above (inside L3, `hub` uses `stream`'s
@@ -881,21 +882,22 @@ by convention, not packages; its SQLite migrations sit in its SQLite store, `app
 
 | Package | Layer | Holds | Source |
 |---|---|---|---|
-| `platform/sys` | L1 | glibc `_setjmp` (3 ns, against 298–518 ns for `setjmp`), `sigaction` + per-thread `sigaltstack`, Windows VEH + `_resetstkoflw`, `setrlimit(NOFILE)`, vDSO `clock_gettime` (19 ns against 324–377 ns for Odin's raw-syscall `tick_now`) | 13 §1.5, §5.5 |
+| `platform/sys` | L1 | glibc `_setjmp` (3 ns, against 298–518 ns for `setjmp`), `sigaction` + per-thread `sigaltstack`, Windows VEH + `_resetstkoflw`, `setrlimit(NOFILE)`, vDSO `clock_gettime` (19 ns against 324–377 ns for Odin's raw-syscall `tick_now`); the thread-local counters (`locks_held`, `async_posted`, `in_sqlite`), kept here because `platform/sqlite` (L1) raises `in_sqlite` and can't import the guard (M1) | 13 §1.5, §5.5 |
+| `platform/escape` | L1 | `w`, `esc`, `url_encode`, `json_esc`: the injection boundary, one definition of each. `platform/markdown` renders at write time in L2, so the boundary sits below it; `platform/html` re-exports it for views (M1, **NEW**) | `SK/app/src/views/html.odin:17-53` |
 | `platform/ext` | L1 | the closed `Ext` enum (17 htmx extensions) with its registration-name and file tables; imports nothing; re-exported as `web.Ext`, so domains can name extensions without importing L3 | RESOLUTIONS X33; D19 |
-| `platform/sqlite` | L1 | the SQLite binding plus spark's additions (`bind_blob`, `stmt_readonly`, `progress_handler`, `OPEN_READONLY` …); it increments `in_sqlite` around every call into SQLite | `SK/app/src/sqlite/`; 06 §3.1; D15 |
-| `platform/guard` | L2 | `guard_call`, the thread-local counters (`locks_held`, `async_posted`, `in_sqlite`), `guarded_mutex` (the only `sync` locks allowed), the trap handler, the watchdog thread (§10) | 13 §1.4, §6.3; D15 |
+| `platform/sqlite` | L1 | the SQLite binding plus spark's additions (`bind_blob`, `stmt_readonly`, `progress_handler`, `OPEN_READONLY` …); it increments `in_sqlite` around every call into SQLite, and binds `""` as empty text, never NULL | `SK/app/src/sqlite/`; 06 §3.1; D15 |
+| `platform/guard` | L2 | `guard_call`, the helpers that keep `platform/sys`'s counters (`locks_held`, `async_posted`; `in_sqlite` is the binding's), `guarded_mutex` (the only `sync` locks allowed), the trap handler, the watchdog thread (§10) | 13 §1.4, §6.3; D15 |
 | `platform/obs` | L2 | logfmt into per-thread buffers (≤ 1 µs per request), request ids `<boot>-<loop>-<seq>`, per-thread counters and health state, which `platform/web` serves as `/metrics` (Prometheus 0.0.4, admin or token) and `/livez /readyz /healthz` (RESOLUTIONS X30), spall behind `-define:PROFILE=true` | 13 §5, §6.2 |
-| `platform/authz` | L2 | `Role`, `Perm`, `ROLE_PERMS`, `Viewer` (it carries the member's preferences), the identity contract `Load_Viewer` (§17) | 07 §5.2; D35; LC §3, §5 |
+| `platform/authz` | L2 | `Role`, `Perm`, `ROLE_PERMS`, `Viewer` (it carries the member's preferences), the identity contract `Load_Viewer (ask: Ask) -> (Viewer, set_cookie)`: `front` hands it the Cookie header, the client address and whether the request came as https, so no identity sees odin-http's types (§17; M1) | 07 §5.2; D35; LC §3, §5 |
 | `platform/authz/anonymous` | L2 | `authz_anonymous`, the default identity: every viewer is the Guest, nothing sets a cookie, and its `cli` answers nothing; a member of the `identity` family | D35; LC §3 |
 | `platform/env` | L2 | the typed env table (D10): rows `{name, type, default, secret, doc}`, the platform's recorded by `app.boot` and each feature's by its `init`, which then reads its own (§8.5) | 09 §4.5; D10; LC §5 |
 | `platform/workers` | L2 | the `argon`, `query`, `llama` and `jobs` pools; the scheduler over the mounted `JOBS` rows (`run_now(id)`, `cancel(run)`, each run's state kept as data); replies by `next_tick` with a connection generation check; a full queue answers 503 | S11; 12 §4; D16; LC §9 |
-| `platform/markdown` | L2 | spark's safe-subset renderer: nesting depth cap 32, input cap 64 KiB, rendered at write time, pure zone | S6; 06 §3.2; D15 |
+| `platform/markdown` | L2 | spark's safe-subset renderer: nesting depth cap 32, input cap 64 KiB, rendered at write time, pure zone; relative doc links and images resolve against two prefixes the caller passes (`/wiki/`, a media folder) instead of spark's game paths | S6; 06 §3.2; D15 |
 | `platform/store` | L2 | what every store shares: `Migration`, `Error`, `enum_from_int` (validated enum reads, fixes 02 F3), `Search_Hit` and `Find_Source`; each feature's store contract lives in its `models` package (§6.4) | S8, S9; D4, D16; LC §5 |
 | `platform/store/sqlite` | L2 | store v3: one writer, per-loop readers, the writer task, the query pool, `open` (`--backup`, `--adopt-profile`) and the per-feature `migrate` (§11); it pulls the pure-trap reader reset from guard's recovery count and pushes its `sqlite3_db_status` numbers to obs (§10) | 12 §9; D16; LC §5 |
 | `platform/store/memory` | L2 | rings and maps behind guarded locks, ids `<epoch>-<seq>` | D16 |
 | `platform/web` | L3 | the prefix router, one map per host (§8), CSP route flags (D20), `Req_Ctx`, `respond_*`, `web.Request` and `web.Response` (odin-http's types, re-exported so no feature imports odin-http), per-route body caps, the trusted-proxy client address, the limiter, assets (fingerprints, br/gz/identity), robots/sitemap/Bing/IndexNow, `/licenses`; `web.Route`, `web.ROUTES` (a site's main host: the `/metrics /livez /readyz /healthz` routes over obs's data, the sitemap, the ownership proofs) and `web.PUBLIC_ROUTES` (every host); the `web.Ext`, `web.Route_Flag` and `web.Bundle` enums | `SK/app/src/controllers/middleware.odin:38-87,182-306`; 06 §3.1; 11 §6, §8; LC §7 |
-| `platform/html` | L3 | `w esc url_encode json_esc`, the layout, NAV, `Home_Card`, the skeleton's components; `Behaviour`, `BEHAVIOURS` and `behave`, the only emitter of `_` and `data-behave` (§12); it imports the `client:` and `theme:` families | `SK/app/src/views/html.odin:17-53`; 01 §3; D22; LC §3 |
+| `platform/html` | L3 | `w esc url_encode json_esc` (re-exported from `platform/escape`), the layout, NAV, `Home_Card`, the skeleton's components; `Behaviour`, `BEHAVIOURS` and `behave`, the only emitter of `_` and `data-behave` (§12); it imports the `client:` and `theme:` families | `SK/app/src/views/html.odin:17-53`; 01 §3; D22; LC §3 |
 | `platform/stream` | L3 | the SSE encoder, WS handshake and codec, multipart writer, Range sender (§8) | 03 §7, §10; D12 |
 | `platform/stream/client` | L3 | one non-blocking chunked/SSE/WS client on `core:net` for `features/bot/backend_llama`, `cmd/term-agent` and `tools/streamload` (**NEW**) | D12 |
 | `platform/hub` | L3 | topics declared in per-package `TOPICS` tables and mounted per host, per-loop inboxes, replay rings, policies, a row's `deliver`, heartbeats (§9) | S3; 03 §7; D13; LC §6, §9 |
@@ -924,7 +926,7 @@ odin-htmx-starter/
     prepare.sh prepare.bat run.sh run.bat     as in the skeleton; both call the root build.*
     build/                    prepare output, git-ignored: per-profile bundles (.br, .gz), CSS, _hs
     platform/
-      sys/ sqlite/ ext/ app/ env/ store/ store/sqlite/ store/memory/ workers/ authz/ authz/anonymous/ obs/ guard/
+      sys/ sqlite/ ext/ escape/ app/ env/ store/ store/sqlite/ store/memory/ workers/ authz/ authz/anonymous/ obs/ guard/
       markdown/ web/ stream/ stream/client/ hub/ html/ client/hyperscript/ client/vanilla/ theme/full/ theme/lite/
       static/                 base.css, app.js, core _hs, favicon, og.png (not a package)
     features/                 each: models/ views/ web/ static/ README.md, + storetest/ where it has a store (D37)

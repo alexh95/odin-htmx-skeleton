@@ -6,15 +6,13 @@ package authz_anonymous
 // `lab` build with it. Nothing reads or sets a cookie, its CLI answers nothing,
 // and it has no routes, so its profiles mount no identity table.
 
-import http "../../../vendor/odin-http"
-
 import "../../authz"
 
 NAME :: "anonymous"
 SETS_COOKIE :: false
 
-load_viewer :: proc(req: ^http.Request, res: ^http.Response) -> authz.Viewer {
-	return authz.GUEST
+load_viewer :: proc(ask: authz.Ask) -> (v: authz.Viewer, set_cookie: string) {
+	return authz.GUEST, ""
 }
 
 // The identity's own CLI flags (--hash-password in the hashing identities).
