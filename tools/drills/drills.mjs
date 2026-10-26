@@ -19,6 +19,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -37,10 +38,12 @@ const EXE = WIN ? '.exe' : '';
 const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'malformed', 'shutdown', 'restart', 'fdceiling', 'budgets'];
 const phases = PHASES.length ? PHASES : ALL;
 
-// PLAN §18.4, Windows -o:speed; MB as the skeleton measured it (2,422,784 B = "2.42 MB").
+// PLAN §18.4 (ANSWERS round 7): binaries in MiB, Windows -o:speed, as CI reads them; idle memory
+// is 6 MB plus 0.4 MB per event loop (each has its log buffer, counters and io ring).
+const MiB = 1024 * 1024;
 const BUDGET = {
-  size: { minimal: 1_000_000, skeleton: 2_750_000 },
-  idle: 10_000_000,
+  size: { minimal: 1.5 * MiB, skeleton: 2.75 * MiB },
+  idle: (loops) => 6e6 + 0.4e6 * loops,
   readyMs: 50,
 };
 
@@ -432,8 +435,10 @@ async function phaseBudgets() {
     for (const p of ['/', '/about', '/static/app.css']) await get(s.port, p);
     await sleep(3000);
     const bytes = rss(s);
-    record(`budgets: idle ${WIN ? 'working set' : 'RSS'} ≤ ${BUDGET.idle / 1e6} MB`, bytes > 0 && bytes <= BUDGET.idle,
-      `${(bytes / 1e6).toFixed(2)} MB`);
+    const loops = Number(/\((\d+) threads?\)/.exec(s.out)?.[1] ?? os.availableParallelism());
+    const cap = BUDGET.idle(loops);
+    record(`budgets: idle ${WIN ? 'working set' : 'RSS'} ≤ ${(cap / 1e6).toFixed(1)} MB (6 + 0.4 × ${loops} loops)`,
+      bytes > 0 && bytes <= cap, `${(bytes / 1e6).toFixed(2)} MB`);
   }
   await stop(s);
 
@@ -441,7 +446,7 @@ async function phaseBudgets() {
   const bin = WSL ? null : path.join(ROOT, RELEASE_BIN);
   const size = bin && existsSync(bin) ? statSync(bin).size : 0;
   const cap = BUDGET.size[PROFILE];
-  if (WIN && cap) record(`budgets: binary ≤ ${cap / 1e6} MB (Windows -o:speed)`, size <= cap, `${size} B`);
+  if (WIN && cap) record(`budgets: binary ≤ ${cap / MiB} MiB (Windows -o:speed)`, size <= cap, `${size} B`);
   else if (size) console.log(`info  budgets: binary ${size} B (the size budget is Windows')`);
 }
 

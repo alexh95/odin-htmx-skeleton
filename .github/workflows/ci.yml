@@ -88,10 +88,10 @@ jobs:
         include:
           - profile: minimal
             write: /notes body=CI+smoke
-            budget: 1048576    # 1.0 MB
+            budget: 1572864    # 1.5 MiB (ANSWERS round 7)
           - profile: skeleton
             write: /contacts name=CI+Smoke&email=ci@example.com
-            budget: 2883584    # 2.75 MB
+            budget: 2883584    # 2.75 MiB
           - { profile: minimal, os: ubuntu-latest, sqlite: none, write: /notes body=CI+smoke }
           - { profile: minimal, os: windows-latest, sqlite: none, write: /notes body=CI+smoke }
     env:

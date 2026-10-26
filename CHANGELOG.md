@@ -166,6 +166,9 @@ place by the skeleton's contacts store (its first three migrations keep their ha
   write's deferred response no longer polls its socket while it waits for the batch (F-13's watch is
   now optional, for work that takes seconds). `write@mem` went from about 32.7k to 37.2k rps on the
   dev PC, level with v1.1.1.
+- **The size and memory budgets** (PLAN §18.4; ANSWERS round 7): binaries are budgeted in MiB, as CI's size check
+  reads them (`skeleton` ≤ 2.75 MiB, `minimal` ≤ 1.5 MiB, up from 1.0 MB), and idle memory as 6 MB plus 0.4 MB per
+  event loop (12.4 MB at the default 16). The drills check the same figures.
 - **Stricter builds**: `build.{sh,bat}`, CI's store checks and the unit tests add `-vet-cast
   -vet-semicolon -vet-tabs -vet-using-param -disallow-do` to `-vet -strict-style
   -warnings-as-errors` (PLAN §19.2.4); the tree passes them with no change.

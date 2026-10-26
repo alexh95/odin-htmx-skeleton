@@ -86,6 +86,15 @@ by the reply box's length limit; its last words are the button Alex clicked, "1 
 | Q35 (the light routes' reference) | "light routes (static, seo) gate against HEAD 709bc94 only, store routes against max(HEAD, v1.1.1)" | **Answered.** On `static` and `seo` the gate compares the candidate with HEAD alone, because v1.1.1 is faster there only by lacking 1.2.0's security middleware (S0.1); every other scenario keeps max(HEAD, v1.1.1). |
 | Q34 (the login-storm budget) | "Q34 take the default (absolute budget, 1 argon thread on ≤ 2 CPUs" | **Answered: the default.** 50 logins/s under `cpus: 2.0`: other routes' p99 ≤ their base + 0.5 ms, the cgroup never throttled, every login answered; `ACCOUNTS_ARGON_THREADS` is 1 when the container has ≤ 2 CPUs, else 2 (S0.5). |
 
+## Round 7 (2026-10-26)
+
+The M1 budgets the drills and CI's first run measured over (§18.4), relayed by the planning session with two options:
+(a) restate them, (b) keep them and cut.
+
+| Item | Alex said | What it means for the plan |
+|---|---|---|
+| Binary size and idle memory | "Pick a" | **(a).** Binary budgets are in MiB, the reading CI's size check already used: `skeleton` ≤ 2.75 MiB holds (2,881,536 B at M1's end). `minimal` is raised to ≤ 1.5 MiB (1.25 MiB at M1: the M1 platform and the 230 KB social card). Idle memory is ≤ 6 MB + 0.4 MB per event loop, 12.4 MB at the default 16 loops (12.2 MB measured on Linux, 11.3 MB working set on Windows). The drills read the same figures. None of (b)'s cuts (the social card's re-encode, SQLite OMITs, the JSON CLI) are taken. |
+
 ## Round 6 (2026-10-26)
 
 The M1 parity gate's one remaining miss, relayed by the planning session with three options: (a) a documented

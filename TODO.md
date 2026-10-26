@@ -112,8 +112,10 @@ stays off and Fly keeps serving 6d37506.
       malformed requests with 0 deaths, the shutdown bound 5.6 s, restart at 0/50/100 ms, the fd ceiling
       (past the cap 503 in 1.4–1.9 ms, 200 after); boot → `/readyz` 26 ms (skeleton) and 11 ms (minimal)
       from the spawn on Windows, 3–5 ms boot_ms on Linux, after moving the ephemeral files to a directory
-      of their own (it was 167–181 ms). The ASan build runs clean with `use_sigaltstack=0`. **Open, for
-      Alex** (the budgets are M1 exit criteria; measured on this PC, decimal MB as PLAN's 2.42 MB was):
+      of their own (it was 167–181 ms). The ASan build runs clean with `use_sigaltstack=0`. **Budgets,
+      decided** (ANSWERS round 7, option (a)): binaries in MiB as CI reads them (skeleton ≤ 2.75 MiB holds
+      at 2,881,536 B; minimal raised to ≤ 1.5 MiB) and idle ≤ 6 MB + 0.4 MB per loop; the drills read
+      the same figures. What was measured before the decision (decimal MB as PLAN's 2.42 MB was):
       skeleton 2,876,416 B against 2,750,000 and minimal 1,313,792 B against 1,000,000 (Windows
       `-o:speed`); skeleton idle 11.3 MB working set (Windows) and 12.0 MB RSS (Linux) against 10 MB, at
       16 loops (about 0.37 MB per loop on Linux; 6.0 MB at one loop). Minimal idles at 9.6 MB on both.
