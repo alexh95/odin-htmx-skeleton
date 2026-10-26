@@ -64,6 +64,9 @@ place by the skeleton's contacts store (its first three migrations keep their ha
   models, domain, views and web packages, a store in each family, and a conformance suite that runs
   both) and `about`, on the memory store, the lite theme and the vanilla client. No SQLite reaches
   its build. `./build.sh minimal` after prepare.
+- **`perf-floor` waivers** in `tests/parity-waivers.txt`: a cell Alex accepts below the parity gate's 0.97 at its
+  measured level passes at the line's bar, with its reason; the other two rules stand. The first is Linux
+  `write@mem` at 0.93 of HEAD (ANSWERS round 6).
 - **`build.sh` / `build.bat <profile>`** at the repo root: the one place a profile's build flags
   live (its store, identity, client and theme collections, `-vet -strict-style
   -warnings-as-errors`, `VERSION`), with `CMD=check|test|run`. The starter's profiles (`minimal`,

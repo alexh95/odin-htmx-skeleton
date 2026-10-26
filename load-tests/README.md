@@ -113,5 +113,6 @@ there, builds `skeleton` -o:speed, and runs every variant back to back per round
 server each). Rows go to `../perf/results/<version>-<leg>.csv`; `lib/parity.mjs` then prints the
 pass rule's table: the reference is HEAD on `static` and `seo` and on the cells
 `../tests/parity-waivers.txt` waives for this leg, max(HEAD, v1.1.1) elsewhere; a cell passes at a
-median paired ratio ≥ 0.97, no round below 0.85 and p99 ≤ 1.10×. Run it on both legs (Windows and
+median paired ratio ≥ 0.97 (or the bar of the cell's `perf-floor` line, an exception Alex accepted at
+its measured level), no round below 0.85 and p99 ≤ 1.10×. Run it on both legs (Windows and
 Linux on WSL2); about 80 minutes of measurement each.

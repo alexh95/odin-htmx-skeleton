@@ -2051,7 +2051,7 @@ answered 2026-10-25 (ANSWERS round 3).
 ### D38. Performance budgets and the parity gate
 
 **M1:** the gate's procedure is `load-tests/run.sh --parity` (`lib/parity.sh`, spike S0.1's loop, and
-`lib/parity.mjs`, the pass rule with each cell's reference and the waivers file's `perf` lines); the baselines build
+`lib/parity.mjs`, the pass rule with each cell's reference and the waivers file's `perf` and `perf-floor` lines); the baselines build
 into the git-ignored `perf/baseline/`.
 
 **Decision.**
@@ -2071,7 +2071,9 @@ native; Linux on WSL2, Q5):
 1.10 × the p99 of the faster baseline. On the light routes, `static` and `seo`, the reference is HEAD alone: v1.1.1 is
 4–8 % faster there only because it lacks 1.2.0's security middleware, which the starter keeps (S0.1; Q35, answered
 2026-10-26). The `:memory:` cells that the chosen `:memory:` mode fails against max(A, B) are gated against HEAD with a
-documented exception each (Q6, answered 2026-10-26); a file-DB cell is never waived. A failing cell is re-run once with n = 5 and fails only if the re-run fails
+documented exception each (Q6, answered 2026-10-26); a file-DB cell is never waived. A cell Alex accepts below 0.97 at
+its measured level carries a `perf-floor` line with its bar and reason, and only the median rule moves (M1: Linux
+`write@mem` at 0.93 of HEAD, the writer task's hop; ANSWERS round 6). A failing cell is re-run once with n = 5 and fails only if the re-run fails
 too, because cells vary by up to 2× between rounds on this box (12 §10). **When**: at the M1 exit and at every
 milestone exit after it, M3 included (X25); results go to `perf/results/<version>-<leg>.csv` and
 `docs/perf/PARITY.md` with the box, toolchain and background load; nothing is waived without Alex. CI runs only a

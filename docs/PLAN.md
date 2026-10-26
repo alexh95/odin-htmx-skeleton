@@ -218,6 +218,11 @@ Decided in round 5 (2026-10-26; ANSWERS round 5), on the gate questions M0's spi
 - **Q34**: the default. The login-storm budget is absolute, and the argon pool has 1 thread on ≤ 2 CPUs (§17.1,
   §18.4; S0.5).
 
+Decided in round 6 (2026-10-26; ANSWERS round 6), on the M1 parity gate:
+- **Linux `write@mem`** passes at a median of 0.93 of HEAD (a `perf-floor` line): the server's CPU per write equals
+  HEAD's, and the gap is the writer task's hop under a closed-loop client; the sort indexes stay (§18.2,
+  `docs/perf/PARITY.md`).
+
 Every other question, with its options and status, is in §22.7.
 
 ## 2. Glossary and naming conventions
@@ -3979,7 +3984,8 @@ another background load. On this box absolute numbers from another session are n
 **As built (M1):** `run.sh --parity [scenario …]` execs `load-tests/lib/parity.sh`, S0.1's loop: it builds the two
 baselines into `perf/baseline/` (git-ignored) with `tools/baseline` when they are missing and `skeleton` -o:speed with
 `VERSION` from `git describe`, skips ports another process listens on, and ends with `lib/parity.mjs`, which applies the
-pass rule below with each cell's reference and reads the `perf` lines of `tests/parity-waivers.txt` for the leg.
+pass rule below with each cell's reference and reads the `perf` and `perf-floor` lines of `tests/parity-waivers.txt`
+for the leg.
 
 `scale` stays at 20 VUs, as the skeleton runs it (`SK/load-tests/scenarios/scale.js:17-19`): at 200 VUs HEAD and
 v1.1.1 refuse 99.0–99.9 % of requests on Windows (12 §2), and S0.1 re-checks those refusals on Linux. One gate run is
@@ -3991,7 +3997,9 @@ measurement; server starts, `scale`'s 20k-row seeding and retries come on top (N
   4–8 % faster there only because it lacks 1.2.0's security middleware, which the starter keeps (S0.1; Q35, answered
   2026-10-26). The `:memory:` cells the chosen mode fails against max(A, B) are gated against HEAD with a documented
   exception each (Q6, answered 2026-10-26); a file-DB cell is never waived;
-- the median of the per-round paired ratios C / reference is ≥ 0.97;
+- the median of the per-round paired ratios C / reference is ≥ 0.97, or the bar of a `perf-floor` line Alex accepted
+  for the cell (M1: Linux `write@mem` at 0.93 of HEAD, the writer task's hop under a closed-loop client; ANSWERS
+  round 6);
 - no round's ratio is below 0.85;
 - C's p99 is ≤ 1.10 × the p99 of the faster baseline.
 

@@ -4,6 +4,9 @@
 #
 #   perf  | <scenario>@<store> | <legs>   | <reason>   the cell is gated against HEAD (709bc94) alone,
 #                                                      not max(HEAD, v1.1.1); read by load-tests/lib/parity.mjs
+#   perf-floor | <scenario>@<store> | <legs> | <bar> | <reason>
+#                                                      the cell's median bar is <bar> (between 0.85 and
+#                                                      0.97) instead of 0.97; the other two rules stand
 #   route | <route id>         | <suites> | <reason>   the suites (e2e, load) needn't reach the route;
 #                                                      read by tools/check parity
 #
@@ -11,4 +14,5 @@
 
 perf | pages@mem | windows linux | v1.1.1 sorts its 20 rows in Odin straight from RAM; C reads them through SQLite on a per-loop reader. 0.95 (Linux) and 0.96 (Windows) against max, 2.64 and 2.44 against HEAD (docs/spikes/S0.4.md; Q6, 2026-10-26)
 perf | list@mem | windows linux | the same as pages@mem: 0.93 (Linux) and 0.94 (Windows) against max, 3.95 and 3.70 against HEAD (docs/spikes/S0.4.md; Q6, 2026-10-26)
+perf-floor | write@mem | linux | 0.93 | the writer task's hop under a closed-loop client: the server's CPU per write equals HEAD's (45 s for 40.4k rps against 48 s for 42.2k), and each write waits for its batch (about 10.6 writes, 200 us of writer time) and the reply's tick, where HEAD writes inline under its mutex. Measured 0.93-0.96 of HEAD at M1; the sort indexes stay (D36). Alex, 2026-10-26 (ANSWERS round 6; docs/perf/PARITY.md)
 perf | write@mem | linux | on Linux tmpfs v1.1.1's in-RAM insert is cheaper than a WAL append, even batched: 0.91 against max, 0.98 against HEAD; Windows passes at 1.20 (docs/spikes/S0.4.md; Q6, 2026-10-26)

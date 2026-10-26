@@ -85,3 +85,12 @@ by the reply box's length limit; its last words are the button Alex clicked, "1 
 | Q6 (`:memory:` parity) | "Q6 take the default (pick C, gate the failing :memory: cells against HEAD 709bc94 with a documented exception, never waive file-DB cells)" | **Answered: the default.** Candidate C (store v3, sort indexes, the ephemeral file unsynced, on tmpfs on Linux, and group commit through the writer task) is the `skeleton` profile's `:memory:` mode. The `:memory:` cells C fails against max(HEAD, v1.1.1) are gated against HEAD 709bc94 instead, each named in a documented exception (`tests/parity-waivers.txt`); a file-DB cell is never waived (S0.4). |
 | Q35 (the light routes' reference) | "light routes (static, seo) gate against HEAD 709bc94 only, store routes against max(HEAD, v1.1.1)" | **Answered.** On `static` and `seo` the gate compares the candidate with HEAD alone, because v1.1.1 is faster there only by lacking 1.2.0's security middleware (S0.1); every other scenario keeps max(HEAD, v1.1.1). |
 | Q34 (the login-storm budget) | "Q34 take the default (absolute budget, 1 argon thread on ≤ 2 CPUs" | **Answered: the default.** 50 logins/s under `cpus: 2.0`: other routes' p99 ≤ their base + 0.5 ms, the cgroup never throttled, every login answered; `ACCOUNTS_ARGON_THREADS` is 1 when the container has ≤ 2 CPUs, else 2 (S0.5). |
+
+## Round 6 (2026-10-26)
+
+The M1 parity gate's one remaining miss, relayed by the planning session with three options: (a) a documented
+exception at the measured level, (b) fewer sort indexes (D36), (c) a different `:memory:` mode (Q6).
+
+| Item | Alex said | What it means for the plan |
+|---|---|---|
+| Linux `write@mem` | "Go ahead with your recommendations." | **(a), the recommendation.** The cell, already gated against HEAD by Q6, passes at a median of 0.93 of HEAD instead of 0.97: a `perf-floor` line in `tests/parity-waivers.txt`, read by `load-tests/lib/parity.mjs`; the other two rules (no round below 0.85, p99 within 1.10×) stand. The diagnosis is in `docs/perf/PARITY.md`: the server's CPU per write equals HEAD's, and the gap is the writer task's hop under a closed-loop client. The five sort indexes stay (D36). |
