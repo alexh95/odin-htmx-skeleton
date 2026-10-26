@@ -125,7 +125,8 @@ stays off and Fly keeps serving 6d37506.
       its request often gets no response (the malformed run's "none": 5,560 of 10,000 against 1,250 on
       Windows); no crash, but worth the audit's look.
 - [ ] **The M1 audit's open findings** (`docs/audit/M1.md`; M1-01 CRITICAL, M1-06 and M1-08 are
-      fixed). MEDIUM, owner M2 (the stream substrate reworks the drain and the deferred paths):
+      fixed, and so are the re-read's M1-17 (CRITICAL once confirmed) to M1-23, by the fork's F-16,
+      which is audit debt until it is re-read). MEDIUM, owner M2 (the stream substrate reworks the drain and the deferred paths):
       M1-02 a response send has no deadline (a client that never reads holds the connection);
       M1-03 the watchdog's and the dirty crash's exits log before they arm the exit, so a stalled
       stderr hangs them; M1-04 a crash in a write continuation after `web.resume` leaves its

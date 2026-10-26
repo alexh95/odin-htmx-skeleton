@@ -98,7 +98,7 @@ the watchdog (D15). `/healthz`, `/livez`, `/readyz` and `/metrics` report on it.
 ## Dependencies
 
 - [Odin](https://odin-lang.org): the compiler.
-- [odin-http](https://github.com/laytan/odin-http), vendored with the fork's changes (F-1…F-13:
+- [odin-http](https://github.com/laytan/odin-http), vendored with the fork's changes (F-1…F-16:
   streams, the crash-guard hook, timeouts, the connection cap, bounded shutdown, deferred responses).
 - [HTMX](https://htmx.org) 4.0.0: the only front-end library, pinned by SHA-256.
 - [SQLite](https://sqlite.org) 3.53.4 for a SQLite profile: the amalgamation, pinned by SHA-256 and

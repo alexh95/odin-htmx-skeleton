@@ -12,7 +12,7 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
 its first milestone, M1, meant to ship as **2.0.0**: the request path rebuilt as a platform (`app/platform/`),
 features (`app/features/`) with a store per family (`app/stores/`), and two profiles (`app/cmd/`): `skeleton`, the
 1.2.x console at its exact URLs, and `minimal`, the one-page notes starter. Behind them: the vendored odin-http fork
-(F-1 to F-15), a crash guard, logfmt and metrics, store v3 (per-loop readers, a group-committing writer task),
+(F-1 to F-16), a crash guard, logfmt and metrics, store v3 (per-loop readers, a group-committing writer task),
 `tools/check`, CI through `build.sh`, crash drills and the parity gate (`docs/perf/PARITY.md`).
 
 **Breaking, for a fork of 1.2.x:** `app/src` is gone (its code lives on as the `skeleton` profile's features); a
@@ -22,7 +22,7 @@ ships `/app/server`; a crash that touched shared state exits 70, a boot problem 
 place by the skeleton's contacts store (its first three migrations keep their hashes).
 
 ### Added
-- **The fork's changes to odin-http** (`app/vendor/odin-http/UPSTREAM.md` lists each, F-1 to F-15;
+- **The fork's changes to odin-http** (`app/vendor/odin-http/UPSTREAM.md` lists each, F-1 to F-16;
   F-3 waits for video): streams for SSE, WebSocket and multipart on the HTTP port; an `invoke` hook
   every server-owned callback runs through, so a crash guard can contain a crash in a handler, a stream
   or odin-http itself; idle, header and body timeouts, enforced by one 1 s sweep per thread rather than
@@ -121,6 +121,14 @@ place by the skeleton's contacts store (its first three migrations keep their ha
   and `run.sh`'s `BUILD_FLAGS` pass extra odin flags.
 
 ### Fixed
+- **One client could stop the server with a chunked body of tiny chunks** (CRITICAL, M1-17, found by the M1
+  audit's re-read and confirmed: 12,000 one-byte chunks overflowed a Windows loop's stack). odin-http scanned
+  each buffered token one call deeper than the last; a scan asked for from a scan callback now waits for the
+  callback to return (the fork's F-16). Chunk framing also counts against the body cap, chunk lines are at most
+  4 KiB and end in CRLF only, and a broken trailer is an error, not the end of the body (M1-18..M1-21).
+- **A client's malformed request no longer logs at warn or error** (M1-22): the fork's parse and send failures log
+  at info, and a log value's control bytes are written as `\xNN`, so nothing a client sends reaches a terminal
+  as an escape sequence.
 - **One client could stop the server with chunked request bodies** (CRITICAL, found by the M1 audit,
   `docs/audit/M1.md` M1-01). odin-http's chunked decoder asserted on chunk data not followed by CRLF
   and on any trailer field, on every route (a response drains an unread body); the guard contained

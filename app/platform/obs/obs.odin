@@ -161,7 +161,15 @@ str :: proc(l: ^Line, key, value: string) {
 		case '\n':      strings.write_string(&l.b, `\n`)
 		case '\r':      strings.write_string(&l.b, `\r`)
 		case '\t':      strings.write_string(&l.b, `\t`)
-		case:           strings.write_byte(&l.b, c)
+		case:
+			if c < 0x20 || c == 0x7f { // a terminal escape, say, from a request line
+				hex := "0123456789abcdef"
+				strings.write_string(&l.b, `\x`)
+				strings.write_byte(&l.b, hex[c >> 4])
+				strings.write_byte(&l.b, hex[c & 0xf])
+			} else {
+				strings.write_byte(&l.b, c)
+			}
 		}
 	}
 	strings.write_byte(&l.b, '"')
@@ -196,8 +204,9 @@ end :: proc(l: ^Line) {
 needs_quotes :: proc(s: string) -> bool {
 	if s == "" { return true }
 	for i in 0 ..< len(s) {
-		switch s[i] {
-		case ' ', '"', '=', '\\', '\n', '\r', '\t': return true
+		switch c := s[i]; c {
+		case ' ', '"', '=', '\\': return true
+		case: if c < 0x20 || c == 0x7f { return true }
 		}
 	}
 	return false

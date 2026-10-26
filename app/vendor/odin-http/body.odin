@@ -206,24 +206,26 @@ _body_chunked :: proc(req: ^Request, max_length: int = -1, user_data: rawptr, cb
 			s.cb(s.user_data, "", err)
 			return
 		}
+		if !count_framing(s, size_line) { return }
 
 		// If there is a semicolon, discard everything after it,
 		// that would be chunk extensions which we currently have no interest in.
+		// F-14, F-16: whitespace may come only before the ';' (RFC 9112 BWS), and nothing
+		// else may surround the size.
 		if semi := strings.index_byte(size_line, ';'); semi > -1 {
-			size_line = size_line[:semi]
+			size_line = strings.trim_right(size_line[:semi], " \t")
 		}
 
-		// F-14: whitespace may come before a chunk extension's ';' (RFC 9112 BWS), and
-		// nothing else may surround the size.
-		size, ok := parse_chunk_size(strings.trim_right(size_line, " \t"))
+		size, ok := parse_chunk_size(size_line)
 		if !ok {
 			log.infof("Encountered an invalid chunk size when decoding a chunked body: %q", string(size_line))
 			s.cb(s.user_data, "", .Bad_Read_Count)
 			return
 		}
 
-		// start scanning trailer headers.
+		// start scanning trailer headers: field lines, where a bare LF is allowed (RFC 9112 2.2).
 		if size == 0 {
+			s.req._scanner.split = scan_lines
 			scanner_scan(s.req._scanner, s, on_scan_trailer)
 			return
 		}
@@ -251,8 +253,8 @@ _body_chunked :: proc(req: ^Request, max_length: int = -1, user_data: rawptr, cb
 			return
 		}
 
-		s.req._scanner.max_token_size = bufio.DEFAULT_MAX_SCAN_TOKEN_SIZE
-		s.req._scanner.split          = scan_lines
+		s.req._scanner.max_token_size = MAX_CHUNK_LINE
+		s.req._scanner.split          = scan_crlf_lines
 
 		strings.write_string(&s.buf, token)
 
@@ -265,6 +267,7 @@ _body_chunked :: proc(req: ^Request, max_length: int = -1, user_data: rawptr, cb
 			}
 			// F-14: chunk data ends with a CRLF. Anything else is bad framing, a 400;
 			// upstream asserted, so one request could take the process down.
+			if !count_framing(s, token) { return }
 			if len(token) != 0 {
 				log.infof("Chunk data not followed by CRLF when decoding a chunked body")
 				s.cb(s.user_data, "", .Bad_Read_Count)
@@ -280,8 +283,15 @@ _body_chunked :: proc(req: ^Request, max_length: int = -1, user_data: rawptr, cb
 	on_scan_trailer :: proc(s: rawptr, line: string, err: bufio.Scanner_Error) {
 		s := cast(^Chunked_State)s
 
+		// F-16: a scan error (a line past the cap, a reset, the body timeout) is an error, not
+		// the end of the trailers (M1-19).
+		if err != nil {
+			s.cb(s.user_data, "", err)
+			return
+		}
+
 		// Headers are done, success.
-		if err != nil || len(line) == 0 {
+		if len(line) == 0 {
 			headers_delete_unsafe(&s.req.headers, "trailer")
 
 			te_header := headers_get_unsafe(s.req.headers, "transfer-encoding")
@@ -300,6 +310,7 @@ _body_chunked :: proc(req: ^Request, max_length: int = -1, user_data: rawptr, cb
 		// one capped by the scanner). Upstream parsed them into the request's headers,
 		// which are read-only by now: header_parse asserted on the first trailer. Nothing
 		// here reads one, and RFC 9110 6.5.1 lets a recipient drop them.
+		if !count_framing(s, line) { return }
 		s.trailers += 1
 		if s.trailers > MAX_TRAILERS {
 			log.infof("Too many trailer fields when decoding a chunked body")
@@ -318,6 +329,20 @@ _body_chunked :: proc(req: ^Request, max_length: int = -1, user_data: rawptr, cb
 
 		buf:        strings.Builder,
 		trailers:   int,
+		framing:    int, // F-16: the bytes of size lines, line ends and trailers so far
+	}
+
+	// F-16: chunk framing counts against the cap as well as the data (the line ends as 2
+	// bytes each), with at least MIN_FRAMING for a small cap. Upstream counted only the data,
+	// so one-byte chunks with long size lines grew a request's buffer without bound (M1-18).
+	count_framing :: proc(s: ^Chunked_State, line: string) -> bool {
+		s.framing += len(line) + 2
+		if s.max_length > -1 && s.framing > max(s.max_length, MIN_FRAMING) {
+			log.infof("Too much chunk framing when decoding a chunked body")
+			s.cb(s.user_data, "", .Too_Long)
+			return false
+		}
+		return true
 	}
 
 	s := new(Chunked_State, context.temp_allocator)
@@ -329,18 +354,41 @@ _body_chunked :: proc(req: ^Request, max_length: int = -1, user_data: rawptr, cb
 	s.user_data  = user_data
 	s.cb         = cb
 
-	s.req._scanner.split = scan_lines
+	s.req._scanner.max_token_size = MAX_CHUNK_LINE
+	s.req._scanner.split          = scan_crlf_lines
 	scanner_scan(s.req._scanner, s, on_scan)
+}
+
+// F-16: the longest chunk-size line or line end the decoder scans (Go's net/http allows
+// 4096), and the framing a capped body may carry whatever its cap.
+MAX_CHUNK_LINE :: 4096
+MIN_FRAMING :: 4096
+
+// F-16: a chunk-size line, or the end of chunk data, ended by CRLF only (RFC 9112 7.1).
+// bufio.scan_lines also takes a bare LF, which a proxy that frames strictly reads differently
+// (M1-20). A line not yet ended waits for more; at EOF the scanner answers the EOF.
+@(private)
+scan_crlf_lines :: proc(split_data: rawptr, data: []byte, at_eof: bool) -> (advance: int, token: []byte, err: bufio.Scanner_Error, final_token: bool) {
+	for b, i in data {
+		if b != '\n' { continue }
+		if i == 0 || data[i - 1] != '\r' { return 0, nil, .Bad_Read_Count, false }
+		return i + 1, data[:i - 1], nil, false
+	}
+	return 0, nil, nil, false
 }
 
 // F-14: the most trailer field lines a chunked body may carry before it is refused.
 MAX_TRAILERS :: 32
 
+// F-14's 15-digit bound keeps a chunk size below 2^60, which needs a 64-bit int (M1-21).
+#assert(size_of(int) == 8)
+
 // F-14: a chunk size is 1*HEXDIG (RFC 9112 7.1) and nothing else, at most 15 digits, so
 // it can't wrap. strconv's parse took a sign and `_` separators, and wrapped past 64 bits.
 @(private)
 parse_chunk_size :: proc(s: string) -> (n: int, ok: bool) {
-	if len(s) == 0 || len(s) > 15 { return }
+	// F-16: leading zeros don't count toward the 15 digits (M1-20).
+	if len(s) == 0 || len(strings.trim_left(s, "0")) > 15 { return }
 	for c in transmute([]byte)s {
 		d: int
 		switch c {

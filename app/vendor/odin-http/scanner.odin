@@ -56,6 +56,12 @@ Scanner :: struct /* #no_copy */ {
 	recv_op:                      ^nbio.Operation,
 	phase:                        Scan_Phase,
 	deadline:                     time.Time,
+
+	// F-16: the scan a callback asked for, run by the outermost scanner_scan once the callback
+	// returns (`dispatching`: such a call is on the stack).
+	dispatching:                  bool,
+	next_user_data:               rawptr,
+	next_callback:                Scan_Callback,
 }
 
 // F-7: which of the server's timeouts applies to the scanner's reads.
@@ -118,11 +124,40 @@ scanner_reset :: proc(s: ^Scanner) {
 	s.callback                     = nil
 }
 
+// F-16: a callback that scans again (the chunked decoder, the request and header lines) only
+// queues that scan, and this loop runs it once the callback has returned. Upstream called it
+// from inside the callback, one level deeper per token already in the buffer: a body of one-byte
+// chunks went ~100k frames deep in one read and overflowed a loop's stack (M1-17), a pure crash
+// that 101 times a minute exits the process.
 scanner_scan :: proc(
 	s: ^Scanner,
 	user_data: rawptr,
 	callback: proc(user_data: rawptr, token: string, err: bufio.Scanner_Error),
 ) {
+	if s.dispatching {
+		assert(s.next_callback == nil, "a scan callback asked for two scans")
+		s.next_user_data, s.next_callback = user_data, callback
+		return
+	}
+	s.dispatching = true
+	user_data, callback := user_data, callback
+	for {
+		scan_once(s, user_data, callback)
+		if s.next_callback == nil { break }
+		user_data, callback = s.next_user_data, s.next_callback
+		s.next_user_data, s.next_callback = nil, nil
+	}
+	s.dispatching = false
+}
+
+// A trap in a callback leaves the trampoline mid-run; the crash path clears it.
+scanner_clear_dispatch :: proc(s: ^Scanner) {
+	s.dispatching = false
+	s.next_user_data, s.next_callback = nil, nil
+}
+
+@(private="file")
+scan_once :: proc(s: ^Scanner, user_data: rawptr, callback: Scan_Callback) {
 	set_err :: proc(s: ^Scanner, err: bufio.Scanner_Error) {
 		switch s._err {
 		case nil, .EOF:

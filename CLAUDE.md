@@ -291,7 +291,7 @@ response is flushed.
 
 ## odin-http (vendored fork, `app/vendor/odin-http`)
 
-Vendored in-tree with the fork's changes F-1…F-13, each listed with its reason in `UPSTREAM.md`
+Vendored in-tree with the fork's changes F-1…F-16, each listed with its reason in `UPSTREAM.md`
 (streams, the `invoke` hook the crash guard uses, idle/header/body timeouts, a connection cap that
 answers 503, a bounded shutdown, SIGTERM, a per-thread date header, a bind retry, deferred
 responses). Features never import it: `platform/web` wraps it.

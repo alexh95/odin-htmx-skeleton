@@ -437,6 +437,7 @@ import "core:testing"
 test_dynamic_unwritten :: proc(t: ^testing.T) {
 	{
 		d  := make([dynamic]int, 4, 8)
+		defer delete(d) // F-16: the fork's tests run with leaks fatal
 		du := _dynamic_unwritten(d)
 
 		testing.expect(t, len(du) == 4)

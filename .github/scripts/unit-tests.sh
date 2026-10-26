@@ -8,7 +8,7 @@
 # Usage: sh .github/scripts/unit-tests.sh   (from the repo root)
 set -eu
 fail=0
-for d in $(find app tools/check -name '*_test.odin' -not -path '*/vendor/*' -not -path 'app/cmd/*' -not -path '*/testdata/*' | xargs -n1 dirname | sort -u); do
+for d in $(find app tools/check -name '*_test.odin' -not -path 'app/vendor/sqlite/*' -not -path 'app/cmd/*' -not -path '*/testdata/*' | xargs -n1 dirname | sort -u); do
   echo "== odin test $d"
   odin test "$d" -vet -vet-cast -vet-semicolon -vet-tabs -vet-using-param -disallow-do -strict-style -warnings-as-errors -define:ODIN_TEST_FAIL_ON_BAD_MEMORY=true \
     -out:"app/bin/unit-test$(case "$(uname -s)" in *MINGW*|*MSYS*|*CYGWIN*) echo .exe ;; esac)" || fail=1

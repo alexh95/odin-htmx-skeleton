@@ -656,6 +656,7 @@ _invoke :: #force_inline proc(s: ^Server, fn: proc(a, b: rawptr), a, b: rawptr) 
 @(private)
 connection_crashed :: proc(c: ^Connection) {
 	scanner_cancel(&c.scanner)
+	scanner_clear_dispatch(&c.scanner)
 	_deferred_end(c, gone = true)
 
 	if c.state == .Streaming && c.stream != nil {
@@ -712,7 +713,7 @@ conn_handle_req :: proc(c: ^Connection, allocator := context.temp_allocator) {
 			if err == .EOF {
 				log.debugf("client disconnected (EOF)")
 			} else {
-				log.warnf("request scanner error: %v", err)
+				log.infof("request scanner error: %v", err) // F-16: client-caused, info (M1-22)
 			}
 
 			clean_request_loop(l.conn, close = true)
@@ -735,7 +736,7 @@ conn_handle_req :: proc(c: ^Connection, allocator := context.temp_allocator) {
 		l := cast(^Loop)loop
 
 		if err != nil {
-			log.warnf("request scanning error: %v", err)
+			log.infof("request scanning error: %v", err)
 			clean_request_loop(l.conn, close = true)
 			return
 		}
@@ -749,7 +750,7 @@ conn_handle_req :: proc(c: ^Connection, allocator := context.temp_allocator) {
 			respond(&l.res)
 			return
 		case .Invalid_Version_Format, .Not_Enough_Fields:
-			log.warnf("request-line %q invalid: %s", token, err)
+			log.infof("request-line %q invalid: %s", token, err)
 			clean_request_loop(l.conn, close = true)
 			return
 		case .None:
@@ -775,7 +776,7 @@ conn_handle_req :: proc(c: ^Connection, allocator := context.temp_allocator) {
 		l := cast(^Loop)loop
 
 		if err != nil {
-			log.warnf("request scanning error: %v", err)
+			log.infof("request scanning error: %v", err)
 			clean_request_loop(l.conn, close = true)
 			return
 		}
@@ -787,7 +788,7 @@ conn_handle_req :: proc(c: ^Connection, allocator := context.temp_allocator) {
 		}
 
 		if _, ok := header_parse(&l.req.headers, token); !ok {
-			log.warnf("header-line %s is invalid", token)
+			log.infof("header-line %q is invalid", token)
 			headers_set_close(&l.res.headers)
 			l.res.status = .Bad_Request
 			respond(&l.res)
@@ -796,7 +797,7 @@ conn_handle_req :: proc(c: ^Connection, allocator := context.temp_allocator) {
 
 		l.conn.scanner.max_token_size -= len(token)
 		if l.conn.scanner.max_token_size <= 0 {
-			log.warn("request headers too large")
+			log.info("request headers too large")
 			headers_set_close(&l.res.headers)
 			l.res.status = .Request_Header_Fields_Too_Large
 			respond(&l.res)
@@ -810,7 +811,7 @@ conn_handle_req :: proc(c: ^Connection, allocator := context.temp_allocator) {
 		scanner_set_phase(&l.conn.scanner, .Body)
 
 		if !headers_validate_for_server(&l.req.headers) {
-			log.warn("request headers are invalid")
+			log.info("request headers are invalid")
 			headers_set_close(&l.res.headers)
 			l.res.status = .Bad_Request
 			respond(&l.res)

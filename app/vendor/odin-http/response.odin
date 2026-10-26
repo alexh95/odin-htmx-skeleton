@@ -357,7 +357,7 @@ on_response_sent :: proc(op: ^nbio.Operation, conn: ^Connection) {
 @(private)
 _on_response_sent :: proc(op: ^nbio.Operation, conn: ^Connection) {
 	if op.send.err != nil {
-		log.errorf("could not send response: %v", op.send.err)
+		log.infof("could not send response: %v", op.send.err) // F-16: the peer left (M1-22)
 		if !connection_set_state(conn, .Will_Close) { return }
 	}
 

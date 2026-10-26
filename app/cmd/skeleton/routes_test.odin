@@ -59,6 +59,7 @@ router_finds_rows :: proc(t: ^testing.T) {
 	arena: virtual.Arena
 	_ = virtual.arena_init_growing(&arena)
 	defer virtual.arena_destroy(&arena)
+	runner := context.allocator
 	context.allocator = virtual.arena_allocator(&arena)
 	context.temp_allocator = context.allocator
 	r: web.Router
@@ -66,11 +67,16 @@ router_finds_rows :: proc(t: ^testing.T) {
 		{method = .Get, pattern = "/"},
 		{method = .Get, pattern = "/contacts"},
 		{method = .Get, pattern = "/contacts/(%d+)"},
+		{method = .Get, pattern = "/contacts/(.+)"}, // after (%d+): mount order decides
 		{method = .Post, pattern = "/contacts"},
 		{method = .Post, pattern = "/contacts/(%d+)"},
 		{method = .Delete, pattern = "/contacts/(%d+)"},
 		{method = .Get, pattern = "/favicon%.ico"},
+		{method = .Get, pattern = "/ui/(.+)"},
+		{method = .Get, pattern = "/ui/tab"}, // its own two-segment bucket, tried before "/ui"
 	})
+	// A lookup allocates only in the request arena: anything on context.allocator leaks here.
+	context.allocator = runner
 	Case :: struct {
 		method: web.Method,
 		path:   string,
@@ -83,9 +89,11 @@ router_finds_rows :: proc(t: ^testing.T) {
 		{.Post, "/contacts", "POST /contacts", "", nil},
 		{.Delete, "/contacts/12", "DELETE /contacts/(%d+)", "12", nil},
 		{.Get, "/contacts/12", "GET /contacts/(%d+)", "12", nil},
+		{.Get, "/contacts/ab", "GET /contacts/(.+)", "ab", nil},
+		{.Get, "/ui/tab", "GET /ui/tab", "", nil},
+		{.Get, "/ui/x", "GET /ui/(.+)", "x", nil},
 		{.Get, "/favicon.ico", "GET /favicon%.ico", "", nil},
 		{.Get, "/faviconXico", "", "", nil},
-		{.Get, "/contacts/x", "", "", nil},
 		{.Put, "/contacts/12", "", "", {"DELETE", "GET", "HEAD", "POST"}},
 		{.Delete, "/contacts", "", "", {"GET", "HEAD", "POST"}},
 	}

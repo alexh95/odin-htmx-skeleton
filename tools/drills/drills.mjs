@@ -274,6 +274,15 @@ const MALFORMED = [
   'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n+5\r\nhello\r\n0\r\n\r\n',
   'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n1_0\r\n0123456789abcdef\r\n0\r\n\r\n',
   'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n8000000000000005\r\nhello\r\n0\r\n\r\n',
+  // F-16: one-byte chunks by the thousand, under both caps on a write (12k overflowed a Windows loop's
+  // stack before the scan trampoline, M1-17) and past them on a GET's drain; a size line past 4 KiB
+  // (M1-18); a trailer line past it (M1-19); a bare LF and trailing whitespace in framing (M1-20).
+  'POST /contacts HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n' + '1\r\na\r\n'.repeat(12000) + '0\r\n\r\n',
+  'GET /healthz HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n' + '1\r\na\r\n'.repeat(50000) + '0\r\n\r\n',
+  'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n1;' + 'x'.repeat(5000) + '\r\na\r\n0\r\n\r\n',
+  'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n1\r\na\r\n0\r\nX-T: ' + 'y'.repeat(5000) + '\r\n\r\n',
+  'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n5\nhello\r\n0\r\n\r\n',
+  'POST / HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n5  \r\nhello\r\n0\r\n\r\n',
   'GET / HTTP/1.1\r\n\r\n',
   'GET / HTTP/2.0\r\nHost: x\r\n\r\n',
   'GET /' + 'a'.repeat(9000) + ' HTTP/1.1\r\nHost: x\r\n\r\n',
