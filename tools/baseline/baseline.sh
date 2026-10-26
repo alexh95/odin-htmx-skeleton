@@ -48,8 +48,8 @@ PREP="$ROOT/app"
 
 # The ref must pin what this checkout prepared, or the comparison isn't like for like.
 for pin in HTMX_SHA256 SQLITE_SHA256; do
-  want="$(git -C "$ROOT" show "$REF:app/prepare.sh" | sed -n "s/^$pin=\([0-9a-f]*\).*/\1/p")"
-  have="$(sed -n "s/^$pin=\([0-9a-f]*\).*/\1/p" "$PREP/prepare.sh")"
+  want="$(git -C "$ROOT" show "$REF:app/prepare.sh" | sed -n "s/^ *$pin=\([0-9a-f]*\).*/\1/p")"
+  have="$(sed -n "s/^ *$pin=\([0-9a-f]*\).*/\1/p" "$PREP/prepare.sh")"
   [ "$want" = "$have" ] || { echo "$REF pins $pin=$want, this checkout $have" >&2; exit 1; }
 done
 link="$(git -C "$ROOT" ls-tree "$REF" app/odin-http | awk '{print $3}')"

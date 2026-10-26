@@ -88,6 +88,14 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   `authz.Load_Viewer`) and `parity` (every route reached by both suites, or waived with a reason). A bad fixture
   trips each. Feature READMEs list their prefix exceptions (D9), the skeleton's exact URLs among them.
 
+- **CI for the profiles** (PLAN §20.1): `pins` (Odin, htmx, SQLite, odin-http and Playwright agree
+  wherever they're pinned), `check` (`tools/check`, every profile on its own families, every store
+  alone, the unit tests with bad memory fatal), `build` (`minimal` and `skeleton` × Linux amd64 and
+  arm64, macOS, Windows, `-o:speed`, tests, smoke, Windows size budgets; `minimal` with no SQLite
+  library), `e2e` (`skeleton` in three engines, `minimal` in chromium, with `E2E_PROFILE`),
+  `coverage` (a k6 quick run per profile, then `tools/check parity`) and `docker`. One
+  `setup-odin` action installs the pinned Odin per runner. `prepare.*` take `NO_SQLITE=1`.
+
 ### Fixed
 - **`OPTIONS *` with a negative `Content-Length` no longer aborts the process.** 1.2.1 refused a bad
   `Content-Length` in `front`, but odin-http answers `OPTIONS *` itself; the fork's `_body_length`
@@ -125,6 +133,8 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   binds it without an error, and k6 measured WSL's relay instead (a 100 % failed `notes` run).
 
 ### Removed
+- **CI's `minimal` job**, which ran `init --minimal`: the `minimal` profile builds and tests in `build`
+  and `e2e` instead.
 - **`app/src`**, the skeleton's single-binary app: the `skeleton` profile serves it now, at the
   same URLs, and the `minimal` profile replaces `init --minimal`, so the `--minimal` overlay
   (`tools/init/minimal/`, `strip.odin`) is gone too.

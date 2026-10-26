@@ -2,7 +2,13 @@
 # Checks that version pins which must move together still agree, so a bump
 # that misses one fails CI instead of quietly building two different things.
 #   - Odin: the Dockerfile's ODIN_VERSION and ODIN_SHA256 args, the same two in
-#     ci.yml's env, and the build matrix's asset names and linux-amd64 digest.
+#     ci.yml's env, and .github/actions/setup-odin's asset names and its
+#     linux-amd64 digest.
+#   - htmx and SQLite: prepare.sh and prepare.bat pin the same digests and build
+#     SQLite with the same flags (the Dockerfile and CI run prepare.sh, Windows
+#     developers prepare.bat).
+#   - odin-http: the base commit app/vendor/odin-http/UPSTREAM.md names is the
+#     one tools/baseline checks the skeleton's releases against.
 #   - Playwright: every mcr.microsoft.com/playwright image tag in ci.yml against
 #     @playwright/test in e2e/package-lock.json (the image bakes in the
 #     browsers that exact version drives).
@@ -11,6 +17,7 @@
 set -eu
 
 ci=.github/workflows/ci.yml
+action=.github/actions/setup-odin/action.yml
 fail=0
 bad() { echo "pin mismatch: $*" >&2; fail=1; }
 
@@ -21,17 +28,29 @@ sha=$(sed -n 's/^  ODIN_SHA256: *//p' "$ci")
 [ "$(sed -n 's/^ARG ODIN_VERSION=//p' Dockerfile)" = "$odin" ] || bad "Dockerfile ODIN_VERSION isn't $odin (ci.yml)"
 [ "$(sed -n 's/^ARG ODIN_SHA256=//p' Dockerfile)" = "$sha" ] || bad "Dockerfile ODIN_SHA256 isn't ci.yml's"
 
-assets=$(sed -n 's/^ *odin_asset: *//p' "$ci")
-[ -n "$assets" ] || bad "no odin_asset entries in $ci"
+assets=$(grep -o 'asset=odin-[^;]*' "$action" | sed 's/^asset=//')
+[ -n "$assets" ] || bad "no Odin assets in $action"
 for a in $assets; do
   case $a in
     odin-*-"$odin".tar.gz | odin-*-"$odin".zip) ;;
-    *) bad "matrix asset $a isn't the $odin release" ;;
+    *) bad "$action's asset $a isn't the $odin release" ;;
   esac
 done
-# The linux-amd64 leg downloads the same tarball as the env pin describes.
-leg=$(awk '/odin_asset: odin-linux-amd64-/ { on = 1 } on && /odin_sha256:/ { print $2; exit }' "$ci")
-[ "$leg" = "$sha" ] || bad "the linux-amd64 leg's odin_sha256 isn't ci.yml's ODIN_SHA256"
+# The linux-amd64 runner downloads the tarball the env pin describes.
+leg=$(grep 'Linux-X64)' "$action" | grep -o 'sha=[0-9a-f]*' | sed 's/^sha=//')
+[ "$leg" = "$sha" ] || bad "$action's linux-amd64 digest isn't ci.yml's ODIN_SHA256"
+
+# prepare.sh: `HTMX_SHA256=…` (indented inside a step); prepare.bat: `set "HTMX_SHA256=…"`.
+for pin in HTMX_SHA256 SQLITE_SHA256 SQLITE_FLAGS; do
+  sh_v=$(sed -n "s/^ *$pin=\"\{0,1\}\([^\"]*\)\"\{0,1\}\$/\1/p" app/prepare.sh)
+  bat_v=$(sed -n "s/^set \"$pin=\([^\"]*\)\"\r\{0,1\}\$/\1/p" app/prepare.bat)
+  [ -n "$sh_v" ] || bad "no $pin in app/prepare.sh"
+  [ "$sh_v" = "$bat_v" ] || bad "app/prepare.sh and app/prepare.bat pin different $pin"
+done
+
+base=$(sed -n 's/^- \*\*Base:\*\* `\([0-9a-f]\{7\}\).*/\1/p' app/vendor/odin-http/UPSTREAM.md)
+[ -n "$base" ] || bad "app/vendor/odin-http/UPSTREAM.md names no base commit"
+grep -q "in $base\\*)" tools/baseline/baseline.sh || bad "tools/baseline checks odin-http against another commit than UPSTREAM.md's $base"
 
 pw=$(awk '/"node_modules\/@playwright\/test"/ { on = 1 }
           on && /"version"/ { gsub(/[",]/, "", $2); print $2; exit }' e2e/package-lock.json)
@@ -45,5 +64,5 @@ for img in $images; do
   esac
 done
 
-[ "$fail" -eq 0 ] && echo "pins agree: Odin $odin, Playwright $pw"
+[ "$fail" -eq 0 ] && echo "pins agree: Odin $odin, htmx and SQLite in both prepare scripts, odin-http $base, Playwright $pw"
 exit "$fail"

@@ -32,7 +32,7 @@ export function coverageDir(appDir: string): string {
 function prepared(appDir: string): boolean {
   const at = (p: string) => path.join(appDir, p);
   const pins = readFileSync(at('prepare.sh'), 'utf8');
-  const pin = (name: string) => pins.match(new RegExp(`^${name}=(\\w+)`, 'm'))?.[1];
+  const pin = (name: string) => pins.match(new RegExp(`^\\s*${name}=(\\w+)`, 'm'))?.[1];
   const lib = at(process.platform === 'win32' ? 'vendor/sqlite/sqlite3.lib' : 'vendor/sqlite/sqlite3.a');
   try {
     const htmx = createHash('sha256').update(readFileSync(at('vendor/htmx/htmx.min.js'))).digest('hex');

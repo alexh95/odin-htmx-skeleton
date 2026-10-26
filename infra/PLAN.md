@@ -19,18 +19,24 @@ reachable, at free or near-zero cost.
   SQLite. The Odin release is pinned in the `Dockerfile` (`ARG ODIN_VERSION`) and in `ci.yml`
   (`env.ODIN_VERSION` + the three matrix asset names); bump them together.
 - **`Dockerfile`**: two stages on the same Debian release (glibc must match). The build stage
-  installs the pinned Odin + clang, runs `prepare.sh` and builds `-o:speed -warnings-as-errors`; the
-  runtime stage is a slim base with just the binary.
+  installs the pinned Odin + clang, runs `prepare.sh` and builds one profile (`--build-arg PROFILE=…`,
+  `skeleton` by default) through `build.sh … -o:speed`; the runtime stage is a slim base with just the
+  binary, as `/app/server`.
 - **`fly.toml`**: one always-on `shared-cpu-1x` machine, `/healthz` health check, `:memory:` SQLite
   until you add a volume (below).
-- **`.github/workflows/ci.yml`**:
-  1. `build`: build `-warnings-as-errors` + a curl smoke test on Linux, macOS (arm64) and Windows.
-  2. `e2e`: the Playwright suite, one job per engine (Chromium, Firefox, WebKit), in Playwright's
-     container image.
-  3. `minimal` (template only): runs `tools/init --minimal` and the starter's e2e, so the starter
-     templates can't rot. `init` deletes this job from a fork's copy, because a fork deletes
-     `tools/init`.
-  4. `deploy`: `flyctl deploy --remote-only` on a green push to `master`, once you opt in (step 2).
+- **`.github/workflows/ci.yml`** (every job through `build.sh <profile>`; PLAN §20.1):
+  1. `pins`: the Odin, htmx, SQLite, odin-http and Playwright pins agree wherever they live.
+  2. `check`: `tools/check` (imports, profile, routes, contracts), each profile checked on its own
+     families, each store checked alone, and the unit tests with bad memory fatal.
+  3. `build`: `minimal` and `skeleton` on Linux (amd64 and arm64), macOS (arm64) and Windows, each
+     built `-o:speed`, tested and smoke-tested, with the size budgets on Windows; `minimal` also with
+     no SQLite library present.
+  4. `e2e`: the Playwright suite, `skeleton` in Chromium, Firefox and WebKit and `minimal` in Chromium,
+     plus the browser-less `api` project, in Playwright's container image.
+  5. `coverage`: a k6 quick run of each profile, then every route must have been reached by both
+     suites (`tools/check parity`).
+  6. `docker`: the image through `compose.yaml`: healthy, UID 10001, a clean stop, a fresh `/data`.
+  7. `deploy`: `flyctl deploy --remote-only` on a green push to `master`, once you opt in (step 2).
 - **`deploy/docker-host`**: the same image on any Linux box with Docker, over SSH, with the SQLite
   database on a named volume. See its README.
 

@@ -18,6 +18,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='
 if errorlevel 1 goto :fail
 
 rem --- SQLite amalgamation (pinned; fetched + compiled, mirroring the htmx fetch) ---
+rem NO_SQLITE=1 skips it: a memory profile's build needs no SQLite (D18), and CI builds
+rem minimal that way, with no library present, to prove it.
+if "%NO_SQLITE%"=="1" (
+  echo [skip] SQLite: NO_SQLITE=1
+  goto :ready
+)
 set "SQLITE_URL=https://sqlite.org/2026/sqlite-amalgamation-3530400.zip"
 set "SQLITE_SHA256=1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d"
 set "SQLITE_DIR=vendor\sqlite"

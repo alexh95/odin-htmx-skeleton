@@ -4342,7 +4342,12 @@ use placeholders. The planning docs are committed only after the scrub (§4.2 st
 | release (tag `v*`) | each hosted profile | multi-arch images (amd64 on ubuntu, arm64 on ubuntu-24.04-arm, merged), GHCR `ghcr.io/alexh95/odin-htmx-starter-<profile>:vX.Y.Z` and `:sha-<7>`, provenance attestation, a GitHub Release from the CHANGELOG; from M11, the linux_arm64 `term-agent` binary and its SHA-256 attached (Q30; X15) |
 | deploy-fly | skeleton | only on a tag, with `vars.FLY_DEPLOY == 'true'`; the first such tag is v2.2.0 at the M3 exit (X2) |
 
-The jobs are D40's; what the test jobs assert is in §19, the parity gate's procedure in §18. **The NPM the job models**
+The jobs are D40's; what the test jobs assert is in §19, the parity gate's procedure in §18. **As built (M1):**
+`pins`, `check`, `build` ({minimal, skeleton} × {ubuntu, ubuntu-arm, macOS, Windows}, `minimal` also with
+`prepare`'s `NO_SQLITE=1`, the size budgets on the Windows legs), `e2e` (`E2E_PROFILE`), `coverage` (the k6 quick run
+of each profile, then `tools/check parity`; route coverage has its own job because it needs both suites' counters),
+`docker` and the dormant `deploy`; one composite action, `.github/actions/setup-odin`, installs the pinned Odin per
+runner. `linux-ops` and the nightly ASan arrive with the drills they run. **The NPM the job models**
 (RESOLUTIONS X40): apollo's NPM is older than the upstream v2.16.0 that D41 modelled, so `e2e-proxy` pins and models
 apollo's actual version, recorded in `docs/private/SITE.md` (§2.2). Upgrading NPM is Alex's optional step and never an
 agent's; if Alex upgrades it, the job's pin follows.

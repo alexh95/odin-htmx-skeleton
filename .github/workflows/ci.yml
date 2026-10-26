@@ -20,179 +20,251 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Same Odin release the Dockerfile pins, so CI builds what production builds.
-# ODIN_SHA256 is the release's published digest of the linux-amd64 tarball (the
-# one the e2e containers and the Dockerfile download); the build matrix pins one
-# per asset. Downloads are checked against them, like htmx and SQLite in prepare.
-# .github/scripts/check-pins.sh fails the build if these, the matrix asset names
-# and the Dockerfile disagree.
+# The Odin release the Dockerfile pins too. ODIN_SHA256 is the published digest of
+# the linux-amd64 tarball (what the Dockerfile downloads); .github/actions/setup-odin
+# names every runner's asset and digest, and .github/scripts/check-pins.sh fails the
+# pins job if these, the action and the Dockerfile disagree.
 env:
   ODIN_VERSION: dev-2026-10
   ODIN_SHA256: c3c8b095621fd0c75f7f73e3a0829f1b4d45324225f20ba11ed8dc4da310a8ab
 
+# Every job builds, checks and tests through build.sh <profile> (PLAN §20.1), the one
+# place a profile's family flags live. The profiles: minimal (memory store, lite
+# theme, no SQLite) and skeleton (the 1.2.x console on SQLite).
 jobs:
-  build:
-    name: Build + smoke (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    # Every job is bounded: without it a hung apt fetch sits for GitHub's 6 h
-    # default. Normal runs take 1-6 min per job.
+  # A bump that misses one of the places a pin lives fails here, first.
+  pins:
+    name: Pins agree
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - run: sh .github/scripts/check-pins.sh
+
+  # What the compiler can't see (tools/check), every profile checked on its own
+  # families, every store checked alone in its family (a store no profile builds
+  # can't rot), and the unit tests with bad memory fatal.
+  check:
+    name: Check + unit tests
+    runs-on: ubuntu-latest
     timeout-minutes: 25
-    # WSL/Docker only cover Linux. This matrix also guards Windows (our primary
-    # dev platform) and macOS (Apple Silicon = arm64-darwin — the one target we
-    # can't test locally, and it exercises odin-http's kqueue path under
-    # core:nbio). Each leg names its own asset rather than templating one: upstream
-    # asset names have been irregular in the past (dev-2026-06 shipped a truncated
-    # `...-dev-06` macOS name and an arch-less Windows name), so a version-only bump
-    # can silently 404. dev-2026-10 is regular — verify the names on each bump
-    # (check-pins.sh catches a name left on the old version, not a renamed asset).
-    # On a private fork, macOS minutes bill at 10x and Windows at 2x: to save
-    # them, drop that leg from `os:` and its `include:` entry.
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-odin
+      - name: Prepare (htmx, SQLite, the bundles)
+        run: sh app/prepare.sh
+      - name: tools/check (imports, profile, routes, contracts)
+        run: odin run tools/check -- all
+      - name: Every profile on its own families
+        run: for p in minimal skeleton; do CMD=check sh build.sh "$p" || exit 1; done
+      - name: Every store alone, in each family
+        run: |
+          for d in app/stores/*/*/; do
+            echo "== $d"
+            odin check "$d" -no-entry-point -vet -strict-style -warnings-as-errors || exit 1
+          done
+      - name: Unit tests (0 leaks, 0 bad frees)
+        run: sh .github/scripts/unit-tests.sh
+
+  # Each profile on four platforms: WSL and Docker cover only Linux, and macOS is
+  # the arm64-darwin target nobody can test locally (odin-http's kqueue path under
+  # core:nbio). minimal also builds with prepare's SQLite step skipped and no
+  # library present (D18). The size budgets are Windows -o:speed's (PLAN §18.4).
+  # On a private fork macOS minutes bill at 10x and Windows at 2x: drop those legs
+  # from `os:` to save them.
+  build:
+    name: Build + smoke (${{ matrix.profile }}, ${{ matrix.os }}${{ matrix.sqlite == 'none' && ', no SQLite' || '' }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    # `sqlite` is a dimension of one value so that the `none` entries below can't
+    # merge into an existing leg (an include that changes no original value is
+    # added to every leg it matches): they become two legs of their own.
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        profile: [minimal, skeleton]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
+        sqlite: [linked]
         include:
-          - os: ubuntu-latest
-            odin_asset: odin-linux-amd64-dev-2026-10.tar.gz
-            odin_sha256: c3c8b095621fd0c75f7f73e3a0829f1b4d45324225f20ba11ed8dc4da310a8ab
-            odin_dir: /opt/odin
-            exe: ''
-          - os: macos-latest
-            # arm64 build (macos-latest has been Apple Silicon since macos-14).
-            odin_asset: odin-macos-arm64-dev-2026-10.tar.gz
-            odin_sha256: b276c6ac87c3eea17446a6ca9080089b6e9f492057fb773591775ee49d92a1cf
-            odin_dir: /opt/odin
-            exe: ''
-          - os: windows-latest
-            # Unpacks to a top-level dist/ (odin.exe + LLVM-C.dll live there
-            # together) — verified for this release.
-            odin_asset: odin-windows-amd64-dev-2026-10.zip
-            odin_sha256: b6b2e426a8b6f147b74ec7e18bef8df27cf40fe16193159df7ca09a0cc0c2011
-            odin_dir: C:\odin
-            # Odin won't infer the extension on Windows; -out: needs it spelled out.
-            exe: '.exe'
+          - profile: minimal
+            write: /notes body=CI+smoke
+            budget: 1048576    # 1.0 MB
+          - profile: skeleton
+            write: /contacts name=CI+Smoke&email=ci@example.com
+            budget: 2883584    # 2.75 MB
+          - { profile: minimal, os: ubuntu-latest, sqlite: none, write: /notes body=CI+smoke }
+          - { profile: minimal, os: windows-latest, sqlite: none, write: /notes body=CI+smoke }
+    env:
+      NO_SQLITE: ${{ matrix.sqlite == 'none' && '1' || '' }}
+      # Through the environment, not spliced into the script: the form's `&`
+      # would be a shell operator there.
+      WRITE: ${{ matrix.write }}
     steps:
       - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-odin
 
-      # A bump that misses one of the places a pin lives fails here, first.
-      - name: Version pins agree (Odin, Playwright)
-        if: runner.os == 'Linux'
-        run: sh .github/scripts/check-pins.sh
-
-      - name: Cache Odin toolchain
-        id: cache-odin
-        uses: actions/cache@v6
-        with:
-          path: ${{ matrix.odin_dir }}
-          # runner.os in the key so the three OSes don't share one cache entry, and
-          # the digest so a re-pinned asset is downloaded and checked again.
-          key: odin-${{ env.ODIN_VERSION }}-${{ runner.os }}-${{ matrix.odin_sha256 }}
-
-      # Linux + macOS share the tar.gz path; only the asset name differs (matrix).
-      # The ubuntu leg is unchanged from before (same URL shape, same install).
-      - name: Install Odin (Linux/macOS)
-        if: runner.os != 'Windows' && steps.cache-odin.outputs.cache-hit != 'true'
-        run: |
-          curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/${{ matrix.odin_asset }}" -o /tmp/odin.tar.gz
-          echo "${{ matrix.odin_sha256 }}  /tmp/odin.tar.gz" | shasum -a 256 -c -
-          sudo mkdir -p /opt/odin
-          sudo tar -xzf /tmp/odin.tar.gz -C /opt/odin --strip-components=1
-
-      - name: Install Odin (Windows)
-        if: runner.os == 'Windows' && steps.cache-odin.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: |
-          $url = "https://github.com/odin-lang/Odin/releases/download/$env:ODIN_VERSION/${{ matrix.odin_asset }}"
-          $zip = "$env:RUNNER_TEMP\odin.zip"
-          Invoke-WebRequest -Uri $url -OutFile $zip
-          $got = (Get-FileHash $zip -Algorithm SHA256).Hash
-          if ($got -ne '${{ matrix.odin_sha256 }}') { throw "odin.zip SHA-256 is $got, expected ${{ matrix.odin_sha256 }}" }
-          Expand-Archive -Path $zip -DestinationPath C:\odin -Force
-
-      # Odin links the final binary through the platform C toolchain (clang/ld on
-      # unix; on Windows its own bundled radlink — the default since dev-2026-10 —
-      # against the MSVC + Windows SDK libraries), so each leg makes one available +
-      # puts odin on PATH.
-      # apt goes through .github/scripts/apt-install.sh: one try on the runner's
-      # mirror, then failover to HTTPS mirrors on other hosts (port-80 fetches from
-      # the runners have been timing out for minutes at a time).
-      - name: Odin on PATH + clang (Linux)
-        if: runner.os == 'Linux'
-        timeout-minutes: 15
-        run: |
-          echo "/opt/odin" >> "$GITHUB_PATH"
-          sh .github/scripts/apt-install.sh clang
-
-      - name: Odin on PATH + verify clang (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          echo "/opt/odin" >> "$GITHUB_PATH"
-          xcode-select -p        # Command Line Tools ship clang/ar — confirm present
-          clang --version
-
-      # Held at v1.13.0 deliberately: upstream has been stale since 2024-03 and
-      # still targets Node 20, so this is the one action whose deprecation warning
-      # a bump can't clear. It keeps working (the runner force-runs it on Node 24);
-      # silencing it would mean inlining vcvars64.bat, which isn't worth it.
-      - name: Set up MSVC (Windows)
-        if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1.13.0
-
-      - name: Odin on PATH (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: echo 'C:\odin\dist' >> "$GITHUB_PATH"   # odin.exe + LLVM-C.dll live in dist/
-
-      - name: Prepare deps (htmx, bin/) — Unix
+      - name: Prepare (Unix)
         if: runner.os != 'Windows'
-        run: cd app && sh prepare.sh
-
-      - name: Prepare deps (htmx, bin/) — Windows
+        run: sh app/prepare.sh
+      - name: Prepare (Windows)
         if: runner.os == 'Windows'
         shell: cmd
-        run: cd app && prepare.bat
+        run: app\prepare.bat
 
-      # VERSION reaches the x-version header and /healthz, so a deployed binary
-      # says which commit it is. (A local build reports "dev".)
-      - name: Build (warnings are errors)
+      - name: No SQLite library is present
+        if: matrix.sqlite == 'none'
         shell: bash
-        run: cd app && odin build src -out:bin/demo${{ matrix.exe }} -warnings-as-errors -define:VERSION=${GITHUB_SHA::7}
+        run: test ! -e app/vendor/sqlite
 
-      - name: Unit tests (odin test)
+      # VERSION reaches x-version and the serving line, so a binary says which
+      # commit it is (a local build says "dev").
+      - name: Build -o:speed (warnings are errors)
         shell: bash
-        run: cd app && odin test src/repository && odin test src/views
+        run: VERSION=${GITHUB_SHA::7} sh build.sh ${{ matrix.profile }} -o:speed
 
-      # One smoke script for all three: shell bash everywhere (git-bash is on the
-      # Windows runner, and MSYS resolves ./bin/demo to demo.exe). DB_PATH=:memory:
-      # gives it a throwaway SQLite store, so the smoke's write needs no volume.
+      - name: Size budget
+        if: runner.os == 'Windows' && matrix.sqlite == 'linked'
+        shell: bash
+        run: |
+          size=$(wc -c < app/bin/${{ matrix.profile }}.exe)
+          echo "${{ matrix.profile }}: $size bytes (budget ${{ matrix.budget }})"
+          test "$size" -le "${{ matrix.budget }}"
+
+      - name: Tests (the profile's boot checks and its features' tests)
+        shell: bash
+        run: CMD=test sh build.sh ${{ matrix.profile }}
+
+      # One smoke script for every leg: bash everywhere (Git Bash on Windows, where
+      # MSYS resolves bin/<p> to <p>.exe). DB_PATH=:memory: needs no volume.
       - name: Smoke test the binary
         shell: bash
         env:
           DB_PATH: ':memory:'
         run: |
-          cd app
-          BIND_ALL=1 PORT=8099 ./bin/demo${{ matrix.exe }} &
+          [ "${{ matrix.profile }}" = skeleton ] || unset DB_PATH   # a memory build has no DB_PATH
+          PORT=8099 app/bin/${{ matrix.profile }} &
           pid=$!
-          for i in $(seq 1 20); do
-            curl -fsS "http://127.0.0.1:8099/" -o /dev/null && break
+          for i in $(seq 1 40); do
+            curl -fsS "http://127.0.0.1:8099/healthz" -o /dev/null 2>&1 && break
             sleep 0.25
           done
           set -e
           test "$(curl -fsS http://127.0.0.1:8099/healthz)" = "ok"
-          curl -fsS "http://127.0.0.1:8099/"                          -o /dev/null
-          curl -fsS "http://127.0.0.1:8099/static/app.css"            -o /dev/null
-          curl -fsS "http://127.0.0.1:8099/static/htmx.min.js"        -o /dev/null
-          code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8099/api/search?q=a")
-          test "$code" = "200" || { echo "api/search returned $code"; exit 1; }
-          curl -fsS -X POST "http://127.0.0.1:8099/contacts" \
-            --data 'name=CI Smoke&email=ci@example.com&role=0&status=1' -o /dev/null
+          curl -fsS "http://127.0.0.1:8099/"                   -o /dev/null
+          curl -fsS "http://127.0.0.1:8099/about"              -o /dev/null
+          curl -fsS "http://127.0.0.1:8099/static/app.css"     -o /dev/null
+          curl -fsS "http://127.0.0.1:8099/static/htmx.min.js" -o /dev/null
+          set -- $WRITE
+          curl -fsS -X POST "http://127.0.0.1:8099$1" --data "$2" -o /dev/null
           kill "$pid"
 
-  # Builds the production image and runs it through compose.yaml, so a broken
-  # Dockerfile fails the PR rather than Fly's builder after the merge, and a fork
-  # without Fly gets its image tested at all. Host runner: it needs the Docker
-  # daemon. deploy waits for it, so an image that builds but won't run (seccomp,
-  # the non-root user, the stop signal) never ships.
+  # Playwright, one engine per runner, in Playwright's image (browsers, their OS
+  # deps and node preinstalled). skeleton runs in the three engines, minimal in
+  # chromium (PLAN §19.1.2); the browser-less specs (the `api` project) once per
+  # profile. Keep the image tag with @playwright/test in e2e/package-lock.json
+  # (check-pins.sh enforces it). Each server the suite starts leaves its route
+  # counters, which the coverage job holds against the load run's.
+  e2e:
+    name: E2E (${{ matrix.profile }}, ${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-jammy
+      # The server uses io_uring (core:nbio), which Docker's default seccomp blocks.
+      options: --security-opt seccomp=unconfined
+    # GitHub mounts HOME=/github/home in container jobs, which Firefox refuses to
+    # launch under (it wants HOME owned by the current user). /root is.
+    env:
+      HOME: /root
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { profile: skeleton, browser: chromium, also: --project=api }
+          - { profile: skeleton, browser: firefox }
+          - { profile: skeleton, browser: webkit }
+          - { profile: minimal, browser: chromium, also: --project=api }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-odin
+        with:
+          cache-suffix: -jammy
+
+      # prepare's outputs, so a shard doesn't spend a minute compiling SQLite: on a
+      # hit global-setup finds them current and skips prepare. The key hashes
+      # prepare.sh (the pins and flags) and the image's distro (glibc). The build
+      # and check jobs run prepare from scratch, so prepare itself stays tested.
+      - name: Cache prepare's outputs (htmx, compiled SQLite)
+        uses: actions/cache@v6
+        with:
+          path: |
+            app/vendor/htmx/htmx.min.js
+            app/vendor/sqlite
+          key: prepared-${{ hashFiles('app/prepare.sh') }}-jammy
+
+      - name: Install e2e deps
+        run: cd e2e && npm ci
+
+      - name: Run e2e
+        run: cd e2e && npx playwright test --project=${{ matrix.browser }} ${{ matrix.also }}
+        env:
+          CI: 'true'
+          E2E_PROFILE: ${{ matrix.profile }}
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report-${{ matrix.profile }}-${{ matrix.browser }}
+          path: e2e/playwright-report/
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-e2e-${{ matrix.profile }}-${{ matrix.browser }}
+          path: app/build/coverage/e2e/${{ matrix.profile }}/*.prom
+          retention-days: 7
+
+  # Route coverage (PLAN §19.1.11): the k6 quick run of each profile, then every
+  # route needs a non-zero counter from it and from e2e, or a waiver with a reason
+  # in tests/parity-waivers.txt. Not a performance gate: shared runners measure
+  # their neighbours as much as the server; the parity gate runs on the dev PC.
+  coverage:
+    name: Route coverage (e2e + k6 quick)
+    needs: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      K6_VERSION: v2.0.0
+      K6_SHA256: 2ae87d976f6cdba17185bdd980d8819a3a98e9092c6f0638cd58272ecefc8b90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-odin
+      - name: Install k6
+        run: |
+          curl -fsSL "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz" -o /tmp/k6.tar.gz
+          echo "${K6_SHA256}  /tmp/k6.tar.gz" | sha256sum -c -
+          sudo tar -xzf /tmp/k6.tar.gz -C /usr/local/bin --strip-components=1 "k6-${K6_VERSION}-linux-amd64/k6"
+      - name: Prepare
+        run: sh app/prepare.sh
+      - name: k6 quick, each profile
+        run: |
+          sh load-tests/run.sh --quick --strict
+          PROFILE=minimal PORT_BASE=8190 sh load-tests/run.sh --quick --strict
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-e2e-*
+          path: /tmp/e2e-coverage
+      - name: Every route reached by both suites
+        run: |
+          for p in minimal skeleton; do
+            mkdir -p app/build/coverage/e2e/$p
+            for d in /tmp/e2e-coverage/coverage-e2e-$p-*; do cp "$d"/*.prom app/build/coverage/e2e/$p/ 2>/dev/null || true; done
+          done
+          odin run tools/check -- parity
+
+  # The production image through compose.yaml, so a broken Dockerfile fails here
+  # rather than in Fly's builder, and a fork without Fly gets its image tested at
+  # all. Host runner: it needs the Docker daemon.
   docker:
     name: Docker image (build + run)
     runs-on: ubuntu-latest
@@ -200,8 +272,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Build the image
-        run: docker compose build
+      - name: Build the image (skeleton)
+        run: docker compose build --build-arg VERSION=${GITHUB_SHA::7}
 
       # --wait returns once the HEALTHCHECK passes, and fails if the container exits
       # or never turns healthy: the server started under docker/seccomp-io-uring.json.
@@ -212,10 +284,11 @@ jobs:
         run: |
           test "$(curl -fsS http://127.0.0.1:8080/healthz)" = "ok"
           curl -fsS http://127.0.0.1:8080/ -o /dev/null
+          curl -fsS http://127.0.0.1:8080/licenses | head -1 | grep -q 'THIRD-PARTY NOTICES'
           test "$(docker compose exec -T app id -u)" = "10001"   # not root
 
-      # STOPSIGNAL SIGINT reaches the server's shutdown hook: a clean exit 0 within
-      # a second or so. A missed signal shows as a SIGKILL (137) after 10 s.
+      # STOPSIGNAL SIGINT reaches the server's drain: a clean exit 0 within a
+      # second or two. A missed signal shows as a SIGKILL (137) after 10 s.
       - name: docker stop shuts it down cleanly
         run: |
           id=$(docker compose ps -q app)
@@ -224,7 +297,7 @@ jobs:
           ms=$(( ($(date +%s%N) - start) / 1000000 ))
           code=$(docker inspect -f '{{.State.ExitCode}}' "$id")
           echo "stopped in ${ms} ms, exit code ${code}"
-          test "$code" = 0 && test "$ms" -lt 3000
+          test "$code" = 0 && test "$ms" -lt 6000
 
       # The non-root user must be able to create the DB (and its -wal/-shm) on a
       # fresh volume at /data, the documented DB_PATH home.
@@ -246,169 +319,12 @@ jobs:
           docker compose logs
           docker logs persist || true
 
-  # Browser tests (Playwright), sharded one engine per runner so the three run
-  # concurrently. Runs in Playwright's official image, which bakes in the three
-  # browsers + their OS deps + node/npm — so there's no per-run browser install
-  # (the biggest, most variable cost, ~30-60s for webkit). global-setup still
-  # builds the app, so each shard adds odin + clang. Keep the image tag in step
-  # with @playwright/test in e2e/package-lock.json (check-pins.sh enforces it).
-  e2e:
-    name: E2E (${{ matrix.browser }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    container:
-      image: mcr.microsoft.com/playwright:v1.63.0-jammy
-      # The server uses io_uring (core:nbio); Docker's default seccomp profile
-      # blocks io_uring syscalls, so the server can't start in the container.
-      options: --security-opt seccomp=unconfined
-    # GitHub mounts HOME=/github/home for container jobs, which Firefox refuses to
-    # launch under (it requires HOME to be owned by the current user). /root is.
-    env:
-      HOME: /root
-    strategy:
-      fail-fast: false
-      matrix:
-        browser: [chromium, firefox, webkit]
-        include:
-          # The browser-less specs (playwright.config.ts's `api` project) run
-          # once, on one shard.
-          - browser: chromium
-            also: --project=api
-    steps:
-      - uses: actions/checkout@v7
-
-      # Same key as the minimal job, so the two container jobs share one entry. The
-      # build job's can't be shared: actions/cache archives with zstd on the host
-      # but gzip here (the image has no zstd), and the format is part of the entry.
-      - name: Cache Odin toolchain
-        id: cache-odin
-        uses: actions/cache@v6
-        with:
-          path: /opt/odin
-          key: odin-${{ env.ODIN_VERSION }}
-
-      # prepare's outputs, so a shard doesn't spend about a minute compiling SQLite:
-      # on a hit, global-setup finds them current and skips prepare. The key hashes
-      # prepare.sh, which pins htmx and SQLite and holds the compile flags, plus
-      # the image's distro (the library is built against its glibc). The build job
-      # still runs prepare from scratch, so prepare itself stays tested.
-      - name: Cache prepare's outputs (htmx, compiled SQLite)
-        uses: actions/cache@v6
-        with:
-          path: |
-            app/vendor/htmx/htmx.min.js
-            app/vendor/sqlite
-          key: prepared-${{ hashFiles('app/prepare.sh') }}-jammy
-
-      - name: Install Odin
-        if: steps.cache-odin.outputs.cache-hit != 'true'
-        run: |
-          curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-linux-amd64-${ODIN_VERSION}.tar.gz" -o /tmp/odin.tar.gz
-          echo "${ODIN_SHA256}  /tmp/odin.tar.gz" | sha256sum -c -
-          mkdir -p /opt/odin
-          tar -xzf /tmp/odin.tar.gz -C /opt/odin --strip-components=1
-
-      - name: Put Odin and clang on PATH
-        timeout-minutes: 15
-        run: |
-          echo "/opt/odin" >> "$GITHUB_PATH"
-          # clang links Odin and compiles the SQLite amalgamation (prepare.sh);
-          # unzip + binutils(ar) extract and archive it, when global-setup has to
-          # run prepare (a cache miss).
-          sh .github/scripts/apt-install.sh clang binutils unzip
-
-      - name: Install e2e deps
-        run: cd e2e && npm ci
-
-      - name: Run e2e
-        run: cd e2e && npx playwright test --project=${{ matrix.browser }} ${{ matrix.also }}
-        env:
-          CI: 'true'
-
-      # v7, not v5: upload-artifact v5 advertises Node 24 support but still declares
-      # `using: node20`, so it does NOT clear the deprecation. v6 is the true minimum.
-      - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
-        with:
-          name: playwright-report-${{ matrix.browser }}
-          path: e2e/playwright-report/
-          retention-days: 7
-
-  # Guards the `init --minimal` starter from rotting. The tools/init/minimal/
-  # templates aren't part of the app build (only app/src is), so a change to the
-  # skeleton's conventions could silently break them. Strip a fresh checkout to the
-  # minimal Notes starter, then run its e2e — global-setup builds it with
-  # -warnings-as-errors, so this one job catches both compile- and runtime-rot (and
-  # exercises the rename path too, since --minimal renames first). Chromium plus
-  # the browser-less `api` specs: the app is engine-agnostic; cross-browser is the
-  # demo's E2E job above. A fork's `init` removes this job (it would strip the
-  # fork's own app).
-  minimal:
-    name: init --minimal builds + tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    container:
-      image: mcr.microsoft.com/playwright:v1.63.0-jammy
-      options: --security-opt seccomp=unconfined
-    env:
-      HOME: /root
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Cache Odin toolchain
-        id: cache-odin
-        uses: actions/cache@v6
-        with:
-          path: /opt/odin
-          key: odin-${{ env.ODIN_VERSION }}
-
-      # Same entry as the e2e shards' (same key, same image): the starter keeps
-      # prepare.sh as is, so its pinned htmx/SQLite are the demo's.
-      - name: Cache prepare's outputs (htmx, compiled SQLite)
-        uses: actions/cache@v6
-        with:
-          path: |
-            app/vendor/htmx/htmx.min.js
-            app/vendor/sqlite
-          key: prepared-${{ hashFiles('app/prepare.sh') }}-jammy
-
-      - name: Install Odin
-        if: steps.cache-odin.outputs.cache-hit != 'true'
-        run: |
-          curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-linux-amd64-${ODIN_VERSION}.tar.gz" -o /tmp/odin.tar.gz
-          echo "${ODIN_SHA256}  /tmp/odin.tar.gz" | sha256sum -c -
-          mkdir -p /opt/odin
-          tar -xzf /tmp/odin.tar.gz -C /opt/odin --strip-components=1
-
-      - name: Put Odin and clang on PATH
-        timeout-minutes: 15
-        run: |
-          echo "/opt/odin" >> "$GITHUB_PATH"
-          # clang links the init tool + the app, and compiles the SQLite
-          # amalgamation (prepare, run by global-setup, on a cache miss);
-          # unzip + binutils(ar) too.
-          sh .github/scripts/apt-install.sh clang binutils unzip
-
-      - name: Strip to the minimal starter (renames + strips in place)
-        run: odin run tools/init -- minimal-ci --minimal --yes
-
-      - name: Install e2e deps
-        run: cd e2e && npm ci
-
-      - name: Build (-warnings-as-errors, via global-setup) + run the minimal e2e
-        run: cd e2e && npx playwright test --project=chromium --project=api
-        env:
-          CI: 'true'
-
-  # Deploys the live instance after a green build + e2e on the default branch
-  # (master or main). Dormant until you opt in: set the FLY_API_TOKEN secret
-  # (`fly tokens create deploy`) and the repo variable FLY_DEPLOY=true (see
-  # infra/PLAN.md → Operator steps). Until then it's skipped, so CI stays green.
-  # If you instead let Fly's GitHub integration auto-deploy, leave FLY_DEPLOY
-  # unset and ignore this job.
+  # Deploys the live instance after a green run on the default branch. Dormant
+  # until opted in: the FLY_API_TOKEN secret and the repo variable FLY_DEPLOY=true
+  # (infra/PLAN.md → Operator steps). Until then it's skipped, so CI stays green.
   deploy:
     name: Deploy (Fly.io)
-    needs: [build, docker, e2e, minimal]
+    needs: [pins, check, build, e2e, coverage, docker]
     if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch && vars.FLY_DEPLOY == 'true'
     runs-on: ubuntu-latest
     # Longer than the others: Fly's remote builder has stalled for ~10 min before.
@@ -418,8 +334,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
-      # SHA-pinned (tag 1.6, identical to master today) — house style is to pin
-      # everything; a floating branch can move under us on a deploying job.
+      # SHA-pinned (tag 1.6): a floating branch can move under a deploying job.
       - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
       - run: flyctl deploy --remote-only --build-arg VERSION=${GITHUB_SHA::7}
         env:

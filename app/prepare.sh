@@ -36,64 +36,70 @@ else
 fi
 
 # --- SQLite amalgamation (pinned; fetched + compiled, mirroring the htmx fetch) ---
-# Pin the version AND its zip SHA-256 in one place — same reproducibility
-# discipline as ODIN_VERSION / htmx. Bump both together.
-SQLITE_YEAR=2026
-SQLITE_ID=sqlite-amalgamation-3530400                                            # SQLite 3.53.4
-SQLITE_SHA256=1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d
-SQLITE_DIR=vendor/sqlite
-
-mkdir -p "$SQLITE_DIR"
-
-# Download + verify + extract, unless the pinned source is already in place.
-if [ -f "$SQLITE_DIR/sqlite3.c" ] && [ -f "$SQLITE_DIR/sqlite3.h" ] \
-   && [ "$(cat "$SQLITE_DIR/.stamp" 2>/dev/null)" = "$SQLITE_SHA256" ]; then
-  echo "[skip] SQLite amalgamation $SQLITE_ID already present."
+# NO_SQLITE=1 skips it: a memory profile's build needs no SQLite (D18), and CI builds `minimal`
+# that way, with no library present, to prove it.
+if [ "${NO_SQLITE:-}" = 1 ]; then
+  echo "[skip] SQLite: NO_SQLITE=1"
 else
-  echo "[get ] downloading $SQLITE_ID ..."
-  url="https://sqlite.org/$SQLITE_YEAR/$SQLITE_ID.zip"
-  tmp="$(mktemp -d)"
-  if command -v curl >/dev/null 2>&1; then curl -fsSL "$url" -o "$tmp/s.zip"
-  else wget -qO "$tmp/s.zip" "$url"; fi
-  got="$(sha256_of "$tmp/s.zip")"
-  if [ "$got" != "$SQLITE_SHA256" ]; then
-    echo "error: SQLite checksum mismatch: expected $SQLITE_SHA256, got $got" >&2
-    rm -rf "$tmp"; exit 1
-  fi
-  unzip -joq "$tmp/s.zip" "*/sqlite3.c" "*/sqlite3.h" -d "$SQLITE_DIR"
-  rm -rf "$tmp"
-  printf '%s\n' "$SQLITE_SHA256" > "$SQLITE_DIR/.stamp"
-fi
+  # Pin the version AND its zip SHA-256 in one place — same reproducibility
+  # discipline as ODIN_VERSION / htmx. Bump both together.
+  SQLITE_YEAR=2026
+  SQLITE_ID=sqlite-amalgamation-3530400                                            # SQLite 3.53.4
+  SQLITE_SHA256=1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d
+  SQLITE_DIR=vendor/sqlite
 
-# D16's flags (PLAN §11.2; spike S0.11). `.flags` records what the lib was built with, so a flag
-# change rebuilds it: a lib newer than its source isn't enough. prepare.bat holds the same string.
-SQLITE_FLAGS="-DSQLITE_DQS=0 -DSQLITE_DEFAULT_FOREIGN_KEYS=1 -DSQLITE_THREADSAFE=2 -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_OMIT_SHARED_CACHE -DSQLITE_ENABLE_FTS5"
+  mkdir -p "$SQLITE_DIR"
 
-# Compile to a static lib once, so `odin build` just links it.
-if [ "$SQLITE_DIR/sqlite3.a" -nt "$SQLITE_DIR/sqlite3.c" ] \
-   && [ "$(cat "$SQLITE_DIR/.flags" 2>/dev/null)" = "$SQLITE_FLAGS" ]; then
-  echo "[skip] sqlite3.a is up to date."
-else
-  # Only compiling needs a C toolchain, so it is looked for here, not up front: a
-  # re-run with the lib already built has nothing to compile.
-  CC="${CC:-}"
-  if [ -z "$CC" ]; then
-    if command -v clang >/dev/null 2>&1; then CC=clang
-    elif command -v gcc >/dev/null 2>&1; then CC=gcc; fi
+  # Download + verify + extract, unless the pinned source is already in place.
+  if [ -f "$SQLITE_DIR/sqlite3.c" ] && [ -f "$SQLITE_DIR/sqlite3.h" ] \
+     && [ "$(cat "$SQLITE_DIR/.stamp" 2>/dev/null)" = "$SQLITE_SHA256" ]; then
+    echo "[skip] SQLite amalgamation $SQLITE_ID already present."
+  else
+    echo "[get ] downloading $SQLITE_ID ..."
+    url="https://sqlite.org/$SQLITE_YEAR/$SQLITE_ID.zip"
+    tmp="$(mktemp -d)"
+    if command -v curl >/dev/null 2>&1; then curl -fsSL "$url" -o "$tmp/s.zip"
+    else wget -qO "$tmp/s.zip" "$url"; fi
+    got="$(sha256_of "$tmp/s.zip")"
+    if [ "$got" != "$SQLITE_SHA256" ]; then
+      echo "error: SQLite checksum mismatch: expected $SQLITE_SHA256, got $got" >&2
+      rm -rf "$tmp"; exit 1
+    fi
+    unzip -joq "$tmp/s.zip" "*/sqlite3.c" "*/sqlite3.h" -d "$SQLITE_DIR"
+    rm -rf "$tmp"
+    printf '%s\n' "$SQLITE_SHA256" > "$SQLITE_DIR/.stamp"
   fi
-  if [ -z "$CC" ] || ! command -v ar >/dev/null 2>&1; then
-    echo "error: a C toolchain (clang/gcc + ar) is required to build SQLite." >&2
-    case "$(uname -s)" in
-      Darwin) echo "  macOS:  xcode-select --install" >&2 ;;
-      *)      echo "  Linux:  sudo apt-get install -y clang" >&2 ;;
-    esac
-    exit 1
+
+  # D16's flags (PLAN §11.2; spike S0.11). `.flags` records what the lib was built with, so a flag
+  # change rebuilds it: a lib newer than its source isn't enough. prepare.bat holds the same string.
+  SQLITE_FLAGS="-DSQLITE_DQS=0 -DSQLITE_DEFAULT_FOREIGN_KEYS=1 -DSQLITE_THREADSAFE=2 -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_OMIT_SHARED_CACHE -DSQLITE_ENABLE_FTS5"
+
+  # Compile to a static lib once, so `odin build` just links it.
+  if [ "$SQLITE_DIR/sqlite3.a" -nt "$SQLITE_DIR/sqlite3.c" ] \
+     && [ "$(cat "$SQLITE_DIR/.flags" 2>/dev/null)" = "$SQLITE_FLAGS" ]; then
+    echo "[skip] sqlite3.a is up to date."
+  else
+    # Only compiling needs a C toolchain, so it is looked for here, not up front: a
+    # re-run with the lib already built has nothing to compile.
+    CC="${CC:-}"
+    if [ -z "$CC" ]; then
+      if command -v clang >/dev/null 2>&1; then CC=clang
+      elif command -v gcc >/dev/null 2>&1; then CC=gcc; fi
+    fi
+    if [ -z "$CC" ] || ! command -v ar >/dev/null 2>&1; then
+      echo "error: a C toolchain (clang/gcc + ar) is required to build SQLite." >&2
+      case "$(uname -s)" in
+        Darwin) echo "  macOS:  xcode-select --install" >&2 ;;
+        *)      echo "  Linux:  sudo apt-get install -y clang" >&2 ;;
+      esac
+      exit 1
+    fi
+    echo "[cc  ] compiling sqlite3.c with $CC ..."
+    # shellcheck disable=SC2086 # one -D per word
+    ( cd "$SQLITE_DIR" && rm -f sqlite3.a && "$CC" -O2 $SQLITE_FLAGS -c sqlite3.c -o sqlite3.o \
+        && ar rcs sqlite3.a sqlite3.o && rm -f sqlite3.o )
+    printf '%s\n' "$SQLITE_FLAGS" > "$SQLITE_DIR/.flags"
   fi
-  echo "[cc  ] compiling sqlite3.c with $CC ..."
-  # shellcheck disable=SC2086 # one -D per word
-  ( cd "$SQLITE_DIR" && rm -f sqlite3.a && "$CC" -O2 $SQLITE_FLAGS -c sqlite3.c -o sqlite3.o \
-      && ar rcs sqlite3.a sqlite3.o && rm -f sqlite3.o )
-  printf '%s\n' "$SQLITE_FLAGS" > "$SQLITE_DIR/.flags"
 fi
 
 # Each profile's assets (tools/bundle, PLAN §12.1): its htmx bundle, its stylesheet and its

@@ -91,10 +91,14 @@ stays off and Fly keeps serving 6d37506.
       (e2e/README and load-tests/README already describe it).
 - [ ] **9. CI**: `pins`, `check`, `build` ({minimal, skeleton} × 4 OSes, the no-SQLite build), `e2e`,
       `docker`, `linux-ops`, nightly ASan, all through `build.*`. *Check:* a green run (needs the push,
-      which waits for Alex's go and the token's `workflow` scope). Until then ci.yml still builds the
-      deleted `app/src` and runs `init --minimal`: its `build`, `minimal` and smoke steps go, `e2e`
-      takes `E2E_PROFILE`, `docker` takes `--build-arg PROFILE`, and the route-coverage scrape feeds
-      `tools/check parity`. infra/PLAN.md's CI list follows.
+      which waits for Alex's go and the token's `workflow` scope). Written: `pins`, `check`, `build`
+      (minimal and skeleton × ubuntu, ubuntu-arm, macOS, Windows; minimal with `NO_SQLITE=1` on ubuntu
+      and Windows; size budgets on Windows), `e2e` (`E2E_PROFILE`), `coverage` (k6 quick + `tools/check
+      parity`), `docker`; the `setup-odin` action; `check-pins` covers the prepare scripts and the
+      odin-http base. Checked locally: the pins, every `check` command, the smoke script on both
+      profiles, `NO_SQLITE=1` on Linux; actionlint wasn't run (no local install; the Docker image was
+      refused). `linux-ops` and the nightly ASan land with slice 10's drills, which they run. Open
+      until the push: the green run itself.
 - [ ] **10. Drills and budgets.** Crash drills (panic, bounds, div, nil, stack, lock, async, sqlite, hang)
       on both OSes; the fuzz smoke; the shutdown bound with slowloris, half body and idle peers; restart;
       the fd ceiling; `skeleton` ≤ 2.75 MB, idle ≤ 10 MB, boot → `/readyz` ≤ 50 ms.
