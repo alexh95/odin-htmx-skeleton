@@ -182,6 +182,8 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   docs/DATA.md (the store families and the backup runbook), and the e2e and load-tests design notes.
 
 ### Removed
+- **Three procedures with no caller** (`web.count_and_log`, `store_sqlite.query_drain`, `app.profile`), found by
+  the M1 audit's `-vet-unused-procedures` triage.
 - **docs/STRIP.md and docs/DATA_IMPL.md**: stripping the demo is choosing a profile now, and the
   skeleton's SQLite implementation plan is done and superseded by PLAN §11.
 - **CI's `minimal` job**, which ran `init --minimal`: the `minimal` profile builds and tests in `build`

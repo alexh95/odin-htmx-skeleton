@@ -142,6 +142,10 @@ stays off and Fly keeps serving 6d37506.
       `platform/web` and the fork (`UPSTREAM.md`); the other platform packages, the stores and the
       profiles need a README (or `tools/check audit-debt` another place to read stamps). F-14, M1-06's
       and M1-08's fixes are audit debt until an independent re-read.
+- [ ] **The M1 profile's follow-ups** (`docs/audit/M1.md`, Profile; owner M2): the connection arena without its
+      mutex (21 lock pairs a request on a one-thread arena) and the header maps reserved up front (3.7 regrowths a
+      request), as fork change F-16; one read transaction per page request (`unixShmLock` is 13 % of `pages`); a
+      `tools/profile` that makes the spall trace and the perf flame graph repeatable at each milestone exit.
 - [ ] **`--limits` misses the store's rows** (`DB_PATH`, `SEED`, `MEMMODE`): `store_sqlite.open`
       records them at step 5, after `app.check` answers the CLI at step 4. Record them in an init
       before `app.check` (PLAN §8.5: every row printed, secrets masked).
