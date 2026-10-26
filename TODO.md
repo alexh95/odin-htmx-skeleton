@@ -101,7 +101,24 @@ stays off and Fly keeps serving 6d37506.
       until the push: the green run itself.
 - [ ] **10. Drills and budgets.** Crash drills (panic, bounds, div, nil, stack, lock, async, sqlite, hang)
       on both OSes; the fuzz smoke; the shutdown bound with slowloris, half body and idle peers; restart;
-      the fd ceiling; `skeleton` ≤ 2.75 MB, idle ≤ 10 MB, boot → `/readyz` ≤ 50 ms.
+      the fd ceiling; `skeleton` ≤ 2.75 MB, idle ≤ 10 MB, boot → `/readyz` ≤ 50 ms. Done: every drill
+      passes for both profiles on Windows and on Linux (WSL): pure 500 with 20/20 bystanders, dirty exit
+      70 in 0.5–1.2 s, burst, the watchdog's exit 70 in 9.8–10.1 s naming the route and request, 10k
+      malformed requests with 0 deaths, the shutdown bound 5.6 s, restart at 0/50/100 ms, the fd ceiling
+      (past the cap 503 in 1.4–1.9 ms, 200 after); boot → `/readyz` 26 ms (skeleton) and 11 ms (minimal)
+      from the spawn on Windows, 3–5 ms boot_ms on Linux, after moving the ephemeral files to a directory
+      of their own (it was 167–181 ms). The ASan build runs clean with `use_sigaltstack=0`. **Open, for
+      Alex** (the budgets are M1 exit criteria; measured on this PC, decimal MB as PLAN's 2.42 MB was):
+      skeleton 2,876,416 B against 2,750,000 and minimal 1,313,792 B against 1,000,000 (Windows
+      `-o:speed`); skeleton idle 11.3 MB working set (Windows) and 12.0 MB RSS (Linux) against 10 MB, at
+      16 loops (about 0.37 MB per loop on Linux; 6.0 MB at one loop). Minimal idles at 9.6 MB on both.
+      The levers measured: og.png is 230 KB of each binary (a lossless re-encode saves 31 KB; a palette
+      one 168 KB but bands the gradients); SQLite's `OMIT_JSON`, `OMIT_DEPRECATED`, `OMIT_UTF16`,
+      `OMIT_COMPLETE`, `OMIT_DECLTYPE`, `OMIT_GET_TABLE` and `OMIT_TCL_VARIABLE` save 69 KB of skeleton;
+      the JSON CLI is 25 KB. Even with all three skeleton stays about 10 KB over, and minimal reaches
+      1.0 MB only without the social card. Also seen: on Linux a client that half-closes right after
+      its request often gets no response (the malformed run's "none": 5,560 of 10,000 against 1,250 on
+      Windows); no crash, but worth the audit's look.
 - [ ] **11. The parity gate** on both legs (`skeleton` against 709bc94 and v1.1.1; §18.2 with Q6's and
       Q35's references), into `docs/perf/PARITY.md`; the 01 (A) checklist.
 - [ ] **12. Audit and release prep.** `docs/audit/M1.md` by an agent that didn't write the code, 0 open

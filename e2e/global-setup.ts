@@ -65,9 +65,11 @@ export default function globalSetup(config: FullConfig) {
   }
 
   // Through build.{sh,bat} at the repo root, the one place a profile's flags live.
+  // E2E_BUILD_FLAGS adds odin flags: the nightly's `-sanitize:address -debug`.
   const repo = path.resolve(appDir, '..');
-  if (process.platform === 'win32') execFileSync('cmd', ['/c', path.join(repo, 'build.bat'), PROFILE], { cwd: repo, stdio: 'inherit' });
-  else execFileSync('sh', [path.join(repo, 'build.sh'), PROFILE], { cwd: repo, stdio: 'inherit' });
+  const flags = (process.env.E2E_BUILD_FLAGS || '').split(/\s+/).filter(Boolean);
+  if (process.platform === 'win32') execFileSync('cmd', ['/c', path.join(repo, 'build.bat'), PROFILE, ...flags], { cwd: repo, stdio: 'inherit' });
+  else execFileSync('sh', [path.join(repo, 'build.sh'), PROFILE, ...flags], { cwd: repo, stdio: 'inherit' });
 
   // This run's counters only, and this run's bearer for /metrics.
   const coverage = coverageDir(appDir);

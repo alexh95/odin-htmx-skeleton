@@ -21,7 +21,8 @@
 #   ./run.sh --strict              # exit 1 if any run breaches its thresholds
 #   ./run.sh --parity [scenario …] # the parity gate (PLAN §18.2): lib/parity.sh
 #
-# Env: K6 (k6 binary), DURATION (30s), WARMUP (5s), PORT_BASE (8090), PROFILE (skeleton).
+# Env: K6 (k6 binary), DURATION (30s), WARMUP (5s), PORT_BASE (8090), PROFILE (skeleton),
+# BUILD_FLAGS (extra odin flags).
 set -eu
 cd "$(dirname "$0")"
 
@@ -80,9 +81,11 @@ PROFILE="${PROFILE:-skeleton}"
 BIN="$APP/bin/$PROFILE"
 case "$(uname -s)" in *MINGW*|*MSYS*|*CYGWIN*) BIN="$APP/bin/$PROFILE.exe" ;; esac
 
+# BUILD_FLAGS adds odin flags: the nightly's `-sanitize:address -debug`.
 if [ -z "$BASE" ]; then
-  echo "building $PROFILE -o:speed ..."
-  sh ../build.sh "$PROFILE" -o:speed
+  echo "building $PROFILE -o:speed ${BUILD_FLAGS:-}..."
+  # shellcheck disable=SC2086 # one flag per word
+  sh ../build.sh "$PROFILE" -o:speed ${BUILD_FLAGS:-}
 fi
 
 # ---- the build's features, and the scenarios that need only those ------------

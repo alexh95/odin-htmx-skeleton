@@ -147,6 +147,13 @@ dry_check :: proc(hosts: []Host, jobs: [][]workers.Job, bundle_exts: web.Exts) -
 @(private)
 mount :: proc(hosts: []Host) {
 	for h in hosts { append(&st.sites, mounted(h)) }
+	// A TEST_ROUTES build's crash drills, on the main host only (PLAN §19.1.10).
+	// They sit in the router, not in a mounted table, so --routes, the boot
+	// checks and route coverage never see them.
+	when web.TEST_ROUTES {
+		web.router_mount(&st.sites[0].router, web.TEST_ROUTE_ROWS[:])
+		web.test_shutdown = request_shutdown
+	}
 }
 
 @(private)

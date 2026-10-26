@@ -74,6 +74,12 @@ install_signals :: proc() {
 
 @(private) signal_seen: bool
 
+// What a first signal does, from a request: /__test/shutdown's drain.
+@(private)
+request_shutdown :: proc() {
+	if !sync.atomic_exchange(&signal_seen, true) { sync.sema_post(&st.signalled) }
+}
+
 // ---- each loop's 1 s tick: what the watchdog and /livez read, the log flush ------------
 
 @(private, thread_local) tl_tick_op: ^nbio.Operation

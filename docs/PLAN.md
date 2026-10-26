@@ -2509,7 +2509,9 @@ against v1.1.1; D17):
 Spike S0.4 measures every `:memory:` cell, with the sort indexes installed (they add write cost), for three candidates:
 - **A**: `single` + QPSG + sort indexes + a dashboard aggregate cached for 1 s (12 §2.1, §9); the cache makes the
   dashboard lag a write by up to 1 s (0.3–0.7 s in S0.4's smoke), which the e2e `dashboard` spec can see.
-- **B**: `ephemeral` + sort indexes + the temp file on tmpfs (`/dev/shm`) on Linux, unsynced. Research 12's ephemeral
+- **B**: `ephemeral` + sort indexes + the temp file on tmpfs (`/dev/shm`) on Linux, unsynced (as built, in an
+  `odin-htmx-starter/` directory of its own there or in the temp directory: boot sweeps it, and listing a Windows temp
+  directory of 3,900 entries took 170 ms of a 50 ms boot budget). Research 12's ephemeral
   numbers already ran the file with `synchronous=OFF`, and WAL's `NORMAL` never syncs a commit, so on Windows B is v3
   with the sort indexes: tmpfs is its one new lever (S0.4).
 - **C**: B + group commit of concurrent skeleton writes on the writer task (§11.1: whatever is queued, as soon as it is
@@ -4200,6 +4202,18 @@ Beside the three tiers, from M2, a **nightly Autobahn|Testsuite run** points its
 (RESOLUTIONS X24, **NEW**). It is a dev-time Docker image, exempt like Playwright and k6.
 
 #### 19.1.10 Crash drills
+
+**As built (M1):** `node tools/drills/drills.mjs <profile> [phase …]` builds the profile twice through `build.*`, a
+`-define:TEST_ROUTES=true` build (platform/app mounts `/__test/crash/<kind>` and `/__test/shutdown` from
+`platform/web/drills.odin` on the main host's router only, so `--routes`, the boot checks and route coverage never
+see them) and the release `-o:speed` build, and runs every phase on fresh servers: release (`/__test/*` 404), pure,
+dirty, burst, hang, malformed (§19.1.9's tier 1), shutdown, restart, fdceiling (Linux, `ulimit -n 256`) and the
+budgets. A kind a lower package can trap registers itself with `guard.register_drill` (store/sqlite's `sqlite`: a
+nil write inside an SQL function, so `in_sqlite` is up). Windows has no SIGTERM for a child, so its shutdown drill
+calls `/__test/shutdown`, which starts the same drain; `--wsl DIR` runs the servers in WSL from a Windows host.
+CI's `linux-ops` runs it per profile; the nightly `asan` job runs e2e and a k6 quick run against a
+`-sanitize:address` build, with `ASAN_OPTIONS=use_sigaltstack=0` because the guard installs its own alternate
+signal stack.
 
 `/__test/crash/<kind>` exists only in `TEST_ROUTES` builds; release images assert it answers 404 (D10). The drills run
 on Windows and Linux (S0.6; the `linux-ops` job), with the outcomes of 13 §6.2 and D15:

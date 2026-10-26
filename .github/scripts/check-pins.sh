@@ -2,14 +2,14 @@
 # Checks that version pins which must move together still agree, so a bump
 # that misses one fails CI instead of quietly building two different things.
 #   - Odin: the Dockerfile's ODIN_VERSION and ODIN_SHA256 args, the same two in
-#     ci.yml's env, and .github/actions/setup-odin's asset names and its
+#     every workflow's env, and .github/actions/setup-odin's asset names and its
 #     linux-amd64 digest.
 #   - htmx and SQLite: prepare.sh and prepare.bat pin the same digests and build
 #     SQLite with the same flags (the Dockerfile and CI run prepare.sh, Windows
 #     developers prepare.bat).
 #   - odin-http: the base commit app/vendor/odin-http/UPSTREAM.md names is the
 #     one tools/baseline checks the skeleton's releases against.
-#   - Playwright: every mcr.microsoft.com/playwright image tag in ci.yml against
+#   - Playwright: every mcr.microsoft.com/playwright image tag in the workflows against
 #     @playwright/test in e2e/package-lock.json (the image bakes in the
 #     browsers that exact version drives).
 #
@@ -26,6 +26,12 @@ sha=$(sed -n 's/^  ODIN_SHA256: *//p' "$ci")
 [ -n "$odin" ] && [ -n "$sha" ] || { echo "no ODIN_VERSION/ODIN_SHA256 in $ci's env" >&2; exit 1; }
 
 [ "$(sed -n 's/^ARG ODIN_VERSION=//p' Dockerfile)" = "$odin" ] || bad "Dockerfile ODIN_VERSION isn't $odin (ci.yml)"
+for wf in .github/workflows/*.yml; do
+  [ "$wf" = "$ci" ] && continue
+  v=$(sed -n 's/^  ODIN_VERSION: *//p' "$wf"); d=$(sed -n 's/^  ODIN_SHA256: *//p' "$wf")
+  [ -z "$v" ] || [ "$v" = "$odin" ] || bad "$wf ODIN_VERSION isn't $odin (ci.yml)"
+  [ -z "$d" ] || [ "$d" = "$sha" ] || bad "$wf ODIN_SHA256 isn't ci.yml's"
+done
 [ "$(sed -n 's/^ARG ODIN_SHA256=//p' Dockerfile)" = "$sha" ] || bad "Dockerfile ODIN_SHA256 isn't ci.yml's"
 
 assets=$(grep -o 'asset=odin-[^;]*' "$action" | sed 's/^asset=//')
@@ -55,8 +61,8 @@ grep -q "in $base\\*)" tools/baseline/baseline.sh || bad "tools/baseline checks 
 pw=$(awk '/"node_modules\/@playwright\/test"/ { on = 1 }
           on && /"version"/ { gsub(/[",]/, "", $2); print $2; exit }' e2e/package-lock.json)
 [ -n "$pw" ] || bad "no @playwright/test version in e2e/package-lock.json"
-images=$(grep -o 'mcr\.microsoft\.com/playwright:[^ ]*' "$ci" || true)
-[ -n "$images" ] || bad "no Playwright image in $ci"
+images=$(cat .github/workflows/*.yml | grep -o 'mcr\.microsoft\.com/playwright:[^ ]*' || true)
+[ -n "$images" ] || bad "no Playwright image in the workflows"
 for img in $images; do
   case $img in
     *:v"$pw"-*) ;;

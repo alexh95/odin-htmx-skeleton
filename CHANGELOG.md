@@ -96,7 +96,22 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   `coverage` (a k6 quick run per profile, then `tools/check parity`) and `docker`. One
   `setup-odin` action installs the pinned Odin per runner. `prepare.*` take `NO_SQLITE=1`.
 
+- **The request-path drills** (`tools/drills/drills.mjs <profile>`): a `-define:TEST_ROUTES=true`
+  build mounts `/__test/crash/<kind>` (panic, bounds, div, nil, stack, lock, async, hang, and
+  `sqlite` where the store is SQLite) and `/__test/shutdown`; the driver checks pure crashes answer
+  500 with 20/20 bystanders served, dirty ones exit 70 within 6 s, the recovery burst, the watchdog
+  (exit 70 in 10 s, naming the route and request), 10k malformed requests, the shutdown bound with
+  slow, half-sent and idle peers (exit 0 in 5.6 s), restart after `kill -9`, the fd ceiling under a
+  ulimit, and the budgets; the release build answers 404 there. CI's `linux-ops` job runs it per
+  profile, and a nightly workflow runs e2e and a k6 quick run against an ASan build. `E2E_BUILD_FLAGS`
+  and `run.sh`'s `BUILD_FLAGS` pass extra odin flags.
+
 ### Fixed
+- **Boot takes 12–17 ms again on Windows, not 170–180.** The ephemeral store's sweep for files a dead
+  process left listed the whole temp directory (3,900 entries here); the files now live in an
+  `odin-htmx-starter/` directory of their own. The sweep also asks the OS whether each file's process
+  still runs (`sys.process_alive`): on Windows it had assumed a live server's files can't be deleted,
+  and two servers booting at once proved otherwise (`disk I/O error` at `journal_mode=WAL`).
 - **`OPTIONS *` with a negative `Content-Length` no longer aborts the process.** 1.2.1 refused a bad
   `Content-Length` in `front`, but odin-http answers `OPTIONS *` itself; the fork's `_body_length`
   now takes plain digits within `int` only (F-6), for every request.

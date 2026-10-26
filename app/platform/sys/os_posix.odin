@@ -30,3 +30,10 @@ mono_ns :: proc "contextless" () -> i64 {
 	posix.clock_gettime(.MONOTONIC, &ts)
 	return i64(ts.tv_sec) * 1e9 + i64(ts.tv_nsec)
 }
+
+// Whether a process with this id still runs: kill(pid, 0) checks without
+// signalling. One that exists but isn't ours (EPERM) counts as running.
+process_alive :: proc(pid: int) -> bool {
+	if posix.kill(posix.pid_t(pid), .NONE) == .OK { return true }
+	return posix.errno() == .EPERM
+}

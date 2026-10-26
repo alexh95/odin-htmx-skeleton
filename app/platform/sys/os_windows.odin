@@ -1,6 +1,7 @@
 #+build windows
 package sys
 
+import win32 "core:sys/windows"
 import "core:time"
 
 // Windows has no per-process soft limit on sockets to raise.
@@ -15,4 +16,15 @@ now_unix_ns :: proc "contextless" () -> i64 {
 
 mono_ns :: proc "contextless" () -> i64 {
 	return time.tick_now()._nsec
+}
+
+// Whether a process with this id still runs. One that exists but isn't ours to
+// ask counts as running: its files aren't ours to delete either.
+process_alive :: proc(pid: int) -> bool {
+	h := win32.OpenProcess(win32.PROCESS_QUERY_LIMITED_INFORMATION, false, win32.DWORD(pid))
+	if h == nil { return win32.GetLastError() == win32.ERROR_ACCESS_DENIED }
+	defer win32.CloseHandle(h)
+	STILL_ACTIVE :: 259
+	code: win32.DWORD
+	return bool(win32.GetExitCodeProcess(h, &code)) && code == STILL_ACTIVE
 }

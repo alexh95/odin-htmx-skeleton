@@ -1,0 +1,58 @@
+name: nightly
+
+# What's too slow or too noisy for every push (PLAN §19.2.1's nightly row). At M1:
+# ASan over the e2e suite and a k6 quick run, on Linux. Windows ASan, TSan, the soak,
+# libFuzzer and the combination matrices join with the milestones that need them.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  ODIN_VERSION: dev-2026-10
+  ODIN_SHA256: c3c8b095621fd0c75f7f73e3a0829f1b4d45324225f20ba11ed8dc4da310a8ab
+
+jobs:
+  # skeleton built with -sanitize:address, then the e2e suite (chromium and the api
+  # project) and a k6 quick run against it. Every server writes its reports to
+  # /tmp/asan; any report fails the job. use_sigaltstack=0: the crash guard runs
+  # its own alternate signal stack, which ASan would otherwise try to unmap as its
+  # own at thread exit. Leak checks are off: the suites end servers with SIGKILL.
+  asan:
+    name: ASan (skeleton, Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-jammy
+      options: --security-opt seccomp=unconfined
+    env:
+      HOME: /root
+      ASAN_OPTIONS: detect_leaks=0:halt_on_error=1:use_sigaltstack=0:log_path=/tmp/asan/report
+      K6_VERSION: v2.0.0
+      K6_SHA256: 2ae87d976f6cdba17185bdd980d8819a3a98e9092c6f0638cd58272ecefc8b90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-odin
+        with:
+          cache-suffix: -jammy
+      - name: Prepare
+        run: sh app/prepare.sh && mkdir -p /tmp/asan
+      - name: e2e against the ASan build
+        run: cd e2e && npm ci && npx playwright test --project=chromium --project=api
+        env:
+          CI: 'true'
+          E2E_BUILD_FLAGS: -sanitize:address -debug
+      - name: k6 quick against the ASan build
+        run: |
+          curl -fsSL "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz" -o /tmp/k6.tar.gz
+          echo "${K6_SHA256}  /tmp/k6.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/k6.tar.gz -C /usr/local/bin --strip-components=1 "k6-${K6_VERSION}-linux-amd64/k6"
+          BUILD_FLAGS="-sanitize:address -debug" sh load-tests/run.sh --quick
+      - name: No ASan report
+        if: ${{ !cancelled() }}
+        run: |
+          if ls /tmp/asan/report.* >/dev/null 2>&1; then cat /tmp/asan/report.*; exit 1; fi
+          echo "no ASan reports"

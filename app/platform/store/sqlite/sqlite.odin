@@ -311,3 +311,19 @@ wal_bytes :: proc() -> i64 {
 
 @(private)
 mono_ms :: proc() -> i64 { return sys.mono_ns() / 1e6 }
+
+// TEST_ROUTES' `sqlite` drill (PLAN §19.1.10): a trap inside a function SQL
+// calls, so in_sqlite is up and the guard must call the crash dirty. Registered
+// only in a TEST_ROUTES build (guard.register_drill).
+@(private)
+drill_sqlite :: proc() {
+	r := reader()
+	sqlite.create_function(r.db, "drill_crash", 0, proc "c" (ctx: sqlite.Context, argc: c.int, argv: [^]sqlite.Value) {
+		p := (^int)(uintptr(argc)) // argc is 0: a nil pointer the optimiser can't see
+		p^ = 1
+		sqlite.result_int(ctx, 0)
+	}, deterministic = false)
+	s, _ := sqlite.prepare(r.db, "SELECT drill_crash()")
+	sqlite.step(s)
+	sqlite.finalize(s)
+}

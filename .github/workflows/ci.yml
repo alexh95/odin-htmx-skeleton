@@ -262,6 +262,28 @@ jobs:
           done
           odin run tools/check -- parity
 
+  # The request-path drills (PLAN §19.1.10) and budgets, by tools/drills/drills.mjs:
+  # a TEST_ROUTES build's pure crashes (500, serving goes on), dirty ones (exit 70),
+  # the recovery burst, the watchdog, 10k malformed requests, the shutdown bound with
+  # slow, half-sent and idle peers, restart after kill -9, the fd ceiling under a
+  # ulimit, boot → /readyz and idle RSS; and the release build's /__test/* is 404.
+  # The size budgets are Windows', in the build job; the dev PC runs these on Windows.
+  linux-ops:
+    name: Drills (${{ matrix.profile }}, Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [minimal, skeleton]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-odin
+      - name: Prepare
+        run: sh app/prepare.sh
+      - name: Drills and budgets
+        run: node tools/drills/drills.mjs ${{ matrix.profile }}
+
   # The production image through compose.yaml, so a broken Dockerfile fails here
   # rather than in Fly's builder, and a fork without Fly gets its image tested at
   # all. Host runner: it needs the Docker daemon.
@@ -324,7 +346,7 @@ jobs:
   # (infra/PLAN.md → Operator steps). Until then it's skipped, so CI stays green.
   deploy:
     name: Deploy (Fly.io)
-    needs: [pins, check, build, e2e, coverage, docker]
+    needs: [pins, check, build, e2e, coverage, linux-ops, docker]
     if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch && vars.FLY_DEPLOY == 'true'
     runs-on: ubuntu-latest
     # Longer than the others: Fly's remote builder has stalled for ~10 min before.

@@ -22,6 +22,7 @@ import "../../env"
 import "../../guard"
 import "../../obs"
 import "../../sqlite"
+import "../../sys"
 
 APP_ID :: 0x4F485354 // 'OHST' in the header's application_id (12 §5)
 APP_NAME :: "odin-htmx-starter"
@@ -78,6 +79,7 @@ open_db :: proc(path: string, m: Mode, profile: string, legacy := "", adopt_prof
 		registered = true
 		db.resets = obs.register_counter("app_store_reader_resets_total", "", "Reader statements reset after a pure crash (D15 rule 3).")
 		writer_register()
+		guard.register_drill("sqlite", drill_sqlite)
 	}
 	db.db_path = path
 	db.mode = m
@@ -152,10 +154,12 @@ must :: proc(conn: sqlite.DB, sql: cstring) {
 
 // ---- ephemeral files ----------------------------------------------------------
 //
-// <dir>/ohst-mem-<pid>-<n>.db (and its -wal and -shm), dir being /dev/shm on Linux
-// (a tmpfs: the file never reaches a disk) or the temp directory. A process killed
-// before its close leaves them, so each boot deletes those of processes that are
-// gone (§8.6 step 6).
+// <dir>/ohst-mem-<pid>-<n>.db (and its -wal and -shm), dir being
+// /dev/shm/odin-htmx-starter on Linux (a tmpfs: the file never reaches a disk) or
+// odin-htmx-starter in the temp directory. A process killed before its close
+// leaves them, so each boot deletes those of processes that are gone (§8.6 step
+// 6). A directory of their own, because the sweep lists it: a Windows temp
+// directory of 3,900 entries took 170 ms to list, against a 50 ms boot budget.
 
 @(private) EPHEMERAL_PREFIX :: "ohst-mem-"
 @(private) ephemeral_seq: int
@@ -172,11 +176,16 @@ ephemeral_path :: proc() -> string {
 
 @(private)
 ephemeral_dir :: proc() -> string {
+	base := "."
 	when ODIN_OS == .Linux {
-		if os.is_dir("/dev/shm") { return "/dev/shm" }
+		if os.is_dir("/dev/shm") { base = "/dev/shm" }
 	}
-	dir, err := os.temp_directory(context.temp_allocator)
-	return strings.clone(dir) if err == nil && dir != "" else "."
+	if base == "." {
+		if dir, err := os.temp_directory(context.temp_allocator); err == nil && dir != "" { base = dir }
+	}
+	dir := fmt.aprintf("%s/%s", base, APP_NAME)
+	if !os.is_dir(dir) { os.make_directory(dir) } // two servers may race to make it: either wins
+	return dir
 }
 
 @(private)
@@ -189,23 +198,8 @@ sweep_ephemeral :: proc(dir: string) {
 		dash := strings.index_byte(rest, '-')
 		if dash <= 0 { continue }
 		pid, ok := strconv.parse_int(rest[:dash], 10)
-		if !ok || pid == os.get_pid() || process_alive(pid) { continue }
+		if !ok || pid == os.get_pid() || sys.process_alive(pid) { continue }
 		os.remove(f.fullpath)
-	}
-}
-
-// Whether a process with this id runs. On Windows the answer is "no" for all of
-// them: SQLite opens its files without FILE_SHARE_DELETE, so a live server's files
-// refuse the remove and only a dead one's go. Elsewhere, with no /proc to ask,
-// every file is left alone.
-@(private)
-process_alive :: proc(pid: int) -> bool {
-	when ODIN_OS == .Linux {
-		return os.exists(fmt.tprintf("/proc/%d", pid))
-	} else when ODIN_OS == .Windows {
-		return false
-	} else {
-		return true
 	}
 }
 
