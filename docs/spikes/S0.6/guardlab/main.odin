@@ -7,7 +7,8 @@ package guardlab
 // event loop, a watchdog, and the SSE and WebSocket streams the drain test holds open.
 //
 // Env: PORT (8095), THREADS (4), DB_PATH (guardlab.db), NO_RESET=1 (skip the pulled reset after a
-// pure crash, to show what it prevents), BIND_RETRY_MS (F-12's retry; 0 turns it off), GUARD_BURST (100: pure recoveries per minute before they
+// pure crash, to show what it prevents), BIND_RETRY_MS (F-12's retry; 0 turns it off),
+// HEADER_TIMEOUT_MS, IDLE_TIMEOUT_MS, BODY_TIMEOUT_MS (F-7), GUARD_BURST (100: pure recoveries per minute before they
 // count as dirty), CRASH_FILE (where the watchdog and a dirty crash write
 // last-crash.txt; default next to the DB).
 
@@ -67,6 +68,10 @@ main :: proc() {
 	opts.on_thread_init = on_thread_init
 	opts.on_thread_shutdown = on_thread_shutdown
 	if ms := env_int("BIND_RETRY_MS", -1); ms >= 0 { opts.bind_retry = time.Duration(ms) * time.Millisecond }
+	// F-7's timeouts, as PLAN §8.5's env rows name them.
+	if ms := env_int("HEADER_TIMEOUT_MS", -1); ms >= 0 { opts.header_timeout = time.Duration(ms) * time.Millisecond }
+	if ms := env_int("IDLE_TIMEOUT_MS", -1); ms >= 0 { opts.idle_timeout = time.Duration(ms) * time.Millisecond }
+	if ms := env_int("BODY_TIMEOUT_MS", -1); ms >= 0 { opts.body_timeout = time.Duration(ms) * time.Millisecond }
 
 	http.server_shutdown_on_interrupt(&server)
 	watchdog := thread.create_and_start(watchdog_run)

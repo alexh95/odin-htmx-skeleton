@@ -82,8 +82,10 @@ test('a slow WebSocket consumer that never reads is cut off at the deadline (PLA
   const before = (await stats(srv.port)).ended.Too_Slow;
   const s = await slowSocket(srv, uid('room'));
   const closed = new Promise<number>((r) => { const t0 = Date.now(); s.on('close', () => r(Date.now() - t0)); });
-  await sleep(3000);
-  expect((await stats(srv.port)).ended.Too_Slow).toBeGreaterThan(before);
+  // The 2 s deadline starts when the queue first fills, which takes a moment under load: poll.
+  let after = before;
+  for (let i = 0; i < 50 && after <= before; i++) { await sleep(100); after = (await stats(srv.port)).ended.Too_Slow; }
+  expect(after).toBeGreaterThan(before);
   s.resume();
   expect(await Promise.race([closed, sleep(3000).then(() => -1)])).toBeGreaterThanOrEqual(0);
 });

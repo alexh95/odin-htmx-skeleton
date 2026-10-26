@@ -1,6 +1,6 @@
 // S0.7 driver: drain and restart (docs/spikes/S0.7.md), against S0.6's guardlab server.
 //
-//   node drain.mjs <win|linux> <guardlab binary> [drain|rebind] [rounds]
+//   node drain.mjs <win|linux> <guardlab binary> [drain|rebind|timeouts] [rounds]
 //
 // drain: 500 SSE + 500 WebSocket streams, a slowloris, a half-sent body and an idle peer that never
 // answers the FIN are open; then SIGTERM (Linux) or /admin/shutdown (Windows has no SIGTERM; the
@@ -181,7 +181,37 @@ async function phaseRebind() {
   }
 }
 
+// F-7's timeouts, enforced by each thread's 1 s sweep: with 2 s header, 3 s idle and 2 s body
+// timeouts, a slowloris, an idle keep-alive connection and a stalled body each end within their
+// deadline plus one sweep and the 500 ms close delay (the body with a 400, then closed), and the
+// server keeps serving.
+async function phaseTimeouts() {
+  const s = start({ HEADER_TIMEOUT_MS: '2000', IDLE_TIMEOUT_MS: '3000', BODY_TIMEOUT_MS: '2000' });
+  if (!(await ready(s))) return record('timeouts: server starts', false, s.out);
+  const ended = (sock) => new Promise((res) => { const t0 = performance.now(); let got = '';
+    sock.on('data', (d) => (got += d)); sock.on('close', () => res({ ms: performance.now() - t0, got })); sock.on('error', () => {}); });
+  const slow = net.connect(s.port, '127.0.0.1', () => slow.write('GET /healthz HTTP/1.1\r\nHost: x\r\n'));
+  const slowEnd = ended(slow);
+  const idle = net.connect(s.port, '127.0.0.1');
+  const idleEnd = ended(idle);
+  const body = net.connect(s.port, '127.0.0.1', () => body.write('POST /body HTTP/1.1\r\nHost: x\r\nContent-Length: 100\r\n\r\n' + 'x'.repeat(10)));
+  const bodyEnd = ended(body);
+  const [a, b, c] = await Promise.all([slowEnd, idleEnd, bodyEnd].map((p) => Promise.race([p, sleep(8000).then(() => ({ ms: Infinity, got: '' }))])));
+  record('timeouts: headers never finished, cut by the 2 s header timeout', a.ms >= 1900 && a.ms <= 3600, `${(a.ms / 1000).toFixed(2)} s`);
+  record('timeouts: idle connection, cut by the 3 s idle timeout', b.ms >= 2900 && b.ms <= 4600, `${(b.ms / 1000).toFixed(2)} s`);
+  record('timeouts: body stalled, 400 after the 2 s body timeout', c.ms >= 1900 && c.ms <= 3600 && c.got.startsWith('HTTP/1.1 400'), `${(c.ms / 1000).toFixed(2)} s, ${c.got.slice(0, 12)}`);
+  record('timeouts: still serving', (await get(s.port, '/healthz')) === 200);
+  await stopServer(s);
+}
+
+async function stopServer(s) {
+  sigterm(s);
+  for (let i = 0; i < 100 && s.exited === null; i++) await sleep(100);
+  if (s.exited === null) sigkill(s);
+}
+
 if (WHAT === 'drain') for (let r = 1; r <= Number(ROUNDS); r++) await phaseDrain(r);
+if (WHAT === 'timeouts') await phaseTimeouts();
 if (WHAT === 'rebind') await phaseRebind();
 const failed = results.filter((r) => !r.pass);
 console.log(`\n${OS} ${WHAT}: ${results.length - failed.length}/${results.length} passed`);
