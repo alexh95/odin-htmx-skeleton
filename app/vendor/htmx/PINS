@@ -1,0 +1,23 @@
+# htmx 4.0.0's files the bundles use, each pinned by SHA-256 (docs/research/04-htmx4.md §1.3; spike S0.10
+# checked them against the npm tarball). prepare.sh and prepare.bat fetch each from
+# https://unpkg.com/htmx.org@4.0.0/dist/<file> into this directory and refuse a mismatch; tools/bundle
+# concatenates them per profile (PLAN §12.1). Bump the version in both prepare scripts and every line here
+# together.
+htmx.min.js                     e484d9171a9db30a39c8f16e3d709d4137f3211c659f8e6125816635033d593f
+ext/hx-sse.min.js               8a834680c4000a9034d79228872372a92e140c810a075cb6d4a76690dfc13085
+ext/hx-ws.min.js                a7c11e4eca05417d6299bb40aaacca01572e44605389fc4d5ef12be408a4d03b
+ext/hx-multipart.min.js         961f51d1b7b57c9bf56798a09f3241baf0248593731f8ff41d56037c3de99126
+ext/hx-live.min.js              adf9b90949d57baf20dc2eaf1d1fd46c81347ac82c090a5e2912ce6b37726734
+ext/hx-pending.min.js           6be1cca5a0499e667d84fab7466a6fb0f76990fe7c920dd53f0d1221580c1dc4
+ext/hx-browser-indicator.min.js b23208327cf7b5e56a8369985dcb3769468c3b22815775167aee2b8a2625998c
+ext/hx-prompt.min.js            f20978eeb88f280519c43d31a3223a504b1315cc9039b8b23520a3f32a36db40
+ext/hx-preload.min.js           4b371ded066297c9648df1eb925cbbe926606951e3a2d2a909657814c6de4472
+ext/hx-ptag.min.js              1993b23e86553100e4f45eed1b756eb8cf53c5b2244caf98e58662dfde9ca069
+ext/hx-history-cache.min.js     c4c357f544b58294624687bca90bc8ca43dd425a9fb12220eefa0eaeeaa199bc
+ext/hx-head.min.js              3a66e5f61dffb79e315d1d9420d3601ebea6e5af90ad4342e5634566ab2e61bd
+ext/hx-upsert.min.js            9e516c6608f765b568559a4caed3c3121eff2702fb7ce012f21775639d2699c3
+ext/hx-targets.min.js           6e9892834f899c471ca935e180ba2b8c3349d0cb9b80a608b81953388fdb690f
+ext/hx-download.min.js          dba268e2de5de73bc6bef0b8aa79f642f0e0b20792d7ac2c1e5030f6e4c56ce7
+ext/htmx-2-compat.min.js        7d7fe881d6ae6d4e661b0113e8504bb15acfc1dc1970f07db109bb20c432e53d
+ext/hx-alpine-compat.min.js     d2047ba85b277df33b44a890a470213246d0e8f7458ffa766e77c7347551767e
+ext/hx-csp.min.js               279f659b9ec8658e3d47230cc545b0bb4e3efa4c2d780454d54db104a5257b7d

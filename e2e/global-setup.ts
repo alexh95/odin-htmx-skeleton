@@ -25,19 +25,23 @@ export function coverageDir(appDir: string): string {
   return path.join(appDir, 'build', 'coverage', 'e2e', PROFILE);
 }
 
-// Whether prepare's outputs are in place and match its current pins (read from
-// prepare.sh; prepare.bat pins the same): htmx by its SHA-256, the SQLite source
-// by the stamp prepare writes beside it, a library built after that source, and
-// the profile's bundled assets.
+// Whether prepare's outputs are in place and match its current pins: each htmx
+// file by its SHA-256 in vendor/htmx/PINS, the SQLite source by the stamp prepare
+// writes beside it (against prepare.sh's pin; prepare.bat pins the same), a library
+// built after that source, and the profile's bundled assets.
 function prepared(appDir: string): boolean {
   const at = (p: string) => path.join(appDir, p);
   const pins = readFileSync(at('prepare.sh'), 'utf8');
   const pin = (name: string) => pins.match(new RegExp(`^\\s*${name}=(\\w+)`, 'm'))?.[1];
   const lib = at(process.platform === 'win32' ? 'vendor/sqlite/sqlite3.lib' : 'vendor/sqlite/sqlite3.a');
+  const sha = (p: string) => createHash('sha256').update(readFileSync(at(p))).digest('hex');
   try {
-    const htmx = createHash('sha256').update(readFileSync(at('vendor/htmx/htmx.min.js'))).digest('hex');
+    const htmx = readFileSync(at('vendor/htmx/PINS'), 'utf8').split('\n')
+      .map((line) => line.trim().split(/\s+/))
+      .filter(([file]) => file && !file.startsWith('#'))
+      .every(([file, digest]) => sha(`vendor/htmx/${file}`) === digest);
     const stamp = readFileSync(at('vendor/sqlite/.stamp'), 'utf8').trim();
-    return htmx === pin('HTMX_SHA256') && stamp === pin('SQLITE_SHA256')
+    return htmx && stamp === pin('SQLITE_SHA256')
       && statSync(lib).mtimeMs >= statSync(at('vendor/sqlite/sqlite3.c')).mtimeMs
       && existsSync(at(`build/${PROFILE}/main.js`));
   } catch {

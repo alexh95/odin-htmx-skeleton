@@ -4,9 +4,10 @@
 #   - Odin: the Dockerfile's ODIN_VERSION and ODIN_SHA256 args, the same two in
 #     every workflow's env, and .github/actions/setup-odin's asset names and its
 #     linux-amd64 digest.
-#   - htmx and SQLite: prepare.sh and prepare.bat pin the same digests and build
-#     SQLite with the same flags (the Dockerfile and CI run prepare.sh, Windows
-#     developers prepare.bat).
+#   - htmx and SQLite: prepare.sh and prepare.bat fetch the same htmx version (its
+#     files' digests are app/vendor/htmx/PINS, which both read), pin the same SQLite
+#     digest and build it with the same flags (the Dockerfile and CI run prepare.sh,
+#     Windows developers prepare.bat).
 #   - odin-http: the base commit app/vendor/odin-http/UPSTREAM.md names is the
 #     one tools/baseline checks the skeleton's releases against.
 #   - Playwright: every mcr.microsoft.com/playwright image tag in the workflows against
@@ -46,13 +47,15 @@ done
 leg=$(grep 'Linux-X64)' "$action" | grep -o 'sha=[0-9a-f]*' | sed 's/^sha=//')
 [ "$leg" = "$sha" ] || bad "$action's linux-amd64 digest isn't ci.yml's ODIN_SHA256"
 
-# prepare.sh: `HTMX_SHA256=…` (indented inside a step); prepare.bat: `set "HTMX_SHA256=…"`.
-for pin in HTMX_SHA256 SQLITE_SHA256 SQLITE_FLAGS; do
+# prepare.sh: `SQLITE_SHA256=…` (indented inside a step); prepare.bat: `set "SQLITE_SHA256=…"`.
+for pin in HTMX_VERSION SQLITE_SHA256 SQLITE_FLAGS; do
   sh_v=$(sed -n "s/^ *$pin=\"\{0,1\}\([^\"]*\)\"\{0,1\}\$/\1/p" app/prepare.sh)
   bat_v=$(sed -n "s/^set \"$pin=\([^\"]*\)\"\r\{0,1\}\$/\1/p" app/prepare.bat)
   [ -n "$sh_v" ] || bad "no $pin in app/prepare.sh"
   [ "$sh_v" = "$bat_v" ] || bad "app/prepare.sh and app/prepare.bat pin different $pin"
 done
+
+grep -q '^htmx.min.js  *[0-9a-f]\{64\}$' app/vendor/htmx/PINS || bad "app/vendor/htmx/PINS pins no htmx.min.js"
 
 base=$(sed -n 's/^- \*\*Base:\*\* `\([0-9a-f]\{7\}\).*/\1/p' app/vendor/odin-http/UPSTREAM.md)
 [ -n "$base" ] || bad "app/vendor/odin-http/UPSTREAM.md names no base commit"

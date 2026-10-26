@@ -47,9 +47,13 @@ PREP="$ROOT/app"
   echo "this checkout's app/ isn't prepared: run app/prepare.* first" >&2; exit 1; }
 
 # The ref must pin what this checkout prepared, or the comparison isn't like for like.
+# (This checkout keeps htmx's digest in vendor/htmx/PINS; the releases kept it in prepare.sh.)
 for pin in HTMX_SHA256 SQLITE_SHA256; do
   want="$(git -C "$ROOT" show "$REF:app/prepare.sh" | sed -n "s/^ *$pin=\([0-9a-f]*\).*/\1/p")"
-  have="$(sed -n "s/^ *$pin=\([0-9a-f]*\).*/\1/p" "$PREP/prepare.sh")"
+  case $pin in
+    HTMX_SHA256) have="$(sed -n 's/^htmx\.min\.js  *\([0-9a-f]*\)$/\1/p' "$PREP/vendor/htmx/PINS")" ;;
+    *) have="$(sed -n "s/^ *$pin=\([0-9a-f]*\).*/\1/p" "$PREP/prepare.sh")" ;;
+  esac
   [ "$want" = "$have" ] || { echo "$REF pins $pin=$want, this checkout $have" >&2; exit 1; }
 done
 link="$(git -C "$ROOT" ls-tree "$REF" app/odin-http | awk '{print $3}')"

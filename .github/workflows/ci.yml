@@ -199,8 +199,9 @@ jobs:
         with:
           path: |
             app/vendor/htmx/htmx.min.js
+            app/vendor/htmx/ext
             app/vendor/sqlite
-          key: prepared-${{ hashFiles('app/prepare.sh') }}-jammy
+          key: prepared-${{ hashFiles('app/prepare.sh', 'app/vendor/htmx/PINS') }}-jammy
 
       - name: Install e2e deps
         run: cd e2e && npm ci

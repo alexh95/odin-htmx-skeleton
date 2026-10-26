@@ -1,6 +1,6 @@
 @echo off
 rem One-time setup for the two things the build needs that aren't tracked inline.
-rem   1. htmx.min.js - embedded into the binary via #load at compile time.
+rem   1. htmx        - htmx.min.js and its extensions (vendor\htmx\PINS), bundled per profile.
 rem   2. SQLite      - the pinned amalgamation, compiled to a static lib.
 rem odin-http is vendored in-tree (vendor\odin-http, see its UPSTREAM.md): nothing to fetch.
 rem Idempotent: re-running skips whatever is already in place.
@@ -10,11 +10,12 @@ cd /d "%~dp0"
 rem odin's -out: writes into bin\ but won't create it; a fresh clone has no bin\.
 if not exist "bin\" mkdir bin
 
-rem htmx, pinned exactly (version + SHA-256) for reproducible builds.
-if not exist "vendor\htmx\" mkdir vendor\htmx
-set "HTMX_URL=https://unpkg.com/htmx.org@4.0.0/dist/htmx.min.js"
-set "HTMX_SHA256=e484d9171a9db30a39c8f16e3d709d4137f3211c659f8e6125816635033d593f"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $f='vendor\htmx\htmx.min.js'; $w='%HTMX_SHA256%'; if((Test-Path $f) -and ((Get-FileHash $f -Algorithm SHA256).Hash.ToLower() -eq $w)){Write-Host '[skip] htmx already present.';exit 0}; Write-Host '[get ] downloading htmx ...'; Invoke-WebRequest -UseBasicParsing '%HTMX_URL%' -OutFile $f; $g=(Get-FileHash $f -Algorithm SHA256).Hash.ToLower(); if($g -ne $w){Remove-Item $f -Force; Write-Error \"htmx checksum mismatch: expected $w got $g\"; exit 1}"
+rem htmx and its extensions, each pinned exactly (version + SHA-256) for reproducible builds. The
+rem digests live in vendor\htmx\PINS, which prepare.sh reads too; a file already present with its
+rem digest is kept.
+if not exist "vendor\htmx\ext\" mkdir vendor\htmx\ext
+set "HTMX_VERSION=4.0.0"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $n=0; foreach($l in Get-Content 'vendor\htmx\PINS'){ if($l -match '^\s*(#|$)'){continue}; $p=$l -split '\s+'; $f=Join-Path 'vendor\htmx' $p[0]; $w=$p[1]; if((Test-Path $f) -and ((Get-FileHash $f -Algorithm SHA256).Hash.ToLower() -eq $w)){continue}; Write-Host ('[get ] htmx %HTMX_VERSION% '+$p[0]+' ...'); Invoke-WebRequest -UseBasicParsing ('https://unpkg.com/htmx.org@%HTMX_VERSION%/dist/'+$p[0]) -OutFile $f; $g=(Get-FileHash $f -Algorithm SHA256).Hash.ToLower(); if($g -ne $w){Remove-Item $f -Force; Write-Error ('htmx '+$p[0]+' checksum mismatch: expected '+$w+' got '+$g); exit 1}; $n++ }; if($n -eq 0){Write-Host '[skip] htmx %HTMX_VERSION% and its extensions already present.'}"
 if errorlevel 1 goto :fail
 
 rem --- SQLite amalgamation (pinned; fetched + compiled, mirroring the htmx fetch) ---

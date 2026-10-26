@@ -7,12 +7,13 @@
 !THIRD_PARTY_NOTICES
 
 # Inside app/, what prepare re-creates in the image. Do NOT ignore app/vendor/odin-http: the
-# vendored HTTP library must be in the build context. prepare.sh re-fetches + compiles SQLite and
-# htmx, and bundles the assets, so a local (possibly Windows .lib) SQLite dir, a local DB or a
-# local build/ never ships.
+# vendored HTTP library must be in the build context, and so must app/vendor/htmx/PINS, the digests
+# prepare.sh fetches htmx by. prepare.sh re-fetches + compiles SQLite and htmx, and bundles the
+# assets, so a local (possibly Windows .lib) SQLite dir, a local DB or a local build/ never ships.
 app/bin/
 app/build/
-app/vendor/htmx/
+app/vendor/htmx/*.js
+app/vendor/htmx/ext/
 app/vendor/sqlite/
 app/data.db*
 **/*.exe

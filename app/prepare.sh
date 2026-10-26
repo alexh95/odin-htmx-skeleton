@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # One-time setup for the two things the build needs that aren't tracked inline.
-#   1. htmx.min.js - embedded into the binary via #load at compile time.
+#   1. htmx        - htmx.min.js and its extensions (vendor/htmx/PINS), bundled per profile.
 #   2. SQLite      - the pinned amalgamation, compiled to a static lib.
 # odin-http is vendored in-tree (vendor/odin-http, see its UPSTREAM.md): nothing to fetch.
 # Idempotent: re-running skips whatever is already in place.
@@ -16,24 +16,28 @@ sha256_of() {
   else shasum -a 256 "$1" | awk '{print $1}'; fi
 }
 
-# htmx, pinned exactly (version + SHA-256) for reproducible builds — same
-# discipline as ODIN_VERSION and the SQLite amalgamation. Bump both together.
-mkdir -p vendor/htmx
+# htmx and its extensions, each pinned exactly (version + SHA-256) for reproducible builds — same
+# discipline as ODIN_VERSION and the SQLite amalgamation. The digests live in vendor/htmx/PINS,
+# which prepare.bat reads too; a file already present with its digest is kept.
+mkdir -p vendor/htmx/ext
 HTMX_VERSION=4.0.0
-HTMX_SHA256=e484d9171a9db30a39c8f16e3d709d4137f3211c659f8e6125816635033d593f
-if [ -f vendor/htmx/htmx.min.js ] && [ "$(sha256_of vendor/htmx/htmx.min.js)" = "$HTMX_SHA256" ]; then
-  echo "[skip] htmx $HTMX_VERSION already present."
-else
-  echo "[get ] downloading htmx $HTMX_VERSION ..."
-  url="https://unpkg.com/htmx.org@$HTMX_VERSION/dist/htmx.min.js"
-  if command -v curl >/dev/null 2>&1; then curl -fsSL "$url" -o vendor/htmx/htmx.min.js
-  else wget -qO vendor/htmx/htmx.min.js "$url"; fi
-  got="$(sha256_of vendor/htmx/htmx.min.js)"
-  if [ "$got" != "$HTMX_SHA256" ]; then
-    echo "error: htmx checksum mismatch: expected $HTMX_SHA256, got $got" >&2
-    rm -f vendor/htmx/htmx.min.js; exit 1
+fetched=0
+while read -r file want; do
+  case "$file" in ''|'#'*) continue ;; esac
+  out="vendor/htmx/$file"
+  [ -f "$out" ] && [ "$(sha256_of "$out")" = "$want" ] && continue
+  echo "[get ] htmx $HTMX_VERSION $file ..."
+  url="https://unpkg.com/htmx.org@$HTMX_VERSION/dist/$file"
+  if command -v curl >/dev/null 2>&1; then curl -fsSL "$url" -o "$out"
+  else wget -qO "$out" "$url"; fi
+  got="$(sha256_of "$out")"
+  if [ "$got" != "$want" ]; then
+    echo "error: htmx $file checksum mismatch: expected $want, got $got" >&2
+    rm -f "$out"; exit 1
   fi
-fi
+  fetched=$((fetched + 1))
+done < vendor/htmx/PINS
+[ "$fetched" -gt 0 ] || echo "[skip] htmx $HTMX_VERSION and its extensions already present."
 
 # --- SQLite amalgamation (pinned; fetched + compiled, mirroring the htmx fetch) ---
 # NO_SQLITE=1 skips it: a memory profile's build needs no SQLite (D18), and CI builds `minimal`
