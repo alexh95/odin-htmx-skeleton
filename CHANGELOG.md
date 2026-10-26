@@ -8,7 +8,18 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
-The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes: `docs/spikes/`).
+The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes: `docs/spikes/`), and this is
+its first milestone, M1, meant to ship as **2.0.0**: the request path rebuilt as a platform (`app/platform/`),
+features (`app/features/`) with a store per family (`app/stores/`), and two profiles (`app/cmd/`): `skeleton`, the
+1.2.x console at its exact URLs, and `minimal`, the one-page notes starter. Behind them: the vendored odin-http fork
+(F-1 to F-15), a crash guard, logfmt and metrics, store v3 (per-loop readers, a group-committing writer task),
+`tools/check`, CI through `build.sh`, crash drills and the parity gate (`docs/perf/PARITY.md`).
+
+**Breaking, for a fork of 1.2.x:** `app/src` is gone (its code lives on as the `skeleton` profile's features); a
+profile is built through `build.sh`/`build.bat <profile>`, never `odin build` directly; `tools/init --minimal` is
+gone (the `minimal` profile replaces it); the access log is logfmt; the Docker image takes `--build-arg PROFILE` and
+ships `/app/server`; a crash that touched shared state exits 70, a boot problem 2. A 1.2.x database is adopted in
+place by the skeleton's contacts store (its first three migrations keep their hashes).
 
 ### Added
 - **The fork's changes to odin-http** (`app/vendor/odin-http/UPSTREAM.md` lists each, F-1 to F-15;
