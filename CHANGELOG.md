@@ -138,6 +138,12 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   write's deferred response no longer polls its socket while it waits for the batch (F-13's watch is
   now optional, for work that takes seconds). `write@mem` went from about 32.7k to 37.2k rps on the
   dev PC, level with v1.1.1.
+- **Less work per request** (the same profile, on the Linux leg): the request id is formatted by
+  hand instead of through `fmt`, the access log's hashed client id is computed only when the line is
+  written (it was computed at `LOG_LEVEL=warn` too), and the router tries only the rows of the
+  request's method, comparing a literal row's path instead of running its pattern; the other
+  methods' rows are tried only on a miss, for the 405's `Allow`. The writer task runs `BEGIN
+  IMMEDIATE` and `COMMIT` from its statement cache instead of parsing them for every batch.
 - **The access log is logfmt**, one line per request with a request id, the route as registered,
   the status, the time in µs and a hashed client id (`ev=req id=… m=GET route="GET /data" st=200
   us=183 …`); still never the query. Every response carries `x-request-id`.

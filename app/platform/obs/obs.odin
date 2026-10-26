@@ -275,9 +275,35 @@ count_request :: proc(r: Route, us: i64) {
 next_request_id :: proc() -> string {
 	tl_seq += 1
 	loop := tl_loop1 - 1 if tl_loop1 > 0 else 0xff
-	s := fmt.bprintf(tl_req.id[:], "%s-%02x-%x", string(state.boot_hex[:]), loop, tl_seq)
+	s := format_id(tl_req.id[:], loop, tl_seq)
 	tl_req.id_len = len(s)
 	return s
+}
+
+// Into buf, which holds 28 bytes. By hand: fmt.bprintf cost about 1 % of a store
+// write's CPU at one call per request (M1's parity profile).
+@(private)
+format_id :: proc(buf: []byte, loop: int, seq: u64) -> string {
+	i := copy(buf, state.boot_hex[:])
+	buf[i] = '-'
+	i = put_hex(buf, i + 1, u64(loop), 2)
+	buf[i] = '-'
+	i = put_hex(buf, i + 1, seq)
+	return string(buf[:i])
+}
+
+// v in lower-case hex, at least `width` digits, at buf[i:]; the index after it.
+put_hex :: proc(buf: []byte, i: int, v: u64, width := 1) -> int {
+	n := 1
+	for x := v >> 4; x != 0; x >>= 4 { n += 1 }
+	n = max(n, width)
+	v := v
+	digits := "0123456789abcdef"
+	for k := i + n - 1; k >= i; k -= 1 {
+		buf[k] = digits[v & 0xf]
+		v >>= 4
+	}
+	return i + n
 }
 
 // The request this thread serves now.
@@ -310,7 +336,7 @@ loop_request :: proc(loop: int, buf: []byte) -> (id: string, route: string) {
 	seq := sync.atomic_load_explicit(&loop_req[loop].seq, .Relaxed)
 	r := sync.atomic_load_explicit(&loop_req[loop].route, .Relaxed)
 	if r == 0 { return "", "" }
-	return fmt.bprintf(buf, "%s-%02x-%x", string(state.boot_hex[:]), loop, seq), route_id(Route(r - 1))
+	return format_id(buf, loop, seq), route_id(Route(r - 1))
 }
 
 // -1 on a thread with no event loop.

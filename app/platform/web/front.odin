@@ -10,7 +10,6 @@ package web
 
 import "core:crypto/sha2"
 import "core:encoding/base64"
-import "core:fmt"
 import "core:hash"
 import "core:net"
 import "core:strings"
@@ -226,7 +225,7 @@ client_id :: proc(addr: net.Address, buf: []byte) -> string {
 	case net.IP4_Address: x := a; h = hash.fnv32a(x[:], sec.cid_key)
 	case net.IP6_Address: x := transmute([16]u8)a; h = hash.fnv32a(x[:], sec.cid_key)
 	}
-	return fmt.bprintf(buf, "%08x", h)
+	return string(buf[:obs.put_hex(buf, 0, u64(h), 8)])
 }
 
 // ---- the body --------------------------------------------------------------------------
@@ -284,7 +283,7 @@ Deferred :: struct {
 	start:  i64,
 	id:     [32]byte,
 	id_len: int,
-	cid:    [8]byte,
+	client: net.Address,
 }
 
 // `watch` closes the connection as soon as the client leaves (F-13's poll): for work
@@ -296,7 +295,7 @@ defer_response :: proc(req: ^Request, res: ^Response, d: ^Deferred, on_gone: pro
 	d.method = method_name(req)
 	d.start = c_start
 	d.id_len = copy(d.id[:], c.id)
-	client_id(c.client, d.cid[:])
+	d.client = c.client
 	d.ref = http.response_defer(res, on_gone, user, watch)
 	c.deferred = true
 }
@@ -319,7 +318,7 @@ finish :: proc(d: ^Deferred, res: ^Response) {
 	defer tl_ctx = nil
 	us := (sys.mono_ns() - d.start) / 1000
 	if d.route != nil { obs.count_request(d.route.obs, us) }
-	access_log(d.method, d.route.id if d.route != nil else "", "", int(res.status), us, string(d.id[:d.id_len]), string(d.cid[:]), "")
+	access_log(d.method, d.route.id if d.route != nil else "", "", int(res.status), us, string(d.id[:d.id_len]), d.client, "")
 }
 
 // The handler's start, for a deferral made inside it (front sets it).
@@ -330,7 +329,7 @@ mark_start :: proc(ns: i64) { c_start = ns }
 // One line per request: `ev=req id=… m=GET route="GET /data" st=200 us=183 loop=3
 // cid=…`, at info, so LOG_LEVEL=warn turns it off (it costs about 9 % on the light
 // routes, 01 §10). `path` only for a request no route answered.
-access_log :: proc(method, route, path: string, status: int, us: i64, id, cid, impl: string) {
+access_log :: proc(method, route, path: string, status: int, us: i64, id: string, client: net.Address, impl: string) {
 	l, ok := obs.begin(.Info, "http", "req")
 	if !ok { return }
 	obs.str(&l, "id", id)
@@ -339,7 +338,8 @@ access_log :: proc(method, route, path: string, status: int, us: i64, id, cid, i
 	obs.num(&l, "st", i64(status))
 	obs.num(&l, "us", us)
 	obs.num(&l, "loop", i64(obs.current_loop()))
-	obs.str(&l, "cid", cid)
+	cid: [8]byte
+	obs.str(&l, "cid", client_id(client, cid[:]))
 	if impl != "" { obs.str(&l, "impl", impl) }
 	obs.end(&l)
 }

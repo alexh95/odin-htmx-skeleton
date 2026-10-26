@@ -7,9 +7,11 @@ package web
 // "/ui/ping" and "/ui/tab", "/contacts/(%d+)" is "/contacts". A request tries
 // its first two segments, then its first one, then the "/" bucket (the root row,
 // and rows whose first segment isn't literal, like "/favicon%.ico"), and inside
-// a bucket the rows' anchored Lua patterns in mount order: about 140 ns per row
-// tried, ≤ 3 µs with ≤ 20 rows a feature (09 §4.4). Assets match at once: the
-// skeleton registered /static/(.+) last, so every asset walked the whole table.
+// a bucket the rows of its method in mount order: a literal row by comparing
+// strings, a pattern row by its anchored Lua pattern, about 140 ns per row tried,
+// ≤ 3 µs with ≤ 20 rows a feature (09 §4.4). Only a miss tries the other methods'
+// rows, for the 405. Assets match at once: the skeleton registered /static/(.+)
+// last, so every asset walked the whole table.
 //
 // A path no row of its method matches, but another method's does, is a 405 with
 // Allow; anything else is the site's 404 (SK/app/src/routes.odin:67-69).
@@ -25,6 +27,7 @@ Mounted :: struct {
 	using row: Route,
 	id:        string, // "GET /contacts/(%d+)"
 	anchored:  string, // "^/contacts/(%d+)$"
+	literal:   string, // the path itself when the pattern has no magic ("/favicon%.ico": "/favicon.ico")
 	key:       string,
 	obs:       obs.Route,
 }
@@ -39,22 +42,7 @@ MAGIC :: "^$()%.[]*+-?"
 // The row's bucket key: its first one or two whole literal segments, or "/".
 // An escaped character ("%." in "/favicon%.ico") is literal.
 key_of :: proc(pattern: string, allocator := context.allocator) -> string {
-	lit := strings.builder_make(allocator)
-	all_literal := true
-	for i := 0; i < len(pattern); i += 1 {
-		c := pattern[i]
-		if c == '%' && i + 1 < len(pattern) && !is_alnum(pattern[i + 1]) {
-			strings.write_byte(&lit, pattern[i + 1])
-			i += 1
-			continue
-		}
-		if strings.index_byte(MAGIC, c) >= 0 {
-			all_literal = false
-			break
-		}
-		strings.write_byte(&lit, c)
-	}
-	l := strings.to_string(lit)
+	l, all_literal := literal_start(pattern, allocator)
 	if l == "/" && all_literal { return "/" }
 	// Whole segments only: a segment the literal stops inside isn't a key.
 	segs, end := 0, 0
@@ -71,6 +59,23 @@ key_of :: proc(pattern: string, allocator := context.allocator) -> string {
 	return l[:end] if end > 0 else "/"
 }
 
+// The pattern's literal start, escapes resolved, and whether that is all of it.
+@(private)
+literal_start :: proc(pattern: string, allocator := context.allocator) -> (lit: string, whole: bool) {
+	b := strings.builder_make(allocator)
+	for i := 0; i < len(pattern); i += 1 {
+		c := pattern[i]
+		if c == '%' && i + 1 < len(pattern) && !is_alnum(pattern[i + 1]) {
+			strings.write_byte(&b, pattern[i + 1])
+			i += 1
+			continue
+		}
+		if strings.index_byte(MAGIC, c) >= 0 { return strings.to_string(b), false }
+		strings.write_byte(&b, c)
+	}
+	return strings.to_string(b), true
+}
+
 @(private)
 is_alnum :: proc(c: u8) -> bool {
 	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
@@ -83,6 +88,7 @@ router_mount :: proc(r: ^Router, rows: []Route) {
 		m.row = row
 		m.id = route_id(row)
 		m.anchored = strings.concatenate({"^", row.pattern, "$"})
+		if lit, whole := literal_start(row.pattern); whole { m.literal = lit }
 		m.key = key_of(row.pattern)
 		if m.key not_in r.buckets { r.buckets[m.key] = make([dynamic]^Mounted) }
 		append(&r.buckets[m.key], m)
@@ -105,22 +111,25 @@ router_find :: proc(r: ^Router, method: Method, path: string) -> (m: ^Mounted, p
 	n += 1
 
 	caps: [match.MAX_CAPTURES]match.Match = ---
-	others: [dynamic]string
 	for k in keys[:n] {
-		bucket, ok := r.buckets[k]
-		if !ok { continue }
+		bucket := r.buckets[k] or_continue
 		for row in bucket {
-			c, err := match.find_aux(path, row.anchored, 0, true, &caps)
-			if err != .OK || c == 0 { continue }
-			if row.method != method {
-				if others == nil { others = make([dynamic]string, context.temp_allocator) }
-				append(&others, http.method_string(row.method))
-				if row.method == .Get { append(&others, "HEAD") } // odin-http answers HEAD with the GET route
-				continue
-			}
+			if row.method != method { continue }
+			c := row_match(row, path, &caps)
+			if c == 0 { continue }
 			ps := make([]string, c - 1, context.temp_allocator)
 			for cp, i in caps[1:c] { ps[i] = path[cp.byte_start:cp.byte_end] }
 			return row, ps, nil
+		}
+	}
+	others: [dynamic]string
+	for k in keys[:n] {
+		bucket := r.buckets[k] or_continue
+		for row in bucket {
+			if row.method == method || row_match(row, path, &caps) == 0 { continue }
+			if others == nil { others = make([dynamic]string, context.temp_allocator) }
+			append(&others, http.method_string(row.method))
+			if row.method == .Get { append(&others, "HEAD") } // odin-http answers HEAD with the GET route
 		}
 	}
 	if len(others) > 0 {
@@ -129,6 +138,14 @@ router_find :: proc(r: ^Router, method: Method, path: string) -> (m: ^Mounted, p
 		return nil, nil, uniq
 	}
 	return nil, nil, nil
+}
+
+// How many captures the row's pattern made of `path`, the whole match first; 0: no match.
+@(private)
+row_match :: proc(row: ^Mounted, path: string, caps: ^[match.MAX_CAPTURES]match.Match) -> int {
+	if row.literal != "" { return 1 if path == row.literal else 0 }
+	c, err := match.find_aux(path, row.anchored, 0, true, caps)
+	return c if err == .OK else 0
 }
 
 // The end of the path's nth segment ("/a/b/c", 2 → 4), or -1 past its last.

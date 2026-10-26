@@ -157,7 +157,6 @@ done :: proc(c: ^web.Req_Ctx) {
 		obs.count_request(c.route.obs, us)
 		route = c.route.id
 	}
-	cid: [8]byte
-	web.access_log(web.method_name(c.req), route, c.req.url.path, int(c.res.status), us, c.id, web.client_id(c.client, cid[:]), c.impl)
+	web.access_log(web.method_name(c.req), route, c.req.url.path, int(c.res.status), us, c.id, c.client, c.impl)
 	obs.clear_request()
 }

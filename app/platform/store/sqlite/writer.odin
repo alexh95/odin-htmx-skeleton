@@ -163,17 +163,25 @@ commit_batch :: proc(data: rawptr) {
 	w := db.writer.db
 	guard.lock(&db.wlock)
 	defer guard.unlock(&db.wlock)
-	if sqlite.exec(w, "BEGIN IMMEDIATE") != sqlite.OK {
+	// Prepared once, from the statement cache: sqlite3_exec parsed both for every batch.
+	if !run_cached("BEGIN IMMEDIATE") {
 		fail_batch(head, sqlite.errmsg(w))
 		return
 	}
 	for op := head; op != nil; op = op.next {
 		op.run(op)
 	}
-	if sqlite.exec(w, "COMMIT") != sqlite.OK {
+	if !run_cached("COMMIT") {
 		fail_batch(head, sqlite.errmsg(w))
 		sqlite.exec(w, "ROLLBACK")
 	}
+}
+
+@(private)
+run_cached :: proc(sql: string) -> bool {
+	st := writer_stmt(sql)
+	defer sqlite.reset(st)
+	return sqlite.step(st) == sqlite.DONE
 }
 
 @(private)
