@@ -278,14 +278,23 @@ sql :: proc(s: Stmt) -> string {
 
 // ---- binds: idx counts from 1 ---------------------------------------------
 
+// An empty Odin string has a nil data pointer, and SQLite binds a nil pointer as
+// NULL, which a NOT NULL column then refuses. A real byte with length 0 binds ""
+// as the empty text it is (and an empty blob as an empty blob).
+@(private) EMPTY := [1]u8{}
+
 bind_text :: proc(s: Stmt, idx: int, text: string) -> c.int {
 	enter(); defer leave()
-	return sqlite3_bind_text(s, c.int(idx), raw_data(text), c.int(len(text)), TRANSIENT)
+	p := raw_data(text)
+	if p == nil { p = &EMPTY[0] }
+	return sqlite3_bind_text(s, c.int(idx), p, c.int(len(text)), TRANSIENT)
 }
 
 bind_blob :: proc(s: Stmt, idx: int, data: []byte) -> c.int {
 	enter(); defer leave()
-	return sqlite3_bind_blob(s, c.int(idx), raw_data(data), c.int(len(data)), TRANSIENT)
+	p := raw_data(data)
+	if p == nil { p = &EMPTY[0] }
+	return sqlite3_bind_blob(s, c.int(idx), p, c.int(len(data)), TRANSIENT)
 }
 
 bind_int :: proc(s: Stmt, idx: int, v: int) -> c.int {
