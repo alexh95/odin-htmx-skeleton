@@ -27,6 +27,12 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   the extensions its packages declare. **`tools/baseline`** (spike S0.1): rebuilds a skeleton release
   from git for the parity gate.
 
+- **`build.sh` / `build.bat <profile>`** at the repo root: the one place a profile's build flags
+  live (its store, identity, client and theme collections, `-vet -strict-style
+  -warnings-as-errors`, `VERSION`), with `CMD=check|test|run`. The starter's profiles (`minimal`,
+  `skeleton` first) build only through it. `ols.json` moves to the root and names the four
+  collections, on `skeleton`'s families for now.
+
 ### Fixed
 - **`OPTIONS *` with a negative `Content-Length` no longer aborts the process.** 1.2.1 refused a bad
   `Content-Length` in `front`, but odin-http answers `OPTIONS *` itself; the fork's `_body_length`
@@ -36,6 +42,11 @@ The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes:
   wire; a body-phase timeout now closes it (found by spike S0.7's timeouts phase).
 
 ### Changed
+- **SQLite is built with the starter's flags** (`prepare.*`, spike S0.11): no double-quoted string
+  literals, foreign keys on by default, multi-thread mode, no global memory statistics (a sorting
+  query on 16 connections ran 4.1× faster without its mutex), no extension loading, no shared cache,
+  and FTS5. `vendor/sqlite/.flags` records them, so changing them rebuilds the library. On Windows
+  prepare falls back to clang with llvm-lib when MSVC's `cl` isn't on PATH.
 - **The template is `alexh95/odin-htmx-starter` now** (the repo was renamed; the old URL redirects).
   `BRAND_REPO` points there, and `tools/init` reads the template's repo from one file, `tools/init/UPSTREAM`,
   instead of a literal of its own: a future rename is that line plus `brand.odin`'s, in one commit.

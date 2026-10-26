@@ -64,8 +64,13 @@ else
   printf '%s\n' "$SQLITE_SHA256" > "$SQLITE_DIR/.stamp"
 fi
 
+# D16's flags (PLAN §11.2; spike S0.11). `.flags` records what the lib was built with, so a flag
+# change rebuilds it: a lib newer than its source isn't enough. prepare.bat holds the same string.
+SQLITE_FLAGS="-DSQLITE_DQS=0 -DSQLITE_DEFAULT_FOREIGN_KEYS=1 -DSQLITE_THREADSAFE=2 -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_OMIT_SHARED_CACHE -DSQLITE_ENABLE_FTS5"
+
 # Compile to a static lib once, so `odin build` just links it.
-if [ "$SQLITE_DIR/sqlite3.a" -nt "$SQLITE_DIR/sqlite3.c" ]; then
+if [ "$SQLITE_DIR/sqlite3.a" -nt "$SQLITE_DIR/sqlite3.c" ] \
+   && [ "$(cat "$SQLITE_DIR/.flags" 2>/dev/null)" = "$SQLITE_FLAGS" ]; then
   echo "[skip] sqlite3.a is up to date."
 else
   # Only compiling needs a C toolchain, so it is looked for here, not up front: a
@@ -84,7 +89,10 @@ else
     exit 1
   fi
   echo "[cc  ] compiling sqlite3.c with $CC ..."
-  ( cd "$SQLITE_DIR" && "$CC" -O2 -c sqlite3.c -o sqlite3.o && ar rcs sqlite3.a sqlite3.o && rm -f sqlite3.o )
+  # shellcheck disable=SC2086 # one -D per word
+  ( cd "$SQLITE_DIR" && rm -f sqlite3.a && "$CC" -O2 $SQLITE_FLAGS -c sqlite3.c -o sqlite3.o \
+      && ar rcs sqlite3.a sqlite3.o && rm -f sqlite3.o )
+  printf '%s\n' "$SQLITE_FLAGS" > "$SQLITE_DIR/.flags"
 fi
 
 echo
