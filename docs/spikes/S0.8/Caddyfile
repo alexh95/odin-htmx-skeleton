@@ -1,0 +1,80 @@
+# S0.8: one native `caddy run` in front of the stream server, one site per case.
+# Run: S08_STORAGE=<scratch dir> caddy run --config Caddyfile --adapter caddyfile
+# The stream server listens on 127.0.0.1:18780 (`s08.exe 18780`).
+{
+	# mem.mjs reads Go's heap from /metrics and /debug/pprof here
+	admin 127.0.0.1:18789
+	persist_config off
+	default_bind 127.0.0.1
+	auto_https disable_redirects
+	skip_install_trust
+	storage file_system {$S08_STORAGE}
+}
+
+# plain: reverse_proxy with its defaults, no encode
+http://127.0.0.1:18781 {
+	reverse_proxy 127.0.0.1:18780
+}
+
+# spark: spark's site shape, `encode zstd gzip` at the top of the site
+http://127.0.0.1:18782 {
+	encode zstd gzip
+	handle {
+		reverse_proxy 127.0.0.1:18780 {
+			header_up X-Real-IP {client_ip}
+		}
+	}
+}
+
+# stack: D41's (app) snippet (no encode), health_uri pointed at this server's /healthz
+http://127.0.0.1:18783 {
+	reverse_proxy 127.0.0.1:18780 {
+		header_up X-Real-IP {client_ip}
+		lb_try_duration 10s
+		health_uri /healthz
+		health_interval 5s
+		stream_close_delay 5m
+		flush_interval -1
+	}
+}
+
+# matcher: `encode` with a response matcher that lists the compressible types without
+# text/event-stream and multipart/* (Caddy's default list has text/* and multipart/mixed*)
+http://127.0.0.1:18785 {
+	encode zstd gzip {
+		match {
+			header Content-Type text/html*
+			header Content-Type text/css*
+			header Content-Type text/plain*
+			header Content-Type text/javascript*
+			header Content-Type text/xml*
+			header Content-Type text/csv*
+			header Content-Type text/markdown*
+			header Content-Type text/vtt*
+			header Content-Type application/json*
+			header Content-Type application/javascript*
+			header Content-Type application/xml*
+			header Content-Type application/ld+json*
+			header Content-Type application/manifest+json*
+			header Content-Type application/rss+xml*
+			header Content-Type application/atom+xml*
+			header Content-Type application/wasm*
+			header Content-Type image/svg+xml*
+		}
+	}
+	reverse_proxy 127.0.0.1:18780
+}
+
+# TLS without encode: tells h2's own cost in the browser from the encoder's
+https://localhost:18786 {
+	tls internal
+	reverse_proxy 127.0.0.1:18780
+}
+
+# spark over TLS: h2 to the browser, where Chromium offers zstd; certificate from Caddy's own CA,
+# not installed into any trust store (skip_install_trust; the browser run ignores the error)
+https://localhost:18784 {
+	tls internal
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:18780
+}

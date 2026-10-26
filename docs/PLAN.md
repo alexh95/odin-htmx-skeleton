@@ -1884,8 +1884,10 @@ odin-http's own parser callbacks.
 | multipart writer | `multipart/mixed` with CRLF framing and a `Content-Length` per part, one chunk per part, flushed at once | 03 §1, §8; 04 §4.3 (LF-only swapped nothing) |
 | Range sender | 200, 206, suffix, 416, HEAD, If-Range, ETag, over F-3's `stream_sendfile` | 07 §0.2 (200, 206, suffix, 416, HEAD verified); the media route is in §15 |
 
-Every stream response sends `X-Accel-Buffering: no` and `Cache-Control: no-cache`, so nginx (NPM) flushes each event
-(08 §3.2). Every stream also writes its first bytes with the headers (an SSE comment line, a multipart CRLF preamble):
+Every stream response sends `X-Accel-Buffering: no` and `Cache-Control: no-cache, no-transform`, so nginx (NPM) flushes
+each event (08 §3.2) and no proxy compresses a stream: Caddy's `encode` skips a `no-transform` response, and a
+compressed stream would hold 1.1 MiB (gzip) to 2.8 MiB (zstd) of Caddy's memory against 65 KiB raw, though it added no
+delay worth counting (S0.8: p99 ≤ 4.6 ms with `encode zstd gzip`, ≤ 1.3 ms without). Every stream also writes its first bytes with the headers (an SSE comment line, a multipart CRLF preamble):
 WebKit resolves a streamed fetch only at its first body bytes, so a quiet SSE stream stayed "connecting" until the
 first heartbeat (19.6 s) and a slow first part held a multipart response, inside htmx's 60 s request timeout (S0.3).
 A slow WebSocket consumer gets close 1013 before its queue passes the cap, then 2 s to take it before the fork cuts it
@@ -4444,8 +4446,11 @@ http://htmx-odin-starter.alexh95.com {
   accepted. Joining NPM to the stack's network is rejected: it would change NPM's configuration, which is Alex's
   service, and this section never names a container (§17.8).
 - `lb_try_duration 10s` turns a deploy gap into latency.
-- **No `encode` anywhere**: assets arrive precompressed (§12), NPM gzips HTML, streams stay raw (S0.8 checks the
-  encoder). **Caddy is never reloaded on app deploys**: a reload force-closes every WebSocket (08 §3.3).
+- **No `encode` anywhere**: assets arrive precompressed (§12), NPM gzips HTML, streams stay raw. S0.8 found the
+  encoder adds no delay that matters but costs a compressed stream 1.1–2.8 MiB of Caddy's memory; streams opt out with
+  `Cache-Control: no-transform` (§8.2), so a Caddy that does compress (stage 0's `tls internal` one, stage 3's
+  `Caddyfile.prod`) needs no matcher. M2's `headers.spec` asserts both stream headers and `e2e-proxy` that SSE and
+  multipart come back without `Content-Encoding`. **Caddy is never reloaded on app deploys**: a reload force-closes every WebSocket (08 §3.3).
 
 **NPM proxy hosts** (on apollo's own NPM version, which `e2e-proxy` models, §2.2, §20.1; RESOLUTIONS X40; 08 §3.2)
 all forward to `http://<APOLLO_LAN_IP>:8120`, never a container name (13 §4.3):
@@ -4525,7 +4530,8 @@ it; the uplink (`<HOME_UPLINK>`) is no longer a binding trigger (RESOLUTIONS X41
 | Netcup VPS 1000 G12.5 | 4 vCore / 8 GB / 128 GB | €14.50/month on a 12-month term | net/gross basis unclear |
 
 All three are KVM with their own kernel, so io_uring works under the seccomp profile (08 §0, §4.1; KVM is inferred
-for OVH). The VPS runs spark's `bootstrap.sh`, `compose.prod.yml` and `Caddyfile.prod` unchanged (S20, 08 §4.3).
+for OVH). The VPS runs spark's `bootstrap.sh`, `compose.prod.yml` and `Caddyfile.prod` unchanged (S20, 08 §4.3);
+`Caddyfile.prod`'s `encode zstd gzip` skips the starter's streams by their `no-transform` header (S0.8).
 **What moves first** (NEW, from CF §11.3): the witnesses, which hold no state and need nothing on the LAN. Houston
 stays on apollo while llama.cpp and the Pi live on the LAN, or moves with a WireGuard link from the VPS to the LAN
 (08 §3). **Public video** may go behind a bunny.net pull zone on `/media` ($0.005–0.01/GB, 08 §4.1; Q26, now optional,

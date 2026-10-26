@@ -1,0 +1,7 @@
+{"label":"plain","kind":"sse","k":500,"nt":false,"enc":"identity","heap_inuse_mib":[14.4,46],"sys_mib":[2108.9,2108.9],"per_stream_kib":65}
+{"label":"spark-zstd","kind":"sse","k":500,"nt":false,"enc":"zstd","heap_inuse_mib":[14.4,1397.2],"sys_mib":[2108.9,2108.9],"per_stream_kib":2832}
+{"label":"spark-gzip","kind":"sse","k":500,"nt":false,"enc":"gzip","heap_inuse_mib":[14.2,562],"sys_mib":[2108.9,2108.9],"per_stream_kib":1122}
+{"label":"spark-zstd","kind":"mp","k":500,"nt":false,"enc":"zstd","heap_inuse_mib":[14.2,1396.6],"sys_mib":[2108.9,2108.9],"per_stream_kib":2831}
+{"label":"spark-gzip","kind":"mp","k":500,"nt":false,"enc":"gzip","heap_inuse_mib":[14.2,562.1],"sys_mib":[2108.9,2108.9],"per_stream_kib":1122}
+{"label":"matcher","kind":"sse","k":500,"nt":false,"enc":"identity","heap_inuse_mib":[14.2,46.6],"sys_mib":[2108.9,2108.9],"per_stream_kib":66}
+{"label":"spark-nt","kind":"sse","k":500,"nt":true,"enc":"identity","heap_inuse_mib":[14.3,46.9],"sys_mib":[2108.9,2108.9],"per_stream_kib":67}

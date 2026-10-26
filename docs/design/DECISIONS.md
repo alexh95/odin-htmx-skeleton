@@ -834,7 +834,8 @@ upstream offer after M2 goes through a fork made then.
 - a multipart/mixed writer with CRLF framing (LF-only fails, 04 §4.3);
 - a Range sender (200, 206, suffix, 416, HEAD, If-Range, ETag) over F-3.
 
-Every stream response sends `X-Accel-Buffering: no` and `Cache-Control: no-cache` (08 §3.2), and writes its first
+Every stream response sends `X-Accel-Buffering: no` and `Cache-Control: no-cache, no-transform` (08 §3.2; S0.8: no proxy
+compresses a stream), and writes its first
 bytes with the headers (an SSE comment line, a multipart CRLF preamble), because WebKit resolves a streamed fetch only
 at its first body bytes (S0.3). The WS handshake lets a request without `Origin` through: it isn't a browser's, so it
 can't be cross-site hijacking (S0.3).
@@ -2239,8 +2240,9 @@ the subnet, so with the whole subnet trusted, a process on apollo's host that co
 would arrive from the gateway and be trusted for `X-Real-IP` (D35, X31, X43). The last block answers 421 with one line
 that points to `docs/OPS.md`; stage-1a LAN testing therefore uses a host name through split DNS (X23, X41).
 
-No `encode` anywhere: assets arrive precompressed, NPM gzips HTML, and streams stay raw (whether Caddy's encoder delays
-multipart chunks is spike S0.8). Caddy is never reloaded on app deploys, because a reload force-closes WebSockets
+No `encode` anywhere: assets arrive precompressed, NPM gzips HTML, and streams stay raw. S0.8: the encoder adds no
+delay worth counting, but a compressed stream holds 1.1–2.8 MiB of Caddy's memory, so streams opt out with
+`Cache-Control: no-transform`, which Caddy's `encode` honours: a compressing Caddy needs no matcher. Caddy is never reloaded on app deploys, because a reload force-closes WebSockets
 (08 key facts).
 
 **apollo's NPM is older than the v2.16.0 the plan modelled** (X40; the exact version is in `docs/private/SITE.md`).
