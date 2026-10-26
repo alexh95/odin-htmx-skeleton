@@ -170,7 +170,8 @@ place by the skeleton's contacts store (its first three migrations keep their ha
   dev PC, level with v1.1.1.
 - **The size and memory budgets** (PLAN §18.4; ANSWERS round 7): binaries are budgeted in MiB, as CI's size check
   reads them (`skeleton` ≤ 2.75 MiB, `minimal` ≤ 1.5 MiB, up from 1.0 MB), and idle memory as 6 MB plus 0.4 MB per
-  event loop (12.4 MB at the default 16). The drills check the same figures.
+  event loop (12.4 MB at the default 16). The drills check the same figures; the idle budget is measured at 16
+  loops and gated on the dev PC, while a CI runner reports its figure and its makeup (ANSWERS round 8).
 - **Stricter builds**: `build.{sh,bat}`, CI's store checks and the unit tests add `-vet-cast
   -vet-semicolon -vet-tabs -vet-using-param -disallow-do` to `-vet -strict-style
   -warnings-as-errors` (PLAN §19.2.4); the tree passes them with no change.

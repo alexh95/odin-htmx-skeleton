@@ -86,6 +86,15 @@ by the reply box's length limit; its last words are the button Alex clicked, "1 
 | Q35 (the light routes' reference) | "light routes (static, seo) gate against HEAD 709bc94 only, store routes against max(HEAD, v1.1.1)" | **Answered.** On `static` and `seo` the gate compares the candidate with HEAD alone, because v1.1.1 is faster there only by lacking 1.2.0's security middleware (S0.1); every other scenario keeps max(HEAD, v1.1.1). |
 | Q34 (the login-storm budget) | "Q34 take the default (absolute budget, 1 argon thread on ≤ 2 CPUs" | **Answered: the default.** 50 logins/s under `cpus: 2.0`: other routes' p99 ≤ their base + 0.5 ms, the cgroup never throttled, every login answered; `ACCOUNTS_ARGON_THREADS` is 1 when the container has ≤ 2 CPUs, else 2 (S0.5). |
 
+## Round 8 (2026-10-26)
+
+CI's first run on the restated budgets, relayed by the planning session with two options: (a) gate the idle budget on
+the dev PC only, CI reporting; (b) push the diagnostic drill alone and decide after its run.
+
+| Item | Alex said | What it means for the plan |
+|---|---|---|
+| Where the idle budget is gated | "Go with option A." | **(a).** The dev PC's drills gate idle memory on both legs, measured at the 16 loops the budget states, as the binary budget is gated on Windows. CI's Linux runner (4 vCPUs, about 5 MB above the dev PC's Linux at 4 loops: skeleton 12.2 MB against 7.0) prints its idle RSS with its anon/file/shmem makeup and the kernel's hugepage mode, and doesn't fail on it. |
+
 ## Round 7 (2026-10-26)
 
 The M1 budgets the drills and CI's first run measured over (§18.4), relayed by the planning session with two options:

@@ -218,6 +218,10 @@ Decided in round 5 (2026-10-26; ANSWERS round 5), on the gate questions M0's spi
 - **Q34**: the default. The login-storm budget is absolute, and the argon pool has 1 thread on ≤ 2 CPUs (§17.1,
   §18.4; S0.5).
 
+Decided in round 8 (2026-10-26; ANSWERS round 8), on CI's first runs:
+- **The idle budget is the dev PC's**, gated by its drills on both legs at 16 loops, as the binary budget is gated on
+  Windows; CI's Linux runner reports its idle RSS and its makeup without failing (§18.4, §20.1).
+
 Decided in round 7 (2026-10-26; ANSWERS round 7), on the M1 budgets:
 - **Budget (a)**: binary budgets are in MiB, as CI reads them (skeleton ≤ 2.75 MiB holds); `minimal` ≤ 1.5 MiB; idle
   memory ≤ 6 MB + 0.4 MB per event loop, 12.4 MB at the default 16 (§18.4).
@@ -4052,7 +4056,7 @@ read v3 at 0.38–0.43×, so, as X17 provides, the file DB gets candidate C's gr
 | Platform overhead per request | guard + logfmt + metrics ≤ 1.5 µs (Linux, one thread); routing ≤ 3 µs worst case (≤ 20 routes per feature) | 13 §5.1; 09 §4.4 |
 | Binary, Windows `-o:speed` | minimal ≤ 1.5 MiB (1.25 MiB at M1: the platform and the 230 KB social card); skeleton ≤ 2.75 MiB (2.42 + 0.22 FTS5 + fork and obs); full ≤ 6 MiB with embedded bundles; all in MiB, as CI reads them (ANSWERS round 7) | 01 §14.1; 12 §8 |
 | Image | ≤ 25 MB compressed per profile | 08 §5.3 (spark 10.8 MB) |
-| RSS | minimal and skeleton idle ≤ 6 MB + 0.4 MB per event loop, 12.4 MB at the default 16 (each loop has its log buffer, counters and io ring; skeleton measured 12.2 MB on Linux at M1; ANSWERS round 7); full idle ≤ 40 MB (about 1.15 MB per reader × 16); peak under pages@200 ≤ 80 MB; ≤ 6 KiB per open stream; 8,192 idle streams (the default `STREAMS_TOTAL`) ≤ +80 MB | 01 §14.1 (7–8 MB, 73 MB peak); 12 §8; 03 §10.4 (5.2 KiB) |
+| RSS | minimal and skeleton idle ≤ 6 MB + 0.4 MB per event loop, 12.4 MB at the default 16 (each loop has its log buffer, counters and io ring; skeleton measured 12.2 MB on Linux at M1; ANSWERS round 7), measured at 16 loops and gated by the dev PC's drills on both legs, as the binary budget is gated on Windows; a CI runner reports its figure and its anon/file/shmem makeup without failing (ANSWERS round 8); full idle ≤ 40 MB (about 1.15 MB per reader × 16); peak under pages@200 ≤ 80 MB; ≤ 6 KiB per open stream; 8,192 idle streams (the default `STREAMS_TOTAL`) ≤ +80 MB | 01 §14.1 (7–8 MB, 73 MB peak); 12 §8; 03 §10.4 (5.2 KiB) |
 | Connections | `nofile` 65,536; `MAX_CONNS` = soft − 64; 3000 streams with `/livez` < 100 ms | 13 §3.5 |
 | Fan-out, Linux, 4 loops | 1000 SSE subscribers p99 ≤ 100 ms; 3000 ≤ 200 ms; WS 1000 sockets × 20 messages delivered ≤ 2 s | 03 §10.4 (74 ms; 115–188 ms; 1.6 s) |
 | Restart | boot → `/readyz` ≤ 50 ms (file DB, 20k rows) plus the bind retry; 4000 clients back ≤ 3 s; stale cursors → replay or resync 100 % | 13 §3.3-3.4 |
@@ -4378,7 +4382,9 @@ The jobs are D40's; what the test jobs assert is in §19, the parity gate's proc
 `prepare`'s `NO_SQLITE=1`, the size budgets on the Windows legs), `e2e` (`E2E_PROFILE`), `coverage` (the k6 quick run
 of each profile, then `tools/check parity`; route coverage has its own job because it needs both suites' counters),
 `docker` and the dormant `deploy`; one composite action, `.github/actions/setup-odin`, installs the pinned Odin per
-runner. `linux-ops` and the nightly ASan arrive with the drills they run. **The NPM the job models**
+runner. `linux-ops` runs `tools/drills` per profile on `ubuntu-latest` and gates everything but the idle-memory budget,
+which it reports with its makeup: a 4-vCPU runner idles about 5 MB above the dev PC's Linux, so that budget is gated
+by the dev PC's drills (ANSWERS round 8). The nightly ASan workflow runs e2e and a k6 quick run against an ASan build. **The NPM the job models**
 (RESOLUTIONS X40): apollo's NPM is older than the upstream v2.16.0 that D41 modelled, so `e2e-proxy` pins and models
 apollo's actual version, recorded in `docs/private/SITE.md` (§2.2). Upgrading NPM is Alex's optional step and never an
 agent's; if Alex upgrades it, the job's pin follows.

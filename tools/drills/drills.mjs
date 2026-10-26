@@ -472,8 +472,12 @@ async function phaseBudgets() {
     await sleep(3000);
     const bytes = rss(s);
     const cap = BUDGET.idle(LOOPS);
-    record(`budgets: idle ${WIN ? 'working set' : 'RSS'} ≤ ${(cap / 1e6).toFixed(1)} MB (6 + 0.4 × ${LOOPS} loops)`,
-      bytes > 0 && bytes <= cap, `${(bytes / 1e6).toFixed(2)} MB${WIN ? '' : rssDetail(s)}`);
+    const name = `budgets: idle ${WIN ? 'working set' : 'RSS'} ≤ ${(cap / 1e6).toFixed(1)} MB (6 + 0.4 × ${LOOPS} loops)`;
+    const got = `${(bytes / 1e6).toFixed(2)} MB${WIN ? '' : rssDetail(s)}`;
+    // The budget is the dev PC's, as the size budget is Windows' (ANSWERS round 8): a CI runner
+    // reports its figure and what it is made of, and doesn't fail on it.
+    if (process.env.GITHUB_ACTIONS) console.log(`info  ${name}: ${got} (a CI runner reports it)`);
+    else record(name, bytes > 0 && bytes <= cap, got);
   }
   await stop(s);
 
