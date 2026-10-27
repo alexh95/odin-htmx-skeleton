@@ -3,7 +3,6 @@ package http
 import "core:bytes"
 import "core:io"
 import "core:log"
-import "core:mem/virtual"
 import "core:nbio"
 import "core:slice"
 import "core:strconv"
@@ -371,7 +370,7 @@ _on_response_sent :: proc(op: ^nbio.Operation, conn: ^Connection) {
 // Response has been sent, clean up and close/handle next.
 @(private)
 clean_request_loop :: proc(conn: ^Connection, close: Maybe(bool) = nil) {
-	context.temp_allocator = virtual.arena_allocator(&conn.temp_allocator)
+	context.temp_allocator = conn_arena_allocator(&conn.temp_allocator)
 
 	// blocks, size, used := allocator_free_all(&conn.temp_allocator)
 	// log.debugf("temp_allocator had %d blocks of a total size of %m of which %m was used", blocks, size, used)

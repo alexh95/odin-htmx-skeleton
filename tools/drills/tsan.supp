@@ -1,0 +1,8 @@
+# ThreadSanitizer suppressions for tools/drills/tsan.sh (TSAN_OPTIONS=suppressions=…).
+#
+# core:nbio's cross-thread queue reads a field inside an assert without the atomic its writer
+# uses (core/nbio/mpsc.odin, mpsc_enqueue; spike S0.9): a benign race on x86-64, not the app's.
+# A pattern matches a frame of either access, so this also covers the report from mpsc_dequeue's
+# side. Odin names the frame `nbio::[mpsc.odin]::mpsc_enqueue`. Remove when an Odin bump fixes it
+# (PLAN R3).
+race:nbio::*mpsc_enqueue

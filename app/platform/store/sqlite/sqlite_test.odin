@@ -194,6 +194,10 @@ read_count :: proc() -> int {
 
 @(private = "file")
 reads_and_writes :: proc(t: ^testing.T) {
+	// The loop goes last: the writer can still be waking it after its last reply ran, and close()
+	// joins the writer (a test's loop never joins workers' gate). ThreadSanitizer caught the free.
+	testing.expect_value(t, nbio.acquire_thread_event_loop(), nil)
+	defer nbio.release_thread_event_loop()
 	testing.expect_value(t, open_db(":memory:", .Ephemeral, "test"), "")
 	defer close()
 	testing.expect_value(t, apply("items", ITEMS[:]), "")
@@ -228,8 +232,6 @@ reads_and_writes :: proc(t: ^testing.T) {
 	reset(read(SQL_PAGE))
 
 	// Group commit: seven writes from this loop; each answers as it would alone.
-	testing.expect_value(t, nbio.acquire_thread_event_loop(), nil)
-	defer nbio.release_thread_event_loop()
 	results := make([dynamic]store.Error)
 	defer delete(results)
 	queue :: proc(run: proc(op: ^store.Op), name: string, id: i64, results: ^[dynamic]store.Error) -> bool {

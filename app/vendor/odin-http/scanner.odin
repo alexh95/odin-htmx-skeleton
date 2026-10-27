@@ -1,7 +1,6 @@
 #+private
 package http
 
-import "core:mem/virtual"
 import "base:intrinsics"
 
 import "core:bufio"
@@ -286,7 +285,7 @@ scanner_timed_out :: proc(s: ^Scanner) {
 	// the answer: `_body_length` marks the body read before scanning it, so the response path alone
 	// would keep it alive and read the rest as the next request.
 	if s.phase == .Body { connection_set_state(s.connection, .Will_Close) }
-	context.temp_allocator = virtual.arena_allocator(&s.connection.temp_allocator)
+	context.temp_allocator = conn_arena_allocator(&s.connection.temp_allocator)
 	s._err = .EOF
 	scanner_scan(s, s.user_data, s.callback)
 }
@@ -300,7 +299,7 @@ scanner_on_read :: proc(op: ^nbio.Operation, s: ^Scanner) {
 }
 
 _scanner_on_read :: proc(op: ^nbio.Operation, s: ^Scanner) {
-	context.temp_allocator = virtual.arena_allocator(&s.connection.temp_allocator)
+	context.temp_allocator = conn_arena_allocator(&s.connection.temp_allocator)
 
 	defer scanner_scan(s, s.user_data, s.callback)
 

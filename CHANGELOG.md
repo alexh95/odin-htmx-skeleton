@@ -94,6 +94,10 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   `guard.register_drill_handler`), `streamdrain` (500 SSE + 500 WebSocket clients and the slow, half-sent and idle
   peers: exit 0 within 6 s, 1012 and `retry:` for each) and `streamfd` (Linux: 3000 SSE streams under `ulimit -n
   4096`, `/livez` within 100 ms).
+- **The TSan gate** (`sh tools/drills/tsan.sh`, Linux; PLAN §19.2.1): a `-sanitize:thread` build of the hub's,
+  stream's, workers' and store/sqlite's tests, of lab under 200 SSE + 200 WebSocket clients and 200 publishes, and of
+  skeleton under k6's `write` and `pages`, each through its drain; any report fails it. One suppression, core:nbio's
+  mpsc assert (`tools/drills/tsan.supp`, S0.9). 0 reports.
 - **`tools/profile`** (M1's profile follow-up): `sh tools/profile/profile.sh <profile> <scenario> [--spall]` on
   Linux records the server under k6 with perf and writes the samples, folded stacks and the 30 heaviest functions
   (an SVG too, with FlameGraph's scripts), and with `--spall` builds a scratch copy with an instrumentation hook
@@ -114,6 +118,9 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
 - **An open stream holds 3 KiB, not 16** (the fork's F-17): its receive buffer is sized by kind, the scanner's buffer
   goes back at `stream_begin`, and the connection's arena once the handler returns. 4000 idle SSE streams took 68 MB
   over idle; now 12 MB (WS 20 MB), inside §18.4's 6 KiB a stream.
+- **A ThreadSanitizer build gives each connection a heap-backed arena** (the fork's F-22): TSan doesn't see
+  core:mem/virtual's raw `mmap`/`munmap`, so pages unmapped by one loop and mapped again by another read as a race
+  on every reuse (about a hundred false reports a run). Every other build keeps `virtual.Arena`.
 - **A WebSocket handshake under a placeholder origin** (a dev run with no `SITE_URL`) accepts an `Origin` naming
   the request's own `Host`, so a local run's pages can open their sockets; a deployment keeps the strict
   comparison with `SITE_URL` (D12 as built).
@@ -148,6 +155,11 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
 - **An SSE stream gets its `retry:` event at a drain** (PLAN §8.7 step 3): `retry: 500–3000` (per client), as a named
   event, so the reconnects after a deploy spread out. The platform sent nothing there; the drills' `streamdrain` phase
   found it.
+- **A shutdown never wakes a loop that has gone** (the fork's F-21). `server_shutdown` woke each loop from the main
+  thread while the loops shut themselves down: it could write to a released loop's eventfd (freed, the descriptor maybe
+  reused), and `serve` could free the threads under it. Now a loop about to release, and `serve` about to free, wait
+  out the calls in progress, without a lock (it may run in a signal handler). store/sqlite's group-commit test released
+  its loop before joining the writer that was still waking it. ThreadSanitizer found both (M2's gate).
 - **A request that follows a stream on its keep-alive connection is read whole** (the fork's F-18). The stream's read,
   kept to notice the peer leaving, could take the start of the next request, which a client sends the moment the last
   chunk lands, and drop it: the server read that request from its middle (a 501) or waited for one already gone.

@@ -8,7 +8,7 @@ import "core:c/libc"
 import "core:fmt"
 import "core:log"
 import "core:mem"
-import "core:mem/virtual"
+@(require) import "core:mem/virtual" // used only outside -sanitize:thread (F-22)
 import "core:nbio"
 import "core:net"
 import "core:os"
@@ -141,6 +141,13 @@ Server :: struct {
 	// F-8: open connections across all threads, and the cap derived from the options.
 	conn_count:     int,
 	max_conns:      int,
+
+	// F-21: server_shutdown wakes every loop from another thread, maybe a signal handler, so not under
+	// a lock: `shutdowns` (atomic) counts the calls in progress, and a loop about to be released
+	// (Server_Thread.released) or serve about to free the threads (`freeing`, atomic) waits them out.
+	// Upstream woke loops that had already been released, and read `threads` while serve freed it.
+	shutdowns:      int,
+	freeing:        bool,
 }
 
 Server_Thread :: struct {
@@ -162,6 +169,9 @@ Server_Thread :: struct {
 	// responses not yet resumed (shutdown waits for them).
 	next_gen:   u64,
 	deferred:   int,
+
+	// F-21: set (atomic) just before the loop is released; `event_loop` is stored atomically too.
+	released:   bool,
 
 	// free_temp_blocks:       map[int]queue.Queue(^Block),
 	// free_temp_blocks_count: int,
@@ -262,6 +272,8 @@ serve :: proc(s: ^Server, h: Handler) -> (err: net.Network_Error) {
 
 	net.shutdown(s.tcp_sock, .Both)
 	net.close(s.tcp_sock)
+	sync.atomic_store(&s.freeing, true)
+	for sync.atomic_load(&s.shutdowns) > 0 { sync.cpu_relax() }
 	for t in s.threads[1:] { thread.destroy(t.thread) }
 	delete(s.threads)
 
@@ -290,7 +302,7 @@ _server_thread_init :: proc(s: ^Server, ttd: ^Server_Thread) {
 		assert(err == nil)
 	}
 
-	td.event_loop = nbio.current_thread_event_loop()
+	sync.atomic_store(&td.event_loop, nbio.current_thread_event_loop())
 
 	if s.opts.on_thread_init != nil { s.opts.on_thread_init(s, td.index) }
 
@@ -345,9 +357,13 @@ SHUTDOWN_FINAL_WAIT :: time.Millisecond * 500
 // 4. Close the main socket.
 // 5. Signal 'server_start' it can return.
 server_shutdown :: proc(s: ^Server) {
+	sync.atomic_add(&s.shutdowns, 1)
+	defer sync.atomic_sub(&s.shutdowns, 1)
 	atomic_store(&s.closing, true)
-	for t in s.threads {
-		nbio.wake_up(t.event_loop)
+	if sync.atomic_load(&s.freeing) { return }
+	for &t in s.threads {
+		l := sync.atomic_load(&t.event_loop)
+		if l != nil && !sync.atomic_load(&t.released) { nbio.wake_up(l) }
 	}
 }
 
@@ -427,6 +443,8 @@ _server_thread_shutdown :: proc(s: ^Server, loc := #caller_location) {
 		nbio.tick(SHUTDOWN_INTERVAL)
 	}
 	if s.opts.on_thread_release != nil { s.opts.on_thread_release(s, td.index) }
+	sync.atomic_store(&td.released, true)
+	for sync.atomic_load(&s.shutdowns) > 0 { sync.cpu_relax() }
 	nbio.release_thread_event_loop()
 
 	td.state = .Closed
@@ -506,13 +524,51 @@ connection_set_state :: proc(c: ^Connection, s: Connection_State) -> bool {
 	return true
 }
 
+// F-22: under -sanitize:thread a connection's arena is the runtime's, on the heap. ThreadSanitizer
+// doesn't see core:mem/virtual's raw mmap and munmap, so pages one loop unmapped and another mapped
+// again read as a race on every reuse (about a hundred reports a run); malloc and free it sees.
+when .Thread in ODIN_SANITIZER_FLAGS {
+	Conn_Arena :: runtime.Arena
+
+	conn_arena_allocator :: runtime.arena_allocator
+
+	// The runtime arena's first block is otherwise 4 MiB; a connection's request needs a few KiB.
+	@(private)
+	conn_arena_init :: proc(a: ^Conn_Arena) {
+		a^ = {minimum_block_size = 16 * mem.Kilobyte}
+	}
+
+	@(private)
+	conn_arena_destroy :: proc(a: ^Conn_Arena) {
+		runtime.arena_destroy(a)
+		conn_arena_init(a)
+	}
+} else {
+	Conn_Arena :: virtual.Arena
+
+	conn_arena_allocator :: virtual.arena_allocator
+
+	@(private)
+	conn_arena_init :: proc(a: ^Conn_Arena) {
+		err := virtual.arena_init_growing(a)
+		assert(err == nil)
+	}
+
+	// A zero arena is a growing one that maps its first block on first use (F-17).
+	@(private)
+	conn_arena_destroy :: proc(a: ^Conn_Arena) {
+		virtual.arena_destroy(a)
+		a^ = {}
+	}
+}
+
 // TODO/PERF: pool the connections, saves having to allocate scanner buf and temp_allocator every time.
 Connection :: struct {
 	server:         ^Server,
 	socket:         net.TCP_Socket,
 	state:          Connection_State,
 	scanner:        Scanner,
-	temp_allocator: virtual.Arena,
+	temp_allocator: Conn_Arena,
 	loop:           Loop,
 	stream:         ^Stream,
 	// F-13: this request's generation (unique per thread), and its deferred response, if any.
@@ -565,8 +621,7 @@ connection_close :: proc(c: ^Connection, loc := #caller_location) {
 
 			c.state = .Closed
 
-			// allocator_destroy(&c.temp_allocator)
-			virtual.arena_destroy(&c.temp_allocator)
+			conn_arena_destroy(&c.temp_allocator)
 
 			scanner_destroy(&c.scanner)
 			delete_key(&td.conns, c.socket)
@@ -713,11 +768,8 @@ conn_handle_reqs :: proc(c: ^Connection) {
 	// TODO/PERF: not sure why this is allocated on the connections allocator, can't it use the arena?
 	scanner_init(&c.scanner, c, c.server.conn_allocator)
 
-	// allocator_init(&c.temp_allocator, c.server.conn_allocator)
-	// context.temp_allocator = allocator(&c.temp_allocator)
-	err := virtual.arena_init_growing(&c.temp_allocator)
-	assert(err == nil)
-	context.temp_allocator = virtual.arena_allocator(&c.temp_allocator)
+	conn_arena_init(&c.temp_allocator)
+	context.temp_allocator = conn_arena_allocator(&c.temp_allocator)
 
 	conn_handle_req(c, context.temp_allocator)
 }
@@ -877,13 +929,10 @@ conn_handle_req :: proc(c: ^Connection, allocator := context.temp_allocator) {
 
 			l.conn.server.handler.handle(&l.conn.server.handler, &l.req, &l.res)
 			// F-17: the handler began a stream and has returned, so nothing reads this request
-			// again: its arena's pages go back. A zero arena is a growing one that maps its first
-			// block on first use (re-initialising it would touch a page now), so a chunked stream
-			// that ends serves the next request from it (clean_request_loop).
-			if l.conn.stream != nil {
-				virtual.arena_destroy(&l.conn.temp_allocator)
-				l.conn.temp_allocator = {}
-			}
+			// again: its arena's pages go back. The destroyed arena maps its first block on first
+			// use (re-initialising it would touch a page now), so a chunked stream that ends serves
+			// the next request from it (clean_request_loop).
+			if l.conn.stream != nil { conn_arena_destroy(&l.conn.temp_allocator) }
 		}
 	}
 
