@@ -95,7 +95,7 @@ events :: proc(req: ^web.Request, res: ^web.Response) {
 	join_loop()
 	snapshot := h.seq
 	for i in 0 ..< n {
-		r := h.rings[want[i].topic]
+		r := h.rings.by_topic[want[i].topic]
 		switch {
 		case given == "":
 			how[i] = .Live
@@ -114,10 +114,11 @@ events :: proc(req: ^web.Request, res: ^web.Response) {
 
 	// A backlog within the stream's budget: a replay past the queue cap closed the stream as
 	// too slow, and every reconnect asked for the same replay again (M2-03). Past it the
-	// ring's replay is dropped and those topics resync, which refetches the fragment.
+	// ring's replay is dropped and those topics resync, which refetches the fragment. Counted
+	// as the stream is sent it, SSE frames, not HTML (M2-23).
 	budget := stream.backlog_budget()
 	backlog := 0
-	for m in replay { backlog += len(m.html) }
+	for m in replay { backlog += stream.sse_size(cursor(m.seq), "", m.html) }
 	if backlog > budget {
 		for m in replay { release(m) }
 		clear(&replay)
@@ -156,7 +157,7 @@ events :: proc(req: ^web.Request, res: ^web.Response) {
 			_, key := split_topic(want[i].topic)
 			ok := rows[i].replay(key, want[i].rowid, &items)
 			size := 0
-			for it in items { size += len(it.html) }
+			for it, j in items { size += stream.sse_size(now if j == len(items) - 1 else "", "", it.html) }
 			if !ok || backlog + size > budget { // within the budget, as the ring's above
 				how[i] = .Resync
 			} else {

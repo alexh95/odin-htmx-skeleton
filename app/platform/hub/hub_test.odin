@@ -1,5 +1,6 @@
 package hub
 
+import "core:fmt"
 import "core:strings"
 import "core:testing"
 import "core:thread"
@@ -99,8 +100,8 @@ sample_ring_keeps_one_and_owes_nothing :: proc(t: ^testing.T) {
 // `free(): invalid pointer`, M2). The sweep then frees the idle rings and only those.
 @(test)
 rings_keep_their_own_topics :: proc(t: ^testing.T) {
-	rings := make(map[string]^Ring)
-	defer delete(rings)
+	rings := Rings{by_topic = make(map[string]^Ring)}
+	defer delete(rings.by_topic)
 	out: [dynamic]^Msg
 	defer delete(out)
 	first := strings.clone("lab.feed:a")
@@ -109,22 +110,25 @@ rings_keep_their_own_topics :: proc(t: ^testing.T) {
 	again := strings.clone("lab.feed:a")
 	testing.expect(t, ring_for(&rings, again, .Queue, 2, 1 << 20, 0, context.allocator) == r)
 	delete(again)
-	testing.expect_value(t, len(rings), 1)
+	testing.expect_value(t, len(rings.by_topic), 1)
 
 	b := ring_for(&rings, "lab.feed:b", .Queue, 2, 1 << 20, 0, context.allocator)
 	c := ring_for(&rings, "lab.feed:c", .Queue, 2, 1 << 20, 0, context.allocator)
-	r.last_ns, b.last_ns, c.last_ns = 0, 30, 100
+	ring_touch(&rings, r, 0)
+	ring_touch(&rings, b, 30)
+	ring_touch(&rings, c, 100)
 	ring_add(b, msg(7, "b"), &out)
 	floor, freed := ring_sweep(&rings, 100, 60, &out, context.allocator) // a and b idle for 60
 	testing.expect_value(t, floor, 7)
 	testing.expect_value(t, freed, 1)
-	testing.expect_value(t, len(rings), 1)
-	testing.expect(t, rings["lab.feed:c"] == c)
+	testing.expect_value(t, len(rings.by_topic), 1)
+	testing.expect(t, rings.by_topic["lab.feed:c"] == c && rings.oldest == c && rings.newest == c)
 	expect_seqs(t, out[:], {7})
 	for m in out { free(m) }
 	clear(&out)
 	_, _ = ring_sweep(&rings, 1000, 60, &out, context.allocator)
-	testing.expect_value(t, len(rings), 0)
+	testing.expect_value(t, len(rings.by_topic), 0)
+	testing.expect(t, rings.oldest == nil && rings.newest == nil)
 
 	// Made again after the sweep (floor 7), the ring vouches for no cursor below what the sweep let
 	// go: one from before it resyncs instead of replaying across the gap (M2-04).
@@ -135,34 +139,73 @@ rings_keep_their_own_topics :: proc(t: ^testing.T) {
 }
 
 // Past the rings' total budget the one published to longest ago goes whole, never the one
-// being published to, and the floor it reached comes back (M2-07).
+// being published to, and the floor it reached comes back (M2-07). Longest ago by publish,
+// not by making: `a`, made first, was published to since (M2-24).
 @(test)
 the_oldest_ring_goes_past_the_total_budget :: proc(t: ^testing.T) {
-	rings := make(map[string]^Ring)
-	defer delete(rings)
+	rings := Rings{by_topic = make(map[string]^Ring)}
+	defer delete(rings.by_topic)
 	out: [dynamic]^Msg
 	defer delete(out)
 	a := ring_for(&rings, "lab.feed:a", .Queue, 8, 1 << 20, 0, context.allocator)
 	b := ring_for(&rings, "lab.feed:b", .Queue, 8, 1 << 20, 0, context.allocator)
-	a.last_ns, b.last_ns = 10, 20
+	ring_touch(&rings, a, 10)
+	ring_touch(&rings, b, 20)
 	ring_add(a, msg(3, "a", "xyz"), &out)
 	ring_add(b, msg(4, "b", "xy"), &out)
-	floor, freed, ok := ring_evict_oldest(&rings, b, &out, context.allocator)
-	testing.expect(t, ok && floor == 3 && freed == 3)
-	testing.expect(t, rings["lab.feed:a"] == nil && rings["lab.feed:b"] == b)
-	_, _, ok = ring_evict_oldest(&rings, b, &out, context.allocator)
+	ring_touch(&rings, a, 30)
+	floor, freed, ok := ring_evict_oldest(&rings, a, &out, context.allocator)
+	testing.expect(t, ok && floor == 4 && freed == 2)
+	testing.expect(t, rings.by_topic["lab.feed:b"] == nil && rings.by_topic["lab.feed:a"] == a)
+	_, _, ok = ring_evict_oldest(&rings, a, &out, context.allocator)
 	testing.expect(t, !ok) // only the one being published to is left
 	_, _ = ring_sweep(&rings, max(i64), 0, &out, context.allocator)
 	for m in out { free(m) }
 }
 
+// One test for what runs on the hub's own state, `h`: the runner's threads would share it.
+@(test)
+the_hub :: proc(t: ^testing.T) {
+	an_inbox_holds_two_publishers_in_sequence_order(t)
+	every_ring_costs_its_overhead(t)
+}
+
+// A ring costs RING_OVERHEAD against the total budget as well as its messages: one-byte
+// messages to ever new topics keep only as many rings as that allows, the newest (M2-24).
+@(private = "file")
+every_ring_costs_its_overhead :: proc(t: ^testing.T) {
+	h.rings.by_topic = make(map[string]^Ring, heap())
+	h.ring_cap, h.ring_bytes, h.rings_max = 256, 1 << 20, 8 * RING_OVERHEAD
+	defer {
+		out := make([dynamic]^Msg, heap())
+		_, _ = ring_sweep(&h.rings, max(i64), 0, &out, heap())
+		for m in out { release(m) }
+		delete(out)
+		delete(h.rings.by_topic)
+		h = {}
+	}
+	publish_new_topics :: proc() {
+		for i in 0 ..< 100 {
+			topic := strings.concatenate({"lab.feed:k", fmt.tprint(i)}, context.temp_allocator)
+			post(new_msg(.Html, .Queue, topic, topic, "x"), 0)
+		}
+	}
+	// On a thread of its own, as the publishers below are: obs keeps a counter block per thread.
+	th := thread.create_and_start(publish_new_topics)
+	thread.join(th)
+	thread.destroy(th)
+	testing.expect(t, len(h.rings.by_topic) <= 8)
+	testing.expect(t, h.rings_held + len(h.rings.by_topic) * RING_OVERHEAD <= h.rings_max)
+	testing.expect_value(t, h.rings.newest.topic, "lab.feed:k99")
+}
+
 // Two publishers on two threads into one subscriber's inbox: it holds their messages in
 // sequence order, so `deliver`, which skips what is at or below the newest it wrote, drops
 // none of them (M2-02: appended after the hub mutex, they crossed and the lower one dropped).
-@(test)
+@(private = "file")
 an_inbox_holds_two_publishers_in_sequence_order :: proc(t: ^testing.T) {
 	N :: 2000
-	h.rings = make(map[string]^Ring, heap())
+	h.rings.by_topic = make(map[string]^Ring, heap())
 	h.inboxes.allocator = heap()
 	h.ring_cap, h.ring_bytes = 256, 1 << 20
 	b := new(Inbox, heap())
@@ -178,7 +221,7 @@ an_inbox_holds_two_publishers_in_sequence_order :: proc(t: ^testing.T) {
 		_, _ = ring_sweep(&h.rings, max(i64), 0, &out, heap())
 		for m in out { release(m) }
 		delete(out)
-		delete(h.rings)
+		delete(h.rings.by_topic)
 		delete(h.inboxes)
 		h = {}
 	}

@@ -42,6 +42,11 @@ import "../web"
 import "../workers"
 
 MAX_MESSAGE :: 64 * 1024 // §9.4: publish refuses a larger one
+
+// What a ring costs beyond its messages, about: its struct, its topic, its map slot and its
+// array's first block. Counted against HUB_RINGS_BYTES, or a million one-byte rings fit it
+// (M2-24).
+RING_OVERHEAD :: 512
 MAX_TOPICS  :: 8         // per subscription
 RING_TTL    :: 10 * time.Minute // a topic with no publish for this long lets its ring go
 
@@ -120,7 +125,7 @@ h: struct {
 	epoch:      u64,
 	seq:        u64,
 	inboxes:    [dynamic]^Inbox,
-	rings:      map[string]^Ring,
+	rings:      Rings,
 	floor:      u64, // the newest seq of a ring the idle sweep let go
 	since_sweep: int,
 	ring_cap:   int,
@@ -154,7 +159,7 @@ init :: proc() {
 	h.ring_cap = max(1, env.int_("HUB_RING"))
 	h.ring_bytes = env.size("HUB_RING_BYTES")
 	h.rings_max = max(h.ring_bytes, env.size("HUB_RINGS_BYTES"))
-	h.rings = make(map[string]^Ring, heap())
+	h.rings.by_topic = make(map[string]^Ring, heap())
 	h.hosts = make(map[string][]Topic, heap())
 	h.families = make(map[string]^Topic, heap())
 	h.inboxes.allocator = heap()
@@ -208,7 +213,10 @@ cursor :: proc(seq: u64, allocator := context.temp_allocator) -> string {
 publish :: proc(topic, html: string, rowid: i64 = 0, key := "") -> u64 {
 	family, _ := split_topic(topic)
 	row := h.families[family]
-	if row == nil || len(html) > MAX_MESSAGE || web.is_closing() {
+	// Sent as SSE at worst, a message framed past the backlog budget could be neither replayed
+	// nor, near the queue cap, delivered: 60,000 line feeds closed every subscriber as too slow,
+	// and every reconnect again (M2-23).
+	if row == nil || len(html) > MAX_MESSAGE || stream.sse_size("", "", html) > stream.backlog_budget() || web.is_closing() {
 		obs.inc(h.dropped)
 		return 0
 	}
@@ -264,13 +272,13 @@ post :: proc(m: ^Msg, ring_cap: int) -> u64 {
 		m.seq = h.seq
 		m.refs += 1
 		r := ring_for(&h.rings, m.topic, m.policy, ring_cap, h.ring_bytes, h.floor, heap())
-		r.last_ns = sys.mono_ns()
+		ring_touch(&h.rings, r, sys.mono_ns())
 		before := r.bytes
 		ring_add(r, m, &out)
 		h.rings_held += r.bytes - before
 		// Every topic's ring in all, within its budget: a public publisher could otherwise fill
 		// ring after ring until the process ran out of memory (M2-07).
-		for h.rings_held > h.rings_max {
+		for h.rings_held + len(h.rings.by_topic) * RING_OVERHEAD > h.rings_max {
 			floor, freed, ok := ring_evict_oldest(&h.rings, r, &out, heap())
 			if !ok { break }
 			h.floor = max(h.floor, floor)
