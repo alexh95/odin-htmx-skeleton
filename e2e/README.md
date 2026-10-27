@@ -26,6 +26,15 @@ drain-and-restart check needs a graceful stop, which a Windows child gets only f
 Specs that never open a page (each talks HTTP, to the worker's server or its own) form the `api`
 project in `playwright.config.ts`, so they run once rather than once per engine.
 
+**Through a proxy** (CI's `e2e-proxy` job, PLAN §20.1): `E2E_PROXY=http://odin-htmx-starter.alexh95.com`
+points the pages at a proxy in front of one server on `E2E_UPSTREAM_PORT` (8080, the port
+`deploy/Caddyfile` forwards to), in chromium, one worker; the server takes the proxy's origin as its
+own and listens beyond loopback, so a proxy in a container reaches it. The names are the real hosts', so
+global-setup refuses to start unless the proxy's host resolves to this machine (a hosts-file line), and
+a taken upstream port stops the run too (another server would answer for the suite). Node-side clients
+still talk to the server direct; `tests/lab/proxy.spec.ts`, which runs only here, checks what the proxy
+itself must do with streams.
+
 `global-setup.ts` builds the profile once through `../build.sh <profile>` (`build.bat` on Windows),
 which holds every flag (`-vet -strict-style -warnings-as-errors` and the further vet flags). It runs `prepare` first only
 when prepare's outputs are missing or don't match its pins, so a run needs `odin` (and its

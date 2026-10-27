@@ -30,6 +30,16 @@ function freePort(): Promise<number> {
   });
 }
 
+// Whether nothing listens on `port` on any interface: a fixed port (the proxy runs' upstream) taken by
+// another server would answer the health check in the suite's place.
+export function portFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const probe = net.createServer();
+    probe.once('error', () => resolve(false));
+    probe.listen(port, '0.0.0.0', () => probe.close(() => resolve(true)));
+  });
+}
+
 // The env is pinned, not inherited: the server prefers PORT over argv, and an
 // exported DB_PATH would aim the suite's deletes at a real database. An empty
 // BIND_ALL/SITE_URL reads as unset, so the server stays on loopback with its

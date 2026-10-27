@@ -1,0 +1,77 @@
+# The stack Caddy (PLAN §20.4, D41, RESOLUTIONS X23, X31, X39): one container in front of every hosted
+# profile's, routing by Host, published as 8120:80. NPM terminates TLS for *.alexh95.com and forwards here.
+# Blocks are multi-line only: Caddy's lexer rejects tokens after `{` on the same line.
+#
+# CI's e2e-proxy job runs this file as it is (the hosts resolved to the runner in /etc/hosts), so what the
+# suite passes through is what apollo serves.
+{
+	auto_https off
+	servers {
+		# X39: the one trusted proxy is the gateway of the stack's own Docker network (172.31.120.0/24, which
+		# deploy/compose.yaml pins from M3), where NPM's traffic arrives from: Docker masquerades it there.
+		trusted_proxies static 172.31.120.1/32
+		trusted_proxies_strict
+	}
+}
+
+(app) {
+	reverse_proxy {args[0]}:8080 {
+		header_up X-Real-IP {client_ip}
+		lb_try_duration 10s
+		health_uri /livez
+		health_interval 5s
+		stream_close_delay 5m
+		flush_interval -1
+	}
+}
+
+# A path on the starter's own host that names another profile: bare and deep (D25).
+(alias) {
+	redir /{args[0]} {args[1]}/ 302
+	handle /{args[0]}/* {
+		route {
+			uri strip_prefix /{args[0]}
+			redir {args[1]}{uri} 302
+		}
+	}
+}
+
+http://houston.alexh95.com {
+	import app starter-full
+}
+
+# Houston's session-free lab host (ANSWERS F2): the same container; the app answers it from its own route table.
+http://houston-lab.alexh95.com {
+	import app starter-full
+}
+
+http://odin-htmx-starter.alexh95.com {
+	import alias full https://houston.alexh95.com
+	import alias minimal https://starter-minimal.alexh95.com
+	import alias streams https://starter-streams.alexh95.com
+	import alias skeleton https://odin-htmx.alexh95.com
+	handle {
+		import app starter-lab
+	}
+}
+
+http://starter-minimal.alexh95.com {
+	import app starter-minimal
+}
+
+http://starter-streams.alexh95.com {
+	import app starter-streams
+}
+
+http://starter-skeleton.alexh95.com {
+	import app starter-skeleton
+}
+
+http://htmx-odin-starter.alexh95.com {
+	redir https://odin-htmx-starter.alexh95.com{uri} 301
+}
+
+# X23: the catch-all for a request without a known host (a bare IP, a typo).
+:80 {
+	respond "Unknown host: use a host name (docs/OPS.md)" 421
+}

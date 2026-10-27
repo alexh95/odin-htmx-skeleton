@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, test } from '../../fixtures';
+import { expect, proxyNoise, test } from '../../fixtures';
 
 // htmx 4's two compatibility extensions, each on its own page and bundle (PLAN §12.3; research
 // 04 §5.15, §5.16). htmx-2-compat puts htmx 2's semantics back on its page only: error
@@ -9,7 +9,7 @@ import { expect, test } from '../../fixtures';
 async function watch(page: Page) {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('console', (m) => { if (m.type() === 'error' && !proxyNoise(m.text())) errors.push(m.text()); });
   await page.addInitScript(() => {
     const w = window as any;
     w.__csp = [];

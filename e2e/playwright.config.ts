@@ -15,16 +15,20 @@ const ENGINES = ['skeleton', 'lab'].includes(PROFILE) ? ['chromium', 'firefox', 
   : PROFILE === 'streams' ? ['chromium', 'webkit'] : ['chromium'];
 const DEVICE: Record<string, string> = { chromium: 'Desktop Chrome', firefox: 'Desktop Firefox', webkit: 'Desktop Safari' };
 
+// E2E_PROXY (CI's e2e-proxy job, PLAN §20.1): the pages go through a proxy in front of one server
+// on a fixed port, so one worker, in chromium; the browser-less specs need no proxy and don't run.
+const PROXY = process.env.E2E_PROXY || '';
+
 // global-setup builds the binary once; each worker spawns its own server on its
 // own port (see fixtures.ts) with an isolated in-memory store — so the suite
 // runs fully in parallel across workers and the three browser engines.
 export default defineConfig({
   testDir: './tests',
-  fullyParallel: true,
+  fullyParallel: !PROXY,
   // Playwright defaults to ~half the cores; on a small CI runner that's near-
   // serial. Use one worker per core there (CI shards the engines across runners,
   // so each runner handles a single engine). Locally, use the core-based default.
-  workers: process.env.CI ? '100%' : undefined,
+  workers: PROXY ? 1 : process.env.CI ? '100%' : undefined,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : [['list']],
@@ -33,7 +37,7 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
-  projects: [
+  projects: PROXY ? [{ name: 'chromium', testIgnore: API_ONLY, use: { ...devices[DEVICE.chromium] } }] : [
     ...ENGINES.map((name) => ({ name, testIgnore: API_ONLY, use: { ...devices[DEVICE[name]] } })),
     { name: 'api', testMatch: API_ONLY },
   ],

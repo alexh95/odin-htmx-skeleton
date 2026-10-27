@@ -39,10 +39,14 @@ new_project :: proc(s: Selection, opt: Options) -> Profile_Text {
 	set_ols(s)
 	default_profile(s)
 	trim_ci(s, names[:])
-	// The TSan gate and the soak build the template's lab and skeleton, which a project doesn't keep.
-	drop_job(".github/workflows/nightly.yml", "tsan")
-	drop_job(".github/workflows/nightly.yml", "soak")
-	for f in ([]string{"tools/drills/tsan.sh", "tools/drills/tsan.supp", "tools/drills/soak.sh"}) { remove(f) }
+	// The TSan gate, the soak and the Autobahn run build the template's lab and skeleton, which a
+	// project doesn't keep.
+	for job in ([]string{"tsan", "soak", "autobahn"}) { drop_job(".github/workflows/nightly.yml", job) }
+	for f in ([]string{"tools/drills/tsan.sh", "tools/drills/tsan.supp", "tools/drills/soak.sh", "tests/autobahn/fuzzingclient.json"}) { remove(f) }
+	// The template's own: its catalog and the generator job that keeps it, and its hosting on apollo
+	// (the stack Caddyfile and the job that runs the lab through it and through NPM).
+	for job in ([]string{"generator", "e2e-proxy"}) { drop_job(".github/workflows/ci.yml", job) }
+	for f in ([]string{"docs/catalog.json", "deploy/Caddyfile", "tests/proxy/npm.conf"}) { remove(f) }
 	put("UPSTREAM.md", upstream_md(s, opt))
 	put("CHANGELOG.md", fmt.aprintf(
 		"# Changelog\n\nThis project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and\n[Semantic Versioning](https://semver.org/).\n\n## [Unreleased]\n\n### Added\n- **The project**, from %s (UPSTREAM.md): %s, on store=%s identity=%s client=%s theme=%s.\n",

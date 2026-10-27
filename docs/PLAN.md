@@ -4350,6 +4350,13 @@ Three tiers (02 §2.4):
 Beside the three tiers, from M2, a **nightly Autobahn|Testsuite run** points its fuzzing client at the lab's WS echo
 (RESOLUTIONS X24, **NEW**). It is a dev-time Docker image, exempt like Playwright and k6.
 
+**As built (M2):** `nightly.yml`'s `autobahn` job runs `crossbario/autobahn-testsuite` (pinned by digest) with
+`tests/autobahn/fuzzingclient.json` against `/lab/ws/echo` on a `-o:speed` lab: sections 1–7 and 10, leaving out 9
+(performance) and 12–13 (permessage-deflate, which the server doesn't offer). A case that isn't OK, NON-STRICT or
+INFORMATIONAL, or closes otherwise than OK or INFORMATIONAL, fails it. First run (WSL): 247 cases, 240 OK, 3
+INFORMATIONAL (7.1.6, 7.13.x), 4 NON-STRICT (6.4.1–6.4.4: invalid UTF-8 inside a fragmented message is refused when
+the message ends, not at the fragment that broke it), none failed.
+
 #### 19.1.10 Crash drills
 
 **As built (M1):** `node tools/drills/drills.mjs <profile> [phase …]` builds the profile twice through `build.*`, a
@@ -4537,6 +4544,23 @@ by the dev PC's drills (ANSWERS round 8). The nightly ASan workflow runs e2e and
 (RESOLUTIONS X40): apollo's NPM is older than the upstream v2.16.0 that D41 modelled, so `e2e-proxy` pins and models
 apollo's actual version, recorded in `docs/private/SITE.md` (§2.2). Upgrading NPM is Alex's optional step and never an
 agent's; if Alex upgrades it, the job's pin follows.
+
+**As built (M2):** `check`, `build`, `e2e` (three engines), `coverage` and `linux-ops` run `lab` too; `generator`
+checks `docs/catalog.json`, runs `odin test tools/init`, refuses a bad selection with nothing changed, and makes and
+verifies a rotating singleton. **`e2e-proxy`** runs the lab's specs in chromium through the stack Caddy, running
+`deploy/Caddyfile` as it is (its hosts in the runner's `/etc/hosts`, its upstreams the runner through `host-gateway`),
+and through NPM's nginx in front of that Caddy: `tests/proxy/npm.conf` is NPM's `nginx.conf` http block and the proxy
+host it renders, from the templates of the version apollo runs, with Websockets Support on and §20.4's Advanced
+snippet. The pin is that rendering, not the version named: the version is one of `docs/private/SITE.md`'s values,
+and the config carries what the job models (NPM's 90 s timeouts, `proxy_http_version 1.1` (2.12's, where X40 expected
+1.0), `Accept-Encoding ""` upstream, `gzip on`, `$host` without the port). The suite gained a proxy mode (`E2E_PROXY`,
+`E2E_UPSTREAM_PORT`): one worker, the pages through the proxy, the server on the fixed upstream port with the proxy's
+origin as its own, and global-setup refuses to run unless the proxy's host resolves to the machine, since the names
+are the real ones; `proxy.spec` holds that SSE and multipart arrive as written and uncompressed and a socket echoes.
+NPM's nginx consumes `X-Accel-Buffering`, as nginx does every `X-Accel-*`, so the header specs accept its absence
+behind NPM (which adds `X-Served-By`), and nginx listens on 80 as NPM does: its `$host` drops a port, which the
+browser's `Origin` would keep. Run locally in WSL: 84 passed through each. The nightly gained **Autobahn|Testsuite**
+(§19.1.9).
 - **The no-SQLite build** proves D18's claim only (no SQLite library, no C compile step). The linker stays (`clang` or
   `$ODIN_CLANG_PATH` on Linux and macOS, the MSVC/SDK libraries on Windows; 09 §6.1), so "no clang" is never a gate.
 - **UID 10001** is the skeleton's inherited assertion (`SK/.github/workflows/ci.yml:219`); spark's distroless default
@@ -4707,6 +4731,10 @@ http://htmx-odin-starter.alexh95.com {
 }
 ```
 
+- **As built (M2): `deploy/Caddyfile`** is this block whole, for the `e2e-proxy` job, which runs it as it is: one
+  `(alias)` snippet writes each bare and deep redirect pair (`/full`, `/minimal`, `/streams`, `/skeleton`), and
+  `trusted_proxies` names `172.31.120.1`, the gateway of `172.31.120.0/24`, the stack subnet `deploy/compose.yaml` pins
+  at M3. `caddy validate` passes on the pinned 2.11.7; the redirect aliases and the catch-all are proxy-config's (M3).
 - **UNVERIFIED (proxy-config CI job)**: the block is D41's with RESOLUTIONS X23, X31 and X39 applied. It needs Caddy 2.8
   or later (`trusted_proxies_strict`; `{args[0]}`, `{client_ip}` and `stream_close_delay` need 2.7), which the pinned
   2.11.7 meets (10 §8.1). The snippet shows the placeholder; the committed Caddyfile names the gateway of the subnet

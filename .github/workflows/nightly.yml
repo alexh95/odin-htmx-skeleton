@@ -1,7 +1,8 @@
 name: nightly
 
 # What's too slow or too noisy for every push (PLAN §19.2.1's nightly row). At M1:
-# ASan over the e2e suite and a k6 quick run, on Linux. At M2: TSan and the 1 h soak.
+# ASan over the e2e suite and a k6 quick run, on Linux. At M2: TSan, the 1 h soak and
+# Autobahn|Testsuite against the lab's WebSocket echo.
 # Windows ASan, libFuzzer and the combination matrices join with the milestones that need them.
 on:
   schedule:
@@ -115,3 +116,40 @@ jobs:
           name: soak
           path: app/build/soak/
 
+  # Autobahn|Testsuite's fuzzing client against the lab's WebSocket echo (PLAN §19.1.9,
+  # X24): framing, pings and pongs, reserved bits, opcodes, fragmentation, UTF-8, close
+  # handling (sections 1–7 and 10). 9 (performance) and 12–13 (permessage-deflate, which
+  # the server doesn't offer) are left out. A dev-time image, pinned by digest, exempt as
+  # Playwright and k6 are. A case that isn't OK, NON-STRICT or INFORMATIONAL fails it.
+  autobahn:
+    name: Autobahn|Testsuite (lab's WS echo)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-odin
+      - name: Prepare and build lab
+        run: sh app/prepare.sh && sh build.sh lab -o:speed
+      - name: Serve lab
+        run: |
+          STREAMS_PER_CLIENT=100000 STREAM_CONNECTS=100000 LOG_LEVEL=warn app/bin/lab 9001 > /tmp/lab.log 2>&1 &
+          for i in $(seq 1 100); do curl -fs http://127.0.0.1:9001/readyz >/dev/null && break; sleep 0.1; done
+      - name: The fuzzing client
+        run: |
+          mkdir -p /tmp/autobahn
+          docker run --rm --network host -v "$PWD/tests/autobahn:/config" -v /tmp/autobahn:/reports \
+            crossbario/autobahn-testsuite@sha256:519915fb568b04c9383f70a1c405ae3ff44ab9e35835b085239c258b6fac3074 \
+            wstest -m fuzzingclient -s /config/fuzzingclient.json
+      - name: Every case passes
+        run: |
+          jq -r '.lab | to_entries[] | select((.value.behavior | IN("OK", "NON-STRICT", "INFORMATIONAL") | not)
+            or (.value.behaviorClose | IN("OK", "INFORMATIONAL") | not))
+            | "\(.key) \(.value.behavior) close \(.value.behaviorClose)"' /tmp/autobahn/index.json > /tmp/failed.txt
+          echo "$(jq '.lab | length' /tmp/autobahn/index.json) cases, $(wc -l < /tmp/failed.txt) failed"
+          cat /tmp/failed.txt
+          test ! -s /tmp/failed.txt
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: autobahn
+          path: /tmp/autobahn/

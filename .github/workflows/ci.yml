@@ -268,6 +268,56 @@ jobs:
           path: app/build/coverage/e2e/${{ matrix.profile }}/*.prom
           retention-days: 7
 
+  # The lab's pages through the proxies apollo puts in front of it (PLAN §20.1, §20.4;
+  # RESOLUTIONS X26, X40): the stack Caddy running deploy/Caddyfile as it is, and NPM's
+  # nginx (tests/proxy/npm.conf, as the NPM version apollo runs renders its proxy host)
+  # in front of that Caddy. The Caddyfile names the real hosts, so /etc/hosts sends them
+  # to this runner, and global-setup refuses to run if they resolve anywhere else. The
+  # pages go through the proxy; proxy.spec checks streams arrive as written, raw.
+  # A host runner, not Playwright's image: the proxies are containers beside it.
+  e2e-proxy:
+    name: E2E through ${{ matrix.proxy }} (lab, chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { proxy: caddy, url: 'http://odin-htmx-starter.alexh95.com:8120' }
+          - { proxy: npm, url: 'http://odin-htmx-starter.alexh95.com' }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-odin
+      - name: The stack's hosts, on this runner
+        run: |
+          for h in odin-htmx-starter houston houston-lab starter-minimal starter-streams starter-skeleton htmx-odin-starter; do
+            echo "127.0.0.1 $h.alexh95.com" | sudo tee -a /etc/hosts
+          done
+      - name: The stack Caddy (deploy/Caddyfile), forwarding to this runner
+        run: |
+          hosts=""
+          for s in starter-full starter-lab starter-minimal starter-streams starter-skeleton; do hosts="$hosts --add-host $s:host-gateway"; done
+          docker run -d --name caddy -p 8120:80 $hosts -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
+      - name: NPM's nginx, in front of the Caddy
+        if: matrix.proxy == 'npm'
+        run: |
+          docker run -d --name npm --network host --entrypoint nginx -v "$PWD/tests/proxy/npm.conf:/etc/nginx/npm.conf:ro" \
+            nginx@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de -g 'daemon off;' -c /etc/nginx/npm.conf
+      - name: Install e2e deps and chromium
+        run: cd e2e && npm ci && npx playwright install --with-deps chromium
+      - name: Run e2e (lab) through the proxy
+        run: cd e2e && npx playwright test
+        env:
+          CI: 'true'
+          E2E_PROFILE: lab
+          E2E_PROXY: ${{ matrix.url }}
+      - name: The proxies' logs
+        if: failure()
+        run: |
+          docker logs caddy 2>&1 | tail -50
+          docker logs npm 2>&1 | tail -50 || true
+
   # Route coverage (PLAN §19.1.11): the k6 quick run of each profile, then every
   # route needs a non-zero counter from it and from e2e, or a waiver with a reason
   # in tests/parity-waivers.txt. Not a performance gate: shared runners measure

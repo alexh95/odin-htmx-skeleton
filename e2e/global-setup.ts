@@ -1,6 +1,7 @@
 import type { FullConfig } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
+import { lookup } from 'node:dns/promises';
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -54,8 +55,18 @@ function prepared(appDir: string): boolean {
 // Build the binary once, before any worker starts. Each worker then spawns its
 // own copy on its own port (see fixtures.ts), so the in-memory stores are
 // isolated and the suite can run fully in parallel.
-export default function globalSetup(config: FullConfig) {
+export default async function globalSetup(config: FullConfig) {
   const appDir = appDirFrom(config);
+
+  // E2E_PROXY names the deployed hosts (the stack Caddyfile's), so the suite would send its writes
+  // to the real site unless this machine resolves the host to itself (CI's /etc/hosts lines).
+  if (process.env.E2E_PROXY) {
+    const host = new URL(process.env.E2E_PROXY).hostname;
+    const { address } = await lookup(host);
+    if (address !== '127.0.0.1' && address !== '::1') {
+      throw new Error(`[global-setup] E2E_PROXY's host ${host} resolves to ${address}, not this machine: add "127.0.0.1 ${host}" to the hosts file`);
+    }
+  }
 
   mkdirSync(path.join(appDir, 'bin'), { recursive: true });
   // prepare runs only when there's work for it: prepare.bat refuses to start

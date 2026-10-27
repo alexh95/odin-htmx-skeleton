@@ -1,6 +1,6 @@
 import { test as base, expect } from '@playwright/test';
 import path from 'node:path';
-import { startServer, stopServer, type Server } from './helpers/server';
+import { portFree, startServer, stopServer, type Server } from './helpers/server';
 
 // The profile under test as its binary describes itself (`--features --json`,
 // read once by global-setup.ts): the features it mounts and the member of each
@@ -21,6 +21,18 @@ export function has(tag: string): boolean {
 }
 
 const TESTS = path.join(__dirname, 'tests');
+
+// E2E_PROXY: the proxy the pages go through (CI's e2e-proxy job), in front of the worker's server on
+// E2E_UPSTREAM_PORT (8080, the port the stack Caddyfile forwards to). The server takes the proxy's
+// origin as its own and listens beyond loopback, so a proxy in a container reaches it.
+export const PROXY = process.env.E2E_PROXY || '';
+const UPSTREAM = Number(process.env.E2E_UPSTREAM_PORT || 8080);
+
+// A console line the proxy runs make and apollo doesn't: they serve plain http on a real host name,
+// which Chromium calls untrustworthy, so it ignores Cross-Origin-Opener-Policy and says so (behind
+// NPM's TLS it applies). Direct runs on 127.0.0.1, a trustworthy origin, never see it.
+export const proxyNoise = (text: string) =>
+  PROXY !== '' && text.startsWith("The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy.");
 
 export const test = base.extend<{ selection: void }, { server: Server }>({
   // A spec lives in tests/<f>/ and carries @<f> (or @<f>-<member>), plus a tag
@@ -44,7 +56,12 @@ export const test = base.extend<{ selection: void }, { server: Server }>({
   // we only start it (on a port the OS picks, see helpers/server.ts).
   server: [
     async ({}, use, workerInfo) => {
-      const server = await startServer(workerInfo.config);
+      if (PROXY && !(await portFree(UPSTREAM))) {
+        throw new Error(`E2E_UPSTREAM_PORT ${UPSTREAM} is taken: the proxy would reach another server, not this suite's`);
+      }
+      const server = PROXY
+        ? await startServer(workerInfo.config, { SITE_URL: new URL(PROXY).origin, BIND_ALL: '1' }, UPSTREAM)
+        : await startServer(workerInfo.config);
       try {
         await use(server);
       } finally {
@@ -54,9 +71,9 @@ export const test = base.extend<{ selection: void }, { server: Server }>({
     { scope: 'worker' },
   ],
 
-  // Point page + request at this worker's server.
+  // Point page + request at this worker's server, or at the proxy in front of it.
   baseURL: async ({ server }, use) => {
-    await use(`http://127.0.0.1:${server.port}`);
+    await use(PROXY || `http://127.0.0.1:${server.port}`);
   },
 });
 

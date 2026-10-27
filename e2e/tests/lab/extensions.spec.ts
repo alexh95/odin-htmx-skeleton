@@ -15,6 +15,13 @@ const T = { tag: '@lab' };
 // fixed on four-dev, #4098). Matched by exact text, so an upstream fix shows up here.
 const KNOWN_PAGE_ERRORS = ['signal is aborted without reason'];
 
+// The stream headers a page's response carries. NPM's nginx (the e2e-proxy job; it adds
+// X-Served-By) acts on X-Accel-Buffering and doesn't pass it on, as nginx does every X-Accel-*.
+function streamHeaders(h: Record<string, string>) {
+  expect(h['cache-control']).toBe('no-cache, no-transform');
+  if (!h['x-served-by']) expect(h['x-accel-buffering']).toBe('no');
+}
+
 const RECORDED = [
   'htmx:sse:after:connection', 'htmx:sse:after:message', 'htmx:sse:close', 'htmx:sse:error',
   'htmx:ws:after:connection', 'htmx:ws:close', 'htmx:ws:error',
@@ -72,8 +79,7 @@ test.describe('hx-sse', T, () => {
     await page.goto(`/lab/streams/live?t=${key}`);
     const h = await (await resp).allHeaders();
     expect(h['content-type']).toBe('text/event-stream');
-    expect(h['cache-control']).toBe('no-cache, no-transform');
-    expect(h['x-accel-buffering']).toBe('no');
+    streamHeaders(h);
     for (const i of [1, 2, 3]) await publish(server.port, key, String(i));
     await expect(page.locator('#feed article')).toHaveText(['msg 1', 'msg 2', 'msg 3']);
     await expect(page.locator('#live')).toBeEmpty();
@@ -221,8 +227,7 @@ test.describe('hx-multipart', T, () => {
     await page.locator('#build').click();
     const h = await (await resp).allHeaders();
     expect(h['content-type']).toMatch(/^multipart\/mixed; boundary=/);
-    expect(h['cache-control']).toBe('no-cache, no-transform');
-    expect(h['x-accel-buffering']).toBe('no');
+    streamHeaders(h);
     await expect(page.locator('#mp-a .part')).toHaveText('part 1 of 3');
     expect(await page.locator('#mp-default .part').count()).toBe(0); // part 3 is 600 ms away
     await expect(page.locator('#mp-b .part')).toHaveText(['part 2 of 3']);

@@ -102,6 +102,15 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   scenario at 10 VUs and a redeploy at half time; RSS and the open fds plateau in each half, the streams' queued
   bytes stay under 64 MiB, and all 2000 are back within 5 s. Lab's `/lab/stats` reports `queued` for it. Nightly,
   with the TSan gate (`nightly.yml`).
+- **The lab through apollo's proxies, in CI** (`e2e-proxy`; PLAN §20.1, X26, X40): the lab's specs in chromium
+  through the stack Caddy running the new `deploy/Caddyfile` (PLAN §20.4's block whole: the hosts, the redirect
+  aliases, the 421 catch-all, the trusted gateway of the stack subnet 172.31.120.0/24), and through NPM's nginx in
+  front of it (`tests/proxy/npm.conf`, as the NPM version apollo runs renders its proxy host). The e2e suite's proxy
+  mode (`E2E_PROXY`, `E2E_UPSTREAM_PORT`) refuses to run unless the proxy's host resolves to the machine, and
+  `proxy.spec` checks streams arrive as written, uncompressed, and a socket echoes. 84 passed through each, in WSL.
+- **Autobahn|Testsuite, nightly** (PLAN §19.1.9, X24): its fuzzing client against the lab's WebSocket echo, sections
+  1–7 and 10 (`tests/autobahn/fuzzingclient.json`); 247 cases, none failed (4 NON-STRICT: invalid UTF-8 in a
+  fragmented message is refused at the message's end).
 - **The generator, v1** (`tools/init` compose mode; PLAN §7.4, D26): `--list [--json]` (committed as
   `docs/catalog.json`, held current by CI), `--explain`, a new project from `--profile` and `--features` with the
   family flags (`--store`, `--identity`, `--client`, `--theme`), `--add` and `--without` on a profile in place, a

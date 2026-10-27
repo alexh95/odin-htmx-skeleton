@@ -172,7 +172,15 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
 - [ ] **16. CI**: `streams` (chromium, webkit) and `lab` (all three, Firefox included) e2e; `e2e-proxy` ({streams,
       lab} × chromium through `deploy/Caddyfile` and through nginx with the config apollo's NPM version generates;
       X26, X40); nightly Autobahn|Testsuite against the lab's WS echo (X24), TSan and soak; `pins` with hyperscript.
-      *Check:* every job green on a pushed commit.
+      *Check:* every job green on a pushed commit. Progress: lab in every per-profile job, three engines in e2e; the
+      `generator` job; `e2e-proxy` for lab through `deploy/Caddyfile` and through `tests/proxy/npm.conf` (NPM's
+      rendering at apollo's version, which the config models without naming: the version is a private value), with
+      the suite's proxy mode, 84 passed through each in WSL; nightly TSan, soak and Autobahn (247 cases, none
+      failed); `pins` already covers _hyperscript. Locally, the lab's chromium and api legs pass on Linux (148).
+      Left: the `streams` legs (slices 7–11), and every job's first run on a pushed commit.
+- [ ] **Ask Alex**: X40 says `e2e-proxy` pins apollo's NPM version, which `docs/private/SITE.md` keeps private. The job
+      pins the config that version renders instead (`tests/proxy/npm.conf`); naming the image tag in CI would publish
+      it. Confirm, or say the version may be public.
 - [ ] **17. Exit**: the parity gate on both legs; the budgets (bundle sizes, idle, no SQLite in `minimal`, `streams`
       and `lab`); `docs/audit/M2.md` by an agent that didn't write the code, 0 open CRITICAL/HIGH (M1-04 and M1-26
       are due here); `Audited:` stamps; CHANGELOG's 2.1.0 entry; then ask Alex about tagging v2.1.0.
