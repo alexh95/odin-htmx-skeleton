@@ -90,6 +90,10 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   `PAGE_BUNDLES`, the scripting and compat packages' `BUNDLES` lines) must be embedded.
 - **A feature's `static/*.js`** is appended to the profile's `app.js` (after `client/core.js` and the member's), as
   its CSS is to `app.css`: code that is no behaviour and runs under either client.
+- **The stream drills** (PLAN §19.1.10): the `wsdata` kind (a socket whose `on_data` crashes closes 1011, through
+  `guard.register_drill_handler`), `streamdrain` (500 SSE + 500 WebSocket clients and the slow, half-sent and idle
+  peers: exit 0 within 6 s, 1012 and `retry:` for each) and `streamfd` (Linux: 3000 SSE streams under `ulimit -n
+  4096`, `/livez` within 100 ms).
 - **`tools/profile`** (M1's profile follow-up): `sh tools/profile/profile.sh <profile> <scenario> [--spall]` on
   Linux records the server under k6 with perf and writes the samples, folded stacks and the 30 heaviest functions
   (an SVG too, with FlameGraph's scripts), and with `--spall` builds a scratch copy with an instrumentation hook
@@ -141,6 +145,9 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   the family collections through `platform/web`.
 
 ### Fixed
+- **An SSE stream gets its `retry:` event at a drain** (PLAN §8.7 step 3): `retry: 500–3000` (per client), as a named
+  event, so the reconnects after a deploy spread out. The platform sent nothing there; the drills' `streamdrain` phase
+  found it.
 - **A request that follows a stream on its keep-alive connection is read whole** (the fork's F-18). The stream's read,
   kept to notice the peer leaving, could take the start of the next request, which a client sends the moment the last
   chunk lands, and drop it: the server read that request from its middle (a 501) or waited for one already gone.

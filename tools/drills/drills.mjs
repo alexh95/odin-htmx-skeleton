@@ -2,8 +2,8 @@
 //
 //   node tools/drills/drills.mjs <profile> [phase …] [--wsl DIR]
 //
-// Phases (default: all): release pure dirty burst hang logstall malformed slowread streamcrash shutdown
-// latewrite restart fdceiling budgets.
+// Phases (default: all): release pure dirty burst hang logstall malformed slowread wsdata streamcrash
+// shutdown streamdrain latewrite restart fdceiling streamfd budgets.
 // It builds the profile twice through build.{sh,bat}: a TEST_ROUTES build, which mounts
 // /__test/crash/<kind> and /__test/shutdown (platform/web/drills.odin), and the release build at
 // -o:speed, which must answer 404 there and is the one the budgets measure. Every server is fresh,
@@ -35,7 +35,7 @@ if (!PROFILE) {
 const WIN = process.platform === 'win32' && !WSL;
 const LINUX = !WIN;
 const EXE = WIN ? '.exe' : '';
-const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'logstall', 'malformed', 'slowread', 'streamcrash', 'shutdown', 'latewrite', 'restart', 'fdceiling', 'budgets'];
+const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'logstall', 'malformed', 'slowread', 'wsdata', 'streamcrash', 'shutdown', 'streamdrain', 'latewrite', 'restart', 'fdceiling', 'streamfd', 'budgets'];
 const phases = PHASES.length ? PHASES : ALL;
 
 // PLAN §18.4 (ANSWERS round 7): binaries in MiB, Windows -o:speed, as CI reads them; idle memory
@@ -561,6 +561,8 @@ async function phaseSlowRead() {
 // M1-03: stderr is a pipe whose reader stopped. The loops block flushing their logs, /livez stops,
 // and the watchdog's exit must not block behind the same lock: exit 70, with the crash file.
 async function phaseLogStall() {
+  // Under --wsl the server's output reaches node through wsl.exe, which buffers it: nothing stalls.
+  if (WSL) return console.log('skip  logstall: under --wsl the output passes through wsl.exe, which buffers it');
   const s = start(DRILL_BIN, { LOG_LEVEL: 'info' });
   const crashFile = path.join(ROOT, `app/build/last-crash-${s.port}.txt`);
   try { unlinkSync(crashFile); } catch {} // an earlier run's, on the same port
@@ -581,6 +583,160 @@ async function phaseLogStall() {
   try { file = readFileSync(crashFile, 'utf8'); } catch {}
   record('logstall: a stalled log pipe ends in the watchdog\'s exit 70, with its crash file',
     s.exited === 70 && secs <= 15 && file.includes('loop stalled'), `exit=${s.exited} ${secs.toFixed(1)} s after the stall, file=${JSON.stringify(file.trim().slice(0, 60))}`);
+  await stop(s);
+}
+
+// ---- streams (a profile that streams: lab's endpoints) --------------------------------------
+
+// Admission caps a person never meets and this one client would: hundreds of streams a second.
+const STREAMS_ENV = { STREAMS_PER_CLIENT: '100000', STREAM_CONNECTS: '100000', STREAMS_PER_USER: '100000' };
+
+// An SSE client on a raw socket (spike S0.7's): whether the drain's retry: event came.
+function sseClient(port, path) {
+  return new Promise((res) => {
+    const c = { retry: false, opened: false, sock: null };
+    const sock = net.connect(port, '127.0.0.1', () => sock.write(`GET ${path} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nAccept: text/event-stream\r\n\r\n`));
+    c.sock = sock;
+    let buf = '';
+    sock.on('data', (d) => {
+      buf += d;
+      if (!c.opened && buf.includes(': open')) { c.opened = true; res(c); }
+      if (/retry: \d+\nevent: restart\ndata: restarting/.test(buf)) c.retry = true;
+    });
+    sock.on('close', () => { if (!c.opened) res(c); });
+    sock.on('error', () => {});
+    setTimeout(() => res(c), 5000);
+  });
+}
+
+// A WebSocket client on a raw socket: the server's close code; send() writes one masked text frame.
+function wsClient(port, path) {
+  return new Promise((res) => {
+    const c = { code: 0, opened: false, sock: null, send: (text) => {
+      const p = Buffer.from(text), mask = Buffer.from([1, 2, 3, 4]);
+      const masked = Buffer.from(p.map((b, i) => b ^ mask[i % 4]));
+      c.sock.write(Buffer.concat([Buffer.from([0x81, 0x80 | p.length]), mask, masked]));
+    } };
+    const key = Buffer.from(Array.from({ length: 16 }, () => Math.floor(Math.random() * 256))).toString('base64');
+    const sock = net.connect(port, '127.0.0.1', () => sock.write(
+      `GET ${path} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${key}\r\nSec-WebSocket-Version: 13\r\n\r\n`));
+    c.sock = sock;
+    let buf = Buffer.alloc(0), upgraded = false;
+    sock.on('data', (d) => {
+      buf = Buffer.concat([buf, d]);
+      if (!upgraded) {
+        const i = buf.indexOf('\r\n\r\n');
+        if (i < 0) return;
+        upgraded = buf.subarray(0, 12).toString() === 'HTTP/1.1 101';
+        buf = buf.subarray(i + 4);
+        c.opened = upgraded;
+        res(c);
+      }
+      // Server frames are unmasked: a close frame (opcode 8) carries its code.
+      while (buf.length >= 2) {
+        const op = buf[0] & 0x0f, len = buf[1] & 0x7f;
+        if (len > 125 || buf.length < 2 + len) break;
+        if (op === 8 && len >= 2) c.code = buf.readUInt16BE(2);
+        buf = buf.subarray(2 + len);
+      }
+    });
+    sock.on('close', () => { if (!c.opened) res(c); });
+    sock.on('error', () => {});
+    setTimeout(() => res(c), 5000);
+  });
+}
+
+// D15's `wsdata`: a trap inside a socket's on_data is pure. That socket closes 1011 (hx-ws reconnects on
+// it); the server and every other socket stay up.
+async function phaseWsData(f) {
+  if (!f.features.includes('lab')) return console.log('skip  wsdata: no streams in this profile');
+  const s = start(DRILL_BIN, STREAMS_ENV);
+  if (!(await ready(s))) return record('wsdata: server starts', false);
+  const by = await wsClient(s.port, '/lab/ws/echo');
+  const c = await wsClient(s.port, '/__test/crash/wsdata');
+  c.send('crash');
+  for (let i = 0; i < 40 && !c.code; i++) await sleep(50);
+  by.send('still here');
+  await sleep(200);
+  const alive = (await get(s.port, '/livez')).status === 200 && s.exited === null;
+  const line = /ev=crash[^\n]*zone=pure[^\n]*msg="drill: a crash in a socket's on_data"/.test(s.out);
+  record('wsdata: a crash in a socket\'s on_data closes it 1011; the server and the other socket stay up',
+    c.opened && c.code === 1011 && by.code === 0 && alive && line, `code=${c.code} bystander=${by.code} alive=${alive} line=${line}`);
+  by.sock.destroy();
+  await stop(s);
+}
+
+// The shutdown bound with streams open (PLAN §8.7, §22.3's M2 gate): 500 SSE and 500 WebSocket clients, a
+// slowloris, a half-sent body and an idle peer that never answers the FIN. Exit 0 within 6 s; every socket
+// got 1012 and every SSE stream its retry: event, so the reconnects spread out.
+async function phaseStreamDrain(f) {
+  if (!f.features.includes('lab')) return console.log('skip  streamdrain: no streams in this profile');
+  const s = start(DRILL_BIN, STREAMS_ENV);
+  if (!(await ready(s))) return record('streamdrain: server starts', false);
+  const sses = [], wss = [];
+  for (let i = 0; i < 500; i += 50) {
+    sses.push(...await Promise.all(Array.from({ length: 50 }, (_, j) => sseClient(s.port, `/events?t=lab.feed:drain-${i + j}`))));
+    wss.push(...await Promise.all(Array.from({ length: 50 }, () => wsClient(s.port, '/lab/ws/echo'))));
+  }
+  const socks = [];
+  const open = (fn) => { const c = net.connect(s.port, '127.0.0.1', () => fn(c)); c.on('error', () => {}); socks.push(c); return c; };
+  const slow = open((c) => c.write('GET /healthz HTTP/1.1\r\nHost: x\r\n'));
+  const slowTimer = setInterval(() => slow.write(`X-Slow-${Date.now()}: 1\r\n`), 1000);
+  open((c) => c.write('POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 1000\r\n\r\n' + 'x'.repeat(500)));
+  const idle = open((c) => c.write('GET /healthz HTTP/1.1\r\nHost: x\r\n\r\n'));
+  idle.on('data', () => idle.pause());
+  await sleep(1000);
+  const t0 = performance.now();
+  if (WIN) get(s.port, '/__test/shutdown');
+  else signal(s, 'TERM');
+  await waitExit(s, 9000);
+  const secs = s.exited === null ? Infinity : (s.exitAt - t0) / 1000;
+  clearInterval(slowTimer);
+  await sleep(200);
+  const opened = sses.filter((c) => c.opened).length + wss.filter((c) => c.opened).length;
+  const retry = sses.filter((c) => c.retry).length;
+  const restart = wss.filter((c) => c.code === 1012).length;
+  for (const c of [...sses, ...wss]) c.sock.destroy();
+  for (const c of socks) c.destroy();
+  record('streamdrain: 500 SSE + 500 WS + slow, half-sent and idle peers: exit 0 within 6 s; 1012 and retry: for each',
+    opened === 1000 && s.exited === 0 && secs <= 6 && retry === 500 && restart === 500,
+    `opened ${opened}/1000, exit=${s.exited} after ${secs.toFixed(2)} s, WS 1012 ${restart}/500, SSE retry: ${retry}/500`);
+  await stop(s);
+}
+
+// The fd ceiling with streams (§22.3's M2 gate): 3000 SSE streams on a server under ulimit -n 4096 (a
+// container's ulimits); /livez still answers within 100 ms. Linux only, as fdceiling is. The clients are
+// tools/streamload's, on the server's own side: under --wsl, WSL's localhost relay gave out near 2000
+// connections from Windows, which says nothing about the server.
+function onServerSide(cmd, args) {
+  return WSL ? spawn('wsl', ['--cd', WSL, '-e', cmd, ...args], { stdio: ['ignore', 'pipe', 'pipe'] })
+    : spawn(path.join(ROOT, cmd), args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+}
+
+async function phaseStreamFd(f) {
+  if (WIN) return record('streamfd: Linux only (a ulimit)', true, 'skipped on Windows');
+  if (!f.features.includes('lab')) return console.log('skip  streamfd: no streams in this profile');
+  const s = start(RELEASE_BIN, { ...STREAMS_ENV, LOG_LEVEL: 'warn' }, freePort(), { ulimit: 4096 });
+  if (!(await ready(s))) return record('streamfd: server starts under ulimit -n 4096', false);
+  const sl = onServerSide('app/bin/streamload', ['hold', '--base', `http://127.0.0.1:${s.port}`, '--sse', '3000', '--ws', '0', '--for', '10']);
+  let out = '';
+  sl.stdout.on('data', (d) => (out += d));
+  for (let i = 0; i < 300 && !/connected \d+ of 3000/.test(out); i++) await sleep(100);
+  const opened = Number(/connected (\d+) of 3000/.exec(out)?.[1] ?? 0);
+  // /livez from the server's side too, timed by curl.
+  const probe = await new Promise((res) => {
+    const c = onServerSide('curl', ['-s', '-o', '/dev/null', '-w', '%{http_code} %{time_total}', `http://127.0.0.1:${s.port}/livez`]);
+    let o = '';
+    c.stdout.on('data', (d) => (o += d));
+    c.on('exit', () => res(o.trim().split(' ')));
+  });
+  const status = Number(probe[0] || 0), ms = Number(probe[1] || 9) * 1000;
+  await new Promise((r) => sl.on('exit', r));
+  await sleep(500);
+  const after = (await get(s.port, '/livez')).status;
+  record('streamfd: 3000 SSE streams under ulimit -n 4096: /livez within 100 ms, 200 after',
+    opened === 3000 && status === 200 && ms < 100 && after === 200 && s.exited === null,
+    `opened ${opened}/3000; /livez ${status} in ${ms.toFixed(1)} ms; after: ${after}`);
   await stop(s);
 }
 
@@ -620,10 +776,17 @@ async function phaseStreamCrash(f) {
 build(DRILL_BIN, '-define:TEST_ROUTES=true');
 build(RELEASE_BIN, '-o:speed');
 const f = features();
+// streamfd's clients (Linux, a profile that streams).
+if (!WIN && f.features.includes('lab') && phases.includes('streamfd')) {
+  const args = ['build', 'tools/streamload', '-o:speed', '-out:app/bin/streamload'];
+  const r = WSL ? spawnSync('wsl', ['--cd', WSL, '-e', 'odin', ...args], { stdio: 'inherit' })
+    : spawnSync('odin', args, { cwd: ROOT, stdio: 'inherit' });
+  if (r.status !== 0) throw new Error('build tools/streamload failed');
+}
 console.log(`${PROFILE} on ${WSL ? 'Linux (WSL)' : process.platform}: store ${f.store}; phases: ${phases.join(' ')}`);
 const PH = {
   release: phaseRelease, pure: phasePure, dirty: () => phaseDirty(f), burst: phaseBurst, hang: phaseHang, logstall: phaseLogStall,
-  malformed: phaseMalformed, slowread: phaseSlowRead, streamcrash: () => phaseStreamCrash(f), shutdown: phaseShutdown, latewrite: () => phaseLateWrite(f), restart: phaseRestart, fdceiling: phaseFdCeiling, budgets: phaseBudgets,
+  malformed: phaseMalformed, slowread: phaseSlowRead, wsdata: () => phaseWsData(f), streamcrash: () => phaseStreamCrash(f), shutdown: phaseShutdown, streamdrain: () => phaseStreamDrain(f), latewrite: () => phaseLateWrite(f), restart: phaseRestart, fdceiling: phaseFdCeiling, streamfd: () => phaseStreamFd(f), budgets: phaseBudgets,
 };
 for (const p of phases) {
   if (!PH[p]) { console.error(`unknown phase ${p}`); process.exit(2); }

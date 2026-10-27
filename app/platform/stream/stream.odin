@@ -24,7 +24,10 @@ package stream
 // per-callback scratch once the handler returns.
 
 import "base:runtime"
+import "core:math/rand"
 import "core:nbio"
+import "core:strconv"
+import "core:strings"
 import "core:time"
 
 import "../guard"
@@ -162,10 +165,21 @@ shutdown :: proc(s: ^web.Stream) {
 	}
 	c := (^Conn)(s.user)
 	switch c.proto {
-	case .Sse:
+	case .Sse:       write(c, drain_event()) // the reconnects spread out: 13 §4.2, PLAN §8.7 step 3
 	case .Ws:        ws_close(c, WS_RESTART) // hx-ws reconnects on 1012
 	case .Multipart: write(c, closing_boundary(c)) // the body ends well formed; hx-multipart:connect reconnects
 	}
+}
+
+// An SSE stream's last event at a drain: `retry:` with this client's own delay,
+// 500-3000 ms, so a deploy's reconnects don't all land at once. hx-sse applies a
+// retry only on an event with data or a name (13 §4.2); a named one dispatches
+// a DOM event and swaps nothing.
+@(private)
+drain_event :: proc() -> string {
+	buf: [16]byte
+	ms := strconv.write_int(buf[:], i64(500 + rand.int_max(2501)), 10)
+	return strings.concatenate({"retry: ", ms, "\nevent: restart\ndata: restarting\n\n"}, context.temp_allocator)
 }
 
 // F-5: a callback on this stream crashed and the guard recovered it (a pure

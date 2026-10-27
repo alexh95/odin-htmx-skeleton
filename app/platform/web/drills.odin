@@ -11,7 +11,9 @@ package web
 //                                    resume, as a write's or a pool's runs: 500 (M1-04)
 //   lock, async                      dirty: a lock still held, an op posted; exit 70
 //   hang                             the loop stops ticking (?s=15): the watchdog's exit 70
-//   <registered>                     guard.register_drill's (store/sqlite's `sqlite`)
+//   <registered>                     guard.register_drill's (store/sqlite's `sqlite`, `latewrite`),
+//                                    and register_drill_handler's (platform/stream's `wsdata`:
+//                                    a socket whose on_data crashes, which closes 1011)
 //
 // /__test/shutdown starts the drain a signal would: Windows can't send a child
 // SIGTERM, and the shutdown drill needs the same path on both OSes.
@@ -86,11 +88,14 @@ test_crash :: proc(req: ^Request, res: ^Response) {
 		return
 	case:
 		for d in guard.drills {
-			if d.kind == kind {
-				d.run()
-				respond_plain(res, "no crash")
+			if d.kind != kind { continue }
+			if d.handle != nil {
+				d.handle(req, res)
 				return
 			}
+			d.run()
+			respond_plain(res, "no crash")
+			return
 		}
 		not_found(req, res)
 		return

@@ -49,6 +49,12 @@ init :: proc() {
 	lim.queued = env.size("STREAM_QUEUED_TOTAL")
 	lim.max_queued = max(4096, env.size("STREAM_MAX_QUEUED"))
 	lim.heartbeat = time.Duration(max(1, env.int_("STREAM_HEARTBEAT_S"))) * time.Second
+	// TEST_ROUTES: a socket whose on_data crashes (D15's `wsdata`): it closes 1011, serving goes on.
+	guard.register_drill_handler("wsdata", proc(req, res: rawptr) {
+		ws_upgrade((^web.Request)(req), (^web.Response)(res), proc(_: ^Conn, _: bool, _: []byte) {
+			panic("drill: a crash in a socket's on_data")
+		})
+	})
 	obs.limit("stream", "heartbeat", i64(lim.heartbeat / time.Second), "s")
 	obs.limit("stream", "ws_pong_deadline", i64(WS_PONG_DEADLINE / time.Second), "s")
 	obs.limit("stream", "total", i64(lim.total))

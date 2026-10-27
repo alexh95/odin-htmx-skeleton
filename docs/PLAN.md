@@ -2134,6 +2134,9 @@ a slowloris + a half body + a stuck idle peer: exit in 5.6 s on Windows and Linu
 100 ms shutdown tick, at most 500 ms of leftovers), 500/500 WebSockets got 1012 and 500/500 SSE streams their `retry:`
 event (`docs/spikes/S0.7.md`). The per-push shutdown-bound drill keeps it true (§19); §20's `promote.ps1` relies on it.
 
+**As built (M2):** the SSE drain event of step 3 is `retry: <500–3000>`, `event: restart`, `data: restarting`: a named
+event, so hx-sse applies the delay and swaps nothing; the platform had sent none until slice 13's drill looked for it.
+
 **As built (M2), M1-05.** The SQLite writer refuses new writes from step 2 (503), as the pools do. A reply can still
 outlive its loop, a write already on the writer when the loops leave, so a loop marks itself leaving just before it
 releases its event loop (the fork's `on_thread_release`, M2), and every cross-thread post (the writer's replies, a
@@ -4333,6 +4336,15 @@ Three process drills complete the set (13 §6.2): the shutdown bound (exit ≤ 6
 a half-sent body + a non-closing idle peer; WS got 1012), restart after `kill -9` at 0/50/100 ms (the bind retry),
 and the fd ceiling (3000 streams in a container with `ulimits`, `/livez` < 100 ms). M1 runs the request-path kinds;
 `wsdata` arrives with streams in M2 (D44).
+
+**As built (M2):** a drill kind can take the request over (`guard.register_drill_handler`), which is how
+`platform/stream` registers `wsdata`: a socket whose `on_data` panics. Phases added for a profile that streams (lab's
+endpoints): `wsdata` (1011 to that socket; a bystander socket and the server unharmed; one pure crash line),
+`streamdrain` (500 SSE on `/events` + 500 sockets on `/lab/ws/echo` + the shutdown phase's slow, half-sent and idle
+peers: exit 0 in 5.7 s on Windows, every socket 1012 and every SSE stream the drain's `retry:`) and `streamfd` (Linux:
+3000 SSE streams under `ulimit -n 4096`, `/livez` within 100 ms). Slice 14 added `continuation`, `streamcrash`,
+`slowread`, `logstall` and `latewrite` for M1's carried findings. The servers lift the per-client stream caps, as the
+suites do.
 
 #### 19.1.11 Route-coverage parity
 
