@@ -21,6 +21,10 @@ IMPL :: "memory"
 KEEP :: 50   // conversations per member
 TURNS :: 200 // turns per conversation
 
+// Members whose conversations are kept: a nickname costs nothing to make, so past this a
+// new member's first conversation pushes out another member's (M2-06).
+MAX_OWNERS :: 4096
+
 @(private)
 Conv :: struct {
 	conv:  m.Conversation,
@@ -66,6 +70,15 @@ start :: proc(op: ^m.Start) -> bool {
 	if s.owners == nil { s.owners = make(map[u64]^mem_store.Ring(^Conv)) }
 	r := s.owners[op.owner]
 	if r == nil {
+		if len(s.owners) >= MAX_OWNERS {
+			for owner, old in s.owners {
+				for i in 0 ..< old.n { forget(old.items[(old.head + i) % len(old.items)]) }
+				delete(old.items)
+				free(old)
+				delete_key(&s.owners, owner)
+				break
+			}
+		}
 		r = new(mem_store.Ring(^Conv))
 		mem_store.ring_init(r, KEEP)
 		s.owners[op.owner] = r

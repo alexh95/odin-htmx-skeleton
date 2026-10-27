@@ -34,19 +34,32 @@ finish :: proc(op: ^store.Op) {
 }
 
 // A capped list, newest last: past `cap` the oldest row goes (a rolling buffer,
-// §11.6). Not locked itself: the store holds its Lock around it.
+// §11.6). Not locked itself: the store holds its Lock around it. It grows as it
+// fills, doubling up to `cap`: allocated whole, every member's ring cost its
+// full size on their first row, which a nickname made for free (M2-06).
 Ring :: struct($T: typeid) {
 	items: []T,
 	head:  int, // index of the oldest
 	n:     int,
+	cap:   int,
 }
 
+@(private)
+RING_FIRST :: 8
+
 ring_init :: proc(r: ^Ring($T), cap: int) {
-	r.items = make([]T, cap)
+	r.cap = cap
+	r.items = make([]T, min(cap, RING_FIRST))
 }
 
 // Appends `v`; returns the row it pushed out, if the ring was full.
 ring_push :: proc(r: ^Ring($T), v: T) -> (dropped: T, did: bool) {
+	if r.n == len(r.items) && len(r.items) < r.cap {
+		grown := make([]T, min(r.cap, 2 * len(r.items)))
+		for i in 0 ..< r.n { grown[i] = r.items[(r.head + i) % len(r.items)] }
+		delete(r.items)
+		r.items, r.head = grown, 0
+	}
 	if r.n < len(r.items) {
 		r.items[(r.head + r.n) % len(r.items)] = v
 		r.n += 1

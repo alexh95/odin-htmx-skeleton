@@ -18,6 +18,10 @@ IMPL :: "memory"
 // notify.KEEP: the store can't import the domain, which imports it.
 KEEP :: 200
 
+// Members whose items are kept: a nickname costs nothing to make, so past this a new
+// member's first item pushes out another member's whole Inbox (M2-06).
+MAX_USERS :: 4096
+
 @(private)
 s: struct {
 	lock:  mem_store.Lock,
@@ -51,6 +55,15 @@ add :: proc(op: ^m.Add) -> bool {
 	mem_store.lock(&s.lock)
 	r := s.users[op.user]
 	if r == nil {
+		if len(s.users) >= MAX_USERS {
+			for user, old in s.users {
+				for i in 0 ..< old.n { free_item(old.items[(old.head + i) % len(old.items)]) }
+				delete(old.items)
+				free(old)
+				delete_key(&s.users, user)
+				break
+			}
+		}
 		r = new(mem_store.Ring(m.Item))
 		mem_store.ring_init(r, KEEP)
 		s.users[op.user] = r

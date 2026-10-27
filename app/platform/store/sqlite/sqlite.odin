@@ -189,10 +189,13 @@ read :: proc(sql: string) -> Stmt {
 }
 
 // The handler hooks (store.on_handler, registered at open). A transaction still
-// open at begin is a crashed handler's: it is rolled back.
+// open at begin is a crashed handler's: it is rolled back. The pulled reset runs
+// here too, before this handler is in: at its first read it would take this
+// handler for the crashed one.
 @(private)
 handler_began :: proc() {
 	if tl_txn != nil { end_txn(false) }
+	if tl_reader != nil && tl_generation == db.generation { pull_reset(tl_reader) }
 	tl_in_handler = true
 }
 
@@ -235,9 +238,7 @@ reader :: proc() -> ^Conn {
 	r := tl_reader
 	if r == nil || tl_generation != db.generation { r = open_reader() }
 	if r == nil { return nil }
-	if n := guard.recoveries(); n != r.seen {
-		reset_reader(r, n)
-	}
+	pull_reset(r)
 	return r
 }
 
@@ -266,9 +267,21 @@ open_reader :: proc() -> ^Conn {
 	return r
 }
 
+// The pulled reset (D15 rule 3), when this thread recovered from a crash since the
+// reader's last: guard never calls into SQLite itself.
+@(private)
+pull_reset :: proc(r: ^Conn) {
+	if n := guard.recoveries(); n != r.seen { reset_reader(r, n) }
+}
+
+// A crash skips handler_ended, so the crashed handler's transaction goes too: left
+// open, every read on the loop outside a handler (a write's continuation) met its
+// snapshot, and the WAL couldn't checkpoint past it until the next handler (M2-10).
 @(private)
 reset_reader :: proc(r: ^Conn, recoveries: u64) {
 	n := sqlite.reset_all(r.db)
+	if tl_txn == r { end_txn(false) }
+	tl_in_handler = false
 	r.seen = recoveries
 	obs.inc(db.resets)
 	if l, ok := obs.begin(.Warning, "store", "reader_reset"); ok {
@@ -284,10 +297,7 @@ reset_reader :: proc(r: ^Conn, recoveries: u64) {
 on_reader_tick :: proc(_: ^nbio.Operation, r: ^Conn) {
 	defer free_all(context.temp_allocator)
 	if !db.is_open || tl_reader != r { return } // its store closed: r is gone
-	guard.call(proc(data: rawptr) {
-		r := (^Conn)(data)
-		if n := guard.recoveries(); n != r.seen { reset_reader(r, n) }
-	}, r)
+	guard.call(proc(data: rawptr) { pull_reset((^Conn)(data)) }, r)
 	if obs.is_draining() || !db.is_open {
 		r.armed = false
 		return

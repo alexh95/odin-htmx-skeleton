@@ -326,6 +326,29 @@ handler_transactions :: proc(t: ^testing.T) {
 	handler_began()
 	testing.expect_value(t, read_count(), 3)
 	handler_ended()
+
+	// A crash the guard recovers from, then no handler: the timer's reset (or a
+	// continuation's read) rolls the crashed handler's snapshot back (M2-10).
+	handler_began()
+	testing.expect_value(t, read_count(), 3)
+	testing.expect(t, !guard.invoke(proc(_, _: rawptr) { panic("mid-handler") }, nil, nil))
+	testing.expect(t, insert("d"))
+	pull_reset(tl_reader) // what on_reader_tick runs
+	testing.expect(t, tl_txn == nil && !tl_in_handler)
+	testing.expect_value(t, read_count(), 4)
+	testing.expect(t, insert("e"))
+	testing.expect_value(t, read_count(), 5) // no transaction left behind
+
+	// The handler after a crash keeps its own snapshot: its first read doesn't reset.
+	handler_began()
+	testing.expect_value(t, read_count(), 5)
+	testing.expect(t, !guard.invoke(proc(_, _: rawptr) { panic("mid-handler") }, nil, nil))
+	handler_began()
+	testing.expect_value(t, read_count(), 5)
+	testing.expect(t, insert("f"))
+	testing.expect_value(t, read_count(), 5)
+	handler_ended()
+	testing.expect_value(t, read_count(), 6)
 }
 
 // One test, in order: the store is process-wide.
