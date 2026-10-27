@@ -1459,8 +1459,8 @@ read from the compiler's own package list (D19, D24; RESOLUTIONS X29; §12.1). E
 §6.3). Every hosted profile is all-SQLite or all-memory, so one store family per build costs none of them anything
 (LC §3).
 
-**As built (M2):** `streams` mounts home, notes, chat, notify, the nick identity's `/login` and `/logout` (`{"accounts",
-identity.ROUTES[:]}`, its host's `identity` flag on) and about so far; bot, ops and status join with their slices. Its
+**As built (M2):** `streams` mounts home, notes, chat, notify, bot, the nick identity's `/login` and `/logout` (`{"accounts",
+identity.ROUTES[:]}`, its host's `identity` flag on) and about so far; ops and status join with their slice. Its
 Main bundle is what those packages' `EXTS` name: htmx with sse, ws, hx-multipart, ptag, hx-pending and upsert. `tools/check`
 reads a profile's `identity:.`, `store:` and other family imports as `build.sh`'s line builds them.
 
@@ -3485,6 +3485,22 @@ LC §9; RESOLUTIONS X37).
 get mock only, 5 per hour per client id; members get 1 concurrent generation and 30 per hour. No tools and no
 function calling, so a prompt injection has nothing to act on (07 §2.6). M7's checks (Stop ≤ 100 ms, the queue spec
 with `BOT_CONCURRENCY=1`, 1000 concurrent mock generations ≤ 1 core and ≤ +30 MB, **NEW**) are in §18 and §22.
+
+**As built (M2)**, in `streams` on the memory store (`features/bot/README.md` is the tour):
+- **Routes**: `GET /bot` (a member's conversations, or the guest's one-question page), `POST /bot/c` (a new
+  conversation), `GET /bot/c/<id>`, `POST /bot/c/<id>/ask` (a member's, kept), `POST /bot/ask` (anyone's, kept by no
+  one: the guest's way), `POST /bot/gen/<gid>/stop`; both asks are `.Stream` rows. `/admin/bot` comes with the second
+  backend (M7): with only the mock there is no default to choose, so `Backend` has one member and `BOT_BACKEND` one
+  choice. The `bot.health` topic is declared and on the pages' `#live`; the mock's health never changes.
+- **The frames** are as above; a live answer's ids are `m-g<gen>` and `mb-g<gen>`, a stored one's its turn id. The
+  render is the domain's (`bot.render`: markdown, else escaped text), since views import only html and their domain.
+- **Stop** is posted to the generation's loop (`workers.post`), which removes the mock's timer and sends
+  `Bot_Done{.Stopped}`: the e2e spec times it in the page at well under 100 ms on both deliveries. A browser that goes
+  away cancels the same way.
+- **Limits**: `BOT_MEMBER_PER_HOUR` and `BOT_GUEST_PER_HOUR` (`web.Limit`), and one answer at a time per member, each a
+  429 into the toasts. The load driver lifts the hourly limits and sets `BOT_DELAY_MS=0`, so a quick run makes
+  thousands of generations; it reaches Stop only on ended generations (a stream's id is in its body, which k6 reads at
+  the end), so the Stop storm is the e2e suite's timing, not a load figure.
 
 ## 15. Houston feature specs II: plan, watch, play and operate
 

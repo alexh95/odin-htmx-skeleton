@@ -129,10 +129,14 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       sequence), and ranging over `m[k]` of a nil map traps (CLAUDE.md's gotchas). The `setOffline` spec is in too,
       but Playwright's offline emulation cuts only new requests and Chromium's socket: an open SSE or multipart
       response, and WebKit's socket, keep delivering, so for those the restart spec is the resume check. Slice 8 done.
-- [ ] **9. `bot` (memory, mock)** (§14.3): models, the conversations' memory store, `backend_mock` (`BOT_SEED`,
+- [x] **9. `bot` (memory, mock)** (§14.3): models, the conversations' memory store, `backend_mock` (`BOT_SEED`,
       `BOT_DELAY_MS`), `bot_web`'s backend switch (`.Llama` joins at M7), SSE delivery (the four frames,
       `hx:release`) and multipart delivery, Stop, `bot.health`, the guest and member limits. *Check:* e2e per
       delivery (deterministic with `BOT_SEED`); Stop ≤ 100 ms; load with 1000 mock generations and a Stop storm.
+      Done: `bot.spec` (14, chromium and webkit; 42 of 42 over three repeats), Stop timed in the page well under
+      100 ms on both deliveries, the store's unit test; k6's `bot/bot.js` makes thousands of generations a quick run
+      (about 23k requests a second at 20 VUs, p95 1.6 ms). Changed: the Stop storm is the e2e timing, since k6 reads a
+      stream's body (and with it the generation's id) only at its end; `/admin/bot` waits for a second backend (M7).
 - [ ] **10. `ops` and `status` (basic)** (§15.4): ops's 1 Hz `.Sample` publisher rendering obs's registry once into
       OOB fragments and SVG sparklines on `ops.panel`, refreshed by SSE, `?mode=poll` (ptag 304s) or multipart;
       `last-crash.txt` after a restart. `status`: one `multipart/parallel` response of each module's health, a
@@ -141,11 +145,11 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       the `nick` identity (slice 6a); `build.*` and CI's matrix (tools/init reads the profiles from `build.sh`).
       *Check:* builds with no SQLite library; its e2e in chromium and webkit; its bundle's size recorded (§12.1's
       UNVERIFIED (M2)); route coverage with 0 unexplained waivers. Progress: the profile with home, notes, chat,
-      notify, the nick identity and about, in `build.*` and every per-profile CI job; the generator composes it
+      notify, bot, the nick identity and about, in `build.*` and every per-profile CI job; the generator composes it
       again; its e2e 151 passed (chromium, webkit, api), its k6 quick run clean, its drills 25/25 on Windows (binary
       1,714,176 B, idle 10.06 MB). The generator's identity handling too (nick by default unless scripting or
       compat, accounts with it, `identity.EXTS`, the host flag; a chat project made, tested, checked and built in a
-      scratch copy). Left: bot, ops and status (slices 9 and 10), the bundle's size in §12.1.
+      scratch copy). Left: ops and status (slice 10), the bundle's size in §12.1.
 - [x] **12. `tools/check topics` and `exts`**: every `TOPICS` row mounted per host, families unique and in their
       feature's prefix; `BUNDLE_EXTS` names every mounted package with `EXTS` or `BUNDLES`. *Check:* a bad fixture
       trips each. Done: `topics` (families the feature's and declared once; every host's packages with `TOPICS`

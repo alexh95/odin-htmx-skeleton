@@ -7,6 +7,7 @@ import "../../platform/hub"
 import "../../platform/web"
 import "../../platform/workers"
 import about_web "../../features/about/web"
+import bot_web "../../features/bot/web"
 import chat_web "../../features/chat/web"
 import home_web "../../features/home/web"
 import notes_web "../../features/notes/web"
@@ -22,6 +23,7 @@ ROUTES := [?]app.Mount {
 	{"notes", notes_web.ROUTES[:]},     // POST /notes
 	{"chat", chat_web.ROUTES[:]},       // /chat: rooms, four transports
 	{"notify", notify_web.ROUTES[:]},   // /notify: the Inbox
+	{"bot", bot_web.ROUTES[:]},         // /bot: the assistant, on the mock
 	{"accounts", identity.ROUTES[:]},   // /login /logout: the nickname form
 	{"about", about_web.ROUTES[:]},     // /about
 }
@@ -30,6 +32,7 @@ ROUTES := [?]app.Mount {
 TOPICS := [?][]hub.Topic {
 	chat_web.TOPICS[:],   // chat.room, chat.presence, chat.typing
 	notify_web.TOPICS[:], // notify.user
+	bot_web.TOPICS[:],    // bot.health
 }
 
 HOSTS := [?]app.Host{{"main", "SITE_URL", true, ROUTES[:], NAV[:]}}

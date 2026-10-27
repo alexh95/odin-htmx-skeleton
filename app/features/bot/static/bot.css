@@ -1,0 +1,34 @@
+/* ---- bot: the assistant (PLAN §14.3) ----------------------------------------------------- */
+.bot-convs { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.bot-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.bot-head h1 { margin: 0; font-size: 1.3rem; }
+.bot-back { margin-left: auto; font-size: .9rem; }
+.bot-log {
+  display: flex; flex-direction: column; gap: 10px; min-height: 8rem; max-height: min(60vh, 620px); overflow-y: auto;
+  padding: 12px; margin-bottom: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.bot-log:empty::before { content: "Ask something below."; color: var(--muted); margin: auto; }
+.bot-msg { max-width: 85%; padding: 8px 12px; border-radius: 12px; animation: bot-in 180ms var(--ease); }
+.bot-q { align-self: flex-end; background: color-mix(in oklab, var(--violet) 18%, var(--surface)); }
+.bot-a { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); }
+.bot-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bot-body.md { white-space: normal; }
+.bot-body.md > :first-child { margin-top: 0; }
+.bot-body.md > :last-child { margin-bottom: 0; }
+.bot-stats { margin: 6px 0 0; font-size: .78rem; }
+.bot-stop { margin-top: 6px; }
+.bot-failed .bot-body { color: var(--red); }
+.bot-msg.pending { opacity: .6; }
+.hx-pending[data-q] .bot-body::after { content: attr(data-q); }
+.bot-ask { display: flex; flex-direction: column; gap: 8px; }
+.bot-ask textarea {
+  padding: 10px 12px; font: inherit; color: var(--text); resize: vertical;
+  background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px;
+}
+.bot-ask-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.bot-delivery { color: var(--muted); font-size: .85rem; }
+.bot-delivery select { margin-left: 6px; font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 4px 6px; }
+.bot-ask .form-error:empty { display: none; }
+.bot-Mock { color: var(--amber); background: color-mix(in oklab, var(--amber) 14%, transparent); }
+.bot-Ready { color: var(--green); background: color-mix(in oklab, var(--green) 14%, transparent); }
+@keyframes bot-in { from { opacity: 0; transform: translateY(4px); } }

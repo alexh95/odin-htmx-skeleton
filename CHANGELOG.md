@@ -158,7 +158,13 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   message scrolls into view, unread counts per room on the rooms page, mentions into the Inbox, rooms made by members
   (100 in memory), 5 posts per 10 s per member (429 and a toast), and the lobby seeded. Off the LAN, `/chat` says chat
   is open there.
-- **The `streams` profile** (`app/cmd/streams/`, PLAN §7.1): home, notes, chat, notify, the nick identity and about,
+- **`bot`** (`/bot`, PLAN §14.3, D31): the house assistant on its mock. An answer streams on the asker's connection in
+  four frames (the shell with Stop, the words, the markdown render with llama-shaped stats, the end), as an SSE answer
+  to the form's POST (`hx:release` after the first words) or a multipart one (with `#usage` and `#conv-title`). The
+  mock answers canned "under construction" lines word by word, seeded by `BOT_SEED` and paced by `BOT_DELAY_MS`.
+  Stop ends an answer in well under 100 ms. Members keep conversations (50, each 200 turns), ask one at a time and 30
+  an hour; guests get the mock, 5 an hour, kept by no one. e2e `bot.spec` and k6 `bot/bot.js`.
+- **The `streams` profile** (`app/cmd/streams/`, PLAN §7.1): home, notes, chat, notify, bot, the nick identity and about,
   on the memory store, the vanilla client and the lite theme, with no SQLite library; in CI's check, build (four
   platforms, and without SQLite), e2e (chromium and webkit), k6 and drills jobs.
 - **`Composer` and `AutoScroll`**, twinned behaviours (vanilla and hyperscript): Enter sends and a sent message clears

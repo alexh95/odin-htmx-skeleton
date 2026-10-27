@@ -47,7 +47,8 @@ export function portFree(port: number): Promise<boolean> {
 // read the counters. One client (this machine) opens far more streams than a
 // person would, so the per-client stream caps are lifted (§9.4); the totals stand.
 // The suite's browser is loopback, which nick counts as the LAN, so a nickname makes
-// it a member; its key is fixed, so a nickname outlives a restart.
+// it a member; its key is fixed, so a nickname outlives a restart. The bot's mock is seeded
+// (the same question, the same answer) and quick.
 // `env` overrides (a spec's own DB_PATH); `port` reuses one (a restart).
 export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {}, port?: number): Promise<Server> {
   const appDir = appDirFrom(config);
@@ -59,6 +60,7 @@ export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {
       ...process.env, PORT: String(port), DB_PATH: ':memory:', BIND_ALL: '', SITE_URL: '',
       STREAM_CONNECTS: '1000000', STREAMS_PER_CLIENT: '4096',
       LAN_CIDRS: '127.0.0.0/8', ACCOUNTS_NICK_KEY: 'e2e-only-nickname-signing-key-0123456789',
+      BOT_SEED: '7', BOT_DELAY_MS: '25',
       METRICS_TOKEN_FILE: path.join(coverage, '.token'), ...env,
     },
   });
