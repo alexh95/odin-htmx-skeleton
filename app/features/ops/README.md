@@ -21,3 +21,5 @@ The page also shows the declared limits and, after a restart, what the crash fil
 an admin is a client in `ACCOUNTS_NICK_ADMIN_CIDRS` (none by default).
 
 It owns `/admin/ops`, under its own `/admin/<f>` prefix.
+
+Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md

@@ -23,3 +23,5 @@ at a time and `BOT_MEMBER_PER_HOUR` (30) an hour; guests get the mock, `BOT_GUES
 and nothing is kept. A conversation is its owner's alone: anyone else's id answers 404.
 
 It owns `/bot`, its own prefix.
+
+Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md

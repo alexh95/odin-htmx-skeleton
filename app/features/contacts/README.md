@@ -15,4 +15,4 @@ Beyond `/contacts`, `/admin/contacts` and `/api/contacts` (D9):
 | `/search` | the skeleton's active-search fragment, which the k6 `search` scenario hits; global search is `find`'s `/find` |
 | `/api/search` | the skeleton's JSON API, at its exact URL (the k6 `api` scenario) |
 
-Audited: bf831da 2026-10-26 docs/audit/M1.md
+Audited: bf831da 2026-10-26 docs/audit/M1.md; its M2 edits (`html.behave`, the layout's `#live`) are outside `docs/audit/M2.md`'s scope: audit debt

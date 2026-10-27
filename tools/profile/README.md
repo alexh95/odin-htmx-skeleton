@@ -23,4 +23,4 @@ sh tools/profile/profile.sh <profile> <scenario> [--spall]
 `spall_hook.odin` is never part of a profile in the repo and doesn't build on its own (package `main` with no
 `main`): the script copies it into the scratch build only.
 
-Audited: none yet (new in M2; `docs/audit/M2.md`)
+Audited: not read by `docs/audit/M2.md` (dev-time, off the request path)

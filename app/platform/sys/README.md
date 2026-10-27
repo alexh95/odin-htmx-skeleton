@@ -6,4 +6,4 @@ guard classifies a trap by (`locks_held`, `async_posted`, `in_sqlite`), the open
 ephemeral sweep) and a fast wall clock. Bindings and thread-local primitives only, no policy: `platform/guard` decides
 what a trap means (PLAN §5.2, §10.2). Layer L1 (PLAN §5.1).
 
-Audited: bf831da 2026-10-26 docs/audit/M1.md
+Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md

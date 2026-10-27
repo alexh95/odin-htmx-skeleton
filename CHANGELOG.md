@@ -254,7 +254,10 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
 - **M2's audit** (`docs/audit/M2.md`, by an agent that didn't write the code: 0 CRITICAL, 2 HIGH, 9 MEDIUM, 5 LOW,
   5 NIT) is resolved but for two NITs (M2-18, M2-21: `TODO.md`); its Resolution section maps each fix to what holds it.
   A re-read of the fixes by a second such agent found eight more (M2-22 to M2-29: 1 HIGH, 2 MEDIUM, 3 LOW, 2 NIT), all
-  fixed, and a second re-read three (M2-30 HIGH, M2-31 and M2-32 LOW), fixed but for a socket's part of M2-31.
+  fixed, and a second re-read three (M2-30 HIGH, M2-31 and M2-32 LOW), fixed but for a socket's part of M2-31. A
+  third re-read found them sound, with nothing CRITICAL or HIGH open, and four more for M3 (M2-33 to M2-36: two LOW,
+  two NIT, one fixed); every package M2's audit read carries its `Audited:` line (`5395ae0` or `5c5ebf2`), and those
+  M2 changed outside its scope (the skeleton's and minimal's features, their profiles) say they are audit debt.
 - **A WebSocket frame holds at most 256 `[` and `{`** (M2-30, HIGH): a raw line feed in a key ended the strict
   tokenizer's string but not the depth scan's, and the brackets after it overflowed a loop's stack. The scan refuses a
   raw control byte in a string, and the frame's brackets are bounded whatever a string is taken to be, since the parse

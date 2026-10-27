@@ -28,3 +28,5 @@ also fixes the key, so a nickname outlives the restarts its specs make.
 |---|---|
 | `/login` | front sends a Guest who lacks a route's perm here (§17.2): the identity's own page, whichever identity runs |
 | `/logout` | its pair |
+
+Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md (`identity_nick`)

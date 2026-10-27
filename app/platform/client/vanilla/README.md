@@ -7,4 +7,4 @@ the CSP needs no inline handler; `htmx:after:process` arms what needs arming (a 
 `tools/bundle` ships `client/core.js` (the theme picker, count-up, the overlay's Escape: shared with the hyperscript
 member) followed by this file as the profile's `app.js`. Layer L3 (PLAN §5.1).
 
-Audited: bf831da 2026-10-26 docs/audit/M1.md
+Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md

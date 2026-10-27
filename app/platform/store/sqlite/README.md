@@ -6,4 +6,4 @@ answers each on the loop that queued it; `:memory:` served by `MEMMODE` (an unsy
 the migration runner per feature, adopting 709bc94 and v1.1.1 databases; `--backup` and `--adopt-profile`; the
 query pool. Layer L2 (PLAN §5.1).
 
-Audited: bf831da 2026-10-26 docs/audit/M1.md
+Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md

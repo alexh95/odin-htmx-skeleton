@@ -7,4 +7,4 @@ chunked body, SSE with CR, LF and CRLF line ends, the server's WebSocket frames)
 HTTP only. Its users: `tools/streamload` (M2), the bot's llama binding (M7) and the Pi's terminal agent (M11). Layer L3
 (PLAN §5.1); it imports core only.
 
-Audited: none yet (new in M2; `docs/audit/M2.md`)
+Audited: not yet: `docs/audit/M2.md` skimmed its parsers (only `tools/streamload` uses it in M2); audit debt until a server path does

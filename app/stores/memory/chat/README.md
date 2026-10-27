@@ -7,3 +7,5 @@ the boot time × 10⁶, the `<epoch>-<seq>` of §14.1 as one number, so a page f
 and never sees a new one take an old one's id; `PERSISTED` is false, so the room's topic resyncs rather than replays
 by id. A message's strings live on the heap from its post until the ring or the budget lets it go; a reader gets
 copies in its request arena, a writer's op in its own. A feature store.
+
+Audited: 5395ae0 2026-10-27 docs/audit/M2.md

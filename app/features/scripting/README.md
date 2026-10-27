@@ -11,4 +11,4 @@ stream's own, the page's from the connect URL's `pn`, and one handled by a nonce
 Every row is `.Nonce_Csp` and `.Lab_Host`: eval-capable pages never share an origin with sessions (D20). Packages:
 `views`, `web`; no store. It owns `/scripting`, its own prefix.
 
-Audited: none yet (new in M2; `docs/audit/M2.md`)
+Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md

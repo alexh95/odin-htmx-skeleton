@@ -9,4 +9,4 @@ a room, multipart parts and a resumable multipart feed, publish and close for a 
 origin with no sessions, so nothing takes markup from a request: published text is escaped into a fixed fragment and
 every key is 1-40 of `[a-z0-9-]`. Packages: `views`, `web`; no store. It owns `/lab`, its own prefix.
 
-Audited: none yet (new in M2; `docs/audit/M2.md`)
+Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md

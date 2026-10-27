@@ -17,3 +17,5 @@ match, and into none when there is none). So notify's `EXTS` is hx-sse, which `#
 profile that mounts it.
 
 It owns `/notify`, its own prefix.
+
+Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md

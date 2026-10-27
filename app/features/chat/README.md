@@ -34,6 +34,8 @@ mention (`@name`, the name a member last used here) lands in their Inbox through
 
 **Limits** (§17.5): posts 5 per 10 s per member (`web.Limit`, a 429 with `Retry-After` into the toasts; a socket gets
 the toast down the socket), typing 1 per 2 s (the rest dropped), socket frames 20 a second (then 1008), bodies 2,000
-runes, 100 rooms in a memory build, and at most 4,096 members' names and read cursors per process.
+runes, 100 rooms in a memory build, at most 4,096 members' names per process, and 256 read cursors a room.
 
 It owns `/chat`, its own prefix.
+
+Audited: 5395ae0 2026-10-27 docs/audit/M2.md

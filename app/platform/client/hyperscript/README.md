@@ -7,4 +7,4 @@ feature's `static/*._hs`, after the htmx bundle and _hyperscript itself. `app.js
 initialises only when its `_` is a lone `install <Name>`. `client/core.js` (the theme picker, count-up, the overlay's
 Escape) comes first in the profile's app.js, as for the vanilla member. Layer L3 (PLAN §5.1).
 
-Audited: none yet (new in M2; `docs/audit/M2.md`)
+Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md

@@ -8,3 +8,5 @@ each get 2 s). `?mode=poll` fetches the cards every 30 s instead (`GET /status/b
 while none changed). A probe's message is shown to `Admin_Ops` only.
 
 It owns `/status`, its own prefix.
+
+Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md

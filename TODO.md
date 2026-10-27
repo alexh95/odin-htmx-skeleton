@@ -218,15 +218,20 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       Progress: the audit at `db27254` (0 CRITICAL, 2 HIGH, 9 MEDIUM, 5 LOW, 5 NIT; M1-04 and M1-26 borne out) is
       resolved but for M2-18 and M2-21 (below); its Resolution section maps each fix to its test. The re-read of the
       fixes at `a6bc5de` found M2-22 (HIGH: JSON5 hid brackets from M2-01's scan) to M2-29, all fixed since; a second
-      re-read at `5c5ebf2` found M2-30 (HIGH: a raw line feed did) to M2-32, fixed since but for M2-31's socket part.
-      Left: a reader for those fixes, the parity gate on both legs, the stamps, 2.1.0's entry.
+      re-read at `5c5ebf2` found M2-30 (HIGH: a raw line feed did) to M2-32, fixed since but for M2-31's socket part;
+      a third at `5395ae0` read them sound (no CRITICAL or HIGH open), and the stamps are on. Left: the parity gate on
+      both legs, 2.1.0's entry.
 - [ ] **M2's open audit findings** (`docs/audit/M2.md`, owner M3): M2-18, a topic has no `.Lan_Only`, so an Admin by
       `ACCOUNTS_NICK_ADMIN_CIDRS` outside `LAN_CIDRS` gets ops' panel stream but not its page (give `hub.Topic` the
       flag, or have boot refuse such CIDRs; no exposure at the empty default); M2-21, a POST stream keeps its request
       arena until it ends (documented in UPSTREAM's F-17 row; give it back where the handler returns on both paths);
       M2-31's socket part, a chat socket's reconnect upserts the room's last 50 with no cursor, so a page away for more
       than that sees no gap (the page should send its newest id as the socket's first frame, and a snapshot past it
-      replace the log).
+      replace the log); and the third re-read's (`docs/audit/M2.md`): M2-33, core:encoding/json `alloca`s stack per
+      key, which neither of `ws_json`'s bounds counts (count `:` outside strings, `#assert` the target's size,
+      measure `{"":` nesting, report it upstream); M2-35, SSE's resync and the poll transport upsert across a gap the
+      room let go (`changed` reports whether it reached the version; SSE's pane gets a tag); M2-36, a message past the
+      socket's bracket bound is refused after the composer cleared it.
 - [ ] **A WebKit flake to watch**: `chat over sse: an edit and a delete reach the other member` failed once in a full
       streams run on Windows (2026-10-27), then passed 79 targeted runs and the next full run.
 

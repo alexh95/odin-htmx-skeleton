@@ -8,4 +8,4 @@ changes nothing. `/compat` is the index, on Main. Every row is `.Lab_Host`, sinc
 `hx-*` attribute on its page means (D20). The starter uses neither extension anywhere else. Packages: `views`, `web`;
 no store. It owns `/compat`, its own prefix.
 
-Audited: none yet (new in M2; `docs/audit/M2.md`)
+Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md

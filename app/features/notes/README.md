@@ -6,4 +6,4 @@ card and `POST /notes`), `storetest` (the conformance suite, run against both st
 (`app/stores/memory/notes/`, a ring of the newest 500) and SQLite (`app/stores/sqlite/notes/`). It owns `/notes`, its
 own prefix.
 
-Audited: bf831da 2026-10-26 docs/audit/M1.md
+Audited: bf831da 2026-10-26 docs/audit/M1.md; its M2 edits (`html.behave`, the layout's `#live`) are outside `docs/audit/M2.md`'s scope: audit debt
