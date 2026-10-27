@@ -219,8 +219,11 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       resolved but for M2-18 and M2-21 (below); its Resolution section maps each fix to its test. The re-read of the
       fixes at `a6bc5de` found M2-22 (HIGH: JSON5 hid brackets from M2-01's scan) to M2-29, all fixed since; a second
       re-read at `5c5ebf2` found M2-30 (HIGH: a raw line feed did) to M2-32, fixed since but for M2-31's socket part;
-      a third at `5395ae0` read them sound (no CRITICAL or HIGH open), and the stamps are on. Left: the parity gate on
-      both legs, 2.1.0's entry.
+      a third at `5395ae0` read them sound (no CRITICAL or HIGH open), and the stamps are on. The parity gate passes
+      on both legs at `40f8716`, 20 of 20 cells each counting §18.2's n = 5 re-runs (`docs/perf/PARITY.md`), after the
+      TSan gate (0 reports), the 1 h soak (PASS, back 2000 of 2000 in 1.5 s) and every profile's drills and e2e on
+      both OSes; 2.1.0's summary is in `CHANGELOG.md`. Left: Alex's go to push and to tag v2.1.0, then every CI
+      job's first run on the pushed commit.
 - [ ] **M2's open audit findings** (`docs/audit/M2.md`, owner M3): M2-18, a topic has no `.Lan_Only`, so an Admin by
       `ACCOUNTS_NICK_ADMIN_CIDRS` outside `LAN_CIDRS` gets ops' panel stream but not its page (give `hub.Topic` the
       flag, or have boot refuse such CIDRs; no exposure at the empty default); M2-21, a POST stream keeps its request
@@ -232,6 +235,8 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       measure `{"":` nesting, report it upstream); M2-35, SSE's resync and the poll transport upsert across a gap the
       room let go (`changed` reports whether it reached the version; SSE's pane gets a tag); M2-36, a message past the
       socket's bracket bound is refused after the composer cleared it.
+- [ ] **`mixed@file` on Linux** (`docs/perf/PARITY.md`, owner M3): M2's candidate read 0.95 of M1's in an A/B
+      (rounds 0.93–1.05); A/B it with and without a handler's single read transaction before M3's gate.
 - [ ] **A WebKit flake to watch**: `chat over sse: an edit and a delete reach the other member` failed once in a full
       streams run on Windows (2026-10-27), then passed 79 targeted runs and the next full run.
 
@@ -383,7 +388,7 @@ stays off and Fly keeps serving 6d37506.
       before `app.check` (PLAN §8.5: every row printed, secrets masked). Done: `store_sqlite.init()`
       in the skeleton's `main` before `app.check` (`open` records them itself if a profile skips it).
 - [x] **11. The parity gate** on both legs (`skeleton` against 709bc94 and v1.1.1; §18.2 with Q6's and
-      Q35's references), into `docs/perf/PARITY.md`; the 01 (A) checklist. Done: PASS on both legs, 20 of
+      Q35's references), into `docs/perf/PARITY-M1.md`; the 01 (A) checklist. Done: PASS on both legs, 20 of
       20 cells each counting §18.2's n = 5 re-runs (Windows `8c4f1a9`, Linux `72590f6`, the box quiet);
       Linux `write@mem` at 0.99 of HEAD on its re-run, under the 0.93 floor Alex accepted (round 6). The
       checklist is 40 of 40. Both legs' drills
