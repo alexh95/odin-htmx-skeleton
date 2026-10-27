@@ -14,6 +14,7 @@ package html
 
 import "core:fmt"
 import "core:strings"
+import "core:time"
 import "core:unicode"
 import "core:unicode/utf8"
 
@@ -500,6 +501,17 @@ avatar :: proc(b: ^strings.Builder, id: i64, name: string) {
 		word_start = false
 	}
 	w(b, `</span>`)
+}
+
+// A relative time for a log line: "just now", minutes, hours, then days.
+time_ago :: proc(at: i64) -> string {
+	secs := time.time_to_unix(time.now()) - at
+	switch {
+	case secs < 60:    return "just now"
+	case secs < 3600:  return fmt.tprintf("%d min ago", secs / 60)
+	case secs < 86400: return fmt.tprintf("%d h ago", secs / 3600)
+	}
+	return fmt.tprintf("%d d ago", secs / 86400)
 }
 
 // A field's verdict, as the forms and the inline add forms show it.

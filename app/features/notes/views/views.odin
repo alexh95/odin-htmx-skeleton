@@ -35,6 +35,6 @@ li :: proc(b: ^strings.Builder, n: m.Note) {
 	w(b, `<li class="note"><span class="note-body">`)
 	esc(b, n.body)
 	w(b, `</span><small class="note-time">`)
-	esc(b, notes.time_ago(n.at))
+	esc(b, html.time_ago(n.at))
 	w(b, `</small></li>`)
 }

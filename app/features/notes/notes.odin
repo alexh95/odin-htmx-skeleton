@@ -8,7 +8,6 @@ package notes
 
 import "core:fmt"
 import "core:strings"
-import "core:time"
 import "core:unicode/utf8"
 
 import m "models"
@@ -47,15 +46,4 @@ add :: proc(op: ^m.Add) -> bool {
 // The demo rows, into an empty store only.
 seed :: proc() {
 	notes_store.seed()
-}
-
-// A relative time, for display.
-time_ago :: proc(at: i64) -> string {
-	secs := time.time_to_unix(time.now()) - at
-	switch {
-	case secs < 60:    return "just now"
-	case secs < 3600:  return fmt.tprintf("%d min ago", secs / 60)
-	case secs < 86400: return fmt.tprintf("%d h ago", secs / 3600)
-	}
-	return fmt.tprintf("%d d ago", secs / 86400)
 }

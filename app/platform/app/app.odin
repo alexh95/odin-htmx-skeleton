@@ -98,6 +98,11 @@ boot :: proc(profile: string) {
 	case "warn", "warning": level = .Warning
 	case "error":          level = .Error
 	}
+	// A listing (--routes, --features, --limits) prints only its answer, which a
+	// script parses: boot's warnings (nick's boot key, say) would land in it.
+	for a in os.args[1:] {
+		if a == "--routes" || a == "--features" || a == "--limits" { level = .Error }
+	}
 	obs.init(level)
 
 	// The short-circuits that need no server state.

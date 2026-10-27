@@ -8,17 +8,15 @@ package web
 // never declared twice: robots.txt's Disallow lines come from the host's
 // .Fragment rows and the sitemap from its nav.
 
-import "base:runtime"
 import "core:crypto"
 import "core:hash"
 import "core:net"
 import "core:strings"
+import "core:time"
 
 import http "../../vendor/odin-http"
 import "../authz"
-import "../guard"
 import "../obs"
-import "../sys"
 
 ROUTES := [?]Route {
 	{.Get, "/healthz", healthz, .Public, {}, 0},
@@ -54,10 +52,7 @@ CSP_REPORT_CAP :: 16 * 1024
 CSP_REPORTS_A_MINUTE :: 10 // per client id (§17.5)
 
 @(private)
-csp_reports: struct {
-	mu:      guard.Mutex,
-	clients: map[u64][2]i64, // client key → {the minute, reports in it}
-}
+csp_reports := Limit{n = CSP_REPORTS_A_MINUTE, window = time.Minute}
 
 // Logs a browser's violation report at warn, at most CSP_REPORTS_A_MINUTE a
 // minute from one client (the rest are dropped), and answers 204 either way. The
@@ -65,18 +60,8 @@ csp_reports: struct {
 // look, not evidence.
 csp_report :: proc(req: ^Request, res: ^Response) {
 	c := ctx()
-	minute := sys.mono_ns() / 60e9
-	key := client_key(c.client)
-	guard.lock(&csp_reports.mu)
-	if csp_reports.clients == nil { csp_reports.clients = make(map[u64][2]i64, runtime.heap_allocator()) }
-	if len(csp_reports.clients) > 4096 { clear(&csp_reports.clients) }
-	seen := csp_reports.clients[key]
-	if seen[0] != minute { seen = {minute, 0} }
-	seen[1] += 1
-	csp_reports.clients[key] = seen
-	guard.unlock(&csp_reports.mu)
-	if seen[1] <= CSP_REPORTS_A_MINUTE {
-		if l, ok := obs.begin(.Warning, "csp", "report"); ok {
+	if ok, _ := limit_hit(&csp_reports, client_key(c.client)); ok {
+		if l, lok := obs.begin(.Warning, "csp", "report"); lok {
 			obs.str(&l, "body", c.body)
 			obs.end(&l)
 		}
@@ -255,6 +240,9 @@ sitemap_xml :: proc(req: ^Request, res: ^Response) {
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 `)
 	for item in site.nav {
+		// A page only some viewers may see, or one marked noindex (.Private), is no
+		// page for a crawler: a member's Inbox, chat's rooms.
+		if m, _, _ := router_find(&site.router, .Get, item.href); m != nil && (m.perm != .Public || .Private in m.flags) { continue }
 		strings.write_string(&b, "  <url><loc>")
 		strings.write_string(&b, site.origin)
 		strings.write_string(&b, item.href)

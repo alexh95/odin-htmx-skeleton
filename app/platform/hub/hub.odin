@@ -66,6 +66,10 @@ Allow_Proc :: #type proc(key: string, viewer: authz.Viewer) -> bool
 // A server-side row runs once per publish on the publisher's thread (M7's bot.ask).
 Deliver_Proc :: #type proc(topic, html: string, rowid: i64)
 
+// A page's #live subscribed to this key (`open`), or that stream ended: who is
+// in a room (presence, §14.1), on the stream's own loop.
+Watch_Proc :: #type proc(key: string, viewer: authz.Viewer, open: bool)
+
 // One row of a package's TOPICS table: a family of topics, as a route row is a
 // family of paths. Subscribing runs it as a GET runs a route's handler: the
 // perm, then `allow`, then for a persisted topic the keyset replay.
@@ -79,6 +83,7 @@ Topic :: struct {
 	allow:     Allow_Proc,
 	replay:    Replay_Proc,
 	deliver:   Deliver_Proc,
+	watch:     Watch_Proc,
 }
 
 Kind :: enum u8 {
@@ -301,6 +306,8 @@ Sub :: struct {
 	n_topics: int,
 	last:     u64, // the newest seq written: a live copy at or below it is skipped
 	slot:     int,
+	watch:    [MAX_TOPICS]Watch_Proc, // per topic, told when the stream ends
+	viewer:   authz.Viewer,           // whom /events subscribed, for `watch`; its name on the heap
 }
 
 @(private)
@@ -344,21 +351,30 @@ deliver :: proc(m: ^Msg) {
 			s.last = m.seq
 			// .Sample drops an update while the last one is still on its way.
 			if m.policy == .Sample && stream.queued(c) > 0 { continue }
-			#partial switch c.proto {
+			switch c.proto {
 			case .Sse:
 				if sse == "" { sse = stream.sse_event(cursor(m.seq), "", m.html) }
 				stream.write(c, sse)
 			case .Ws:
 				if ws == "" { ws = stream.ws_frame(stream.WS_TEXT, transmute([]byte)m.html) }
 				stream.ws_write_frame(c, ws)
+			case .Multipart:
+				// A part per message, its id the rowid when the publisher gave one (a chat
+				// message's), so a reconnect's HX-Last-Part-ID names what it has.
+				buf: [24]byte
+				id := strconv.write_int(buf[:], m.rowid, 10) if m.rowid > 0 else cursor(m.seq)
+				stream.multipart_part(c, m.html, {{"HX-Part-ID", id}})
 			}
 		case .Kick:
-			#partial switch c.proto {
+			switch c.proto {
 			case .Sse:
 				stream.write(c, stream.sse_event("", "kicked", m.topic))
 				stream.end(c)
 			case .Ws:
 				stream.ws_close(c, m.code)
+			case .Multipart:
+				stream.multipart_part(c, "", {{"HX-Trigger", "kicked"}})
+				stream.multipart_end(c)
 			}
 		}
 	}
@@ -387,7 +403,14 @@ unsubscribe :: proc(s: ^Sub) {
 		last.slot = s.slot
 	}
 	sync.atomic_sub(&local.inbox.subs, 1)
-	for t in s.topics[:s.n_topics] { delete(t, heap()) }
+	for t, i in s.topics[:s.n_topics] {
+		if s.watch[i] != nil {
+			_, key := split_topic(t)
+			s.watch[i](key, s.viewer, false)
+		}
+		delete(t, heap())
+	}
+	delete(s.viewer.name, heap())
 	free(s, heap())
 }
 

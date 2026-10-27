@@ -16,6 +16,7 @@ import "core:net"
 import "core:strings"
 
 import http "../../vendor/odin-http"
+import "../authz"
 import "../env"
 import "../guard"
 import "../html"
@@ -213,6 +214,11 @@ host_of :: proc(req: ^Request) -> string {
 cookies_of :: proc(req: ^Request) -> string {
 	c, _ := http.headers_get(req.headers, "cookie")
 	return c
+}
+
+// One cookie's value ("" when absent): a feature's own setting (chat's transport).
+cookie :: proc(req: ^Request, name: string) -> string {
+	return authz.cookie(cookies_of(req), name)
 }
 
 // The client: the TCP peer, unless the peer is a trusted proxy (TRUST_PROXY,

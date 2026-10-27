@@ -116,6 +116,17 @@ events :: proc(req: ^web.Request, res: ^web.Response) {
 	// `last`; anything above it arrives after this handler returns.
 	s.last = snapshot
 	add_sub(s)
+	// Before the writes below: one can end the stream, whose close frees `s` (and tells the
+	// watchers it closed). Outside the hub mutex, since a watcher may publish (someone came online).
+	for i in 0 ..< n {
+		if rows[i].watch == nil { continue }
+		if s.viewer.id != ctx.viewer.id {
+			s.viewer = {id = ctx.viewer.id, role = ctx.viewer.role, name = strings.clone(ctx.viewer.name, heap())}
+		}
+		s.watch[i] = rows[i].watch
+		_, key := split_topic(want[i].topic)
+		rows[i].watch(key, s.viewer, true)
+	}
 	slice.sort_by(replay[:], proc(a, b: ^Msg) -> bool { return a.seq < b.seq })
 	for m in replay {
 		stream.write(c, stream.sse_event(cursor(m.seq), "", m.html))
@@ -145,6 +156,7 @@ events :: proc(req: ^web.Request, res: ^web.Response) {
 			obs.inc(h.resyncs)
 		}
 	}
+
 }
 
 @(private)

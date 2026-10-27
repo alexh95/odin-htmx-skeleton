@@ -9,6 +9,7 @@ package authz
 // `identity:` family, loads the Viewer through the contract below.
 
 import "core:net"
+import "core:strings"
 
 Role :: enum u8 {
 	Guest,
@@ -81,6 +82,17 @@ Ask :: struct {
 	cookies: string,      // the Cookie header, as sent
 	client:  net.Address, // the trusted client address (§17.8)
 	https:   bool,        // arrived as https through a trusted proxy (COOKIE_SECURE=auto)
+}
+
+// One cookie's value from a Cookie header ("" when absent): an identity's, and
+// web.cookie's for a handler.
+cookie :: proc(header, name: string) -> string {
+	rest := header
+	for part in strings.split_iterator(&rest, ";") {
+		k, _, v := strings.partition(strings.trim_space(part), "=")
+		if k == name { return v }
+	}
+	return ""
 }
 
 // The identity contract: each member of the `identity:` family declares

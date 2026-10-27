@@ -77,7 +77,7 @@ cli :: proc() {}
 // What a request's cookie and address make its viewer, and a renewed cookie when
 // half of its life is gone.
 load_viewer :: proc(ask: authz.Ask) -> (v: authz.Viewer, set_cookie: string) {
-	id, name, expires, ok := read(cookie_value(ask.cookies, COOKIE))
+	id, name, expires, ok := read(authz.cookie(ask.cookies, COOKIE))
 	if !ok { return authz.GUEST, "" }
 	switch {
 	case env.contains(st.admins, ask.client):          v.role = .Admin
@@ -183,15 +183,4 @@ read :: proc(value: string) -> (id: u64, name: string, expires: i64, ok: bool) {
 	raw, derr := base64.decode(parts[1], base64.DEC_URL_TABLE, nil, context.temp_allocator)
 	if !nok || !eok || derr != nil || n == 0 || e < time.time_to_unix(time.now()) { return }
 	return n, string(raw), e, true
-}
-
-// One cookie's value from a Cookie header ("" when absent).
-@(private)
-cookie_value :: proc(header, name: string) -> string {
-	rest := header
-	for part in strings.split_iterator(&rest, ";") {
-		k, _, v := strings.partition(strings.trim_space(part), "=")
-		if k == name { return v }
-	}
-	return ""
 }
