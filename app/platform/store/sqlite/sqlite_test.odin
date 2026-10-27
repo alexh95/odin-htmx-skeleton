@@ -273,6 +273,23 @@ reads_and_writes :: proc(t: ^testing.T) {
 	reset(q)
 }
 
+// M1-07: a reader that can't open (out of descriptors, at the connection cap)
+// fails its read with .Failed, a 500, where it used to exit the process.
+@(private = "file")
+reader_that_cant_open :: proc(t: ^testing.T) {
+	testing.expect_value(t, open_db(":memory:", .Ephemeral, "test"), "")
+	defer close()
+	testing.expect_value(t, apply("items", ITEMS[:]), "")
+	good := db.open_path
+	db.open_path = strings.clone_to_cstring(fmt.tprintf("%s/ohst-no-such-dir-%d/x.db", tmp_dir, os.get_pid()))
+	got := 0
+	th := thread.create_and_start_with_poly_data(&got, proc(got: ^int) { got^ = read_count() }) // a thread with no reader yet
+	thread.join(th)
+	thread.destroy(th)
+	db.open_path = good
+	testing.expect_value(t, got, -1)
+}
+
 // One test, in order: the store is process-wide.
 @(test)
 store_v3 :: proc(t: ^testing.T) {
@@ -283,4 +300,5 @@ store_v3 :: proc(t: ^testing.T) {
 	tmp_dir = strings.clone(dir)
 	runner_cases(t)
 	reads_and_writes(t)
+	reader_that_cant_open(t)
 }

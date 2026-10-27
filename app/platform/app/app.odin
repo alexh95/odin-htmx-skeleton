@@ -32,6 +32,7 @@ import "../env"
 import "../guard"
 import "../html"
 import "../obs"
+import "../store"
 import "../sys"
 import "../web"
 import "../workers"
@@ -273,6 +274,7 @@ loop_start :: proc(loop: int) {
 	guard.thread_init()
 	obs.thread_init(loop)
 	arm_tick()
+	store.loop_started() // the SQLite store opens this loop's reader (M1-07)
 }
 
 @(private)

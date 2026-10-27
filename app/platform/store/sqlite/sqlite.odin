@@ -116,12 +116,15 @@ mode :: proc() -> Mode { return db.mode }
 
 // ---- connections ------------------------------------------------------------
 
+// "" or why not. The writer's is fatal at boot; a reader's, in a request, is a
+// failed read (M1-07).
 @(private)
-open_conn :: proc(conn: ^Conn, flags: c.int) {
+open_conn :: proc(conn: ^Conn, flags: c.int) -> (problem: string) {
 	h, rc := sqlite.open(db.open_path, flags | sqlite.OPEN_NOMUTEX)
 	if rc != sqlite.OK {
-		msg := sqlite.errmsg(h) if h != nil else "out of memory"
-		fatal("store: can't open %s: %s", db.db_path, msg)
+		problem = fmt.tprintf("can't open %s: %s", db.db_path, sqlite.errmsg(h) if h != nil else "out of memory")
+		if h != nil { sqlite.close(h) }
+		return
 	}
 	conn.db = h
 	// Before any prepare: QPSG applies to the statements prepared after it.
@@ -130,6 +133,7 @@ open_conn :: proc(conn: ^Conn, flags: c.int) {
 	if sqlite.create_function(h, "contains_ci", 2, sql_contains_ci) != sqlite.OK {
 		fatal("store: can't register contains_ci: %s", sqlite.errmsg(h))
 	}
+	return ""
 }
 
 @(private)
@@ -162,7 +166,10 @@ cached :: proc(c: ^Conn, sql: string) -> Stmt {
 
 // A statement on this thread's reader (single mode: on the writer, under its
 // lock until `reset`). Bind, step with next_row, and `defer reset(q)` at once:
-// an unreset statement holds its snapshot and pins the WAL.
+// an unreset statement holds its snapshot and pins the WAL. nil when this
+// thread's reader can't open (out of descriptors, M1-07): SQLite's binds and
+// reset take nil as a no-op, and next_row says .Failed, so the read answers 500
+// and serving goes on.
 read :: proc(sql: string) -> Stmt {
 	if db.mode == .Single {
 		assert(!tl_read_locked, "store: single mode reads one statement at a time: reset the last one first")
@@ -170,7 +177,9 @@ read :: proc(sql: string) -> Stmt {
 		tl_read_locked = true
 		return cached(&db.writer, sql)
 	}
-	return cached(reader(), sql)
+	r := reader()
+	if r == nil { return nil }
+	return cached(r, sql)
 }
 
 // Ends a read, or a write's statement: resets it, and gives back the writer's
@@ -187,16 +196,25 @@ reset :: proc(st: Stmt) {
 reader :: proc() -> ^Conn {
 	r := tl_reader
 	if r == nil || tl_generation != db.generation { r = open_reader() }
+	if r == nil { return nil }
 	if n := guard.recoveries(); n != r.seen {
 		reset_reader(r, n)
 	}
 	return r
 }
 
+// nil, logged, when SQLite can't open it.
 @(private)
 open_reader :: proc() -> ^Conn {
 	r := new(Conn, runtime.heap_allocator())
-	open_conn(r, sqlite.OPEN_READONLY)
+	if problem := open_conn(r, sqlite.OPEN_READONLY); problem != "" {
+		free(r, runtime.heap_allocator())
+		if l, ok := obs.begin(.Error, "store", "reader"); ok {
+			obs.str(&l, "msg", problem)
+			obs.end(&l)
+		}
+		return nil
+	}
 	r.seen = guard.recoveries()
 	sync.mutex_lock(&db.readers_mu)
 	append(&db.readers, r)
@@ -271,6 +289,10 @@ step_done :: proc(st: Stmt) -> store.Error {
 // Advances a read; false at the end of the rows or on an error, which lands in
 // err^: `for next_row(q, &err) { … }`.
 next_row :: proc(st: Stmt, err: ^store.Error) -> bool {
+	if st == nil { // the reader couldn't open (read)
+		err^ = .Failed
+		return false
+	}
 	switch rc := sqlite.step(st); rc {
 	case sqlite.ROW:  return true
 	case sqlite.DONE: return false
