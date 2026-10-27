@@ -215,6 +215,13 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
 - [ ] **17. Exit**: the parity gate on both legs; the budgets (bundle sizes, idle, no SQLite in `minimal`, `streams`
       and `lab`); `docs/audit/M2.md` by an agent that didn't write the code, 0 open CRITICAL/HIGH (M1-04 and M1-26
       are due here); `Audited:` stamps; CHANGELOG's 2.1.0 entry; then ask Alex about tagging v2.1.0.
+      Progress: the audit at `db27254` (0 CRITICAL, 2 HIGH, 9 MEDIUM, 5 LOW, 5 NIT; M1-04 and M1-26 borne out) is
+      resolved but for M2-18 and M2-21 (below); its Resolution section maps each fix to its test. Left: a re-read of
+      the fixes, the parity gate on both legs, the stamps, 2.1.0's entry.
+- [ ] **M2's open audit findings** (`docs/audit/M2.md`, owner M3): M2-18, a topic has no `.Lan_Only`, so an Admin by
+      `ACCOUNTS_NICK_ADMIN_CIDRS` outside `LAN_CIDRS` gets ops' panel stream but not its page (give `hub.Topic` the
+      flag, or have boot refuse such CIDRs; no exposure at the empty default); M2-21, a POST stream keeps its request
+      arena until it ends (documented in UPSTREAM's F-17 row; give it back where the handler returns on both paths).
 
 **Answered by Alex (ANSWERS round 9, 2026-10-26), before slices 7–11:** nick is built in M2 (slice 6a);
 `ACCOUNTS_NICK_ADMIN_CIDRS` (none by default, loopback in e2e) makes its clients there Admin, so `/admin/ops` opens in

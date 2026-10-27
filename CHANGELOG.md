@@ -251,6 +251,38 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   topics line a family named by a constant. `docs/catalog.json` lists chat, notify, accounts, nick and streams.
 
 ### Fixed
+- **M2's audit** (`docs/audit/M2.md`, by an agent that didn't write the code: 0 CRITICAL, 2 HIGH, 9 MEDIUM, 5 LOW,
+  5 NIT) is resolved but for two NITs (M2-18, M2-21: `TODO.md`); its Resolution section maps each fix to what holds it.
+- **A WebSocket frame of deeply nested JSON no longer overflows a loop's stack** (M2-01, HIGH): `stream.ws_json`
+  refuses nesting past 16 before `core:encoding/json` parses it; chat's socket and the lab's room decode through it.
+  The drills' `wsdata` phase sends 60,000 `[`.
+- **Two publishers racing no longer lose a live message** (M2-02, HIGH): the hub appends to the inboxes under its lock,
+  in sequence order, so `deliver` never takes a message for one it has already passed.
+- **A backlog no longer trips a stream's slow-consumer cap** (M2-03): a replay past half `STREAM_MAX_QUEUED` answers
+  `resync`, and chat's socket and multipart snapshots keep their newest messages within it. A room of long messages
+  had closed every socket to it.
+- **The hub's memory is bounded** (M2-04, M2-07): a ring made again after the idle sweep starts at the hub's floor, so
+  an old cursor gets `resync`, not a silent gap; `HUB_RINGS_BYTES` (64 MiB) bounds every ring together, the ring
+  published to longest ago going first; `/lab/publish` and `/lab/close` are limited (`LAB_PUBLISH_PER_MINUTE`, 1,200
+  a client; the harnesses lift it).
+- **Per-member state is bounded** (M2-05, M2-06, M2-08, M2-11): presence and typing accept only a room that exists
+  and drop a room's empty map; the memory stores' rings grow to their cap instead of starting there, and notify's and
+  the bot's keep 4,096 members; `POST /bot/c` is limited to 10 a minute; a room keeps 256 read cursors; stream
+  admission sweeps its clients once a minute at most, tracks 65,536, and keys an IPv6 client by its /64.
+- **A POST stream's handler reads its own copy of the body** (M2-09): the fork's stream begin frees the buffer a body
+  is a slice of, and a malformed `%` in a bot ask handed the handler that memory. Front copies a `.Stream` row's body
+  into the request arena, and `form_decode` never returns a slice of its input.
+- **A crashed handler's SQLite read transaction ends at the pulled reset** (M2-10): it had stayed open until the
+  loop's next handler, so a continuation read a stale snapshot and the WAL could not checkpoint past it.
+- **Crash and shutdown edges** (M2-12, M2-13): a continuation run inside its handler that crashes keeps its 500 (the
+  fork's second crash call closed the connection under it); chat's continuations resume before they publish; the
+  bot's last event releases the member's slot before it renders, so a crash there no longer locks them out.
+- **Protocol edges** (M2-14, M2-15, M2-16): a HEAD to a stream route gets 405 and `Allow: GET` instead of a stream; a
+  WebSocket handshake that admission refuses is a plain 429 or 503, without the 101's headers; the lab's `after` goes
+  into its stream URL through `url_encode`.
+- **One rule for "a path on this site"** (M2-17): `escape.site_path`, used by nick's `next` and notify's refs (which
+  had admitted `//host`). Request numbers go through `parse_digits` (M2-19), and `tools/init`'s verify runs check's
+  `imports` and `contracts` too (M2-20).
 - **The drills' `streamfd` phase runs natively on Linux** (CI's `linux-ops`): it spawned `curl` from the repo root, which
   only worked when Windows drove WSL. Every profile's drills pass on both legs: Windows minimal 26/26, skeleton 28/28,
   lab 28/28, streams 25/25; Linux 24/24, 26/26, 28/28, 24/24, every budget met.
