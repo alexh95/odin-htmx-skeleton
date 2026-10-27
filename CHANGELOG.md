@@ -115,6 +115,9 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   `scripting.spec` and `compat.spec`, and load scenarios for every new route.
 
 ### Changed
+- **CI covers lab** (PLAN §20.1): checked on its families, built on the four platforms (and without SQLite on Linux and
+  Windows; no size budget of its own), its e2e specs in all three engines, its k6 quick run in the route coverage, and
+  its drills in `linux-ops`.
 - **An open stream holds 3 KiB, not 16** (the fork's F-17): its receive buffer is sized by kind, the scanner's buffer
   goes back at `stream_begin`, and the connection's arena once the handler returns. 4000 idle SSE streams took 68 MB
   over idle; now 12 MB (WS 20 MB), inside §18.4's 6 KiB a stream.
