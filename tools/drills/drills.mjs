@@ -2,8 +2,8 @@
 //
 //   node tools/drills/drills.mjs <profile> [phase …] [--wsl DIR]
 //
-// Phases (default: all): release pure dirty burst hang malformed slowread streamcrash shutdown restart
-// fdceiling budgets.
+// Phases (default: all): release pure dirty burst hang logstall malformed slowread streamcrash shutdown
+// restart fdceiling budgets.
 // It builds the profile twice through build.{sh,bat}: a TEST_ROUTES build, which mounts
 // /__test/crash/<kind> and /__test/shutdown (platform/web/drills.odin), and the release build at
 // -o:speed, which must answer 404 there and is the one the budgets measure. Every server is fresh,
@@ -17,7 +17,7 @@
 // Prints PASS/FAIL per check; exits 1 on any FAIL.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, unlinkSync } from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
@@ -35,7 +35,7 @@ if (!PROFILE) {
 const WIN = process.platform === 'win32' && !WSL;
 const LINUX = !WIN;
 const EXE = WIN ? '.exe' : '';
-const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'malformed', 'slowread', 'streamcrash', 'shutdown', 'restart', 'fdceiling', 'budgets'];
+const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'logstall', 'malformed', 'slowread', 'streamcrash', 'shutdown', 'restart', 'fdceiling', 'budgets'];
 const phases = PHASES.length ? PHASES : ALL;
 
 // PLAN §18.4 (ANSWERS round 7): binaries in MiB, Windows -o:speed, as CI reads them; idle memory
@@ -525,6 +525,32 @@ async function phaseSlowRead() {
   await stop(s);
 }
 
+// M1-03: stderr is a pipe whose reader stopped. The loops block flushing their logs, /livez stops,
+// and the watchdog's exit must not block behind the same lock: exit 70, with the crash file.
+async function phaseLogStall() {
+  const s = start(DRILL_BIN, { LOG_LEVEL: 'info' });
+  const crashFile = path.join(ROOT, `app/build/last-crash-${s.port}.txt`);
+  try { unlinkSync(crashFile); } catch {} // an earlier run's, on the same port
+  if (!(await ready(s))) return record('logstall: server starts', false);
+  s.child.stdout.pause();
+  s.child.stderr.pause();
+  // Fill the pipe: the access log writes a line a request, until requests stop being answered.
+  let stalledAt = 0;
+  for (let i = 0; i < 200 && s.exited === null && !stalledAt; i++) {
+    const rs = await Promise.all(Array.from({ length: 50 }, () => get(s.port, '/healthz', { timeout: 2000 })));
+    if (rs.some((r) => r.status !== 200)) stalledAt = performance.now();
+  }
+  await waitExit(s, 20000);
+  s.child.stdout.resume();
+  s.child.stderr.resume();
+  const secs = s.exited === null || !stalledAt ? Infinity : (s.exitAt - stalledAt) / 1000;
+  let file = '';
+  try { file = readFileSync(crashFile, 'utf8'); } catch {}
+  record('logstall: a stalled log pipe ends in the watchdog\'s exit 70, with its crash file',
+    s.exited === 70 && secs <= 15 && file.includes('loop stalled'), `exit=${s.exited} ${secs.toFixed(1)} s after the stall, file=${JSON.stringify(file.trim().slice(0, 60))}`);
+  await stop(s);
+}
+
 // M1-26: a stream that ends hands its connection back, and the next request runs inside the
 // stream's own callback. One that crashes there is answered 500 and its connection closed, like
 // any other, and serving goes on. A profile with a chunked stream to end only (lab's tick).
@@ -563,7 +589,7 @@ build(RELEASE_BIN, '-o:speed');
 const f = features();
 console.log(`${PROFILE} on ${WSL ? 'Linux (WSL)' : process.platform}: store ${f.store}; phases: ${phases.join(' ')}`);
 const PH = {
-  release: phaseRelease, pure: phasePure, dirty: () => phaseDirty(f), burst: phaseBurst, hang: phaseHang,
+  release: phaseRelease, pure: phasePure, dirty: () => phaseDirty(f), burst: phaseBurst, hang: phaseHang, logstall: phaseLogStall,
   malformed: phaseMalformed, slowread: phaseSlowRead, streamcrash: () => phaseStreamCrash(f), shutdown: phaseShutdown, restart: phaseRestart, fdceiling: phaseFdCeiling, budgets: phaseBudgets,
 };
 for (const p of phases) {

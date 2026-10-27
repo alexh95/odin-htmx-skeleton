@@ -22,33 +22,45 @@ import "../guard"
 import "../obs"
 
 DIRTY_HARD_EXIT :: 5500 * time.Millisecond
+// What the watchdog's last line gets before the armed exit takes the process anyway.
+FATAL_LOG_GRACE :: 1 * time.Second
 
+// A dirty crash arms its exit, and writes the crash file, before it logs: a
+// stalled log pipe holds the lock a blocked write took, and the exit must not
+// wait behind it (M1-03). Its writes are bounded from here (obs.bound_writes).
 @(private)
 on_crash :: proc(c: ^guard.Crash) {
-	guard.log_crash(c)
-	if !c.dirty { return }
-	if sync.atomic_exchange(&st.stop_once, true) { return }
-	sync.atomic_store(&st.exit_code, 70)
+	if !c.dirty || sync.atomic_exchange(&st.stop_once, true) {
+		guard.log_crash(c)
+		return
+	}
+	obs.bound_writes()
+	sync.atomic_store(&st.exit_code, guard.EXIT_DIRTY)
 	id, route := obs.current_request()
 	write_crash_file(c.why, id, route)
 	thread.create_and_start(proc() {
 		time.sleep(DIRTY_HARD_EXIT)
+		obs.bound_writes()
 		if l, ok := obs.begin(.Fatal, "app", "exit"); ok {
 			obs.str(&l, "why", "the drain didn't finish")
 			obs.end(&l)
 		}
 		obs.flush()
-		os.exit(70)
+		os.exit(guard.EXIT_DIRTY)
 	})
+	guard.log_crash(c)
 	sync.sema_post(&st.signalled)
 }
 
-// The watchdog's: a stalled loop or a stuck lock. Nothing can drain.
+// The watchdog's, before its own line: a stalled loop or a stuck lock, which
+// nothing can drain. The crash file, and an exit the line can't hold up (M1-03).
 @(private)
 on_fatal :: proc(why, id, route: string) {
 	write_crash_file(why, id, route)
-	obs.flush()
-	os.exit(70)
+	thread.create_and_start(proc() {
+		time.sleep(FATAL_LOG_GRACE)
+		os.exit(guard.EXIT_DIRTY)
+	})
 }
 
 // The watchdog's thread has no request of its own, so the caller names it.

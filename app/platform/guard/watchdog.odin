@@ -10,6 +10,7 @@ package guard
 // so this is what turns a hang into a restart. It is told to stop at drain and
 // never joined: it sleeps between checks, and exit doesn't wait for it (S0.7).
 
+import "core:os"
 import "core:sync"
 import "core:thread"
 import "core:time"
@@ -19,7 +20,10 @@ import "../obs"
 STALL :: 10 * time.Second
 LOCK_LIMIT :: 5 * time.Second
 
-On_Fatal :: #type proc(why, id, route: string) // id and route: the stalled request, if any
+// The app's last words before a watchdog exit: it keeps what it keeps (the crash
+// file) and arms the exit, which the log line after it can't then hold up
+// (M1-03). id and route: the stalled request, if any.
+On_Fatal :: #type proc(why, id, route: string)
 
 @(private)
 Watched :: struct {
@@ -76,6 +80,9 @@ _watchdog_run :: proc() {
 
 @(private)
 _fatal :: proc(why: string, loop: int, age_ns: i64, id, route: string) {
+	// The exit first: a stalled log pipe is one of the hangs this ends (M1-03).
+	obs.bound_writes()
+	if wd.on_fatal != nil { wd.on_fatal(why, id, route) }
 	if l, ok := obs.begin(.Fatal, "guard", "watchdog"); ok {
 		obs.str(&l, "why", why)
 		if loop >= 0 { obs.num(&l, "loop", i64(loop)) }
@@ -85,5 +92,5 @@ _fatal :: proc(why: string, loop: int, age_ns: i64, id, route: string) {
 		obs.end(&l)
 	}
 	obs.flush()
-	if wd.on_fatal != nil { wd.on_fatal(why, id, route) }
+	os.exit(EXIT_DIRTY)
 }

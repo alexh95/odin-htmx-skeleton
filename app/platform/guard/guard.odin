@@ -42,6 +42,9 @@ Crash :: struct {
 // any guard. A dirty one must not return to serving: it drains and exits 70.
 On_Crash :: #type proc(c: ^Crash)
 
+// What a dirty crash and a watchdog exit leave with (D15).
+EXIT_DIRTY :: 70
+
 RECOVERY_BURST :: 100
 RECOVERY_WINDOW :: 60 * time.Second
 

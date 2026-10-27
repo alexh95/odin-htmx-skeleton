@@ -137,6 +137,10 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   chunk lands, and drop it: the server read that request from its middle (a 501) or waited for one already gone.
   About 1 in 300 rounds on a raw socket and 0.01-0.1 % of the requests after a stream under k6; 0 in 12,600 rounds
   since. `protocol.spec` keeps the check.
+- **A stalled log pipe no longer hangs the exits meant to end a hang** (M1-03): the watchdog and a dirty crash wrote
+  their lines through the lock a blocked stderr write held, so a log reader that stopped hung the process for good.
+  Both now write the crash file and arm their exit before they log, and their writes give up on the lock after
+  250 ms. The drills' `logstall` phase stops reading the server's output: exit 70 about 8 s after the stall.
 - **A client that stops reading is cut at `SEND_TIMEOUT_MS`** (30 s; M1-02): a send still in flight past it cuts the
   connection, as the drain does, where nothing had bounded it, so such a client held its descriptor and a copy of its
   response for good. The drills' `slowread` phase pipelines 100 requests for og.png and reads nothing.

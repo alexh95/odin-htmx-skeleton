@@ -21,6 +21,7 @@ import "core:log"
 import "core:os"
 import "core:strings"
 import "core:sync"
+import "core:time"
 import "core:unicode/utf8"
 
 import "../sys"
@@ -50,6 +51,7 @@ Thread_Buf :: struct {
 }
 
 @(private, thread_local) tl_buf: ^Thread_Buf // nil: write each line through
+@(private, thread_local) tl_bounded: bool     // an exit path's thread: see bound_writes
 @(private, thread_local) tl_loop1: int // the loop index + 1: 0 is a thread with no loop
 @(private, thread_local) tl_seq: u64
 @(private, thread_local) tl_scratch: [LINE_MAX]byte
@@ -102,8 +104,27 @@ flush :: proc() {
 	b.last_flush = sys.mono_ns()
 }
 
+// This thread is on an exit path (M1-03): its writes wait for the lock at most
+// 250 ms and are dropped past it. A stalled log pipe (a reader that stopped)
+// holds the lock a blocked write took, and the exit that ends the hang must not
+// wait behind it. Call it before the exit's first line.
+bound_writes :: proc() {
+	tl_bounded = true
+}
+
 @(private)
 write_out :: proc(data: []byte) {
+	if tl_bounded {
+		for _ in 0 ..< 25 {
+			if sync.mutex_try_lock(&state.write_mu) {
+				_, _ = os.write(state.out, data)
+				sync.mutex_unlock(&state.write_mu)
+				return
+			}
+			time.sleep(10 * time.Millisecond)
+		}
+		return
+	}
 	sync.mutex_lock(&state.write_mu)
 	_, _ = os.write(state.out, data)
 	sync.mutex_unlock(&state.write_mu)
