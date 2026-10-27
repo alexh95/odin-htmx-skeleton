@@ -231,6 +231,12 @@ ws_json_refuses_deep_nesting_before_it_parses :: proc(t: ^testing.T) {
 	for i in 20 ..< len(deep) { deep[i] = '[' }
 	testing.expect(t, !ws_json(deep, &v))
 	testing.expect(t, !ws_json(transmute([]byte)string("{\"body\":\"a\tb\"}"), &v)) // a raw tab
+	// Frames only the scan's control-byte check refuses, well within WS_JSON_OPENS (M2-34): a
+	// line feed cuts a key, and the parse then nests 20 deep where the scan saw 1. The parse
+	// refuses them too, but only after recursing, so the scan is what's held.
+	testing.expect(t, !ws_json_bounded(transmute([]byte)string("{\"a\n:1}")))
+	testing.expect(t, !ws_json_bounded(transmute([]byte)string("{\"a\n:[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]}")))
+	testing.expect(t, ws_json_bounded(transmute([]byte)string(`{"a\n":[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]}`))) // escaped, 16 deep
 	testing.expect(t, ws_json(transmute([]byte)string(`{"body":"a\tb\nc"}`), &v)) // escaped, they're text
 	testing.expect_value(t, v.body, "a\tb\nc")
 	// Past WS_JSON_OPENS brackets even inside a string: whatever the parse takes a string to

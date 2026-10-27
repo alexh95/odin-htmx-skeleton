@@ -33,7 +33,8 @@ WS_JSON_DEPTH :: 16
 // And holds at most this many `[` and `{` bytes, in strings or not: the parse can't nest
 // deeper than there are, whatever it takes a string to be. The depth scan has to agree with
 // the tokenizer on where strings end, and twice it didn't (M2-22, M2-30); this bound doesn't.
-// A loop's 1 MiB stack held 512 levels of a debug build's parse, 1,024 of -o:speed's.
+// A default thread's 1 MiB stack (a Windows loop's) held 512 levels of `[` in a debug build's
+// parse and 1,024 at -o:speed; `{"":` costs more a level, and each key some stack (M2-33).
 WS_JSON_OPENS :: 256
 
 // A text frame's JSON, unmarshalled into `out` (strings in the request's temp arena), or
@@ -42,6 +43,14 @@ WS_JSON_OPENS :: 256
 // JSON: core's default is JSON5, whose comments and single-quoted strings hid a `"` from the
 // scan and every bracket after it, and whose tokenizer recursed once per comment (M2-22).
 ws_json :: proc(data: []byte, out: ^$T) -> bool {
+	if !ws_json_bounded(data) { return false }
+	return json.unmarshal(data, out, spec = .JSON, allocator = context.temp_allocator) == nil
+}
+
+// ws_json's scan, apart so a test can hold it: what it refuses, the parse mostly refuses too,
+// but only after recursing (M2-34).
+@(private)
+ws_json_bounded :: proc(data: []byte) -> bool {
 	depth, opens := 0, 0
 	in_str, escaped := false, false
 	for c in data {
@@ -72,7 +81,7 @@ ws_json :: proc(data: []byte, out: ^$T) -> bool {
 			if depth < 0 { return false } // closes with nothing open would buy depth for later opens
 		}
 	}
-	return json.unmarshal(data, out, spec = .JSON, allocator = context.temp_allocator) == nil
+	return true
 }
 
 // The close codes the starter sends (§9.4). hx-ws reconnects on 1001, 1005,
