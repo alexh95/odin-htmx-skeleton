@@ -23,6 +23,7 @@ import "core:strings"
 
 import "../authz"
 import "../obs"
+import "../store"
 import "../sys"
 import "../web"
 import identity "identity:."
@@ -144,7 +145,9 @@ admit :: proc(c: ^web.Req_Ctx, req: ^web.Request, res: ^web.Response) -> bool {
 @(private)
 call :: proc(c: ^web.Req_Ctx) {
 	web.set_ctx(c)
+	store.handler_begin()
 	c.route.handler(c.req, c.res)
+	store.handler_end()
 	web.set_ctx(nil)
 	if !c.deferred { done(c) }
 }

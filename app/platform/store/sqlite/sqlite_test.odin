@@ -290,6 +290,42 @@ reader_that_cant_open :: proc(t: ^testing.T) {
 	testing.expect_value(t, got, -1)
 }
 
+// A handler's reads share one read transaction (store.on_handler): one snapshot
+// for the handler, the writer's commits seen by the next; and one left open by a
+// handler that crashed is rolled back when the next begins.
+@(private = "file")
+handler_transactions :: proc(t: ^testing.T) {
+	testing.expect_value(t, open_db(":memory:", .Ephemeral, "test"), "")
+	defer close()
+	testing.expect_value(t, apply("items", ITEMS[:]), "")
+	insert :: proc(name: string) -> bool {
+		@(static) n: string
+		n = name
+		return write_now(proc() -> bool {
+			st := writer_stmt(SQL_INSERT)
+			defer reset(st)
+			bind_text(st, 1, n)
+			return step_done(st) == .None
+		})
+	}
+	testing.expect(t, insert("a"))
+
+	handler_began()
+	testing.expect_value(t, read_count(), 1)
+	testing.expect(t, insert("b")) // committed on the writer mid-handler
+	testing.expect_value(t, read_count(), 1) // the handler's snapshot
+	handler_ended()
+	testing.expect_value(t, read_count(), 2) // outside a handler: autocommit, the latest
+
+	handler_began()
+	testing.expect_value(t, read_count(), 2)
+	testing.expect(t, insert("c"))
+	// No handler_ended: the handler crashed. The next one starts fresh.
+	handler_began()
+	testing.expect_value(t, read_count(), 3)
+	handler_ended()
+}
+
 // One test, in order: the store is process-wide.
 @(test)
 store_v3 :: proc(t: ^testing.T) {
@@ -301,4 +337,5 @@ store_v3 :: proc(t: ^testing.T) {
 	runner_cases(t)
 	reads_and_writes(t)
 	reader_that_cant_open(t)
+	handler_transactions(t)
 }

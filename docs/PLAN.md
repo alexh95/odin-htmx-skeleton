@@ -2475,7 +2475,9 @@ retention, FTS5 and backups. The parity rule these numbers must pass is §18; th
 D16 (S8, 12 §9):
 
 - **Connections.** One writer connection under a `guarded_mutex` with `BEGIN IMMEDIATE`; one read-only connection per
-  nbio loop, opened lazily through `@(thread_local)` (no init hook needed, 12 §2); `SQLITE_DBCONFIG_ENABLE_QPSG`
+  nbio loop, opened lazily through `@(thread_local)` (no init hook needed, 12 §2; as built in M2, a handler's reads
+  share one read transaction, begun at its first read and committed when the handler returns: one WAL read lock where
+  each statement took one, +2.1 % on `pages` on the Linux leg, M1's profile follow-up); `SQLITE_DBCONFIG_ENABLE_QPSG`
   (1007) on every connection before any prepare; WAL, `synchronous=NORMAL`, `journal_size_limit=64 MiB`,
   `busy_timeout` 5000. Several writer connections were rejected: 1.23M `SQLITE_BUSY` errors in 4 s (12 §3.4).
 - **The writer task.** A dedicated thread with a bounded queue commits whatever is queued as soon as it is free, up to

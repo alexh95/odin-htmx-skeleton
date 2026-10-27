@@ -22,6 +22,24 @@ Error :: enum u8 {
 	Failed,     // anything else: I/O, a lock held past busy_timeout, a full disk
 }
 
+// What a store does around each handler, which platform/app's front runs: the
+// SQLite store reads a handler's statements in one transaction, one WAL read
+// lock where each statement took its own (M1's profile put that lock at 13 % of
+// a page). A store registers its pair at open; the memory family has none.
+@(private) handler_hooks: [dynamic][2]proc()
+
+on_handler :: proc(begin, end: proc()) {
+	append(&handler_hooks, [2]proc(){begin, end})
+}
+
+handler_begin :: proc() {
+	for h in handler_hooks { h[0]() }
+}
+
+handler_end :: proc() {
+	for h in handler_hooks { h[1]() }
+}
+
 // One migration of one feature's SQLite store: `MIGRATIONS := [?]store.Migration{
 // {1, "0001_init.sql", #load("migrations/0001_init.sql", string)}, …}`, a package
 // variable (a slice literal inside a proc would point into its frame, 09 §4.4).

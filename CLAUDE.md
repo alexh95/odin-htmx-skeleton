@@ -178,7 +178,9 @@ platform  L4 app        -> identity:., store:. (the family's NAME), L1-L3; only 
   `tools/check routes` holds every row to it.
 
 The server runs **N nbio event loops** (one per core; `THREADS` overrides), so handlers run
-concurrently. **SQLite (store v3)**: each loop reads through its own read-only connection; writes
+concurrently. **SQLite (store v3)**: each loop reads through its own read-only connection, and a
+handler's reads share one read transaction (one snapshot, committed when the handler returns; a
+deferred request's continuation reads outside it); writes
 are `store.Op`s queued to one **writer task**, which commits whatever is queued, up to 100, in one
 transaction, then runs each op's `done` back on the loop that queued it. A write handler therefore
 answers later, through a **deferred response** (`web.defer_response` / `web.resume` /

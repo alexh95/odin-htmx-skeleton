@@ -143,7 +143,9 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       `continuation` drill), M1-26 (with F-18; the `streamcrash` drill), M1-02 (`SEND_TIMEOUT_MS`, with F-19 for
       Windows; the `slowread` drill), M1-03 (the exits arm before they log; the `logstall` drill), M1-07 (a reader
       that can't open is a 500; the store's test; opening them at boot cost 1.65 MB idle, so they stay lazy) and M1-05 (the loop gate, the writer's intake,
-      the clean path's bound; the `latewrite` drill) fixed. Left: the profile's follow-ups.
+      the clean path's bound; the `latewrite` drill) fixed. The profile's follow-ups: the header maps reserved
+      (F-20), a handler's reads in one transaction (+2.1 % `pages`, Linux), the arena's mutex measured and left
+      (95 ns a request); `tools/profile` left.
 - [ ] **Report core:nbio's `SO_UPDATE_ACCEPT_CONTEXT` bug upstream** (found in slice 14; the fork's F-19 works around
       it): `impl_windows.odin` passes no value, so Windows rejects the call and `shutdown` fails on accepted sockets.
       Ask Alex before filing anything.

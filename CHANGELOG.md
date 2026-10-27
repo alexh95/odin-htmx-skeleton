@@ -121,6 +121,9 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   which tools/bundle puts first in every profile's `app.js`. A toast now arms its own timer on
   `htmx:after:process` instead of a body-wide observer.
 - **The lab runs on the hyperscript client.**
+- **A handler's reads share one SQLite read transaction** (M1's profile follow-up): one WAL read lock a handler where
+  every statement took its own, which the profile put at 13 % of a page; +2.1 % on `pages` on the Linux leg. A
+  continuation reads outside it, and one left open by a crashed handler is rolled back at the next.
 - **The header maps are reserved up front** (the fork's F-20): 16 each, so a request's and a response's usual headers
   fit without the map regrowing (3.7 regrowths a request before).
 - **A response's nonce is base64url** (still 16 random bytes), so a page can send it in a connect URL as it is.

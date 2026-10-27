@@ -89,6 +89,8 @@ db: struct {
 @(private, thread_local) tl_reader: ^Conn
 @(private, thread_local) tl_generation: int // the open its reader belongs to: a closed store's reader is gone
 @(private, thread_local) tl_read_locked: bool // single mode: this thread's read holds the writer's lock
+@(private, thread_local) tl_in_handler: bool  // between store.handler_begin and handler_end
+@(private, thread_local) tl_txn: ^Conn        // the reader holding this handler's read transaction
 
 ENV := [?]env.Row {
 	{name = "DB_PATH", kind = .Path, def = ":memory:", doc = "the SQLite file; :memory: is fresh per process"},
@@ -179,7 +181,43 @@ read :: proc(sql: string) -> Stmt {
 	}
 	r := reader()
 	if r == nil { return nil }
+	// A handler's reads share one transaction, begun at its first (a deferred
+	// request's continuation reads outside it, so no other request on this loop
+	// meets a snapshot left open).
+	if tl_in_handler && tl_txn == nil && step_cached(r, "BEGIN") { tl_txn = r }
 	return cached(r, sql)
+}
+
+// The handler hooks (store.on_handler, registered at open). A transaction still
+// open at begin is a crashed handler's: it is rolled back.
+@(private)
+handler_began :: proc() {
+	if tl_txn != nil { end_txn(false) }
+	tl_in_handler = true
+}
+
+@(private)
+handler_ended :: proc() {
+	tl_in_handler = false
+	if tl_txn != nil { end_txn(true) }
+}
+
+// COMMIT, or ROLLBACK (and a COMMIT that fails, which a statement left unreset
+// can make one), after resetting the reader's statements.
+@(private)
+end_txn :: proc(commit: bool) {
+	r := tl_txn
+	tl_txn = nil
+	if commit && step_cached(r, "COMMIT") { return }
+	sqlite.reset_all(r.db)
+	_ = step_cached(r, "ROLLBACK")
+}
+
+@(private)
+step_cached :: proc(r: ^Conn, sql: string) -> bool {
+	st := cached(r, sql)
+	defer sqlite.reset(st)
+	return sqlite.step(st) == sqlite.DONE
 }
 
 // Ends a read, or a write's statement: resets it, and gives back the writer's
