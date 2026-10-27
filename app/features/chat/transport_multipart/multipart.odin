@@ -44,8 +44,7 @@ parts :: proc(req: ^web.Request, res: ^web.Response) {
 	msgs := make([dynamic]m.Message, 0, chat.SNAPSHOT, context.temp_allocator)
 	err = chat.after(r.id, i64(last), &msgs) if resumed else chat.recent(r.id, &msgs)
 	if err != .None || len(msgs) == 0 { return }
-	b := strings.builder_make(context.temp_allocator)
-	chat_views.partial(&b, r.id, r.slug, msgs[:])
+	html, newest := chat_views.snapshot(r.id, r.slug, msgs[:], stream.backlog_budget())
 	buf: [24]byte
-	stream.multipart_part(c, strings.to_string(b), {{"HX-Part-ID", strconv.write_int(buf[:], msgs[len(msgs) - 1].id, 10)}})
+	stream.multipart_part(c, html, {{"HX-Part-ID", strconv.write_int(buf[:], newest, 10)}})
 }

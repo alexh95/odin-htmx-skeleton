@@ -9,7 +9,6 @@ package chat_transport_ws
 // package can't import.
 
 import "base:runtime"
-import "core:encoding/json"
 import "core:strings"
 
 import "../../../platform/authz"
@@ -63,9 +62,8 @@ socket :: proc(req: ^web.Request, res: ^web.Response) {
 	s.sub = hub.subscribe(c, {chat.room_topic(r.id)})
 	msgs := make([dynamic]m.Message, 0, chat.SNAPSHOT, context.temp_allocator)
 	if chat.recent(r.id, &msgs) == .None && len(msgs) > 0 {
-		b := strings.builder_make(context.temp_allocator)
-		chat_views.partial(&b, r.id, r.slug, msgs[:])
-		stream.ws_send_text(c, strings.to_string(b))
+		html, _ := chat_views.snapshot(r.id, r.slug, msgs[:], stream.backlog_budget())
+		stream.ws_send_text(c, html)
 	}
 }
 
@@ -80,7 +78,7 @@ on_message :: proc(c: ^stream.Conn, text: bool, data: []byte) {
 		body: string,
 	}
 	msg: In
-	if !text || json.unmarshal(data, &msg, allocator = context.temp_allocator) != nil { return }
+	if !text || !stream.ws_json(data, &msg) { return }
 	if post != nil { post((^Socket)(c.user), msg.body) }
 }
 

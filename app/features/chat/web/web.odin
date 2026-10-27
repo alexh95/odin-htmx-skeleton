@@ -58,9 +58,9 @@ ROUTES := [?]web.Route {
 // every room page's #live, keyed per member (.Latest); presence learns who is there
 // from those streams opening and closing (`watch`).
 TOPICS := [?]hub.Topic {
-	{family = "chat.room", policy = .Queue, persisted = chat.PERSISTED, perm = .Chat_Read, replay = replay_room},
-	{family = "chat.presence", policy = .Latest, perm = .Chat_Read, watch = watch_room},
-	{family = "chat.typing", policy = .Latest, ring = 64, perm = .Chat_Read},
+	{family = "chat.room", policy = .Queue, persisted = chat.PERSISTED, perm = .Chat_Read, allow = room_exists, replay = replay_room},
+	{family = "chat.presence", policy = .Latest, perm = .Chat_Read, allow = room_exists, watch = watch_room},
+	{family = "chat.typing", policy = .Latest, ring = 64, perm = .Chat_Read, allow = room_exists},
 }
 
 JOBS := [?]workers.Job {
@@ -259,10 +259,12 @@ posting :: proc(v: authz.Viewer, r: m.Room, body: string) -> ^Posting {
 posted :: proc(o: ^store.Op) {
 	op := (^Posting)(o)
 	defer store.free_op(op)
+	// Resumed before anything else runs: a crash in the publishing is then this request's
+	// 500, not a connection left deferred and unwatched (M2-12).
+	res: ^web.Response
+	if op.http { res = web.resume(&op.deferred) }
 	if op.err == .None { announce(op.slug, op.room_name, op.result) }
-	if !op.http { return }
-	res := web.resume(&op.deferred)
-	if res == nil { return } // the client left: the message is posted all the same
+	if res == nil { return } // a socket's post, or the client left: the message is posted all the same
 	if op.err != .None {
 		web.respond_store_error(web.request(&op.deferred), res, op.err)
 	} else {
@@ -367,10 +369,10 @@ change :: proc(req: ^web.Request, res: ^web.Response, msg: m.Message, r: m.Room,
 changed :: proc(o: ^store.Op) {
 	op := (^Changing)(o)
 	defer store.free_op(op)
+	res := web.resume(&op.deferred) // first, as posted's
 	if op.err == .None {
 		hub.publish(chat.room_topic(op.result.room), chat_views.one(op.result.room, op.slug, op.result), op.result.id)
 	}
-	res := web.resume(&op.deferred)
 	if res == nil { return }
 	switch op.err {
 	case .None:
@@ -439,6 +441,16 @@ read :: proc(req: ^web.Request, res: ^web.Response) {
 }
 
 // ---- the hub's hooks ---------------------------------------------------------------------------
+
+// A topic's key names a room that exists: any other id would keep a presence map and a
+// hub ring for good (M2-05).
+@(private)
+room_exists :: proc(key: string, _: authz.Viewer) -> bool {
+	id, ok := web.parse_id(key)
+	if !ok { return false }
+	_, err := chat.room_by_id(id)
+	return err == .None
+}
 
 // A page's #live opened or closed on chat.presence:<room>.
 @(private)

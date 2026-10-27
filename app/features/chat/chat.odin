@@ -36,10 +36,12 @@ PRESENCE_DEBOUNCE :: 10 * time.Second
 AWAY_FOR :: 5 * time.Minute
 
 // A nickname costs nothing to make, so what is kept per member is bounded: past
-// MAX_MEMBERS names, or readers of one room, the map starts again (a forgotten
-// name is learnt again from the member's next page; a forgotten cursor shows no
-// count until they next read).
+// MAX_MEMBERS names, or MAX_READERS readers of one room, one is forgotten to make
+// room (a forgotten name is learnt again from the member's next page; a forgotten
+// cursor shows no count until they next read). Each post publishes a count to
+// every reader of its room, so readers are capped far lower (M2-08).
 MAX_MEMBERS :: 4096
+MAX_READERS :: 256
 
 Transport :: enum u8 {
 	Ws,
@@ -204,8 +206,11 @@ seen :: proc(id: u64, name: string) {
 		if old == name { return }
 		delete(old, heap())
 	} else if len(st.names) >= MAX_MEMBERS {
-		for _, n in st.names { delete(n, heap()) }
-		clear(&st.names)
+		for k, n in st.names {
+			delete(n, heap())
+			delete_key(&st.names, k)
+			break
+		}
 	}
 	st.names[id] = strings.clone(name, heap())
 }
@@ -255,7 +260,12 @@ mark_read :: proc(room: i64, who: u64, upto: i64) -> bool {
 		r = &st.read[room]
 	}
 	if r[who] >= upto { return false }
-	if who not_in r && len(r) >= MAX_MEMBERS { clear(r) }
+	if who not_in r && len(r) >= MAX_READERS {
+		for k in r {
+			delete_key(r, k)
+			break
+		}
+	}
 	r[who] = upto
 	return true
 }
@@ -322,16 +332,18 @@ join :: proc(room: i64, who: u64, name: string) -> (c: Presence_Change, show: bo
 leave :: proc(room: i64, who: u64) {
 	guard.lock(&st.mu)
 	defer guard.unlock(&st.mu)
-	r := room_presence(room)
-	if p, ok := &r[who]; ok {
-		p.open = max(0, p.open - 1)
-		if p.open == 0 { p.closed_ns = sys.mono_ns() }
+	if r, has := &st.here[room]; has { // never made here: an empty map goes in the sweep
+		if p, ok := &r[who]; ok {
+			p.open = max(0, p.open - 1)
+			if p.open == 0 { p.closed_ns = sys.mono_ns() }
+		}
 	}
 }
 
 // Every few seconds: who turned away, and who is gone, to publish.
 sweep_presence :: proc(out: ^[dynamic]Presence_Change) {
 	now_ns := sys.mono_ns()
+	empty := make([dynamic]i64, 0, 4, context.temp_allocator)
 	guard.lock(&st.mu)
 	defer guard.unlock(&st.mu)
 	for room, &r in st.here {
@@ -352,6 +364,12 @@ sweep_presence :: proc(out: ^[dynamic]Presence_Change) {
 			delete(r[who].name, heap())
 			delete_key(&r, who)
 		}
+		if len(r) == 0 { append(&empty, room) }
+	}
+	// A room nobody is in keeps no map (M2-05).
+	for room in empty {
+		delete(st.here[room])
+		delete_key(&st.here, room)
 	}
 }
 

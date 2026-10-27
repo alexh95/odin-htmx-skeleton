@@ -178,6 +178,20 @@ partial :: proc(b: ^strings.Builder, room: i64, slug: string, msgs: []m.Message,
 	w(b, `</hx-partial>`)
 }
 
+// A snapshot within `budget` bytes, as a stream writes it at once: the newest messages that
+// fit, oldest dropped first. 50 long messages ran past a stream's queue cap, and every
+// reconnect to the room was closed the same way (M2-03).
+snapshot :: proc(room: i64, slug: string, msgs: []m.Message, budget: int) -> (html: string, newest: i64) {
+	if len(msgs) == 0 { return "", 0 }
+	from := 0
+	for {
+		b := strings.builder_make(context.temp_allocator)
+		partial(&b, room, slug, msgs[from:])
+		if strings.builder_len(b) <= budget || from == len(msgs) - 1 { return strings.to_string(b), msgs[len(msgs) - 1].id }
+		from += max(1, (len(msgs) - from) / 4)
+	}
+}
+
 one :: proc(room: i64, slug: string, msg: m.Message) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	partial(&b, room, slug, {msg})
