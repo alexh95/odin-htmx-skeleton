@@ -1867,6 +1867,36 @@ plan for "homechat" from odin-htmx-starter v2.<n>.0 (<commit>)
 Apply? [y/N]
 ```
 
+**As built (M2), generator v1.** `tools/init` reads the tree with `core:odin/parser` (catalog.odin, profiles.odin)
+and keeps no manifest. A feature is a directory under `app/features`; what it brings is what its web package declares
+(`ROUTES`, `EXTS`, `TOPICS`, `JOBS`, `BUNDLES`, `init`, `home_card`); its dependencies are its packages' imports of
+other features (dashboard and gallery need contacts); its stores are the `app/stores/<family>/<f>` that exist; the
+family members are the directories (`stores/*`, `platform/client/*`, `platform/theme/*`, `platform/authz/anonymous` and
+any `features/*/identity_*`). **A feature's lines come from a committed profile that mounts it, its donor**: its mount
+lines, its `TOPICS` and `JOBS` lines, its nav entries (an href that is one of its GET rows), the copy its `init` takes
+(`ABOUT`, `HOME`), and every statement of `main` that names its packages, each with its phase (before `app.check`;
+between check and serve, after the store's open and migrations; after serve; after wait). The donor is `--profile`'s
+when it mounts the feature, else one on the same store family, else any (a store-phase line taken across families is
+printed under `check`). The committed profiles are hand-written and held to `tools/check profile`, and check refuses a
+`ROUTES` no profile mounts, so every feature has one; the test `odin test tools/init` composes each committed profile
+again from its own selection and holds the result to its lines. The platform's lines are written for the families:
+`store_sqlite.init`, `open("<name>")`, one `migrate` per SQLite store with `MIGRATIONS` in dependency order and `close`
+on SQLite; `hub.init`, `hub.mount` and `{"platform", hub.ROUTES[:]}` when a feature has `TOPICS`; `BUNDLE_EXTS`,
+`PAGE_BUNDLES` and `HOME_CARDS` (when home is selected) from the declarations. `BRAND` is the base's (`--profile`'s,
+else minimal's names), plus a `search` box from the donor whose href is a selected feature's page, and `overlays`
+when a selected feature's pages target `#overlay` or `#toasts` (read from its source). The root is `--profile`'s,
+else dashboard, landing or home, home joining when none is selected. A new project's profile is `app`; `--add` and
+`--without` edit a profile in place (default `app`), line by line against the parsed files; a family command
+(`--store sqlite --profile lab`) edits the build lines, and a store swap moves main's store lines too. `--verify`
+copies the tree (no `.git`, builds or `node_modules`), writes the plan there, runs `prepare`, `build.*`, `CMD=test
+build.*` and `tools/check profile routes topics exts`, and compares `--features --json` with the plan before it asks;
+a failure leaves the copy for a look. A new project also gets the scripts' default profile (`run.*`, `prepare.*`,
+`load-tests/run.sh`, the Dockerfile, the e2e setup) at `app`, CI trimmed to `app` (its matrices, its include rows with
+a smoke write the selection keeps, one coverage run), nightly's TSan and soak jobs dropped (they build lab and
+skeleton), and a fresh `UPSTREAM.md`, `CHANGELOG.md` and `TODO.md`. Not in v1: `--pairwise` (D37's covering array),
+removing `Perm` and `Behaviour` groups (no feature has its own yet), and hosts beyond `main`. Without a selection,
+`init <name>` renames as before (and runs again: a token the README no longer held had stopped it).
+
 The bundle line is derived (RESOLUTIONS X29, as LC §12 recasts it): `chat_web.EXTS` unions its four transports'
 extensions (ws, sse, ptag, hx-multipart) with hx-pending, upsert, hx-prompt, hx-targets and download; `bot_web` brings
 browser-indicator, plus sse and hx-multipart for its two deliveries and download for transcripts (that part of

@@ -98,6 +98,15 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   stream's, workers' and store/sqlite's tests, of lab under 200 SSE + 200 WebSocket clients and 200 publishes, and of
   skeleton under k6's `write` and `pages`, each through its drain; any report fails it. One suppression, core:nbio's
   mpsc assert (`tools/drills/tsan.supp`, S0.9). 0 reports.
+- **The generator, v1** (`tools/init` compose mode; PLAN §7.4, D26): `--list [--json]` (committed as
+  `docs/catalog.json`, held current by CI), `--explain`, a new project from `--profile` and `--features` with the
+  family flags (`--store`, `--identity`, `--client`, `--theme`), `--add` and `--without` on a profile in place, a
+  family swap (`--store sqlite --profile lab`), `--dry-run`, and `--verify`, on by default: the plan built, tested and
+  held to `tools/check` in a scratch copy before anything here changes. Features close over their imports and get
+  one root; each feature's lines are taken from a committed profile that mounts it, and the platform's are written
+  for the families. A refusal says what to do ("contacts has no memory store; use --store sqlite"). CI's
+  `generator` job checks the catalog, composes every committed profile again (`odin test tools/init`), refuses a
+  bad selection with nothing changed, and makes and verifies one feature alone, rotating with the run.
 - **`tools/profile`** (M1's profile follow-up): `sh tools/profile/profile.sh <profile> <scenario> [--spall]` on
   Linux records the server under k6 with perf and writes the samples, folded stacks and the 30 heaviest functions
   (an SVG too, with FlameGraph's scripts), and with `--spall` builds a scratch copy with an instrumentation hook
@@ -161,6 +170,10 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   once the ring let it go, so lookups compared against freed memory and could add a second ring for the topic. Each
   ring now keeps its own copy of its topic as the key, and the sweep collects the idle rings before it deletes any
   (`ring_for`, `ring_sweep`; `rings_keep_their_own_topics` tests both).
+- **`tools/init <name>` renames again.** Its token pass required the old live-demo URL somewhere, and the README's
+  live-demo line, the last place that held it, is cut first, so every run stopped with nothing changed; no CI job
+  ran init since the skeleton's `--minimal` one. The canonical origin is the brands' alone now, and the generator
+  job runs init on every push.
 - **An SSE stream gets its `retry:` event at a drain** (PLAN §8.7 step 3): `retry: 500–3000` (per client), as a named
   event, so the reconnects after a deploy spread out. The platform sent nothing there; the drills' `streamdrain` phase
   found it.

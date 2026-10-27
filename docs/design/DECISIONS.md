@@ -1523,6 +1523,20 @@ from overlay to compose (09 §4.6).
 A sample `--explain` output (CF §4.9 shape): features, family members, bundle extensions, route counts per host,
 removed and written paths, and the `--verify` result.
 
+**As built (M2).** Where the lines come from was left open; the answer is **the committed profiles** (NEW). A
+feature's lines (its mounts, `TOPICS` and `JOBS` lines, nav entries, the copy its `init` takes, and `main`'s
+statements that name it, with their phase) are taken as a committed profile that mounts it writes them, its donor;
+the platform's lines are written for the families; `BUNDLE_EXTS`, `PAGE_BUNDLES` and `HOME_CARDS` come from the
+declarations. Nothing is declared for the generator's sake: no manifest per feature, no profile-line constants in the
+packages. The profiles are hand-written and held to `tools/check profile`, and check refuses a `ROUTES` no profile
+mounts, so every feature has a donor; `odin test tools/init` composes each committed profile again from its own
+selection and holds it to its lines, so a profile edited into a shape the generator can't take fails there. Two
+brand fields are a feature's: `search` (the donor's, when its href is the feature's page) and `overlays` (when the
+feature's source targets `#overlay` or `#toasts`). Rejected for v1: a `PROFILE_LINES` table in each web package (a
+second copy of what the profiles already say, which the profiles would drift from) and a template per feature in
+`tools/init` (the same, further away). The `--without x,y` list takes one feature a run; `--pairwise` waits for D37's
+combination matrices.
+
 **Rationale.** 01 §8; 09 §4.6; CF §4.9; RF §4.4; ANSWERS round 3 (the generator writes the hand-written profile
 files for new projects and edits them on add or remove); LC §10.
 

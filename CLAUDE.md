@@ -527,8 +527,14 @@ the browser stops first. Store failures are separate: `web.respond_store_error` 
   robots.txt disallows it). A write goes through the domain to the store as an op, answered through a
   deferred response; refused input answers 422; parse path ids with `web.parse_id`; escape all input.
   e2e + load. Changelog.
-- **New profile** `p`: `app/cmd/p/` with the four files (copy `minimal`'s), a line in both
-  `build.sh` and `build.bat` naming its four families, and `tools/init`'s `PROFILES`. Run `prepare`
-  (it bundles every `app/cmd/*` with a `main.odin`), then `odin run tools/check -- all`.
+- **New profile** `p`: `app/cmd/p/` with the four files (copy `minimal`'s), and a line in both
+  `build.sh` and `build.bat` naming its four families (`tools/init` reads the profiles from
+  `build.sh`). Run `prepare` (it bundles every `app/cmd/*` with a `main.odin`), then
+  `odin run tools/check -- all` and `odin test tools/init` (the generator composes every committed
+  profile again from its lines; a profile it can't reproduce fails there).
+- **The generator** (`tools/init`, PLAN §7.4): a feature's profile lines are taken from a committed
+  profile that mounts it, so a new feature needs a profile that mounts it before `--add` can place
+  it anywhere else. After adding or renaming a feature, refresh the catalog:
+  `odin run tools/init -- --list --json > docs/catalog.json` (CI holds it current).
 - **New component**: a proc writing into `^strings.Builder` + a token-driven CSS block. Reuse
   `html.icon`, `esc`, `w`. Add it to the `/components` gallery.

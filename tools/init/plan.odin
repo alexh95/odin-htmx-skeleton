@@ -12,6 +12,7 @@ package main
 
 import "core:fmt"
 import "core:os"
+import "core:slice"
 import "core:strings"
 
 // A literal find/replace. Applied in order, so list the most specific first.
@@ -26,6 +27,7 @@ Change :: struct {
 	wrote:    bool, // replaced wholesale (or created)
 	appended: bool,
 	removed:  bool,
+	dir:      bool, // removed with everything under it
 	optional: bool, // local state, not source: failing to remove it only warns
 }
 
@@ -212,6 +214,43 @@ drop_job :: proc(path, job: string) {
 	changes[i].edits += 1
 }
 
+// A line edit, against the file's lines as read: insert `insert` before line `at` (0-based),
+// or delete line `at`.
+Line_Op :: struct {
+	at:     int,
+	insert: []string,
+	delete: bool,
+}
+
+// Applies a file's line edits together, bottom up, so each index means the line as read; at one
+// index the deletion goes first, then the insertion, so a replaced line keeps its place.
+apply_lines :: proc(path: string, ops: []Line_Op) {
+	i := load(path)
+	if i < 0 {
+		return
+	}
+	lines := make([dynamic]string)
+	append(&lines, ..strings.split(changes[i].content, "\n"))
+	sorted := slice.clone(ops)
+	slice.stable_sort_by(sorted, proc(a, b: Line_Op) -> bool {
+		if a.at != b.at { return a.at > b.at }
+		return a.delete && !b.delete
+	})
+	for op in sorted {
+		if op.at < 0 || op.at > len(lines) {
+			problem("%s: a line edit at %d is past the file's end", path, op.at + 1)
+			continue
+		}
+		if op.delete {
+			ordered_remove(&lines, op.at)
+		} else {
+			inject_at(&lines, op.at, ..op.insert)
+		}
+	}
+	changes[i].content = strings.join(lines[:], "\n")
+	changes[i].edits += len(ops)
+}
+
 put :: proc(path, content: string) {
 	i := find(path)
 	if i < 0 {
@@ -247,6 +286,20 @@ remove :: proc(path: string) {
 	changes[i].removed = true
 }
 
+// A directory and everything under it: a feature that isn't selected, a profile that goes.
+remove_tree :: proc(path: string) {
+	if !os.exists(path) {
+		problem("%s/: not found (nothing to remove)", path)
+		return
+	}
+	append(&changes, Change{path = path, removed = true, dir = true})
+}
+
+// A directory a feature may not have (its e2e specs, its load scenarios).
+remove_tree_if_present :: proc(path: string) {
+	if os.exists(path) { append(&changes, Change{path = path, removed = true, dir = true}) }
+}
+
 // Local, untracked state (a dev database) that may or may not be there.
 remove_if_present :: proc(path: string) -> bool {
 	if !os.exists(path) {
@@ -258,25 +311,36 @@ remove_if_present :: proc(path: string) -> bool {
 
 // ---- apply --------------------------------------------------------------
 
-// Abort with the full list of misses, before anything is written.
-check :: proc() {
+// Abort with the full list of misses, before anything is written. `selection`: the misses are the
+// request's (a feature that doesn't exist, a family that can't hold it), not the checkout's.
+check :: proc(selection := false) {
 	if len(problems) == 0 {
 		return
 	}
-	fmt.eprintfln("init: %d step%s no longer fit this checkout; nothing was changed:", len(problems), len(problems) == 1 ? "" : "s")
+	if selection {
+		fmt.eprintfln("init: the selection can't build; nothing was changed:")
+	} else {
+		fmt.eprintfln("init: %d step%s no longer fit this checkout; nothing was changed:", len(problems), len(problems) == 1 ? "" : "s")
+	}
 	for p in problems {
 		fmt.eprintfln("  - %s", p)
 	}
-	fmt.eprintln("If init already ran here, start again from a clean checkout: it runs once.")
-	fmt.eprintln("Otherwise the template changed under it; tools/init needs updating to match.")
+	if selection {
+		fmt.eprintln("odin run tools/init -- --list shows the features, the families and the profiles.")
+	} else {
+		fmt.eprintln("If init already ran here, start again from a clean checkout: it runs once.")
+		fmt.eprintln("Otherwise the template changed under it; tools/init needs updating to match.")
+	}
 	os.exit(1)
 }
 
-commit :: proc() {
+// Writes the plan: here, or under `root` (verify's scratch copy), saying nothing when `quiet`.
+commit :: proc(root := "", quiet := false) {
 	for c in changes {
+		path := c.path if root == "" else strings.concatenate({root, "/", c.path})
 		switch {
 		case c.removed:
-			if err := os.remove(c.path); err != nil {
+			if err := os.remove_all(path) if c.dir else os.remove(path); err != nil {
 				if c.optional {
 					fmt.printfln("  WARNING: could not remove %s (%v); delete it before the next run", c.path, err)
 					continue
@@ -284,13 +348,22 @@ commit :: proc() {
 				fmt.eprintfln("  ERROR removing %s: %v", c.path, err)
 				os.exit(1)
 			}
-			fmt.printfln("  removed  %s", c.path)
+			if !quiet { fmt.printfln("  removed  %s%s", c.path, "/" if c.dir else "") }
 		case c.wrote, c.appended, c.edits > 0:
-			if err := os.write_entire_file(c.path, c.content); err != nil {
+			// A new profile's directory doesn't exist yet.
+			if i := strings.last_index_byte(path, '/'); i > 0 && !os.exists(path[:i]) {
+				if err := os.make_directory_all(path[:i]); err != nil {
+					fmt.eprintfln("  ERROR making %s: %v", path[:i], err)
+					os.exit(1)
+				}
+			}
+			if err := os.write_entire_file(path, c.content); err != nil {
 				fmt.eprintfln("  ERROR writing %s: %v", c.path, err)
 				os.exit(1)
 			}
-			if c.wrote {
+			if quiet {
+				continue
+			} else if c.wrote {
 				fmt.printfln("  wrote    %s", c.path)
 			} else if c.appended {
 				fmt.printfln("  appended %s", c.path)

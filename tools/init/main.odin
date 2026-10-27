@@ -1,28 +1,33 @@
 package main
 
-// ---- init: rename this starter for a new project ------------------------
+// ---- init: start a project from this starter (PLAN §7.4) ---------------------------------
 //
-// A one-time scaffolding tool. Run it from the repo root after cloning the
-// template:
+// Run it from the repo root of a fresh copy of the template:
 //
-//   odin run tools/init -- <new-name> [--wordmark "New·Name"] [--suffix "..."]
-//                                     [--repo <url>] [--site <url>] [--yes]
+//   odin run tools/init -- --list [--json]                     the catalog
+//   odin run tools/init -- --explain [selection]               the plan; writes nothing
+//   odin run tools/init -- <new-name> [selection] [naming]     a new project: profile `app`
+//   odin run tools/init -- <new-name> [naming]                 rename only, every profile kept
+//   odin run tools/init -- --add <f> | --without <f> [--profile p]   edit a profile in place
+//   odin run tools/init -- --store|--identity|--client|--theme <m> --profile p   a family swap
 //
-// <new-name> is the machine name (lower-case letters, digits, dashes; starts
-// with a letter), e.g. `acme-crm`. It becomes the Fly app, the docker-host
-// container + volume and the test package's name. --wordmark / --suffix / --repo
-// / --site set every profile's brand (app/cmd/<profile>/brand.odin), the social
-// card's source and the favicon's label; sensible defaults are derived from
-// <new-name>. The profiles are the selections: minimal is the one-page starter
-// the old --minimal stripped down to, and composing others is M2's compose mode
-// (PLAN §14).
+//   selection   --profile <p> (--minimal = --profile minimal), --features a,b, and the families
+//               --store sqlite|memory, --identity <m>, --client hyperscript|vanilla, --theme full|lite
+//   naming      --wordmark W, --suffix S, --repo URL, --site URL
+//   always      --dry-run (print the plan, write nothing), --no-verify, --yes
 //
-// The tool is itself an Odin program — the skeleton's own tooling stays on the
-// stack it teaches. It edits a fixed set of files (no directory walk), so what
-// it touches is auditable right here. Every edit is planned in memory and must
-// apply before anything is written (see plan.odin): init either does all of
-// it or, naming each miss, none of it. Only the closing report walks the tree,
-// read-only, to list what still names the upstream.
+// <new-name> is the machine name (lower-case letters, digits, dashes; starts with a letter),
+// e.g. `acme-crm`: the Fly app, the docker-host container and volume, the test package. With a
+// selection, init composes the new project (compose.odin): the features closed over their
+// imports, one root, the families; it writes app/cmd/app's four files from the features' lines
+// as the committed profiles write them, deletes what isn't selected, and renames. Without one
+// it renames, as the skeleton's init did.
+//
+// The tool is itself an Odin program, on the stack it teaches. Every edit is planned in memory
+// and must apply before anything is written (plan.odin): init does all of it or, naming each
+// miss, none of it. --verify, on by default, applies the plan to a scratch copy first and builds
+// it (verify.odin). Only the closing report walks the tree, read-only, to list what still names
+// the upstream.
 
 import "core:fmt"
 import "core:os"
@@ -36,6 +41,16 @@ Options :: struct {
 	repo:     string,
 	site:     string,
 	yes:      bool,
+	dry_run:  bool,
+	verify:   bool,
+	list:     bool,
+	json:     bool,
+	explain:  bool,
+	profile:  string,
+	features: [dynamic]string,
+	add:      string,
+	without:  string,
+	members:  [Family]string,
 }
 
 main :: proc() {
@@ -43,28 +58,71 @@ main :: proc() {
 	if !os.exists("tools/init/main.odin") {
 		fatal("run it from the repo root: every path it edits is relative to there")
 	}
-	// A second run would trip over every edit the first one made. Say so plainly
-	// instead of listing them all.
-	if brand, err := os.read_entire_file(brand_path(PROFILES[0]), context.allocator);
-	   err == nil && !strings.contains(string(brand), strings.concatenate({`"`, upstream_repo(), `"`})) {
-		fatal("this checkout is already renamed (the brand's repo isn't the upstream's); init runs once, on a fresh copy of the template")
-	}
-
-	// Plan first (read-only), so a checkout init no longer fits fails before
-	// the prompt rather than after it.
-	rename(opt)
+	load_catalog(".")
 	check()
 
+	switch {
+	case opt.list:
+		list(opt.json)
+		return
+	case opt.add != "" || opt.without != "":
+		edit_profile(opt)
+		return
+	case opt.name == "" && !opt.explain && asked_family(opt):
+		family_command(opt)
+		return
+	case opt.explain:
+		s := select("app", opt.profile, opt.features[:], opt.members)
+		check(selection = true)
+		text := compose(s)
+		print_plan(s, text)
+		if opt.dry_run {
+			for f in ([]struct{ name, body: string }{{"main", text.main}, {"routes", text.routes}, {"brand", text.brand}, {"routes_test", text.routes_test}}) {
+				fmt.printfln("\n==== app/cmd/%s/%s.odin\n%s", s.name, f.name, f.body)
+			}
+		}
+		return
+	}
+
+	// A second run would trip over every edit the first one made. Say so plainly
+	// instead of listing them all.
+	if !fresh_copy() {
+		fatal("this checkout is already renamed (no brand names the upstream's repo); init runs once, on a fresh copy of the template")
+	}
+	composing := opt.profile != "" || len(opt.features) > 0 || asked_family(opt)
+	sel: Selection
+	text: Profile_Text
+	brands: []string
+	if composing {
+		sel = select("app", opt.profile, opt.features[:], opt.members)
+		check(selection = true)
+		text = new_project(sel, opt)
+		brands = {"app"}
+	} else {
+		names := make([dynamic]string)
+		for p in catalog.profiles { append(&names, p.name) }
+		brands = names[:]
+	}
+	rename(opt, brands)
+	check()
+
+	if composing { print_plan(sel, text) }
 	fmt.printfln("Rename this starter to %q:", opt.name)
 	fmt.printfln("  Fly app / docker-host service      : %s", opt.name)
 	fmt.printfln("  brand wordmark (topbar)            : %s", opt.wordmark)
 	fmt.printfln("  title suffix (<title>)             : %s", opt.suffix)
 	fmt.printfln("  GitHub repo (About page)           : %s", opt.repo)
 	fmt.printfln("  canonical site URL (SEO tags)      : %s", opt.site)
-	fmt.printfln("  in the brands of                   : %s", strings.join(PROFILES[:], ", ", context.temp_allocator))
+	fmt.printfln("  in the brands of                   : %s", strings.join(brands, ", ", context.temp_allocator))
 	fmt.println()
+	if opt.dry_run {
+		print_changes()
+		fmt.println("Dry run: nothing changed.")
+		return
+	}
+	if opt.verify && composing { verify(sel) }
 
-	if !opt.yes && !confirm("Proceed? [y/N] ") {
+	if !opt.yes && !confirm("Apply? [y/N] ") {
 		fmt.println("Aborted — nothing changed.")
 		os.exit(0)
 	}
@@ -74,8 +132,13 @@ main :: proc() {
 
 	fmt.println()
 	fmt.println("Done. Next:")
-	fmt.println("  - review the diff (git diff), then build and run a profile: app/run.sh   (run.bat on")
-	fmt.println("    Windows; PROFILE=minimal for the one-page starter), or ./build.sh <profile>")
+	if composing {
+		fmt.println("  - review the diff (git diff), then build and run it: app/run.sh (run.bat on Windows), or ./build.sh app")
+		fmt.println("  - add a feature later with `odin run tools/init -- --add <f>`, drop one with --without <f>")
+	} else {
+		fmt.println("  - review the diff (git diff), then build and run a profile: app/run.sh   (run.bat on")
+		fmt.println("    Windows; PROFILE=minimal for the one-page starter), or ./build.sh <profile>")
+	}
 	fmt.println("  - app/cmd/<profile>/brand.odin: home_title is a stand-in tagline; write the site's own")
 	fmt.println("    (~60 chars, it's the search-result title). The wordmark, suffix, repo and the pages'")
 	fmt.println("    copy live there too")
@@ -88,8 +151,8 @@ main :: proc() {
 	fmt.println("  - deploy: infra/PLAN.md → Operator steps (Fly), or deploy/docker-host (any Docker host)")
 	fmt.println("  - LICENSE is the upstream's zlib notice, which stays in source copies; add your own")
 	fmt.println("    copyright for your changes")
-	fmt.println("  - CHANGELOG.md / TODO.md / load-tests/RESULTS.md describe the example; prune them")
-	fmt.println("  - once you're happy, delete tools/init (a one-time step) and commit")
+	if !composing { fmt.println("  - CHANGELOG.md / TODO.md / load-tests/RESULTS.md describe the example; prune them") }
+	fmt.println("  - commit; keep tools/init if you will --add or --without features later")
 	report_leftovers()
 	if len(notes) > 0 {
 		fmt.println()
@@ -98,6 +161,24 @@ main :: proc() {
 			fmt.printfln("  - %s", n)
 		}
 	}
+}
+
+asked_family :: proc(opt: Options) -> bool {
+	for m in opt.members {
+		if m != "" { return true }
+	}
+	return false
+}
+
+// A fresh copy names the upstream's repo in a brand; a renamed one doesn't.
+fresh_copy :: proc() -> bool {
+	needle := strings.concatenate({`"`, upstream_repo(), `"`})
+	for p in catalog.profiles {
+		if brand, err := os.read_entire_file(brand_path(p.name), context.allocator); err == nil && strings.contains(string(brand), needle) {
+			return true
+		}
+	}
+	return false
 }
 
 // ---- leftovers ----------------------------------------------------------
@@ -197,16 +278,11 @@ upstream_repo :: proc() -> string {
 	return ""
 }
 
-// The profiles whose brands init renames: every app/cmd/<profile>/ the template ships. A fixed
-// list, like every path init edits: one that's gone is a problem, and one it doesn't know about
-// shows in the closing report.
-PROFILES := [?]string{"skeleton", "minimal", "lab"}
-
 brand_path :: proc(profile: string) -> string {
 	return strings.concatenate({"app/cmd/", profile, "/brand.odin"}, context.temp_allocator)
 }
 
-rename :: proc(opt: Options) {
+rename :: proc(opt: Options, brands: []string) {
 	name := opt.name
 	suffix := xml_escape(opt.suffix)
 
@@ -238,13 +314,13 @@ rename :: proc(opt: Options) {
 	// The name shows up as the app/machine name (`odin-htmx-skeleton` is the Fly
 	// app, the docker-host service and the README; `odin-htmx-e2e` the test
 	// package). These tokens are specific enough to replace literally without
-	// touching prose. The canonical origin rides along: docs that quote the
-	// upstream's should quote the fork's. The binaries are named by profile
-	// (app/bin/<profile>, /app/server in the image), so they stay.
+	// touching prose. The canonical origin lives in the brands alone now (set
+	// below); the README's live-demo line, its last quote, goes above. The
+	// binaries are named by profile (app/bin/<profile>, /app/server in the
+	// image), so they stay.
 	std := []Repl {
 		{"odin-htmx-skeleton", name},
 		{"odin-htmx-e2e", strings.concatenate({name, "-e2e"})},
-		{"https://odin-htmx.alexh95.com", opt.site},
 	}
 	std_files := []string {
 		"fly.toml",
@@ -271,7 +347,7 @@ rename :: proc(opt: Options) {
 
 	// Each profile's brand.odin holds its site identity: whole fields, so the
 	// repo URL isn't left to the token pass above.
-	for p in PROFILES {
+	for p in brands {
 		path := brand_path(p)
 		set_field(path, "wordmark", opt.wordmark)
 		set_field(path, "suffix", opt.suffix)
@@ -293,13 +369,45 @@ rename :: proc(opt: Options) {
 // ---- args ---------------------------------------------------------------
 
 parse_args :: proc(args: []string) -> Options {
-	opt: Options
+	opt := Options{verify = true}
 	i := 0
 	for i < len(args) {
 		a := args[i]
 		switch {
 		case a == "-y", a == "--yes":
 			opt.yes = true
+		case a == "--dry-run":
+			opt.dry_run = true
+		case a == "--verify":
+			opt.verify = true
+		case a == "--no-verify":
+			opt.verify = false
+		case a == "--list":
+			opt.list = true
+		case a == "--json":
+			opt.json = true
+		case a == "--explain":
+			opt.explain = true
+		case a == "--profile":
+			opt.profile = next_arg(args, &i, "--profile")
+		case a == "--minimal":
+			opt.profile = "minimal"
+		case a == "--features":
+			for f in strings.split(next_arg(args, &i, "--features"), ",") {
+				if name := strings.trim_space(f); name != "" && !slice.contains(opt.features[:], name) { append(&opt.features, name) }
+			}
+		case a == "--add":
+			opt.add = next_arg(args, &i, "--add")
+		case a == "--without":
+			opt.without = next_arg(args, &i, "--without")
+		case a == "--store":
+			opt.members[.Store] = next_arg(args, &i, a)
+		case a == "--identity":
+			opt.members[.Identity] = next_arg(args, &i, a)
+		case a == "--client":
+			opt.members[.Client] = next_arg(args, &i, a)
+		case a == "--theme":
+			opt.members[.Theme] = next_arg(args, &i, a)
 		case a == "--wordmark":
 			opt.wordmark = next_arg(args, &i, "--wordmark")
 		case a == "--suffix":
@@ -321,7 +429,9 @@ parse_args :: proc(args: []string) -> Options {
 		i += 1
 	}
 
+	// Only a new project (or a rename) is named; the catalog, a plan and the in-place edits aren't.
 	if opt.name == "" {
+		if opt.list || opt.explain || opt.add != "" || opt.without != "" || asked_family(opt) { return opt }
 		usage()
 	}
 	if !valid_name(opt.name) {
@@ -393,7 +503,13 @@ confirm :: proc(prompt: string) -> bool {
 }
 
 usage :: proc() {
-	fmt.eprintln("usage: odin run tools/init -- <new-name> [--wordmark W] [--suffix S] [--repo URL] [--site URL] [--yes]")
+	fmt.eprintln("usage: odin run tools/init -- <new-name> [selection] [--wordmark W] [--suffix S] [--repo URL] [--site URL] [--yes]")
+	fmt.eprintln("       odin run tools/init -- --list [--json] | --explain [selection]")
+	fmt.eprintln("       odin run tools/init -- --add <f> | --without <f> [--profile p]")
+	fmt.eprintln("       odin run tools/init -- --store|--identity|--client|--theme <member> --profile p")
+	fmt.eprintln("  selection    --profile p (--minimal), --features a,b, --store, --identity, --client, --theme;")
+	fmt.eprintln("               none: rename only, every profile kept")
+	fmt.eprintln("  --dry-run    print the plan, write nothing; --no-verify skips the scratch build")
 	fmt.eprintln("  <new-name>   lower-case machine name, e.g. acme-crm")
 	fmt.eprintln("  --wordmark   topbar wordmark (inline HTML ok); default: <new-name>")
 	fmt.eprintln("  --suffix     <title> suffix; default: Title Case of <new-name>")

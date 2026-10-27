@@ -44,21 +44,26 @@ PROFILE=minimal app/run.sh  # the minimal profile
 
 1. **Use this template.** Click **“Use this template”** on GitHub to create your own repo (or just
    clone this one).
-2. **Rename it.** From the repo root:
+2. **Compose it.** From the repo root, see what there is, then pick:
    ```sh
-   odin run tools/init -- your-name --repo https://github.com/you/your-name --site https://your.domain
+   odin run tools/init -- --list
+   odin run tools/init -- your-name --features notes,about --repo https://github.com/you/your-name --site https://your.domain
    ```
-   One pass rewrites the Fly app, the Docker-host deploy and the test-package names; every
-   profile's brand in `app/cmd/<profile>/brand.odin` (wordmark, title suffix, home title, repo,
-   site URL); and the favicon's label and the social card's source. It blanks the two search-engine
-   ownership tokens (a fork verifies its own site). It applies every edit or none, and ends with
-   what's left to do by hand. Run `odin run tools/init` with no args to see the options
-   (`--wordmark`, `--suffix`, `--repo`, `--site`); delete `tools/init` once you're happy.
-3. **Start from a profile.** `minimal` (home, notes and about on a memory store, no SQLite library)
-   is the blank slate; `skeleton` shows every pattern at once. A feature is a folder,
+   With a selection (`--features a,b`, or `--profile minimal|skeleton|lab`, and the families
+   `--store`, `--identity`, `--client`, `--theme`), init writes one profile, `app`, from the features
+   you picked (their dependencies and a root page join them), deletes the rest, points the scripts
+   and CI at `app`, and renames: the Fly app, the Docker-host deploy and the test-package names, the
+   brand in `app/cmd/app/brand.odin` (wordmark, title suffix, home title, repo, site URL), the
+   favicon's label and the social card's source, and it blanks the two search-engine ownership
+   tokens (a fork verifies its own site). It first builds and tests the result in a scratch copy
+   (`--no-verify` skips that), applies every edit or none, and ends with what's left to do by hand.
+   `--explain` and `--dry-run` print the plan and write nothing. Without a selection it only renames,
+   keeping every profile.
+3. **Grow it.** `odin run tools/init -- --add <feature>` and `--without <feature>` edit the profile
+   in place; `--store sqlite --profile app` swaps a family. A feature is a folder,
    `app/features/<f>/`, with its store in each family under `app/stores/`, mounted by one line in a
    profile's `routes.odin`; `odin run tools/check -- all` says when a profile and its features
-   disagree. The next milestone's `tools/init` composes profiles from a feature list.
+   disagree.
 
 To extend it, follow the **Recipes** in [CLAUDE.md](CLAUDE.md) (new feature, page, endpoint, store,
 profile) and the tour in [app/README.md](app/README.md).

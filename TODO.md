@@ -156,7 +156,13 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       checked fresh in CI), `--explain`, `--profile`, `--features`, `--add`, `--without`, the family commands,
       `--dry-run`, `--verify` (scratch copy, `build.*`, `tools/check profile`, `--features --json` against the plan),
       `--yes`; edits planned against the parsed profile files, any miss aborting with nothing written. *Check:* the
-      generator CI job with a rotating singleton per push; a plan that misses aborts cleanly.
+      generator CI job with a rotating singleton per push; a plan that misses aborts cleanly. Progress: all of it in
+      `tools/init` (tree, catalog, profiles, compose, explain, project, edit, verify), each feature's lines taken from
+      a committed profile that mounts it (D26 as built); `odin test tools/init` composes the three profiles again;
+      checked on scratch copies: a new project from `--features notes,about`, `--without about` there, `--add notes
+      --profile lab`, `--store sqlite --profile lab`, a client swap that verify refused (lab's test pins hyperscript).
+      The rename-only path, broken since M1 (a token the README no longer held), runs again. All nine singletons
+      made and verified on Windows (`init ci-<f> --features <f> --yes`). Left: the CI job's first run (a push).
 - [ ] **16. CI**: `streams` (chromium, webkit) and `lab` (all three, Firefox included) e2e; `e2e-proxy` ({streams,
       lab} × chromium through `deploy/Caddyfile` and through nginx with the config apollo's NPM version generates;
       X26, X40); nightly Autobahn|Testsuite against the lab's WS echo (X24), TSan and soak; `pins` with hyperscript.

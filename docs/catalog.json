@@ -1,0 +1,24 @@
+{
+  "features": [
+    {"name": "about", "lines": 100, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "init"], "profiles": ["minimal", "skeleton", "lab"]},
+    {"name": "compat", "lines": 100, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "BUNDLES"], "profiles": ["lab"]},
+    {"name": "contacts", "lines": 1500, "stores": ["sqlite"], "sqlite": "required", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["skeleton"]},
+    {"name": "dashboard", "lines": 200, "stores": [], "sqlite": "none", "deps": ["contacts"], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["skeleton"]},
+    {"name": "gallery", "lines": 400, "stores": [], "sqlite": "none", "deps": ["contacts"], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["skeleton"]},
+    {"name": "home", "lines": 100, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["EXTS", "init"], "profiles": ["minimal"]},
+    {"name": "lab", "lines": 600, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "TOPICS", "JOBS"], "profiles": ["lab"]},
+    {"name": "notes", "lines": 400, "stores": ["memory", "sqlite"], "sqlite": "any", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "home_card"], "profiles": ["minimal"]},
+    {"name": "scripting", "lines": 300, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "BUNDLES"], "profiles": ["lab"]}
+  ],
+  "families": {
+    "store": ["memory", "sqlite"],
+    "identity": ["anonymous"],
+    "client": ["hyperscript", "vanilla"],
+    "theme": ["full", "lite"]
+  },
+  "profiles": [
+    {"name": "minimal", "store": "memory", "identity": "anonymous", "client": "vanilla", "theme": "lite", "features": ["home", "notes", "about"]},
+    {"name": "skeleton", "store": "sqlite", "identity": "anonymous", "client": "vanilla", "theme": "full", "features": ["dashboard", "gallery", "contacts", "about"]},
+    {"name": "lab", "store": "memory", "identity": "anonymous", "client": "hyperscript", "theme": "full", "features": ["lab", "scripting", "compat", "about"]}
+  ]
+}
