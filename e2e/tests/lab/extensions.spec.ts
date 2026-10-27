@@ -65,6 +65,12 @@ const recorded = (page: Page, name: string) =>
   page.evaluate((name) => (window as unknown as { __ev: Rec[] }).__ev.filter((e) => e.name === name), name);
 const wsCloseCodes = async (page: Page) => (await recorded(page, 'htmx:ws:close')).map((e) => e.code);
 
+// The close code a page sees for the one the server sent. WebKit on Linux reads its sockets through
+// libsoup, which takes a code under 3000 missing from its own list (1012-1014 are) as a protocol
+// error, so the page gets 1006; hx-ws reconnects on 1006 as well, so the client does the same.
+const seenCode = (code: number, browserName: string) =>
+  browserName === 'webkit' && process.platform === 'linux' && code >= 1012 && code <= 1014 ? 1006 : code;
+
 // The /events requests a page made, with the Last-Event-ID each carried.
 function eventsRequests(page: Page) {
   const seen: { url: string; lei?: string }[] = [];
@@ -183,15 +189,15 @@ test.describe('hx-ws', T, () => {
 
   const CODES: [number, boolean][] = [[1011, true], [1012, true], [1013, true], [1014, true], [1008, false], [1009, false]];
   for (const [code, reconnects] of CODES) {
-    test(`a server close with ${code} ${reconnects ? 'reconnects' : 'stops the client for good'}`, async ({ page, server }) => {
+    test(`a server close with ${code} ${reconnects ? 'reconnects' : 'stops the client for good'}`, async ({ page, server, browserName }) => {
       const room = uid('room'), tag = uid('g');
       let sockets = 0;
       page.on('websocket', () => sockets++);
       await page.goto(`/lab/streams/chat?room=${room}&tag=${tag}`);
       await expect(page.locator('#ws-status .hello')).toHaveText('connected 1');
       await closeTopic(server.port, `lab.room:${room}`, code);
-      await expect.poll(() => wsCloseCodes(page)).toContain(code);
-      expect((await wsCloseCodes(page))[0]).toBe(code);
+      await expect.poll(() => wsCloseCodes(page)).toContain(seenCode(code, browserName));
+      expect((await wsCloseCodes(page))[0]).toBe(seenCode(code, browserName));
       if (reconnects) {
         await expect(page.locator('#ws-status .hello')).toHaveText('connected 2', { timeout: 6000 });
         expect(sockets).toBe(2);
@@ -292,7 +298,7 @@ async function drain(s: Server): Promise<boolean> {
   return true;
 }
 
-test('drain and restart: the socket gets 1012, then both streams come back on the new process, SSE by resync', T, async ({ page }) => {
+test('drain and restart: the socket gets 1012, then both streams come back on the new process, SSE by resync', T, async ({ page, browserName }) => {
   test.slow();
   const tag = uid('g'), room = uid('room');
   const config = test.info().config;
@@ -313,7 +319,7 @@ test('drain and restart: the socket gets 1012, then both streams come back on th
       s1.proc.kill();
       test.skip(true, 'Windows needs a TEST_ROUTES build to drain a child (E2E_BUILD_FLAGS=-define:TEST_ROUTES=true)');
     }
-    await expect.poll(async () => (await wsCloseCodes(page))[0]).toBe(1012); // F-9's drain: on_shutdown sends 1012
+    await expect.poll(async () => (await wsCloseCodes(page))[0]).toBe(seenCode(1012, browserName)); // F-9's drain: on_shutdown sends 1012
     s2 = await startServer(config, {}, s1.port);
 
     await expect(page.locator('#refetch .refetched')).toHaveText(`refetched ${tag}`, { timeout: 30_000 });
