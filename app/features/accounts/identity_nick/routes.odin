@@ -12,6 +12,8 @@ import "core:strings"
 import "../../../platform/html"
 import "../../../platform/web"
 
+EXTS :: web.Exts{}
+
 ROUTES := [?]web.Route {
 	{.Get, "/login", page, .Public, {.Private}, 0},
 	{.Post, "/login", pick_name, .Public, {.Fragment}, 1024},

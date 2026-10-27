@@ -1,0 +1,13 @@
+/* ---- notify: the Inbox (PLAN §14.2) ------------------------------------------------------ */
+.notify-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.notify-head p { margin: 0; }
+.notify-list { display: flex; flex-direction: column; gap: 6px; }
+.notify-item {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; padding: 10px 12px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; animation: notify-in 180ms var(--ease);
+}
+.notify-item.unread { border-color: var(--violet); }
+.notify-line { color: var(--text); text-decoration: none; overflow-wrap: anywhere; }
+a.notify-line:hover { color: var(--violet); }
+.notify-few { margin: 0; padding-left: 18px; }
+@keyframes notify-in { from { opacity: 0; transform: translateY(-4px); } }

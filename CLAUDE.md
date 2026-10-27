@@ -8,9 +8,10 @@ and gotchas that aren't obvious from the source and that are expensive to redisc
 A **starter** for server-rendered web apps: an **Odin** backend rendering HTML, **HTMX** on the
 front end, a SQLite or in-memory store, in one binary. A site is a **profile** (`app/cmd/<p>/`): a
 selection of **features** (`app/features/<f>/`) composed on a shared **platform**
-(`app/platform/`). Three profiles ship: `skeleton`, the 1.2.x contacts console rebuilt from features
+(`app/platform/`). Four profiles ship: `skeleton`, the 1.2.x contacts console rebuilt from features
 at its exact URLs (the worked example and the performance witness), `minimal`, the one-page
-notes starter, and `lab`, the stream contract pages (SSE, WebSocket and multipart; growing through
+notes starter, `lab`, the stream contract pages (SSE, WebSocket and multipart), and `streams`, the
+stream substrate's witness (chat on four transports, the Inbox, the `nick` identity; growing through
 M2). **Read [`PHILOSOPHY.md`](PHILOSOPHY.md) first**, then [`docs/PLAN.md`](docs/PLAN.md) (the plan:
 layers, features, milestones) and [`docs/design/DECISIONS.md`](docs/design/DECISIONS.md);
 [`docs/DATA.md`](docs/DATA.md) covers backups.
@@ -165,8 +166,8 @@ platform  L4 app        -> identity:., store:. (the family's NAME), L1-L3; only 
   fails in the store itself (`tools/check contracts` holds every store to it).
 - **Only `platform/web` imports odin-http**; it re-exports `web.Request` and `web.Response`.
 - **A family is a build-time choice** made by `build.sh`'s collection flags: `store:` (sqlite or
-  memory), `identity:` (anonymous for now), `client:` (vanilla or hyperscript; `lab` is on
-  hyperscript), `theme:` (full or lite). The
+  memory), `identity:` (anonymous, or `features/accounts/identity_nick`: `streams`), `client:`
+  (vanilla or hyperscript; `lab` is on hyperscript), `theme:` (full or lite). The
   members expose the same names (`NAME`, the stores' procs), so the code above them doesn't change.
 - **A profile is four hand-written files.** `routes.odin` mounts tables, one line each, as
   `app.Mount{"<feature>", <pkg>.ROUTES[:]}` (the root row is written there, never inside a
@@ -213,9 +214,15 @@ nothing to a loop that has left at shutdown: nbio zeroes a released loop, and a 
 - **`platform/hub`** fans events out: `hub.publish(topic, html, rowid, key)` from any thread. A package declares
   its topic families in a `TOPICS` table (`hub.Topic{family = "chat.room", policy = .Queue, perm = …, allow = …,
   replay = …}`), and a profile that streams calls `hub.init()` and `hub.mount("<host>", ..TOPICS[:])` in `main`
-  and mounts `{"platform", hub.ROUTES[:]}` (`/events`) on that host. A page opens one `#live` stream:
-  `/events?t=<topic>[@rowid],…&after=<hub.cursor_now()>`; a `resync` event asks it to refetch.
+  and mounts `{"platform", hub.ROUTES[:]}` (`/events`) on that host. A page opens one `#live` stream, which
+  the layout writes: `web.render_page(…, live = {topics})` adds the page's topics to the viewer's own (a row with
+  `member = true`, `notify.user:<id>`), and `/events?t=<topic>[@rowid],…&after=<cursor>` resumes them; a `resync`
+  event asks the page to refetch. A row's `watch` hears its keys' streams open and close (chat's presence).
 - Published HTML is the server's own fragment around escaped text: never markup from a request.
+- **A live log upserts.** A message travels as `<hx-partial hx-target="#log-…" hx-swap="upsert sort">` around
+  elements with stable ids, so a replay, a snapshot after a reconnect and the author's own answer never double it.
+- **Rate limits** are a `web.Limit{n, window}` per concern, `web.limit_hit(&l, key)` keyed by a member's id or
+  `web.client_key`, and `web.respond_limited` (429, `Retry-After`, a toast for the form's `hx-status:429`).
 
 ## Code aesthetics (Odin)
 
@@ -498,6 +505,8 @@ the browser stops first. Store failures are separate: `web.respond_store_error` 
 - `@(thread_local)` variables can't have initialisers; a package-level `[?]T` constant (`::`) can't
   be sliced (`X[:]` needs `:=`); `@(init)` procs must be contextless.
 - `ast.inspect` calls its callback with `nil` after a node's children: check for it.
+- `for x in m[k]` traps when `m` itself is a nil map (dev-2026-10); `r := m[k]` and `v, ok := m[k]` read a nil
+  map fine, so range over the local (`r := m[k]; for x in r`).
 - Shell heredocs in the tooling eat backslashes: write files with escapes through an editor, not
   `cat <<EOF`.
 

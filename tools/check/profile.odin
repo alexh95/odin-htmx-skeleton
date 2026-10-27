@@ -163,7 +163,7 @@ read_profile :: proc(t: ^Tree, p: ^Profile) {
 				problem("topics", "%s: %s holds %s, not a package's TOPICS[:]", where_(e.pos), tm.table, field if field != "" else "an entry")
 				continue
 			}
-			append(&tm.pkgs, alias_target(t, p.pkg, alias))
+			append(&tm.pkgs, family_member(p, alias_target(t, p.pkg, alias)))
 		}
 	}
 }
@@ -181,7 +181,7 @@ read_mounts :: proc(t: ^Tree, p: ^Profile, cl: ^ast.Comp_Lit) -> [dynamic]Mount 
 		mount := Mount{feature = feature, pos = m.pos}
 		if inner := sliced(m.elems[1]); inner != nil {
 			alias, table := selector(inner)
-			mount.target, mount.table = alias_target(t, p.pkg, alias), table
+			mount.target, mount.table = family_member(p, alias_target(t, p.pkg, alias)), table
 			if q, has := t.by_path[mount.target]; has {
 				if vd, found := decl(q, table); found && len(vd.values) == 1 {
 					if rows, rok := comp_lit(vd.values[0]); rok { read_rows(t, q, rows, &mount, false) }
@@ -245,7 +245,7 @@ read_main :: proc(t: ^Tree, p: ^Profile, pl: ^ast.Proc_Lit) {
 		alias, name := selector(call.expr)
 		switch {
 		case name == "init" && alias != "":
-			append(&cur.inits, alias_target(tree, cur.pkg, alias))
+			append(&cur.inits, family_member(cur, alias_target(tree, cur.pkg, alias)))
 		case name == "mount" && len(call.args) == 2 && alias_target(tree, cur.pkg, alias) == "platform/hub":
 			host, _ := string_lit(call.args[0])
 			append(&cur.topic_mounts, Topic_Mount{host = host, table = ident(sliced(call.args[1])), pos = call.pos})
@@ -341,18 +341,7 @@ reached :: proc(t: ^Tree, p: ^Profile) -> []string {
 		q, ok := t.by_path[path]
 		if !ok { continue }
 		for imp in q.imports {
-			target := imp.target
-			switch {
-			case strings.has_prefix(target, "store:"):
-				target = strings.concatenate({"stores/", p.store, "/", strings.trim_prefix(target, "store:")}, context.temp_allocator)
-				target = strings.trim_suffix(target, "/.")
-			case strings.has_prefix(target, "identity:"):
-				target = strings.trim_prefix(p.identity, "app/")
-			case strings.has_prefix(target, "client:"):
-				target = strings.concatenate({"platform/client/", p.client}, context.temp_allocator)
-			case strings.has_prefix(target, "theme:"):
-				target = strings.concatenate({"platform/theme/", p.theme}, context.temp_allocator)
-			}
+			target := family_member(p, imp.target)
 			if !seen[target] { append(&stack, target) }
 		}
 	}
@@ -360,6 +349,24 @@ reached :: proc(t: ^Tree, p: ^Profile) -> []string {
 	for k in seen { if k in t.by_path { append(&out, k) } }
 	slice.sort(out[:])
 	return out[:]
+}
+
+// A family collection as this profile builds it (build.sh's line): store:f is
+// app/stores/<store>/f, identity:. its identity member, and so on; anything else
+// as it is.
+family_member :: proc(p: ^Profile, target: string) -> string {
+	switch {
+	case strings.has_prefix(target, "store:"):
+		t := strings.concatenate({"stores/", p.store, "/", strings.trim_prefix(target, "store:")}, context.temp_allocator)
+		return strings.trim_suffix(t, "/.")
+	case strings.has_prefix(target, "identity:"):
+		return strings.trim_prefix(p.identity, "app/")
+	case strings.has_prefix(target, "client:"):
+		return strings.concatenate({"platform/client/", p.client}, context.temp_allocator)
+	case strings.has_prefix(target, "theme:"):
+		return strings.concatenate({"platform/theme/", p.theme}, context.temp_allocator)
+	}
+	return target
 }
 
 // ---- routes --------------------------------------------------------------------------

@@ -11,7 +11,7 @@ import notes_web "../../features/notes/web"
 ROUTES := [?]app.Mount {
 	{"platform", web.ROUTES[:]},        // /healthz /livez /readyz /metrics /sitemap.xml …
 	{"platform", web.PUBLIC_ROUTES[:]}, // /static /robots.txt /favicon.ico /licenses
-	{"home", {{.Get, "/", home_web.page, .Public, {}, 0}}}, // the root: the notes card
+	{"home", {{.Get, "/", home_web.page, .Public, {}, 0}}}, // the root: a card per feature
 	{"notes", notes_web.ROUTES[:]},     // POST /notes
 	{"about", about_web.ROUTES[:]},     // /about
 }

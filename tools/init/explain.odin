@@ -36,12 +36,15 @@ print_plan :: proc(s: Selection, text: Profile_Text) {
 		if ft == nil { continue }
 		for x in ft.switched { append(&switched, fmt.tprintf("%s.%s", f, x)) }
 		if slice.contains(ft.stores[:], s.members[.Store]) { append(&stores, f) }
-		for e in set_members(ft.web, "EXTS") {
+		// An identity's feature has no web package: its routes and extensions are the identity's.
+		web := ft.web
+		if web == nil && f == identity_feature(s.members[.Identity]) { web = catalog.tree.by_path[member_dir(.Identity, s.members[.Identity])] }
+		for e in set_members(web, "EXTS") {
 			if !slice.contains(exts[:], e) { append(&exts, e) }
 		}
-		append(&topics, ..topic_families(ft.web))
+		append(&topics, ..topic_families(web))
 		if s.members[.Store] == "sqlite" && ft.migrations { append(&migrations, f) }
-		if n := row_count(ft.web); n > 0 {
+		if n := row_count(web); n > 0 {
 			append(&routes, fmt.tprintf("%s %d", f, n))
 			total += n
 		}
@@ -78,14 +81,43 @@ asked :: proc(s: Selection, f: string) -> bool {
 // `X :: web.Exts{.Sse, .Ws}` → {"sse", "ws"}.
 set_members :: proc(p: ^Pkg, name: string) -> []string {
 	out := make([dynamic]string, context.temp_allocator)
-	vd, ok := decl(p, name)
-	if !ok || len(vd.values) != 1 { return out[:] }
-	cl, is := comp_lit(vd.values[0])
-	if !is { return out[:] }
-	for e in cl.elems {
-		if is_sel, iok := e.derived_expr.(^ast.Implicit_Selector_Expr); iok { append(&out, strings.to_lower(is_sel.field.name)) }
-	}
+	collect_members(p, name, &out)
 	return out[:]
+}
+
+// A set's members, through a sum of other packages' sets (chat_web's EXTS is its transports'
+// plus its own): each literal's `.X`, and each `alias.NAME`'s, once.
+@(private = "file")
+collect_members :: proc(p: ^Pkg, name: string, out: ^[dynamic]string) {
+	if p == nil { return }
+	vd, ok := decl(p, name)
+	if !ok || len(vd.values) != 1 { return }
+	collect_expr(p, name, vd.values[0], out)
+}
+
+@(private = "file")
+collect_expr :: proc(p: ^Pkg, name: string, e: ^ast.Expr, out: ^[dynamic]string) {
+	#partial switch x in e.derived_expr {
+	case ^ast.Binary_Expr:
+		collect_expr(p, name, x.left, out)
+		collect_expr(p, name, x.right, out)
+	case ^ast.Paren_Expr:
+		collect_expr(p, name, x.expr, out)
+	case ^ast.Comp_Lit:
+		for el in x.elems {
+			if is_sel, iok := el.derived_expr.(^ast.Implicit_Selector_Expr); iok {
+				m := strings.to_lower(is_sel.field.name)
+				if !slice.contains(out[:], m) { append(out, m) }
+			}
+		}
+	case ^ast.Selector_Expr:
+		alias := ident(x.expr)
+		for imp in p.imports {
+			if imp.alias == alias || imp.alias == "" && strings.has_suffix(imp.target, strings.concatenate({"/", alias}, context.temp_allocator)) {
+				collect_members(catalog.tree.by_path[imp.target], x.field.name, out)
+			}
+		}
+	}
 }
 
 // The families a web package's TOPICS declares.
@@ -101,7 +133,12 @@ topic_families :: proc(p: ^Pkg) -> []string {
 		for fe in t.elems {
 			fv, fok := fe.derived_expr.(^ast.Field_Value)
 			if !fok || ident(fv.field) != "family" { continue }
-			if fam, _ := string_lit(fv.value); fam != "" { append(&out, fam) }
+			fam, lit := string_lit(fv.value)
+			if !lit {
+				// A constant of the package's own (notify's USER), as tools/check reads it.
+				if cd, cok := decl(p, ident(fv.value)); cok && len(cd.values) == 1 { fam, _ = string_lit(cd.values[0]) }
+			}
+			if fam != "" { append(&out, fam) }
 		}
 	}
 	return out[:]

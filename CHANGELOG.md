@@ -136,6 +136,45 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   held 400 ms: the streams wire, `hx-ws:send` never navigates, hs-include arrives) and `streams-hxcsp.spec`; with
   `scripting.spec` and `compat.spec`, and load scenarios for every new route.
 
+- **The `nick` identity** (`features/accounts/identity_nick`, PLAN §17.1, D35; ANSWERS round 9): a member of the
+  `identity:` family. A visitor picks a nickname at `/login` and keeps it as a signed cookie
+  (`nick=<id>.<name>.<expiry>.<mac>`, HMAC-SHA256, `HttpOnly; SameSite=Lax`, 30 days, renewed past half), with no
+  account behind it. Clients in `LAN_CIDRS` are members (`ACCOUNTS_NICK_FROM=all` drops the check), clients in
+  `ACCOUNTS_NICK_ADMIN_CIDRS` (none by default) are admins, anyone else a guest; `ACCOUNTS_NICK_KEY` signs (a boot key
+  without it, which a warn line names). `/logout` forgets it. The identity contract gains `init`, which `app.boot` calls.
+- **The layout's one `#live`** (§9.1, D14): `web.render_page(…, live = topics)` adds a page's topics to the viewer's own
+  member rows (`hub.Topic.member`), and the hub writes the stream element; `/events` refuses a member row to anyone else.
+- **`notify`** (`/notify`, PLAN §14.2, D36): the Inbox, live on every page of a member's over `notify.user:<id>`
+  (the item into `#notify-list`, the count into every `.notify-count`), with `notify_web.send(user, kind, ref, html)`
+  for producers, mark all read, and the hourly prune of read items past 30 days; the memory store keeps the newest
+  200 per member.
+- **`chat`** (`/chat`, PLAN §14.1, D30): public rooms on the memory store over four transports, chosen per request by
+  `?transport=`, the member's Connection setting or `CHAT_TRANSPORT` (`x-impl: chat.transport=<t>`): a WebSocket
+  (JSON in, a snapshot of the last 50 on each connect), the page's SSE stream with a POSTing composer, polling with
+  hx-ptag (304 when nothing changed) and one long multipart response resumed by `HX-Last-Part-ID`. Every message is
+  one escaped `<article>` swapped by upsert, so reconnects, snapshots and the author's own answer never double one.
+  Presence (online, away after 10 s, gone after 5 minutes), typing (faded by CSS), edit and delete of one's own
+  within 10 minutes (a tombstone), the message menu asked for per viewer, read receipts by POST when the newest
+  message scrolls into view, unread counts per room on the rooms page, mentions into the Inbox, rooms made by members
+  (100 in memory), 5 posts per 10 s per member (429 and a toast), and the lobby seeded. Off the LAN, `/chat` says chat
+  is open there.
+- **The `streams` profile** (`app/cmd/streams/`, PLAN §7.1): home, notes, chat, notify, the nick identity and about,
+  on the memory store, the vanilla client and the lite theme, with no SQLite library; in CI's check, build (four
+  platforms, and without SQLite), e2e (chromium and webkit), k6 and drills jobs.
+- **`Composer` and `AutoScroll`**, twinned behaviours (vanilla and hyperscript): Enter sends and a sent message clears
+  the form, for a POST or a socket's send; a live log stays at its newest while its reader is there, and marks the
+  reader's own messages. **`Expire`** (hyperscript only) removes a typing indicator after 5 s.
+- **`web.Limit`** (§17.5): spark's fixed-window limiter, `web.limit_hit` and `web.respond_limited` (429, `Retry-After`,
+  a toast), its keys bounded; chat and `/csp-report` use it. **`web.cookie`** reads one cookie (the parse is
+  `authz.cookie`, which identities use too).
+- **The hub**: a row's `watch` hears its keys' `/events` streams open and close (chat's presence), and a stream that
+  subscribes on its own (`hub.subscribe`) gets multipart parts whose `HX-Part-ID` is the published rowid.
+- **e2e and load for nick, notify and chat**: `e2e/tests/accounts/nick.spec.ts`, `chat/chat.spec.ts` (each transport:
+  delivery once and escaped, edit and delete, and a server restart that costs a page nothing and doubles nothing),
+  `notify/notify.spec.ts` (a mention live in the Inbox, unread counts, mark all read), with members in browser
+  contexts of their own (`e2e/helpers/members.ts`); k6's `accounts/nick.js`, `chat/chat.js`, `chat/chat_streams.js`
+  and `notify/notify.js`.
+
 ### Changed
 - **The skeleton's binary budget is 3 MiB** (ANSWERS round 10; D38, PLAN §18.4), in CI's Windows size check and the
   drills: the fork's F-17 and M2's shared client code (`client/core.js`, the twins' dispatcher, `html.behave`) had put
@@ -178,6 +217,22 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   guard.
 - **The unit tests build on `minimal`'s four families** (`.github/scripts/unit-tests.sh`): `platform/stream` reaches
   the family collections through `platform/web`.
+
+- **`html.time_ago`** is the platform's ("just now", minutes, hours, days), shared by notes, notify and chat.
+- **The sitemap leaves out a nav page a guest can't see or a crawler shouldn't index** (a route with a perm, or
+  `.Private`): a member's Inbox, chat's rooms.
+- **`--routes`, `--features` and `--limits` print only their answer**: boot's warnings (nick's boot key) are silenced
+  for a listing, which scripts parse.
+- **`tools/check`** reads a profile's family imports (`identity:.`, `store:…`) as `build.sh`'s line builds them, for
+  mounts, inits, topic tables and `BUNDLE_EXTS`, and a TOPICS row's family may be a constant of its own package.
+- **The test harnesses' servers count loopback as the LAN** (`LAN_CIDRS=127.0.0.0/8`), so a nick build's members can
+  be made; e2e also fixes `ACCOUNTS_NICK_KEY`, so a nickname outlives a spec's restart. k6's summary reads a scenario's
+  `held:no` submetrics where it gates only the requests that end on their own.
+- **`minimal`'s root row's comment** reads "a card per feature", as the generator copies it into every profile with home.
+- **The generator's identities** (PLAN §7.4): a new project is on `nick` unless it selects `scripting` or `compat`
+  (then `anonymous`); nick brings `accounts` with its `/login` mount, `identity.EXTS` and the host's identity flag;
+  `accounts` without its identity is refused with advice. The plan's bundle line follows composed `EXTS`, and its
+  topics line a family named by a constant. `docs/catalog.json` lists chat, notify, accounts, nick and streams.
 
 ### Fixed
 - **The hub's idle-ring sweep no longer aborts the server** (`free(): invalid pointer`, found by the 1 h soak and

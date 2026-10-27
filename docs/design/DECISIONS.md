@@ -881,7 +881,11 @@ request arena (02 §2.7).
   routes, rather than through `app.Host`, so `platform/app` never calls the hub and a profile that doesn't stream
   links none of it. Each ring also holds at most `HUB_RING_BYTES` (1 MiB), and a topic with no publish for 10 minutes
   lets its ring go (a cursor from before then is resynced). `deliver` is a server-side row the hub runs once per
-  publish; room mode is its only use (`bot.ask` and `chat.reply`, D6; NEW: not prototyped). **Topics are per host**:
+  publish; room mode is its only use (`bot.ask` and `chat.reply`, D6; NEW: not prototyped). Two more fields came with
+  M2's features: `member` (a family keyed by the viewer's id, `notify.user`: the layout's `#live` carries it on every
+  page of theirs, and `/events` refuses it to anyone else) and `watch`, which `/events` calls when a page's stream
+  subscribes to one of the row's keys and again when that stream ends, on its own loop: how chat knows who is in a
+  room (D14's presence). **Topics are per host**:
   `/events` on a host subscribes only to the families mounted there, so a houston-lab page can't subscribe to Houston's
   topics even as a Guest (NEW). A publish to a family no table mounts reaches no row and is dropped and counted.
   `.Latest` topics (presence, counters, poll bars, progress) keep the newest message per publish key and never grow past
@@ -1674,6 +1678,14 @@ and opens a console after step-up while a family member watches read-only.
   Unread counts for other rooms go to `notify.user:<id>` as hx-targets updates of `.unread-<room>`.
 - **Limits**: 5 messages per 10 s per user, burst 10; WS frames 20 per second per connection (close 1008); 64 KiB WS
   messages; 2 concurrent uploads per user; slow mode per room.
+
+**As built (M2)**, public rooms on the memory store with all four transports (PLAN §14.1's as-built note has the
+rest). Three changes from the above. CSS can't compare two attributes, so "mine" is marked on the client: the log
+carries `data-me`, and `AutoScroll` adds `.mine` where a child's `data-author` matches (the reader's own "is typing"
+too, which CSS then hides). Unread counts go out of band on the class selector (`innerHTML:.unread-<slug>`), which
+core htmx swaps into every match, so no hx-targets. And no `data-seq`: hx-upsert compares with `localeCompare(…,
+{numeric: true})`, so the `id`s sort as numbers; memory ids are one number, the boot time in ms × 10⁶ plus the
+sequence, so a page from before a restart never sees a new message take an old one's id.
 
 **Rejected.** CF §6.3's ids allocated before persistence and its `<li>` markup; PF §6.4.1's hub skipping the author's
 connections.

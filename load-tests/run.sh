@@ -146,9 +146,11 @@ start_server() { # $1 = port
   # LOG_LEVEL=warn drops the access log (~9% of throughput) so numbers stay
   # comparable with runs before it existed; export LOG_LEVEL=info to keep it.
   # k6 is one client opening far more streams than a person would, so the
-  # per-client stream caps are lifted (PLAN §9.4); the totals stand.
+  # per-client stream caps are lifted (PLAN §9.4); the totals stand. k6 is loopback,
+  # which a nick build counts as the LAN, so its VUs can pick nicknames.
   PORT="$1" LOG_LEVEL="${LOG_LEVEL:-warn}" METRICS_TOKEN_FILE="$ROUTES/.token" \
     STREAM_CONNECTS="${STREAM_CONNECTS:-1000000}" STREAMS_PER_CLIENT="${STREAMS_PER_CLIENT:-4096}" \
+    LAN_CIDRS="${LAN_CIDRS:-127.0.0.0/8}" \
     "$BIN" "$1" >"$RAW/server_$1.log" 2>&1 &
   SRV_PID=$!
   # wait for /healthz (up to ~10s)

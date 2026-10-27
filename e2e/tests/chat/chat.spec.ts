@@ -1,0 +1,214 @@
+import { test, expect } from '../../fixtures';
+import type { Page } from '@playwright/test';
+import { startServer, stopServer, type Server } from '../../helpers/server';
+import { leave, member, uid, type Member } from '../../helpers/members';
+
+// Chat (PLAN §14.1) over each of its four transports, chosen per page by ?transport=:
+// a message reaches every member once, escaped, edits and tombstones follow it, and a
+// restart costs a page nothing it had and duplicates nothing it gets next (D37).
+const T = { tag: ['@chat', '@accounts-nick'] };
+const TRANSPORTS = ['ws', 'sse', 'poll', 'multipart'] as const;
+
+// A room of its own per test: the worker's server is shared by its tests.
+async function newRoom(page: Page): Promise<string> {
+  await page.goto('/chat');
+  await page.locator('#room-name').fill(uid('room '));
+  await page.getByRole('button', { name: 'Create' }).click();
+  await page.waitForURL(/\/chat\/r\//);
+  return new URL(page.url()).pathname.split('/').pop()!;
+}
+
+async function open(m: Member, slug: string, transport: string) {
+  await m.page.goto(`/chat/r/${slug}?transport=${transport}`);
+  await expect(m.page.locator('.chat-room')).toBeVisible();
+  // A socket's composer sends on the socket: wait until it is open (the other three POST).
+  if (transport === 'ws') {
+    await expect.poll(() => m.page.locator('.chat-pane').evaluate((el: any) => el._htmx?.ws?.connection?.socket?.readyState)).toBe(1);
+  }
+}
+
+async function say(m: Member, text: string) {
+  const box = m.page.locator('.chat-composer textarea');
+  await box.fill(text);
+  await box.press('Enter');
+  await expect(box).toHaveValue(''); // Composer cleared it once sent
+}
+
+const messages = (m: Member) => m.page.locator('.chat-log > article.chat-msg');
+const message = (m: Member, text: string) => messages(m).filter({ hasText: text });
+
+for (const t of TRANSPORTS) {
+  test.describe(`chat over ${t}`, T, () => {
+    test('a message reaches the other member once, escaped, and the author once', async ({ browser, baseURL }) => {
+      const ann = await member(browser, baseURL!), bob = await member(browser, baseURL!);
+      const slug = await newRoom(ann.page);
+      await open(ann, slug, t);
+      await open(bob, slug, t);
+      const text = `<b>hi</b> ${uid('x')}`;
+      await say(ann, text);
+      for (const m of [ann, bob]) {
+        await expect(message(m, text)).toHaveCount(1);
+        await expect(message(m, text).locator('.chat-body b')).toHaveCount(0); // text, not markup
+        await expect(message(m, text).locator('.chat-name')).toHaveText(ann.name);
+      }
+      await expect(message(ann, text)).toHaveClass(/\bmine\b/);
+      await expect(message(bob, text)).not.toHaveClass(/\bmine\b/);
+      // Bob's answer goes the other way.
+      await say(bob, 'and back');
+      await expect(message(ann, 'and back')).toHaveCount(1);
+      await expect(messages(ann)).toHaveCount(2);
+      await expect(messages(bob)).toHaveCount(2);
+      expect([...ann.errors, ...bob.errors]).toEqual([]);
+      await leave(ann, bob);
+    });
+
+    test('an edit and a delete reach the other member', async ({ browser, baseURL }) => {
+      const ann = await member(browser, baseURL!), bob = await member(browser, baseURL!);
+      const slug = await newRoom(ann.page);
+      await open(ann, slug, t);
+      await open(bob, slug, t);
+      await say(ann, 'first take');
+      const mine = message(ann, 'first take');
+      await mine.hover();
+      await mine.getByRole('button', { name: 'Message actions' }).click();
+      await mine.getByRole('button', { name: 'Edit' }).click();
+      await mine.locator('.chat-edit textarea').fill('second take');
+      await mine.getByRole('button', { name: 'Save' }).click();
+      await expect(message(bob, 'second take')).toContainText('(edited)');
+      await expect(message(bob, 'first take')).toHaveCount(0);
+
+      // Bob may not change Ann's: his menu has no Edit.
+      const hers = message(bob, 'second take');
+      await hers.hover();
+      await hers.getByRole('button', { name: 'Message actions' }).click();
+      await expect(hers.getByRole('link', { name: 'Link' })).toBeVisible();
+      await expect(hers.getByRole('button', { name: 'Edit' })).toHaveCount(0);
+
+      const again = message(ann, 'second take');
+      await again.hover();
+      await again.getByRole('button', { name: 'Message actions' }).click();
+      await again.getByRole('button', { name: 'Delete' }).click();
+      await expect(messages(bob).filter({ hasText: 'Message deleted.' })).toHaveCount(1);
+      await expect(messages(bob)).toHaveCount(1); // a tombstone keeps its place
+      await leave(ann, bob);
+    });
+
+    // Playwright's offline emulation fails new requests (the poll's) and closes Chromium's socket, but leaves an
+    // open SSE or multipart response, and WebKit's socket, delivering: for those this only holds that nothing
+    // doubles, and the restart below is what cuts them.
+    test('offline a while: the page gets what it missed, once', async ({ browser, baseURL }) => {
+      const ann = await member(browser, baseURL!), bob = await member(browser, baseURL!);
+      const slug = await newRoom(ann.page);
+      await open(ann, slug, t);
+      await open(bob, slug, t);
+      await say(ann, 'while online');
+      await expect(message(bob, 'while online')).toHaveCount(1);
+
+      await bob.context.setOffline(true);
+      await say(ann, 'while away 1');
+      await say(ann, 'while away 2');
+      await bob.page.waitForTimeout(1500);
+      await bob.context.setOffline(false);
+
+      for (const text of ['while online', 'while away 1', 'while away 2']) {
+        await expect(message(bob, text)).toHaveCount(1, { timeout: 30_000 });
+      }
+      await expect(messages(bob)).toHaveCount(3);
+      await leave(ann, bob);
+    });
+
+    test('a restart: the page keeps what it had and gets what comes next, once', async ({ browser }) => {
+      test.slow();
+      const config = test.info().config;
+      const s1 = await startServer(config);
+      let s2: Server | undefined;
+      const base = `http://127.0.0.1:${s1.port}`;
+      const ann = await member(browser, base), bob = await member(browser, base);
+      try {
+        await open(ann, 'lobby', t);
+        await open(bob, 'lobby', t);
+        await say(ann, 'before the restart');
+        await expect(message(bob, 'before the restart')).toHaveCount(1);
+
+        await stopServer(s1);
+        s2 = await startServer(config, {}, s1.port);
+
+        // Ann's composer works again once her page has its connection back; a socket
+        // needs it to send, so she retries until Bob has it.
+        await expect(async () => {
+          await say(ann, 'after the restart');
+          await expect(message(bob, 'after the restart')).not.toHaveCount(0, { timeout: 3000 });
+        }).toPass({ timeout: 30_000 });
+        await expect(message(bob, 'before the restart')).toHaveCount(1); // kept, not doubled
+        const ids = await messages(bob).evaluateAll((els) => els.map((e) => e.id));
+        expect(new Set(ids).size).toBe(ids.length);
+      } finally {
+        await leave(ann, bob);
+        if (s2) await stopServer(s2);
+        if (s1.proc.exitCode === null) s1.proc.kill();
+      }
+    });
+  });
+}
+
+test.describe('chat', T, () => {
+  test('presence and typing ride the page, whatever the transport', async ({ browser, baseURL }) => {
+    const ann = await member(browser, baseURL!), bob = await member(browser, baseURL!);
+    const slug = await newRoom(ann.page);
+    await open(bob, slug, 'poll');
+    await open(ann, slug, 'ws');
+    await expect(bob.page.locator('.chat-who .who-online', { hasText: ann.name })).toBeVisible();
+    await ann.page.locator('.chat-composer textarea').pressSequentially('typ');
+    await expect(bob.page.locator('.chat-typing')).toContainText(`${ann.name} is typing`);
+    await expect(ann.page.locator('.chat-typing .typing-who')).toBeHidden(); // her own, marked and hidden
+    await leave(ann, bob);
+  });
+
+  test('a refused message stays as typed, with the reason; past the rate a toast says to slow down', async ({ browser, baseURL }) => {
+    const ann = await member(browser, baseURL!);
+    const slug = await newRoom(ann.page);
+    for (const t of ['sse', 'ws']) {
+      await open(ann, slug, t);
+      const box = ann.page.locator('.chat-composer textarea');
+      await box.fill('   ');
+      await box.evaluate((el: HTMLTextAreaElement) => el.removeAttribute('required'));
+      await box.press('Enter');
+      await expect(ann.page.locator('.chat-composer .form-error')).toHaveText('Write something first.');
+    }
+    // Five in ten seconds, the sixth refused (a window may open mid-burst: then the
+    // eleventh is). Each post waits for its answer: htmx queues a form's next request
+    // behind the one in flight.
+    await open(ann, slug, 'sse');
+    const box = ann.page.locator('.chat-composer textarea');
+    let refused: import('@playwright/test').Response | undefined;
+    for (let i = 0; i < 11 && !refused; i++) {
+      await box.fill(`burst ${i}`);
+      const [res] = await Promise.all([
+        ann.page.waitForResponse((r) => r.request().method() === 'POST' && new URL(r.url()).pathname === `/chat/r/${slug}`),
+        box.press('Enter'),
+      ]);
+      if (res.status() === 429) refused = res;
+    }
+    expect(refused, 'a post past the rate').toBeDefined();
+    expect(Number(refused!.headers()['retry-after'])).toBeGreaterThan(0);
+    await expect(ann.page.locator('#toasts .toast')).toContainText('Slow down');
+    await expect(box).not.toHaveValue(''); // kept for when the window opens
+    await leave(ann);
+  });
+
+  test('the connection setting sticks to the member', async ({ browser, baseURL }) => {
+    const ann = await member(browser, baseURL!);
+    await ann.page.goto('/chat');
+    await ann.page.locator('#transport').selectOption('poll');
+    // The form posts from /chat back to /chat: wait for the page it lands on, not the URL.
+    const landed = ann.page.waitForResponse((r) => new URL(r.url()).pathname === '/chat' && r.request().method() === 'GET');
+    await ann.page.getByRole('button', { name: 'Use' }).click();
+    await landed;
+    await ann.page.waitForLoadState();
+    await expect(ann.page.locator('#transport')).toHaveValue('poll');
+    const res = await ann.page.goto('/chat/r/lobby');
+    expect(res!.headers()['x-impl']).toContain('chat.transport=poll');
+    await expect(ann.page.locator('.chat-pane')).toHaveAttribute('hx-ptag', /^\d+$/);
+    await leave(ann);
+  });
+});

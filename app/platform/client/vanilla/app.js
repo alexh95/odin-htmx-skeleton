@@ -73,9 +73,35 @@ document.addEventListener("input", function (e) {
   if (out) out.value = e.target.value;
 });
 
+// auto-scroll: a live log stays at its newest while its reader is there (within
+// 80 px of the bottom), and marks what is the reader's own, its data-me against
+// each child's data-author (a message is rendered once for everyone).
+function armLogs(root) {
+  each(root, "auto-scroll", function (log) {
+    if (log.dataset.armed) return;
+    log.dataset.armed = "1";
+    var near = true;
+    var mark = function () {
+      log.querySelectorAll('[data-author="' + log.dataset.me + '"]:not(.mine)').forEach(function (a) {
+        a.classList.add("mine");
+      });
+    };
+    log.addEventListener("scroll", function () {
+      near = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+    });
+    new MutationObserver(function () {
+      mark();
+      if (near) log.scrollTop = log.scrollHeight;
+    }).observe(log, { childList: true });
+    mark();
+    log.scrollTop = log.scrollHeight;
+  });
+}
+
 document.addEventListener("htmx:after:process", function (e) {
   initRanges(e.target);
   armToasts(e.target);
+  armLogs(e.target);
 }, true);
 
 // reset-on-success: a form resets after its OWN successful submit, and empties
@@ -83,14 +109,30 @@ document.addEventListener("htmx:after:process", function (e) {
 // request can't trip it (the /forms email field validates as you type; an
 // unscoped reset wiped what the user typed once). A refused submit is a 422, so
 // the input stays for the user to fix.
+function resetForm(el) {
+  el.reset();
+  el.querySelectorAll(".form-error").forEach(function (m) { m.replaceChildren(); });
+}
 document.addEventListener("htmx:after:request", function (e) {
   var ctx = e.detail && e.detail.ctx;
   if (!ctx || !ctx.response || ctx.response.status >= 400) return;
   var el = ctx.sourceElement;
-  if (!el || !el.matches || !el.matches('form[data-behave="reset-on-success"]')) return;
-  el.reset();
-  el.querySelectorAll(".form-error").forEach(function (m) { m.replaceChildren(); });
+  if (!el || !el.matches) return;
+  if (el.matches('form[data-behave="reset-on-success"], form[data-behave="composer"]')) resetForm(el);
 }, true);
+
+// composer: a chat form, which resets as above after its own POST, or once its
+// socket has sent it (hx-ws); Enter sends, Shift+Enter is a new line.
+document.addEventListener("htmx:ws:after:message:outgoing", function (e) {
+  if (e.target.matches && e.target.matches('form[data-behave="composer"]')) resetForm(e.target);
+}, true);
+document.addEventListener("keydown", function (e) {
+  if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.target.tagName !== "TEXTAREA") return;
+  var form = behaving(e.target, "composer");
+  if (!form) return;
+  e.preventDefault();
+  form.requestSubmit();
+});
 
 document.addEventListener("click", function (e) {
   var t = e.target.closest ? e.target : e.target.parentElement;
@@ -117,3 +159,4 @@ document.addEventListener("keydown", function (e) {
 
 armToasts();
 initRanges();
+armLogs();

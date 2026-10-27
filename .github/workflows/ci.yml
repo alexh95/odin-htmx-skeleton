@@ -30,8 +30,9 @@ env:
 
 # Every job builds, checks and tests through build.sh <profile> (PLAN §20.1), the one
 # place a profile's family flags live. The profiles: minimal (memory store, lite
-# theme, no SQLite), skeleton (the 1.2.x console on SQLite) and lab (the stream
-# contract pages on the hyperscript client, memory store).
+# theme, no SQLite), skeleton (the 1.2.x console on SQLite), lab (the stream
+# contract pages on the hyperscript client, memory store) and streams (chat on four
+# transports, the Inbox and the nick identity; memory store, lite theme, no SQLite).
 jobs:
   # A bump that misses one of the places a pin lives fails here, first.
   pins:
@@ -57,7 +58,7 @@ jobs:
       - name: tools/check (imports, profile, routes, contracts)
         run: odin run tools/check -- all
       - name: Every profile on its own families
-        run: for p in minimal skeleton lab; do CMD=check sh build.sh "$p" || exit 1; done
+        run: for p in minimal skeleton lab streams; do CMD=check sh build.sh "$p" || exit 1; done
       - name: Every store alone, in each family
         run: |
           for d in app/stores/*/*/; do
@@ -115,7 +116,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [minimal, skeleton, lab]
+        profile: [minimal, skeleton, lab, streams]
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
         sqlite: [linked]
         include:
@@ -127,10 +128,14 @@ jobs:
             budget: 3145728    # 3 MiB (ANSWERS round 10)
           - profile: lab
             write: /compat/htmx2/save name=CI+smoke  # lab has no size budget of its own (§18.4)
+          - profile: streams
+            write: /notes body=CI+smoke  # nor has streams: its size is recorded (§12.1)
           - { profile: minimal, os: ubuntu-latest, sqlite: none, write: /notes body=CI+smoke }
           - { profile: minimal, os: windows-latest, sqlite: none, write: /notes body=CI+smoke }
           - { profile: lab, os: ubuntu-latest, sqlite: none, write: /compat/htmx2/save name=CI+smoke }
           - { profile: lab, os: windows-latest, sqlite: none, write: /compat/htmx2/save name=CI+smoke }
+          - { profile: streams, os: ubuntu-latest, sqlite: none, write: /notes body=CI+smoke }
+          - { profile: streams, os: windows-latest, sqlite: none, write: /notes body=CI+smoke }
     env:
       NO_SQLITE: ${{ matrix.sqlite == 'none' && '1' || '' }}
       # Through the environment, not spliced into the script: the form's `&`
@@ -198,8 +203,8 @@ jobs:
           kill "$pid"
 
   # Playwright, one engine per runner, in Playwright's image (browsers, their OS
-  # deps and node preinstalled). skeleton and lab run in the three engines, minimal
-  # in chromium (PLAN §19.1.2); the browser-less specs (the `api` project) once per
+  # deps and node preinstalled). skeleton and lab run in the three engines, streams
+  # in chromium and webkit, minimal in chromium (PLAN §19.1.2); the browser-less specs (the `api` project) once per
   # profile. Keep the image tag with @playwright/test in e2e/package-lock.json
   # (check-pins.sh enforces it). Each server the suite starts leaves its route
   # counters, which the coverage job holds against the load run's.
@@ -226,6 +231,8 @@ jobs:
           - { profile: lab, browser: chromium, also: --project=api }
           - { profile: lab, browser: firefox }
           - { profile: lab, browser: webkit }
+          - { profile: streams, browser: chromium, also: --project=api }
+          - { profile: streams, browser: webkit }
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-odin
@@ -345,13 +352,14 @@ jobs:
           sh load-tests/run.sh --quick --strict
           PROFILE=minimal PORT_BASE=8190 sh load-tests/run.sh --quick --strict
           PROFILE=lab PORT_BASE=8150 sh load-tests/run.sh --quick --strict
+          PROFILE=streams PORT_BASE=8170 sh load-tests/run.sh --quick --strict
       - uses: actions/download-artifact@v8
         with:
           pattern: coverage-e2e-*
           path: /tmp/e2e-coverage
       - name: Every route reached by both suites
         run: |
-          for p in minimal skeleton lab; do
+          for p in minimal skeleton lab streams; do
             mkdir -p app/build/coverage/e2e/$p
             for d in /tmp/e2e-coverage/coverage-e2e-$p-*; do cp "$d"/*.prom app/build/coverage/e2e/$p/ 2>/dev/null || true; done
           done
@@ -372,7 +380,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [minimal, skeleton, lab]
+        profile: [minimal, skeleton, lab, streams]
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-odin

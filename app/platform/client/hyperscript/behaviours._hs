@@ -125,3 +125,54 @@ behavior CopyText
     remove .copied from me
   end
 end
+
+-- A chat composer: Enter sends (Shift+Enter is a new line); the form resets after
+-- its own successful POST, or once its socket has sent it (hx-ws).
+behavior Composer
+  on keydown[key is 'Enter' and not shiftKey and not isComposing]
+    if the target matches <textarea/>
+      halt the event's default
+      call me.requestSubmit()
+    end
+  end
+  on htmx:after:request[detail.ctx.sourceElement is me and detail.ctx.response and detail.ctx.response.status < 400]
+    send cleared to me
+  end
+  on htmx:ws:after:message:outgoing
+    send cleared to me
+  end
+  on cleared
+    call me.reset()
+    put '' into <.form-error/> in me
+  end
+end
+
+-- A live log stays at its newest while its reader is there (within 80 px of the
+-- bottom), and marks what is the reader's own: data-me against each child's
+-- data-author.
+behavior AutoScroll
+  init
+    set :near to true
+    send settle to me
+  end
+  on scroll
+    set :near to (my scrollHeight - my scrollTop - my clientHeight) < 80
+  end
+  on mutation of childList
+    send settle to me
+  end
+  on settle
+    add .mine to <[data-author='${@data-me}']/> in me
+    if :near
+      set my scrollTop to my scrollHeight
+    end
+  end
+end
+
+-- Goes 5 s after it arrives (a typing indicator); a newer copy replaces it first.
+behavior Expire
+  init
+    wait 5s
+    remove me
+  end
+end

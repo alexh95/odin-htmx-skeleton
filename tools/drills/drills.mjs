@@ -265,10 +265,10 @@ async function phaseHang() {
 // (M1-20).
 const CHUNKED = (target, body) => `${target} HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n${body}`;
 const F16 = [
-  // The profile's write, under its cap: minimal's notes take 4 KiB, so 500 chunks there (refused early, a
-  // bigger body's unread rest would reset the connection before the 413 is read); the depth is skeleton's,
-  // and lab's, on the compat page's save (an empty name is a 422).
-  PROFILE === 'minimal'
+  // The profile's write, under its cap: minimal's and streams' notes take 4 KiB, so 500 chunks there
+  // (refused early, a bigger body's unread rest would reset the connection before the 413 is read); the
+  // depth is skeleton's, and lab's, on the compat page's save (an empty name is a 422).
+  PROFILE === 'minimal' || PROFILE === 'streams'
     ? [CHUNKED('POST /notes', '1\r\na\r\n'.repeat(500) + '0\r\n\r\n'), '422']
     : [CHUNKED(PROFILE === 'lab' ? 'POST /compat/htmx2/save' : 'POST /contacts', '1\r\na\r\n'.repeat(12000) + '0\r\n\r\n'), '422'],
   [CHUNKED('GET /healthz', '1\r\na\r\n'.repeat(60000) + '0\r\n\r\n'), '413'],

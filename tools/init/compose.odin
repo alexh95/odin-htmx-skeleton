@@ -75,7 +75,33 @@ select :: proc(name: string, base_name: string, features: []string, asked: [Fami
 			if ft := feature(f); ft != nil && sqlite_need(ft^) == "required" { s.members[.Store] = "sqlite" }
 		}
 	}
-	if s.members[.Identity] == "" { s.members[.Identity] = "nick" if has_member(.Identity, "nick") else "anonymous" }
+	if s.members[.Identity] == "" {
+		// Lean (§7.4): nick, unless the selection has a page that needs a session-free origin (§7.3).
+		session_free := slice.contains(s.features, "scripting") || slice.contains(s.features, "compat")
+		s.members[.Identity] = "nick" if has_member(.Identity, "nick") && !session_free else "anonymous"
+	}
+	// An identity that is a feature's package (features/accounts/identity_nick) brings its feature, whose
+	// mount is the identity's own routes (/login); a feature that is an identity's needs it.
+	if f := identity_feature(s.members[.Identity]); f != "" && !slice.contains(s.features, f) {
+		s.features = slice.clone(s.features)
+		features := make([dynamic]string)
+		append(&features, ..s.features)
+		append(&features, f)
+		s.features = features[:]
+		order := make([dynamic]string)
+		about := slice.contains(s.order, "about")
+		for g in s.order {
+			if g == "about" { append(&order, f) }
+			append(&order, g)
+		}
+		if !about { append(&order, f) }
+		s.order = order[:]
+	}
+	for f in s.features {
+		if is_identity_feature(f) && identity_feature(s.members[.Identity]) != f {
+			problem("%s holds an identity, so it needs that identity: use --identity %s", f, identity_of_feature(f))
+		}
+	}
 	if s.members[.Client] == "" { s.members[.Client] = "vanilla" }
 	if s.members[.Theme] == "" { s.members[.Theme] = "lite" }
 	for fam in Family {
@@ -95,6 +121,24 @@ select :: proc(name: string, base_name: string, features: []string, asked: [Fami
 	}
 	if donor_of_root(s.root) == nil { problem("no committed profile serves %s as its root", s.root) }
 	return s
+}
+
+// The feature an identity member lives in ("accounts" for nick), or "" (anonymous is the platform's).
+identity_feature :: proc(name: string) -> string {
+	m, ok := member(.Identity, name)
+	if !ok || !strings.has_prefix(m.dir, "features/") { return "" }
+	rest := strings.trim_prefix(m.dir, "features/")
+	return rest[:strings.index_byte(rest, '/')] if strings.index_byte(rest, '/') >= 0 else rest
+}
+
+is_identity_feature :: proc(f: string) -> bool { return identity_of_feature(f) != "" }
+
+// The first identity member that lives in feature `f`.
+identity_of_feature :: proc(f: string) -> string {
+	for m in catalog.members[.Identity] {
+		if identity_feature(m.name) == f { return m.name }
+	}
+	return ""
 }
 
 has_member :: proc(fam: Family, name: string) -> bool {
@@ -219,7 +263,8 @@ compose :: proc(s: Selection) -> Profile_Text {
 			for l in topic_lines { fmt.sbprintln(&b, l) }
 			strings.write_string(&b, "}\n")
 		}
-		identity := base.host_identity if base.host_identity != "" else "false"
+		// front loads the viewer where an identity gives one: any but anonymous.
+		identity := "false" if s.members[.Identity] == "anonymous" else "true"
 		fmt.sbprintf(&b, "\nHOSTS := [?]app.Host{{{{\"main\", \"SITE_URL\", %s, ROUTES[:], NAV[:]}}}}\n", identity)
 		if jobs {
 			strings.write_string(&b, "\nJOBS := [?][]workers.Job {\n")
@@ -261,6 +306,11 @@ compose :: proc(s: Selection) -> Profile_Text {
 		ft := feature(f)
 		if ft == nil { continue }
 		if .Exts in ft.decls { append(&exts, fmt.aprintf("%s_web.EXTS", f)); take_web_import(&mimports, f) }
+		if f == identity_feature(s.members[.Identity]) {
+			// Its routes are the identity's package, which a profile reaches through the family.
+			append(&exts, "identity.EXTS")
+			if line := "import identity \"identity:.\""; !slice.contains(mimports[:], line) { append(&mimports, line) }
+		}
 		if .Bundles in ft.decls { append(&page_bundles, fmt.aprintf("%s_web.BUNDLES", f)); take_web_import(&mimports, f) }
 		if home && .Home_Card in ft.decls { append(&home_cards, fmt.aprintf("%s_web.home_card", f)); take_web_import(&mimports, f) }
 	}

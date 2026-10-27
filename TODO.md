@@ -102,20 +102,33 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
 - [x] **The skeleton's size budget**: F-17 put the skeleton 512 B past 2.75 MiB, and slices 3 and 4 11,264 B (the
       shared `client/core.js`, the twins' dispatcher, `html.behave`). Alex chose (a), 3 MiB (ANSWERS round 10), in CI,
       the drills, D38 and §18.4; no OMIT flags, no re-encode.
-- [ ] **6a. The `nick` identity** (`features/accounts/identity_nick`, §17.1, ANSWERS round 9): a signed nickname cookie,
+- [x] **6a. The `nick` identity** (`features/accounts/identity_nick`, §17.1, ANSWERS round 9): a signed nickname cookie,
       role User for clients in `LAN_CIDRS` (`ACCOUNTS_NICK_FROM=lan`), Admin for those in `ACCOUNTS_NICK_ADMIN_CIDRS`
       (none by default), Guest for the rest; `NAME`, `SETS_COOKIE`, `load_viewer`, `cli` and its `ROUTES` (the
       nickname form), checked against `authz.Load_Viewer` by `tools/check contracts`; the rest of `accounts` stays at
-      M4. *Check:* unit tests (signing, tamper, each CIDR rule); e2e of the nickname form; load.
-- [ ] **7. `notify` (memory)** (§14.2): models, domain, the memory store (200 per user), views, web (`/notify`, the
+      M4. *Check:* unit tests (signing, tamper, each CIDR rule); e2e of the nickname form; load. Done: 3 unit tests,
+      `nick.spec` (5, chromium and webkit, an off-LAN server of its own among them), k6's `accounts/nick.js`; the
+      layout's one `#live` came with it (`web.render_page(…, live =)`, the hub's `member` rows).
+- [x] **7. `notify` (memory)** (§14.2): models, domain, the memory store (200 per user), views, web (`/notify`, the
       bell, `notify_web.send`), `notify.user:<uid>` over `#live` with hx-targets on `.notify-count`. *Check:* e2e and
-      load, both suites reaching every route.
-- [ ] **8. `chat` (memory, four transports)** (§14.1): models, domain (2,000 runes, the 10-minute edit window, the
+      load, both suites reaching every route. Done: the counts go out of band on the class selector (core htmx swaps
+      into every match), so no hx-targets; the store's unit test, `notify.spec` (3), k6's `notify/notify.js`.
+- [x] **8. `chat` (memory, four transports)** (§14.1): models, domain (2,000 runes, the 10-minute edit window, the
       caps), the memory store (100 per room, `CHAT_RING_BYTES`), `transport_{ws,sse,poll,multipart}` with their
       `EXTS`, `chat_web`'s switch (cookie, `?transport=`, `CHAT_TRANSPORT`; `x-impl`), topics `chat.room`,
       `chat.presence`, `chat.typing`, read receipts by POST, the post and frame limits, `Composer` and `AutoScroll`
       twinned. *Check:* the chat specs once per transport (`@chat-ws` …), resume without duplicates across
-      `setOffline` and a server restart; a load scenario per transport.
+      `setOffline` and a server restart; a load scenario per transport. Progress: all of it, with presence through
+      the hub's new `watch`, typing, edits and tombstones, the menu, unread counts and mentions; unit tests of the store
+      and the domain; `chat.spec` once per transport by `?transport=` (tags name features and family members, so the
+      transports are describe blocks: delivery once and escaped, edit and delete, and a server restart with nothing
+      lost or doubled), plus presence and typing, the refusals and the 429, and the setting, 138 of 138 over three
+      repeats in chromium and webkit; k6's `chat/chat.js` (every route, the transport rotating) and
+      `chat/chat_streams.js` (the socket, the poll's 304, the held streams). Found on the way: memory ids restarted at
+      1, so a page's upsert would have replaced old messages with new ones (now the boot epoch × 10⁶ plus the
+      sequence), and ranging over `m[k]` of a nil map traps (CLAUDE.md's gotchas). The `setOffline` spec is in too,
+      but Playwright's offline emulation cuts only new requests and Chromium's socket: an open SSE or multipart
+      response, and WebKit's socket, keep delivering, so for those the restart spec is the resume check. Slice 8 done.
 - [ ] **9. `bot` (memory, mock)** (§14.3): models, the conversations' memory store, `backend_mock` (`BOT_SEED`,
       `BOT_DELAY_MS`), `bot_web`'s backend switch (`.Llama` joins at M7), SSE delivery (the four frames,
       `hx:release`) and multipart delivery, Stop, `bot.health`, the guest and member limits. *Check:* e2e per
@@ -127,7 +140,12 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
 - [ ] **11. `cmd/streams`** (§7.1): home, notes, chat, notify, bot, ops, status, about on memory, vanilla and lite, with
       the `nick` identity (slice 6a); `build.*` and CI's matrix (tools/init reads the profiles from `build.sh`).
       *Check:* builds with no SQLite library; its e2e in chromium and webkit; its bundle's size recorded (§12.1's
-      UNVERIFIED (M2)); route coverage with 0 unexplained waivers.
+      UNVERIFIED (M2)); route coverage with 0 unexplained waivers. Progress: the profile with home, notes, chat,
+      notify, the nick identity and about, in `build.*` and every per-profile CI job; the generator composes it
+      again; its e2e 151 passed (chromium, webkit, api), its k6 quick run clean, its drills 25/25 on Windows (binary
+      1,714,176 B, idle 10.06 MB). The generator's identity handling too (nick by default unless scripting or
+      compat, accounts with it, `identity.EXTS`, the host flag; a chat project made, tested, checked and built in a
+      scratch copy). Left: bot, ops and status (slices 9 and 10), the bundle's size in §12.1.
 - [x] **12. `tools/check topics` and `exts`**: every `TOPICS` row mounted per host, families unique and in their
       feature's prefix; `BUNDLE_EXTS` names every mounted package with `EXTS` or `BUNDLES`. *Check:* a bad fixture
       trips each. Done: `topics` (families the feature's and declared once; every host's packages with `TOPICS`
@@ -181,7 +199,8 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       rendering at apollo's version, which the config models without naming: the version is a private value), with
       the suite's proxy mode, 84 passed through each in WSL; nightly TSan, soak and Autobahn (247 cases, none
       failed); `pins` already covers _hyperscript. Locally, the lab's chromium and api legs pass on Linux (148).
-      Left: the `streams` legs (slices 7–11), and every job's first run on a pushed commit.
+      `streams` is in check, build, e2e, coverage and linux-ops. Left: `streams` through the proxies (`e2e-proxy`),
+      and every job's first run on a pushed commit.
 - [ ] **Ask Alex**: X40 says `e2e-proxy` pins apollo's NPM version, which `docs/private/SITE.md` keeps private. The job
       pins the config that version renders instead (`tests/proxy/npm.conf`); naming the image tag in CI would publish
       it. Confirm, or say the version may be public.

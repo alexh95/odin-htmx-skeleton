@@ -13,12 +13,14 @@ share a name. What it is worth is decided on each request, from the client's add
 
 | Client | Role |
 |---|---|
-| in `ACCOUNTS_NICK_ADMIN_CIDRS` (none by default; the e2e suite sets loopback) | Admin: `/admin/ops` opens |
+| in `ACCOUNTS_NICK_ADMIN_CIDRS` (none by default) | Admin: `/admin/ops` opens |
 | in `LAN_CIDRS` (`ACCOUNTS_NICK_FROM=lan`, the default; `all` drops the check) | Member: chat, the bot's members' limits |
 | anyone else | Guest, with no `Chat_Read`: chat shows "chat is open on the LAN" |
 
 `ACCOUNTS_NICK_KEY` (or `ACCOUNTS_NICK_KEY_FILE`, at least 32 bytes) signs the cookies; with none, a key is made at
-boot and nicknames last until a restart (a warn line says so). `app.boot` calls the identity's `init`.
+boot and nicknames last until a restart (a warn line says so). `app.boot` calls the identity's `init`. The e2e suite
+and the load driver run their servers with `LAN_CIDRS=127.0.0.0/8`, since their browsers and k6 are loopback; e2e
+also fixes the key, so a nickname outlives the restarts its specs make.
 
 ## Prefixes
 

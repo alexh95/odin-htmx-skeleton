@@ -30,7 +30,7 @@ check_topics :: proc(t: ^Tree) {
 		for e in cl.elems {
 			row, rok := comp_lit(e)
 			if !rok { continue }
-			family := topic_family(row)
+			family := topic_family(q, row)
 			if family == "" {
 				problem("topics", "%s: a TOPICS row names its family first, or as `family = …`", where_(row.pos))
 				continue
@@ -87,19 +87,29 @@ check_topics :: proc(t: ^Tree) {
 	}
 }
 
-// A row's family: `family = "x.y"`, or its first element as positional.
+// A row's family: `family = "x.y"`, or its first element as positional; either a
+// literal or a constant of the package's own (`USER :: "notify.user"`), which the
+// package also builds its topics from.
 @(private = "file")
-topic_family :: proc(row: ^ast.Comp_Lit) -> string {
+topic_family :: proc(q: ^Pkg, row: ^ast.Comp_Lit) -> string {
 	for e in row.elems {
 		if fv, ok := e.derived_expr.(^ast.Field_Value); ok {
-			if ident(fv.field) == "family" {
-				s, _ := string_lit(fv.value)
-				return s
-			}
+			if ident(fv.field) == "family" { return family_value(q, fv.value) }
 			continue
 		}
-		s, _ := string_lit(e)
-		return s // positional: the family comes first
+		return family_value(q, e) // positional: the family comes first
+	}
+	return ""
+}
+
+@(private = "file")
+family_value :: proc(q: ^Pkg, e: ^ast.Expr) -> string {
+	if s, ok := string_lit(e); ok { return s }
+	if name := ident(e); name != "" {
+		if vd, ok := decl(q, name); ok && !vd.is_mutable && len(vd.values) == 1 {
+			s, _ := string_lit(vd.values[0])
+			return s
+		}
 	}
 	return ""
 }
@@ -137,12 +147,12 @@ publishes :: proc(t: ^Tree, declared: map[string]string) {
 }
 
 check_exts :: proc(t: ^Tree) {
-	for p in profiles(t) {
+	for &p in profiles(t) {
 		if p.bundle_exts == nil {
 			problem("exts", "app/%s/main.odin: %s declares no BUNDLE_EXTS, which boot check 6 compares with its bundle", p.pkg.path, p.name)
 		}
-		exts := named_by(t, p.pkg, p.bundle_exts, "EXTS")
-		bundles := named_by(t, p.pkg, p.page_bundles, "BUNDLES")
+		exts := named_by(t, &p, p.bundle_exts, "EXTS")
+		bundles := named_by(t, &p, p.page_bundles, "BUNDLES")
 		mounted := make(map[string]bool, context.temp_allocator)
 		for h in p.hosts {
 			for m in h.mounts {
@@ -194,7 +204,7 @@ mount_pkgs :: proc(m: Mount) -> []string {
 @(private = "file") named_aliases: [dynamic]string
 
 @(private = "file")
-named_by :: proc(t: ^Tree, entry: ^Pkg, vd: ^ast.Value_Decl, field: string) -> map[string]bool {
+named_by :: proc(t: ^Tree, p: ^Profile, vd: ^ast.Value_Decl, field: string) -> map[string]bool {
 	out := make(map[string]bool, context.temp_allocator)
 	if vd == nil || len(vd.values) != 1 { return out }
 	named_field = field
@@ -204,6 +214,6 @@ named_by :: proc(t: ^Tree, entry: ^Pkg, vd: ^ast.Value_Decl, field: string) -> m
 		if s, ok := n.derived.(^ast.Selector_Expr); ok && s.field.name == named_field { append(&named_aliases, ident(s.expr)) }
 		return true
 	})
-	for a in named_aliases { out[alias_target(t, entry, a)] = true }
+	for a in named_aliases { out[family_member(p, alias_target(t, p.pkg, a))] = true }
 	return out
 }

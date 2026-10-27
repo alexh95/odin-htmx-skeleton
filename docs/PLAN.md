@@ -1117,6 +1117,16 @@ because it rides `/events`. `chat_web` imports all four transports for its switc
 and its `EXTS` unions their extensions with what chat needs whatever the transport (RESOLUTIONS X29, as LC §12 recasts
 it; §12.1). `chat.reply` carries the bot's answers back into a room (§6.2).
 
+**As built (M2):** `features/chat/web` holds this table with `[%w%-]+` (a bare `-` after a class is Lua's lazy
+quantifier, which `tools/check routes` refuses), the socket's handler named `chat_transport_ws.socket` (`stream` is the
+platform package), and the post's cap 32 KiB: a 2,000-rune body URL-encoded runs to 24 KB, so 4096 refused long
+non-ASCII ones. M2 adds `POST /chat/rooms`, `POST /chat/transport` (the Connection setting), `POST …/typing`,
+`POST …/read`, `GET|POST /chat/m/<id>/edit` and `POST /chat/m/<id>/delete`; `/admin/chat` is M6's. `EXTS` is the
+transports' plus upsert: hx-prompt and hx-download arrive with moderation and attachments (M6), and unread counts go out
+of band on a class selector, which needs no hx-targets. The `TOPICS` rows use named fields: `chat.room` with
+`persisted = chat.PERSISTED` (false in memory) and a keyset `replay` for M6; `chat.presence` and `chat.typing` `.Latest`,
+keyed per member, presence with a `watch` (§9.2); `chat.reply` comes with the bot.
+
 **Boot checks** (D5, recast for tables; LC §11). `app.check` runs them per host, after the `init` calls, and each
 profile's `routes_test.odin` runs the same checks in CI under `CMD=test ./build.sh <p>`. Each is fatal with a message:
 1. a duplicate route id `"<METHOD> <pattern>"` on one host, or a row with no handler;
@@ -1448,6 +1458,11 @@ read from the compiler's own package list (D19, D24; RESOLUTIONS X29; §12.1). E
 `minimal`, `streams` and on Houston, `dashboard` in `skeleton`, `landing` in `lab` and on houston-lab (RESOLUTIONS X5;
 §6.3). Every hosted profile is all-SQLite or all-memory, so one store family per build costs none of them anything
 (LC §3).
+
+**As built (M2):** `streams` mounts home, notes, chat, notify, the nick identity's `/login` and `/logout` (`{"accounts",
+identity.ROUTES[:]}`, its host's `identity` flag on) and about so far; bot, ops and status join with their slices. Its
+Main bundle is what those packages' `EXTS` name: htmx with sse, ws, hx-multipart, ptag, hx-pending and upsert. `tools/check`
+reads a profile's `identity:.`, `store:` and other family imports as `build.sh`'s line builds them.
 
 `cmd/term-agent` (linux_arm64, the Raspberry Pi agent, §16) is not a profile. CI also builds generated selections as
 throwaway profiles (§7.4). `full` (and with it `full-vanilla`) and `lab` grow milestone by milestone: each slice adds
@@ -1910,6 +1925,15 @@ skeleton), and a fresh `UPSTREAM.md`, `CHANGELOG.md` and `TODO.md`. Not in v1: `
 removing `Perm` and `Behaviour` groups (no feature has its own yet), and hosts beyond `main`. Without a selection,
 `init <name>` renames as before (and runs again: a token the README no longer held had stopped it).
 
+**As built (M2), identities.** The lean default holds: `nick` when the tree has it and the selection has neither
+`scripting` nor `compat`, else `anonymous`. An identity that lives in a feature (`features/accounts/identity_nick`)
+brings that feature into the selection: its mount is the identity's own routes (`{"accounts", identity.ROUTES[:]}`,
+from its donor), `BUNDLE_EXTS` gains `identity.EXTS`, and the host's identity flag is on (off only for `anonymous`).
+A selection of `accounts` on an identity that isn't its own is refused with the `--identity` to use. The plan's bundle
+line follows a sum of other packages' `EXTS` (chat's is its transports'), and its topics line a family named by a
+package constant. Checked: `init ci-chat --features chat` in a scratch copy plans home, notify, chat and accounts on
+nick, then tests, checks and builds; `--features scripting` stays on anonymous.
+
 The bundle line is derived (RESOLUTIONS X29, as LC §12 recasts it): `chat_web.EXTS` unions its four transports'
 extensions (ws, sse, ptag, hx-multipart) with hx-pending, upsert, hx-prompt, hx-targets and download; `bot_web` brings
 browser-indicator, plus sse and hx-multipart for its two deliveries and download for transcripts (that part of
@@ -2267,7 +2291,12 @@ a loop with none gets no messages (M2). `deliver`, set only on a server-side row
 once per publish (§6.2; **NEW**). `/events` on a host subscribes only to the families its table mounts, so a
 houston-lab page can't subscribe to Houston's topics (§7.3; **NEW**). `.Queue` caps each consumer and drops the slow
 one; `.Latest` keeps the newest message per publish key and never grows past its ring; `.Sample` drops intermediate
-updates while a send is in flight.
+updates while a send is in flight. **As built (M2)**, two more fields: `member` (the family is keyed by the viewer's id,
+as `notify.user` is: the layout's `#live` adds it to every page of theirs, `web.render_page(…, live = …)` adds the
+page's own, and `/events` refuses it to anyone else) and `watch`, which `/events` calls on the stream's loop when it
+subscribes to one of the row's keys and again when that stream ends: chat's presence (§14.1). A stream that wants a
+room's messages on a connection of its own (chat's socket and multipart) calls `hub.subscribe` itself, and the hub
+writes it a part per message whose `HX-Part-ID` is the rowid it was published with.
 
 | Topic | Policy | Persisted | Carries |
 |---|---|---|---|
@@ -3295,6 +3324,30 @@ extensions (RESOLUTIONS X29, as LC §12 recasts it; §12.1). Room pages carry `.
 private rooms and DMs and `no-store` on DMs, and one route row serves every room (§6). Tables are prefixed `chat_`, with
 user ids plus an `author_name` snapshot and no foreign key into `users` (D6, §11); search is `find`'s.
 
+**As built (M2)**, public rooms on the memory store in `streams` (the package tour is `features/chat/README.md`):
+- **Ids** are one number in memory, the boot time in ms × 10⁶ plus the sequence, and room versions count from the same
+  base: a page from before a restart keeps its messages and never sees a new one take an old one's id, and a poll's old
+  tag or a multipart's old part id reads as older than anything the new process has. No `data-seq`: hx-upsert sorts
+  with `localeCompare(…, {numeric: true})`, so ids order as numbers.
+- **Each transport package** gives the room page its wiring (the pane's attributes, the composer's) and serves its own
+  endpoint; `sse` has none and puts the room's topic on `#live`, whose resync refetches through `poll`'s `/since` with
+  no tag (the last 50). A socket and a multipart response subscribe before they read their snapshot, so a message
+  between the two arrives twice rather than never. A socket's frame is posted by `chat_web`'s one post path (set as
+  `chat_transport_ws.post` at init), and its refusals go back down the socket (the reason out of band into the form's
+  slot, the 429 as a toast).
+- **Presence** rides `#live` on every transport: the hub's `watch` hears a page's `chat.presence:<id>` stream open and
+  close; online shows at once, away 10 s after the last closed and gone after 5 minutes, both from the `chat.presence`
+  job every 5 s. **Typing** is `POST …/typing` from the composer's textarea (`input changed throttle:2s`), one in 2 s
+  per member published, upserted into `#typing-<id>` and faded by CSS (`Expire` removes it under hyperscript); the
+  writer's own is marked by `AutoScroll` and hidden.
+- **Read receipts**: the newest message of a render, and every message the hub pushes, carries the receipt, so
+  whichever is newest in view posts it. A reader's unread count for a room goes out of band into every
+  `.unread-<slug>` of theirs on `notify.user`; a reader who has never read a room has no count.
+- **The menu** has Link, and Edit and Delete for one's own within the window; its slot is a `Dismiss` (a click outside
+  the message, or Escape, empties it), so it needs no close route. A room's slug is made from its name.
+- **Specs** resume across a server restart on every transport; `setOffline` cuts only new requests and Chromium's
+  socket in Playwright, so its spec holds the rest only to "nothing doubles".
+
 ### 14.2 Notifications, Today and uploads
 
 **`notify`** (the Inbox bell, `/notify`; the memory store at M2, the SQLite store at M6; D36). Producers call
@@ -3303,7 +3356,11 @@ each producer, and `kind` is a namespaced string (`"chat.mention"`), so notify n
 §6.2). Producers: mentions, DMs, list assignments, calendar reminders, poll results, a bot reply that finished after you
 navigated away, moderation, the guestbook queue (moderators) and job failures (admins). `notify.user:<uid>` rides the
 page's one `#live` stream (D14): it upserts `#notify-list` and updates every `.notify-count` through hx-targets. It
-keeps 200 per user; read ones go after 30 days. Mutes per room and per kind live in `accounts_prefs`.
+keeps 200 per user; read ones go after 30 days. Mutes per room and per kind live in `accounts_prefs`. **As built
+(M2):** a push is out of band, the item `afterbegin:#notify-list` and the count `innerHTML:.notify-count`, which core
+htmx swaps into every match (none is no error), so notify needs no hx-targets; its `EXTS` is hx-sse, for the `#live` it
+puts on every page of a member's. A resync refetches the log (`GET /notify/list`); the memory store loses it all at a
+restart, which the page shows by refetching an empty one.
 
 **`home`** (Today, `/`; D36, D27): the Today page shows the cards the profile's `main` lists in `HOME_CARDS`, in that
 order, each a fragment refreshed over `#live`; guests see it as the landing. `home_web` calls each row and imports no
@@ -3996,6 +4053,11 @@ boundary, and counts are per process (06 §3.1).
 | `/csp-report` | 10 per minute per client id; each report logged at warn; only `full`, `streams` and `lab` send `report-to` (§12.2; RESOLUTIONS X11) |
 
 429s carry `Retry-After` and route to the toast slot (`hx-status:429`).
+
+**As built (M2):** `web.Limit{n, window}` is that limiter, one per concern, `web.limit_hit(&l, key)` keyed by a member's
+id or `web.client_key` (the hashed address), and `web.respond_limited` answers the 429 with `Retry-After` in whole
+seconds and a toast. Its keys are bounded: past 4,096 a limit forgets everyone, which only ever lets through a hit it
+would have refused. Chat's posts and typing and `/csp-report` use it (stream connects keep `platform/stream`'s own count).
 
 ### 17.6 Uploads
 

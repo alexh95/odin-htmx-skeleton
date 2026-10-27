@@ -10,14 +10,15 @@ set -eu
 cd "$(dirname "$0")"
 
 p="${1:-}"
-[ -n "$p" ] || { echo "usage: build.sh <minimal|skeleton|lab> [odin flags...]" >&2; exit 2; }
+[ -n "$p" ] || { echo "usage: build.sh <minimal|skeleton|lab|streams> [odin flags...]" >&2; exit 2; }
 shift
 src="$p"
 case "$p" in
   minimal)  store=memory id=platform/authz/anonymous client=vanilla theme=lite ;;
   skeleton) store=sqlite id=platform/authz/anonymous client=vanilla theme=full ;;
   lab)      store=memory id=platform/authz/anonymous client=hyperscript theme=full ;;
-  *) echo "build.sh: unknown profile '$p' (minimal, skeleton, lab)" >&2; exit 2 ;;
+  streams)  store=memory id=features/accounts/identity_nick client=vanilla theme=lite ;;
+  *) echo "build.sh: unknown profile '$p' (minimal, skeleton, lab, streams)" >&2; exit 2 ;;
 esac
 
 case "$(uname -s)" in

@@ -43,13 +43,15 @@ export function options(extra = {}) {
 // Compact, dependency-free end-of-test summary. Avoids k6's remote jslib import
 // (CI may be offline) and emits exactly what RESULTS.md wants: a one-line console
 // digest plus a machine-readable JSON blob at __ENV.OUT for the run scripts to
-// aggregate. Reads the {phase:load} submetrics so warmup is excluded.
+// aggregate. Reads the {phase:load} submetrics so warmup is excluded, and where a
+// scenario gates only the requests that end on their own ({held:no}: a stream it
+// holds and cuts is no failure and has no latency), those.
 export function summarize(name) {
   return function handleSummary(data) {
     const m = data.metrics;
-    const dur = m['http_req_duration{phase:load}'] || m.http_req_duration;
+    const dur = m['http_req_duration{phase:load,held:no}'] || m['http_req_duration{phase:load}'] || m.http_req_duration;
     const reqs = m['http_reqs{phase:load}'] || m.http_reqs;
-    const failed = m['http_req_failed{phase:load}'] || m.http_req_failed;
+    const failed = m['http_req_failed{phase:load,held:no}'] || m['http_req_failed{phase:load}'] || m.http_req_failed;
     const recv = m.data_received;
 
     const v = (x, k) => (x && x.values ? x.values[k] : 0);

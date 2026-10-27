@@ -1,0 +1,66 @@
+package chat_models
+
+// ---- chat: the types and the store contract ---------------------------------------------
+//
+// Below the domain, the views, the transports and both stores (PLAN §5.1, §14.1). A
+// message keeps its author's id and their name as it was when they posted (the
+// author_name snapshot: no join into accounts, D6), and the room's version at its last
+// change, which the poll transport's tag reads.
+
+import "../../../platform/store"
+
+Room :: struct {
+	id:   i64,
+	slug: string, // [a-z0-9-], 1 to 40: every room URL is /chat/r/<slug> (X12)
+	name: string,
+	at:   i64,
+}
+
+Message :: struct {
+	id:     i64,
+	room:   i64,
+	author: u64,
+	name:   string,
+	body:   string, // "" once deleted: a tombstone keeps its row and id
+	at:     i64,
+	edited: i64, // unix seconds of the last edit; 0 = never
+	gone:   bool,
+	ver:    i64, // the room's version at its last change
+}
+
+Error :: store.Error
+
+// A post: `done` runs once it is stored, with the message.
+Post :: struct {
+	using op: store.Op,
+	room:     i64,
+	author:   u64,
+	name:     string,
+	body:     string,
+	result:   Message,
+}
+
+// An edit or a delete of the author's own message, inside `window` seconds of
+// posting: .Not_Found for none, .Constraint for someone else's or one too old.
+Change :: struct {
+	using op: store.Op,
+	id:       i64,
+	author:   u64,
+	body:     string, // the new text; ignored for a delete
+	delete:   bool,
+	window:   i64,
+	result:   Message,
+}
+
+Store_Init :: proc(ring_bytes: int)
+Store_Rooms :: proc(out: ^[dynamic]Room) -> Error
+Store_Room :: proc(slug: string) -> (Room, Error)
+Store_Create_Room :: proc(slug, name: string) -> (Room, Error) // .Constraint: the slug is taken, or the rooms are full
+Store_Recent :: proc(room: i64, limit: int, out: ^[dynamic]Message) -> Error // oldest first
+Store_After :: proc(room: i64, after: i64, out: ^[dynamic]Message) -> Error // id > after, oldest first
+Store_Count_After :: proc(room: i64, after: i64) -> int // how many kept messages have id > after
+Store_Changed :: proc(room: i64, since: i64, out: ^[dynamic]Message) -> (ver: i64, err: Error) // ver > since; the room's version
+Store_Message :: proc(id: i64) -> (Message, Error)
+Store_Post :: proc(op: ^Post) -> bool // false: the store is busy; `done` won't run
+Store_Change :: proc(op: ^Change) -> bool
+Store_Seed :: proc()

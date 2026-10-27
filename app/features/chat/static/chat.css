@@ -1,0 +1,68 @@
+/* ---- chat: the rooms and a room (PLAN §14.1) ------------------------------------------- */
+.chat-rooms { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 8px; }
+.chat-rooms li { display: flex; align-items: center; gap: 10px; }
+.chat-room-link { font-weight: 600; color: var(--text); text-decoration: none; }
+.chat-room-link:hover { color: var(--violet); }
+.chat-hash { color: var(--muted); margin-right: 2px; }
+.chat-unread { color: var(--on-accent); background: var(--violet); }
+.chat-unread:empty { display: none; }
+.chat-new, .chat-conn { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin-top: 14px; }
+.chat-new label, .chat-conn label { flex-basis: 100%; color: var(--muted); font-size: .85rem; }
+.chat-new-row { display: flex; gap: 10px; flex: 1; min-width: 0; }
+.chat-new input, .chat-conn select, .chat-composer textarea, .chat-edit textarea {
+  flex: 1; min-width: 0; padding: 10px 12px; font: inherit; color: var(--text);
+  background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px;
+}
+
+.chat-room { display: flex; flex-direction: column; gap: 12px; }
+.chat-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.chat-head h1 { margin: 0; font-size: 1.4rem; }
+.chat-back { margin-left: auto; font-size: .9rem; }
+.chat-main { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 14px; }
+@media (max-width: 720px) { .chat-main { grid-template-columns: minmax(0, 1fr); } .chat-side { order: -1; } }
+
+.chat-pane { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.chat-log {
+  display: flex; flex-direction: column; gap: 4px; height: min(62vh, 640px); overflow-y: auto; padding: 10px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.chat-log:empty::before { content: "No messages yet. Say hello."; color: var(--muted); margin: auto; }
+.chat-msg { padding: 6px 8px; border-radius: 10px; animation: chat-in 180ms var(--ease); }
+.chat-msg:target { outline: 2px solid var(--violet); }
+.chat-msg > header { display: flex; align-items: center; gap: 8px; font-size: .85rem; }
+.chat-msg .avatar { width: 24px; height: 24px; font-size: .62rem; }
+.chat-msg time { color: var(--faint); font-size: .78rem; }
+.chat-name { color: var(--text); }
+.chat-msg.mine .chat-name { color: var(--violet); }
+.chat-body { margin: 2px 0 0 32px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-msg.gone .chat-body { font-style: italic; }
+.chat-more {
+  margin-left: auto; padding: 0 6px; border: 0; border-radius: 6px; background: none; color: var(--muted);
+  cursor: pointer; opacity: 0; transition: opacity var(--fast) var(--ease);
+}
+.chat-msg:hover .chat-more, .chat-more:focus-visible { opacity: 1; }
+@media (hover: none) { .chat-more { opacity: 1; } }
+.chat-menu:empty { display: none; }
+.chat-actions, .chat-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 0 32px; }
+.chat-msg.pending { opacity: .6; }
+.hx-pending[data-body] .chat-body { font-size: 0; }
+.hx-pending[data-body] .chat-body::after { content: attr(data-body); font-size: 1rem; }
+
+.chat-typing { min-height: 1.2rem; display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: .85rem; }
+.typing-who { animation: typing-out 5s forwards; }
+.typing-who.mine { display: none; }
+@keyframes typing-out { 0%, 80% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+
+.chat-composer { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.chat-composer textarea { resize: vertical; min-height: 2.6rem; }
+.chat-composer .form-error { flex-basis: 100%; margin: 0; }
+.chat-composer .form-error:empty { display: none; }
+
+.chat-side h2 { margin: 0 0 8px; font-size: .9rem; color: var(--muted); }
+.chat-who { display: flex; flex-direction: column; gap: 6px; }
+.who { display: flex; align-items: center; gap: 8px; font-size: .9rem; }
+.who::before { content: ""; width: 8px; height: 8px; border-radius: 99px; background: var(--green); }
+.who-away { color: var(--muted); }
+.who-away::before { background: var(--amber); }
+
+@keyframes chat-in { from { opacity: 0; transform: translateY(4px); } }

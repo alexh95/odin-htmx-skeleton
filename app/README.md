@@ -5,13 +5,14 @@ built into one self-contained binary. The server is Odin, the HTML is generated 
 HTMX is the only front-end library, and every asset is compiled into the binary and served from
 memory. There is no NPM and no bundler; the build is `odin` through one script.
 
-Three profiles ship today:
+Four profiles ship today:
 
 | Profile | Features | Store | Theme | What it is |
 |---|---|---|---|---|
 | `skeleton` | dashboard, gallery, contacts, about | SQLite | full (6 styles × 23 schemes) | the 1.2.x contacts console at its exact URLs: the worked example and the performance witness |
 | `minimal` | home, notes, about | memory (no SQLite library at all) | lite (one style, two schemes) | the one-page starter: a notes card added to over HTMX |
 | `lab` | lab, scripting, compat, about | memory | full | the stream contract pages (SSE, WebSocket and multipart from Odin to htmx 4's extensions), the nonce class (`/scripting`: hx-csp, hx-live, Trusted Types) and the compatibility layers (`/compat`), on the hyperscript client (M2) |
+| `streams` | home, notes, chat, notify, accounts (nick), about | memory (no SQLite library) | lite | chat on four transports (WebSocket, SSE, polling, multipart) with presence, typing, edits and read receipts, and a live Inbox, for members who pick a nickname on the LAN (M2; the bot, ops and status join it) |
 
 ## Run it
 
@@ -28,7 +29,7 @@ profile, **a C toolchain**: `prepare` compiles the SQLite amalgamation into a st
 app/prepare.sh              # once: htmx, SQLite, each profile's bundled assets  (app\prepare.bat)
 ./build.sh skeleton         # build a profile into app/bin/skeleton             (build.bat skeleton)
 app/run.sh                  # build and serve skeleton on http://127.0.0.1:8080  (app\run.bat)
-PROFILE=minimal app/run.sh  # the minimal profile instead
+PROFILE=minimal app/run.sh  # the minimal profile instead (streams needs LAN_CIDRS to cover you: see accounts)
 ```
 
 `prepare` is idempotent and cheap after the first run; `NO_SQLITE=1` skips the SQLite step (a memory

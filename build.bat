@@ -12,7 +12,7 @@ cd /d "%~dp0"
 
 set "P=%~1"
 if "%P%"=="" (
-  echo usage: build.bat ^<minimal^|skeleton^|lab^> [odin flags...] 1>&2
+  echo usage: build.bat ^<minimal^|skeleton^|lab^|streams^> [odin flags...] 1>&2
   exit /b 2
 )
 set "SRC=%P%"
@@ -22,8 +22,10 @@ if "%P%"=="minimal" (
   set "STORE=sqlite" & set "ID=platform/authz/anonymous" & set "CLIENT=vanilla" & set "THEME=full"
 ) else if "%P%"=="lab" (
   set "STORE=memory" & set "ID=platform/authz/anonymous" & set "CLIENT=hyperscript" & set "THEME=full"
+) else if "%P%"=="streams" (
+  set "STORE=memory" & set "ID=features/accounts/identity_nick" & set "CLIENT=vanilla" & set "THEME=lite"
 ) else (
-  echo build.bat: unknown profile '%P%' ^(minimal, skeleton, lab^) 1>&2
+  echo build.bat: unknown profile '%P%' ^(minimal, skeleton, lab, streams^) 1>&2
   exit /b 2
 )
 
