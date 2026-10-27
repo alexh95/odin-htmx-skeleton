@@ -171,6 +171,9 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   the hub's counters in `hub.numbers`; the hub and the bot report their health to obs.
 - **`status`** (`/status`): a card per probe (each module's health, the loops, the process), filled by one
   `multipart/parallel` response, or every 30 s by a poll with hx-ptag; the details are an admin's.
+- **`streams` through the proxies** (`e2e-proxy`): the job runs `lab` and `streams`, each through the stack Caddy and
+  NPM's model (one proxy host with both domains); behind them the suite lets anyone take a nickname, since the server
+  sees the proxy's container. 79 passed through each, in WSL.
 - **The `streams` profile** (`app/cmd/streams/`, PLAN §7.1): home, notes, chat, notify, bot, ops, status, the nick identity and about,
   on the memory store, the vanilla client and the lite theme, with no SQLite library; in CI's check, build (four
   platforms, and without SQLite), e2e (chromium and webkit), k6 and drills jobs.

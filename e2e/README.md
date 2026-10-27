@@ -33,7 +33,15 @@ own and listens beyond loopback, so a proxy in a container reaches it. The names
 global-setup refuses to start unless the proxy's host resolves to this machine (a hosts-file line), and
 a taken upstream port stops the run too (another server would answer for the suite). Node-side clients
 still talk to the server direct; `tests/lab/proxy.spec.ts`, which runs only here, checks what the proxy
-itself must do with streams.
+itself must do with streams. CI runs `lab` (`odin-htmx-starter.alexh95.com`) and `streams`
+(`starter-streams.alexh95.com`) this way. Behind a proxy the server sees the proxy's container, not
+loopback, so there a nick build lets anyone take a nickname (`ACCOUNTS_NICK_FROM=all`); specs that need the
+LAN or an admin (ops's) start servers of their own and talk to them direct.
+
+**Members** (`helpers/members.ts`): on a nick build a spec's members are browser contexts of their own,
+each with a nickname picked at `/login`. The worker's server counts loopback as the LAN
+(`LAN_CIDRS=127.0.0.0/8`) and fixes `ACCOUNTS_NICK_KEY`, so a nickname outlives a spec's restart; the bot's
+mock is seeded (`BOT_SEED`) and quick (`BOT_DELAY_MS`).
 
 `global-setup.ts` builds the profile once through `../build.sh <profile>` (`build.bat` on Windows),
 which holds every flag (`-vet -strict-style -warnings-as-errors` and the further vet flags). It runs `prepare` first only

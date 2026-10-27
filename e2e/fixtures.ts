@@ -59,8 +59,10 @@ export const test = base.extend<{ selection: void }, { server: Server }>({
       if (PROXY && !(await portFree(UPSTREAM))) {
         throw new Error(`E2E_UPSTREAM_PORT ${UPSTREAM} is taken: the proxy would reach another server, not this suite's`);
       }
+      // Behind a proxy the client the server sees is the proxy's container, not loopback, so on a
+      // nick build anyone may take a nickname there.
       const server = PROXY
-        ? await startServer(workerInfo.config, { SITE_URL: new URL(PROXY).origin, BIND_ALL: '1' }, UPSTREAM)
+        ? await startServer(workerInfo.config, { SITE_URL: new URL(PROXY).origin, BIND_ALL: '1', ACCOUNTS_NICK_FROM: 'all' }, UPSTREAM)
         : await startServer(workerInfo.config);
       try {
         await use(server);

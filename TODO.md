@@ -207,8 +207,8 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       rendering at apollo's version, which the config models without naming: the version is a private value), with
       the suite's proxy mode, 84 passed through each in WSL; nightly TSan, soak and Autobahn (247 cases, none
       failed); `pins` already covers _hyperscript. Locally, the lab's chromium and api legs pass on Linux (148).
-      `streams` is in check, build, e2e, coverage and linux-ops. Left: `streams` through the proxies (`e2e-proxy`),
-      and every job's first run on a pushed commit.
+      `streams` is in check, build, e2e, coverage, linux-ops and `e2e-proxy` (79 passed through each proxy in WSL).
+      Left: every job's first run on a pushed commit.
 - [ ] **Ask Alex**: X40 says `e2e-proxy` pins apollo's NPM version, which `docs/private/SITE.md` keeps private. The job
       pins the config that version renders instead (`tests/proxy/npm.conf`); naming the image tag in CI would publish
       it. Confirm, or say the version may be public.

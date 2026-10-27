@@ -4675,8 +4675,10 @@ origin as its own, and global-setup refuses to run unless the proxy's host resol
 are the real ones; `proxy.spec` holds that SSE and multipart arrive as written and uncompressed and a socket echoes.
 NPM's nginx consumes `X-Accel-Buffering`, as nginx does every `X-Accel-*`, so the header specs accept its absence
 behind NPM (which adds `X-Served-By`), and nginx listens on 80 as NPM does: its `$host` drops a port, which the
-browser's `Origin` would keep. Run locally in WSL: 84 passed through each. The nightly gained **Autobahn|Testsuite**
-(§19.1.9).
+browser's `Origin` would keep. Run locally in WSL: 84 passed through each. `streams` joined the job (one proxy host
+in NPM's model with both domains): behind the proxies the server sees the proxy's container, not the LAN, so the suite
+lets anyone take a nickname there (`ACCOUNTS_NICK_FROM=all`), and the specs that need the LAN or an admin start servers
+of their own; 79 passed through each in WSL. The nightly gained **Autobahn|Testsuite** (§19.1.9).
 - **The no-SQLite build** proves D18's claim only (no SQLite library, no C compile step). The linker stays (`clang` or
   `$ODIN_CLANG_PATH` on Linux and macOS, the MSVC/SDK libraries on Windows; 09 §6.1), so "no clang" is never a gate.
 - **UID 10001** is the skeleton's inherited assertion (`SK/.github/workflows/ci.yml:219`); spark's distroless default

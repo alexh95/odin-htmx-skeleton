@@ -87,6 +87,18 @@ itself is scratch.
 | `lab/sockets.js`     | the room page, then `/lab/ws/echo` and `/lab/ws/chat` | WebSocket round trips through `k6/websockets`, the room's through the hub. |
 | `scripting/scripting.js` | the nonce class's four pages, `/scripting/hello`, `/scripting/score`, its SSE (`end=1`), multipart and WebSocket streams | A fresh nonce per response; the streams' four buttons. The socket opens every tenth iteration: one per iteration left loopback pairs in TIME_WAIT faster than Windows frees them, and the client's dials failed. |
 | `compat/compat.js`   | `/compat`, `/compat/htmx2` with its save and refusal, `/compat/alpine`, the two pings | The refusal is a 422 by design (`expectedStatuses`). |
+| `accounts/nick.js`   | `/login` (page, pick), `/logout` | The nickname form; a pick is a 303 and a signed cookie. |
+| `chat/chat.js`       | `/chat`, a room per transport in turn, the setting, a post (or its 429), the menu, edit, delete, read, typing, a CSP report | A member's requests; most posts meet the 5-per-10-s limit, whose 429 is measured too (`expectedStatuses`). |
+| `chat/chat_streams.js` | the socket (snapshot, a message back), `/since` and its 304, `/parts` and `/events` held a moment | The live transports; the held streams are cut by the client and left out of the gates (`held:no`). |
+| `notify/notify.js`   | `/notify`, `/notify/list`, `POST /notify/read` | A member's Inbox. |
+| `bot/bot.js`         | `/bot`, a conversation, an answer per delivery in turn, a quick one, Stop | Whole mock answers (`BOT_DELAY_MS=0`, the hourly limits lifted): thousands of generations a quick run. |
+| `ops/panel.js`       | `/admin/ops` per mode, `/admin/ops/panel` and its 304, `/admin/ops/parts` held | An admin's view of the 1 Hz panel (loopback is admin here). |
+| `status/status.js`   | `/status` per mode, `/status/parts`, `/status/board` and its 304 | The status board, both ways. |
+
+A nick build's scenarios sign in once per VU (`lib/nick.js`) and keep the jar across iterations
+(`noCookiesReset`): k6 empties it each iteration otherwise. `run.sh`'s server counts loopback as the LAN and as
+its admins, answers the bot at once and lifts its hourly limits. A scenario that holds streams and cuts them gates
+only the requests tagged `held:no`, and the summary reads those.
 
 The ten skeleton scenarios (static, seo, pages, list, search, api, detail, write, mixed, scale) are
 the parity gate's, unchanged from the skeleton so the same files measure HEAD and v1.1.1.
