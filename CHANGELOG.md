@@ -8,7 +8,20 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
-Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, generator v1; `TODO.md`'s M2 slices).
+The starter's second milestone, M2, meant to ship as **2.1.0**: the stream substrate. `platform/stream` speaks SSE,
+WebSocket and multipart on the fork's streams (F-1, with M2's F-17 to F-22), under admission caps, heartbeats and a
+slow-consumer cut; `platform/hub` fans events out to one `#live` stream per page, with cursors that resume or resync.
+Two profiles witness it: `lab`, the stream contract pages, and `streams`, with chat on four transports, the Inbox,
+the bot on its mock, ops' 1 Hz panel, the status board and the `nick` identity. Around them: page bundles and route
+flags in the CSP, the hyperscript client behind `html.behave`, `tools/init`'s compose mode (generator v1),
+`tools/check topics` and `exts`, the stream drills, the TSan gate, the soak, Autobahn, and the lab and `streams`
+through Caddy and NPM in CI. An independent audit and three re-reads of its fixes (`docs/audit/M2.md`) found 4 HIGH,
+all fixed, and the parity gate passes on both legs (`docs/perf/PARITY.md`).
+
+**For a fork of 2.0.0:** markup names its client behaviours through `html.behave` (a hand-written `_=` or
+`data-behave` should move to it; `escaping.spec` holds every page to that); the htmx-config files are per bundle
+(`app/build/<p>/<bundle>.config.json`, Main's was `htmx-config.json`); `web.render_page` takes a page's bundle and
+live topics as defaulted parameters, so existing calls stand.
 
 ### Added
 - **`platform/stream`** (PLAN §8.2): SSE, WebSocket and multipart on the fork's streams. The SSE encoder splits user
@@ -371,7 +384,7 @@ its first milestone, M1: the request path rebuilt as a platform (`app/platform/`
 features (`app/features/`) with a store per family (`app/stores/`), and two profiles (`app/cmd/`): `skeleton`, the
 1.2.x console at its exact URLs, and `minimal`, the one-page notes starter. Behind them: the vendored odin-http fork
 (F-1 to F-16), a crash guard, logfmt and metrics, store v3 (per-loop readers, a group-committing writer task),
-`tools/check`, CI through `build.sh`, crash drills and the parity gate (`docs/perf/PARITY.md`: PASS on both legs, 20
+`tools/check`, CI through `build.sh`, crash drills and the parity gate (`docs/perf/PARITY-M1.md`: PASS on both legs, 20
 of 20 cells each, against v1.2.0 and v1.1.1).
 
 **Breaking, for a fork of 1.2.x:** `app/src` is gone (its code lives on as the `skeleton` profile's features); a
