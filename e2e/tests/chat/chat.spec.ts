@@ -220,6 +220,19 @@ test.describe('chat', T, () => {
     });
   }
 
+  test('over ws, a message past the socket\'s bracket bound gets a toast, and the socket stays (M2-30)', async ({ browser, baseURL }) => {
+    const ann = await member(browser, baseURL!);
+    const slug = await newRoom(ann.page);
+    await open(ann, slug, 'ws');
+    const box = ann.page.locator('.chat-composer textarea');
+    await box.fill('['.repeat(300));
+    await box.press('Enter');
+    await expect(ann.page.locator('#toasts .toast')).toContainText('too many brackets');
+    await say(ann, 'still here');
+    await expect(message(ann, 'still here')).toHaveCount(1);
+    await leave(ann);
+  });
+
   test('the connection setting sticks to the member', async ({ browser, baseURL }) => {
     const ann = await member(browser, baseURL!);
     await ann.page.goto('/chat');

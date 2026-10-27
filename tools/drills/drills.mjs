@@ -673,15 +673,16 @@ async function phaseWsData(f) {
   // to the public room. Refused unparsed (stream.ws_json): before, each frame was a stack overflow, and more than
   // GUARD_BURST of them a minute exited the process. M2-22: the same brackets behind a JSON5 comment holding a
   // `"`, which hid them from the scan, and a frame of 20,000 comments, which JSON5's tokenizer recursed through.
-  // 15 frames: one overflowed, and the room caps 20 a second.
+  // M2-30: behind a raw line feed in a key, which ends the strict tokenizer's string. 15 frames: one overflowed,
+  // and the room caps 20 a second.
   const room = await wsClient(s.port, '/lab/ws/chat?room=deep');
   const deep = ['{"message":"x","headers":' + '['.repeat(60000), '{"message":"x","headers":/*"*/' + '['.repeat(60000),
-    '{"message":"x"' + '//\n'.repeat(20000) + '}'];
-  for (let i = 0; i < 15; i++) room.send(deep[i % 3]);
+    '{"message":"x"' + '//\n'.repeat(20000) + '}', '{"a\n:' + '['.repeat(60000)];
+  for (let i = 0; i < 15; i++) room.send(deep[i % 4]);
   await sleep(500);
   const up = (await get(s.port, '/livez')).status === 200 && s.exited === null;
   const overflow = /kind=stack_overflow/.test(s.out);
-  record('wsdata: 15 frames of JSON nested 60,000 deep, plain, behind a comment or as 20,000 comments, are refused unparsed; the socket stays open, the server up',
+  record('wsdata: 15 frames of JSON nested 60,000 deep (plain, behind a comment or a raw line feed) or of 20,000 comments are refused unparsed; the socket stays open, the server up',
     room.opened && room.code === 0 && up && !overflow, `code=${room.code} alive=${up} overflow=${overflow}`);
   room.sock.destroy();
   await stop(s);

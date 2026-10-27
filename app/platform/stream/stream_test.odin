@@ -222,6 +222,26 @@ ws_json_refuses_deep_nesting_before_it_parses :: proc(t: ^testing.T) {
 	for i := 11; i + 3 <= len(deep); i += 3 { copy(deep[i:], "//\n") }
 	testing.expect(t, !ws_json(deep, &v))
 	testing.expect(t, !ws_json(transmute([]byte)string(`{'body':'single quotes'}`), &v))
+	// M2-30's frame: a raw line feed ends the strict tokenizer's string but didn't end the
+	// scan's, so the brackets after it went uncounted. And closes with nothing open.
+	copy(deep, "{\"a\n:")
+	for i in 5 ..< len(deep) { deep[i] = '[' }
+	testing.expect(t, !ws_json(deep, &v))
+	copy(deep, "]]]]]]]]]]]]]]]]]]]]")
+	for i in 20 ..< len(deep) { deep[i] = '[' }
+	testing.expect(t, !ws_json(deep, &v))
+	testing.expect(t, !ws_json(transmute([]byte)string("{\"body\":\"a\tb\"}"), &v)) // a raw tab
+	testing.expect(t, ws_json(transmute([]byte)string(`{"body":"a\tb\nc"}`), &v)) // escaped, they're text
+	testing.expect_value(t, v.body, "a\tb\nc")
+	// Past WS_JSON_OPENS brackets even inside a string: whatever the parse takes a string to
+	// be, it can't nest deeper than the frame has brackets.
+	many := make([]byte, 16 + WS_JSON_OPENS + 1, context.temp_allocator)
+	copy(many, `{"body":"`)
+	for i in 9 ..< len(many) - 2 { many[i] = '[' }
+	copy(many[len(many) - 2:], `"}`)
+	testing.expect(t, !ws_json(many, &v))
+	short := `{"body":"` + "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[" + `"}`
+	testing.expect(t, ws_json(transmute([]byte)short, &v)) // text with brackets is text
 }
 
 // What a replay and publish count is what the stream is sent: a line costs "data: " and its

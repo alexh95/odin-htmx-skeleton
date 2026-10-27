@@ -12,6 +12,7 @@ import "base:runtime"
 import "core:strings"
 
 import "../../../platform/authz"
+import "../../../platform/html"
 import "../../../platform/hub"
 import "../../../platform/stream"
 import "../../../platform/web"
@@ -78,7 +79,12 @@ on_message :: proc(c: ^stream.Conn, text: bool, data: []byte) {
 		body: string,
 	}
 	msg: In
-	if !text || !stream.ws_json(data, &msg) { return }
+	if !text { return }
+	if !stream.ws_json(data, &msg) {
+		// Refused unparsed (stream.ws_json's bounds), so the member hears why it went nowhere.
+		send((^Socket)(c.user), html.toast("error", "That message couldn't be read: too many brackets?", true))
+		return
+	}
 	if post != nil { post((^Socket)(c.user), msg.body) }
 }
 
