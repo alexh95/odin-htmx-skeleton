@@ -33,7 +33,7 @@ response_init :: proc(r: ^Response, allocator := context.allocator) {
 	r.cookies.allocator  = allocator
 	r._buf.buf.allocator = allocator
 
-	headers_init(&r.headers, allocator)
+	headers_init(&r.headers, allocator, 16) // F-20: the server's security set and a page's own
 }
 
 /*

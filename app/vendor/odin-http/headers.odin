@@ -8,8 +8,11 @@ Headers :: struct {
 	readonly: bool,
 }
 
-headers_init :: proc(h: ^Headers, allocator := context.temp_allocator) {
+// F-20: `reserve` sizes the map up front, so a request's or a response's usual headers fit
+// without the map regrowing (3.7 regrowths a request in M1's profile, `docs/audit/M1.md`).
+headers_init :: proc(h: ^Headers, allocator := context.temp_allocator, reserve_n := 0) {
 	h._kv.allocator = allocator
+	if reserve_n > 0 { reserve(&h._kv, reserve_n) }
 }
 
 headers_count :: #force_inline proc(h: Headers) -> int {

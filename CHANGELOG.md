@@ -121,6 +121,8 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   which tools/bundle puts first in every profile's `app.js`. A toast now arms its own timer on
   `htmx:after:process` instead of a body-wide observer.
 - **The lab runs on the hyperscript client.**
+- **The header maps are reserved up front** (the fork's F-20): 16 each, so a request's and a response's usual headers
+  fit without the map regrowing (3.7 regrowths a request before).
 - **A response's nonce is base64url** (still 16 random bytes), so a page can send it in a connect URL as it is.
 - **`core.js` and the vanilla twins clear an element with `replaceChildren()`**, not `innerHTML = ""`, which a
   Trusted Types page refuses.

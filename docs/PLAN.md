@@ -94,7 +94,7 @@ round 3).
   edits and `tools/check profile` keeps consistent (D7, D8; LC; ANSWERS round 3). Only the transport axes and the bot
   backend switch per request, named in `x-impl` (D8).
 - **The fork**: laytan/odin-http fac113f vendored in-tree at `app/vendor/odin-http/`, with an `UPSTREAM.md`, plus
-  nineteen generic changes F-1..F-19 (streams, timeouts, connection caps, shutdown deadlines, the guard hook, the
+  twenty generic changes F-1..F-20 (streams, timeouts, connection caps, shutdown deadlines, the guard hook, the
   `Content-Length` fix, deferred responses for pool replies, S0.5); no separate repo; spike S0.2 proves k6 parity first (D11; Q4; ANSWERS F3).
 - **The hub**: topics `<feature>.<family>:<key>`, one wakeup per loop per burst, event ids `<epoch>-<seq>`, and
   persisted topics resume by SQLite rowid through a keyset replay before falling back to `resync` (D13).
@@ -277,7 +277,7 @@ milestone M<n> releases v2.<n−1>.0 through M12 (D40); v2.2.0 at the M3 exit is
 |---|---|
 | odin-htmx-starter | the starter; repo `alexh95/odin-htmx-starter`, formerly `odin-htmx-skeleton` ("the skeleton", `SK/`), which is frozen as tags v1.2.0 and v1.2.1 and branch `skeleton-1.x` (D1); its checkout is this workspace, `<WORKSPACE>`, from M0 (ANSWERS #5, F5) |
 | Houston | the product name of profile `full` (D28) |
-| the fork, `app/vendor/odin-http/` | laytan/odin-http fac113f plus F-1..F-19, vendored in-tree; its `UPSTREAM.md` names the base commit and each change. There is no separate repo; an upstream offer goes through a GitHub fork made at that time (D11; ANSWERS F3) |
+| the fork, `app/vendor/odin-http/` | laytan/odin-http fac113f plus F-1..F-20, vendored in-tree; its `UPSTREAM.md` names the base commit and each change. There is no separate repo; an upstream offer goes through a GitHub fork made at that time (D11; ANSWERS F3) |
 | spark | Alex's games workspace (`<SPARK_DIR>`), served at games.alexh95.com |
 | apollo | Alex's home server: a modest machine shared with Alex's other self-hosted services; LAN address `<APOLLO_LAN_IP>`, SSH alias `<APOLLO_SSH_ALIAS>` (D42); its spare GPU, `<APOLLO_GPU>`, hosts the bot's llama.cpp server (§14.3; RESOLUTIONS X41) |
 | site placeholders (`<APOLLO_LAN_IP>`, `<APOLLO_CPU>`, `<APOLLO_GPU>`, `<APOLLO_SERVICES>`, `<APOLLO_DATA_DIR>`, `<HOME_UPLINK>`, `<LLAMA_PORT>` …; the dev PC's local paths `<WORKSPACE>`, `<SPARK_DIR>`, `<OLD_DEMO_DIR>`, `<SKELETON_FIX_CLONE>`) | real site values (the LAN address, apollo's hardware, OS and services, the SSH alias and user, host paths, the home uplink, the folders on the dev PC); each is defined in the git-ignored `docs/private/SITE.md`, where agents look it up, so the public docs never spell them out (ANSWERS F4) |
@@ -320,7 +320,7 @@ Container services: `caddy`, `starter-full`, `starter-lab`, `starter-minimal`, `
 
 | Path | Holds |
 |---|---|
-| `app/vendor/odin-http/` | the fork, vendored in-tree, with `UPSTREAM.md` (laytan fac113f plus F-1..F-19; ANSWERS F3) |
+| `app/vendor/odin-http/` | the fork, vendored in-tree, with `UPSTREAM.md` (laytan fac113f plus F-1..F-20; ANSWERS F3) |
 | `app/vendor/{sqlite,htmx,hyperscript}` | pinned third-party sources |
 | `app/platform/<pkg>` | the platform packages (§2.6) |
 | `app/platform/static/` | `base.css` (D19), app.js, the core `_hs` set, favicon, og.png; not a package |
@@ -932,7 +932,7 @@ odin-htmx-starter/
   build.sh build.bat          build.{sh,bat} <profile>: the one place the family flags live (CMD=check|test|run)
   ols.json                    the editor's four collections, pinned to full's families (the skeleton's sat in app/)
   app/
-    vendor/odin-http/         the fork, vendored: laytan fac113f + F-1..F-19, with UPSTREAM.md (D11; ANSWERS F3)
+    vendor/odin-http/         the fork, vendored: laytan fac113f + F-1..F-20, with UPSTREAM.md (D11; ANSWERS F3)
     vendor/sqlite/            3.53.4 amalgamation; prepare builds it with D16's flags
     vendor/htmx/              the htmx 4.0.0 tarball pin → htmx.min.js + the 17 dist/ext files
     vendor/hyperscript/       _hyperscript.min.js 0.9.94 + its shipped .br

@@ -25,7 +25,7 @@ Request :: struct {
 }
 
 request_init :: proc(r: ^Request, allocator := context.allocator) {
-	headers_init(&r.headers, allocator)
+	headers_init(&r.headers, allocator, 16)
 }
 
 // TODO: call it headers_sanitize because it modifies the headers.
