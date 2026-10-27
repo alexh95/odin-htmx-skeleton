@@ -192,7 +192,10 @@ body_form :: proc(s: string) -> map[string]string {
 	return m
 }
 
-// '+' to a space, then percent-decoding; a malformed escape is kept as typed.
+// '+' to a space, then percent-decoding; a malformed escape is kept as typed. Always a
+// copy in the request arena, never a slice of the body: a stream's begin frees the
+// buffer a body lives in, and a malformed `%` handed a stream's handler that freed
+// memory (M2-09).
 form_decode :: proc(s: string) -> string {
 	if s == "" { return "" }
 	t := s
@@ -200,7 +203,7 @@ form_decode :: proc(s: string) -> string {
 		t, _ = strings.replace_all(s, "+", " ", context.temp_allocator)
 	}
 	dec, ok := net.percent_decode(t, context.temp_allocator)
-	return dec if ok else t
+	return dec if ok else strings.clone(t, context.temp_allocator)
 }
 
 // A row id from a path capture: digits only, positive, within i64. An

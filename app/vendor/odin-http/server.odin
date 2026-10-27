@@ -576,6 +576,8 @@ Connection :: struct {
 	deferred:       Deferred,
 	// M1-02: when the send in flight (a response's or a stream's) must have finished; zero: none.
 	send_deadline:  time.Time,
+	// M2-12: connection_crashed queued its 500; the send's completion closes the connection.
+	crashed:        bool,
 }
 
 // M1-02: a send posted now must finish by this; zero when sends have no limit.
@@ -737,6 +739,10 @@ _invoke :: #force_inline proc(s: ^Server, fn: proc(a, b: rawptr), a, b: rawptr) 
 // reached, the connection can't be trusted to continue: answer 500 if nothing was sent, then close.
 @(private)
 connection_crashed :: proc(c: ^Connection) {
+	// A continuation that ran inside its handler crashes the connection twice: through
+	// response_crashed, then through the handler's own invoke. The second closed it under
+	// the queued 500 (M2-12).
+	if c.crashed { return }
 	scanner_cancel(&c.scanner)
 	scanner_clear_dispatch(&c.scanner)
 	_deferred_end(c, gone = true)
@@ -750,6 +756,7 @@ connection_crashed :: proc(c: ^Connection) {
 
 	if c.state == .Active && !c.loop.res.sent {
 		c.loop.res.sent = true
+		c.crashed = true
 		connection_set_state(c, .Will_Close)
 		nbio.send_poly(c.socket, {transmute([]byte)string(CRASHED_RESPONSE)}, c, proc(_: ^nbio.Operation, c: ^Connection) {
 			connection_close(c)

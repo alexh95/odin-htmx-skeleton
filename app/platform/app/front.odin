@@ -51,6 +51,12 @@ front :: proc(req: ^web.Request, res: ^web.Response) {
 	case web.canonical_redirect(c.site, req, res):
 	case !web.same_origin(req):
 		web.respond_plain(res, "Cross-site request refused.", .Forbidden)
+	case m != nil && .Stream in m.flags && req.is_head:
+		// A HEAD is served as a GET whose body is dropped, but a stream's body is written on
+		// and never ends: a client that trusts HEAD to have none read it as its next response
+		// (M2-14).
+		web.set_header(res, "allow", "GET")
+		web.respond_plain(res, "Method not allowed.", .Method_Not_Allowed)
 	case m == nil:
 		c.allow = allow
 		if !web.has_body(req) {
@@ -76,7 +82,9 @@ front :: proc(req: ^web.Request, res: ^web.Response) {
 				done(c)
 				return
 			}
-			c.body = body
+			// A stream's begin frees the buffer the body is a slice of (the fork's F-17): its
+			// handler gets a copy in the request arena (M2-09).
+			c.body = strings.clone(body, context.temp_allocator) if .Stream in c.route.flags else body
 			call(c)
 		})
 		return
