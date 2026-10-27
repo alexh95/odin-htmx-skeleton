@@ -12,7 +12,6 @@ package bot_web
 import "base:runtime"
 import "core:fmt"
 import "core:nbio"
-import "core:strconv"
 import "core:strings"
 import "core:time"
 
@@ -50,6 +49,8 @@ TOPICS := [?]hub.Topic {
 ASK_CAP :: 64 * 1024
 
 @(private) members_hour := web.Limit{window = time.Hour}
+// New conversations, per member: each is kept, so making them is limited too (M2-06).
+@(private) starts := web.Limit{n = 10, window = time.Minute}
 @(private) guests_hour := web.Limit{window = time.Hour}
 
 // The generations in flight: whose each is (Stop's check), and how many each member has.
@@ -158,6 +159,10 @@ Starting :: struct {
 
 @(private)
 new_conversation :: proc(req: ^web.Request, res: ^web.Response) {
+	if ok, retry := web.limit_hit(&starts, web.viewer(req).id); !ok {
+		web.respond_limited(res, retry, html.toast("error", "That's enough new conversations for a minute.", false))
+		return
+	}
 	op := store.new_op(Starting, 64)
 	op.owner = web.viewer(req).id
 	op.title = "New conversation"
@@ -207,6 +212,7 @@ Asking :: struct {
 	released:  bool,
 	used:      int,    // the asker's count this hour, for multipart's #usage
 	title:     string, // heap; a conversation's new title, for multipart's #conv-title
+	let_go:    bool,   // release ran
 }
 
 @(private)
@@ -302,9 +308,11 @@ on_event :: proc(user: rawptr, _: m.Bot_Gen_Id, ev: m.Bot_Event) {
 	case m.Bot_Queued:
 		send(a, bot_views.piece(a.mid, fmt.tprintf("Queued (#%d)… ", e.position)))
 	case m.Bot_Error:
+		release(a)
 		send(a, bot_views.failed(a.mid, e.message))
 		done(a)
 	case m.Bot_Done:
+		release(a)
 		text := strings.to_string(a.answer)
 		send(a, bot_views.final(a.mid, text, e))
 		if a.multipart && a.conn != nil {
@@ -341,14 +349,25 @@ done :: proc(a: ^Asking) {
 		c.user = nil // its close, now or later, finds nothing to cancel
 		if a.multipart { stream.multipart_end(c) } else { stream.end(c) }
 	}
-	guard.lock(&gens.mu)
-	delete_key(&gens.owner, a.gen)
-	guard.unlock(&gens.mu)
-	leave(a.who)
+	release(a)
 	delete(a.mid, heap())
 	delete(a.title, heap())
 	strings.builder_destroy(&a.answer)
 	free(a, heap())
+}
+
+// The member may ask again, and the generation is no longer theirs to stop. The last
+// event runs it before it renders anything: the mock has already let the generation go,
+// so a crash there would otherwise keep the member's slot, and every later ask was a 429
+// (M2-13).
+@(private)
+release :: proc(a: ^Asking) {
+	if a.let_go { return }
+	a.let_go = true
+	guard.lock(&gens.mu)
+	delete_key(&gens.owner, a.gen)
+	guard.unlock(&gens.mu)
+	leave(a.who)
 }
 
 // The browser went away: the generation is cancelled, and its Bot_Done frees the rest.
@@ -363,7 +382,7 @@ on_close :: proc(c: ^stream.Conn) {
 // POST /bot/gen/<gid>/stop: the asker's own generation only.
 @(private)
 stop :: proc(req: ^web.Request, res: ^web.Response) {
-	id, ok := strconv.parse_u64_of_base(req.url_params[0], 10)
+	id, ok := web.parse_digits(req.url_params[0])
 	if !ok {
 		web.not_found(req, res)
 		return
