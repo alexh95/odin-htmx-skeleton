@@ -208,7 +208,10 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       the suite's proxy mode, 84 passed through each in WSL; nightly TSan, soak and Autobahn (247 cases, none
       failed); `pins` already covers _hyperscript. Locally, the lab's chromium and api legs pass on Linux (148).
       `streams` is in check, build, e2e, coverage, linux-ops and `e2e-proxy` (79 passed through each proxy in WSL).
-      Left: every job's first run on a pushed commit.
+      The first run on a pushed commit (`d9e2e1c`): 41 jobs green, every `e2e-proxy` leg among them; the `generator`
+      and lab's and streams' WebKit e2e failed (fixed since: the catalog, libsoup's 1006, the Stop spec's load), so
+      `coverage` (the k6 quick runs) was skipped. Reproduced in Playwright's CI image in WSL: lab's extensions 20 of
+      20 and streams' suite 84 of 84 on WebKit. Left: a green run, `coverage` with it.
 - [ ] **Ask Alex**: X40 says `e2e-proxy` pins apollo's NPM version, which `docs/private/SITE.md` keeps private. The job
       pins the config that version renders instead (`tests/proxy/npm.conf`); naming the image tag in CI would publish
       it. Confirm, or say the version may be public.
@@ -222,8 +225,8 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       a third at `5395ae0` read them sound (no CRITICAL or HIGH open), and the stamps are on. The parity gate passes
       on both legs at `40f8716`, 20 of 20 cells each counting §18.2's n = 5 re-runs (`docs/perf/PARITY.md`), after the
       TSan gate (0 reports), the 1 h soak (PASS, back 2000 of 2000 in 1.5 s) and every profile's drills and e2e on
-      both OSes; 2.1.0's summary is in `CHANGELOG.md`. Left: Alex's go to push and to tag v2.1.0, then every CI
-      job's first run on the pushed commit.
+      both OSes; 2.1.0's summary is in `CHANGELOG.md`. Pushed (Alex's go, 2026-10-27). Left: slice 16's green run,
+      and Alex's go to tag v2.1.0.
 - [ ] **M2's open audit findings** (`docs/audit/M2.md`, owner M3): M2-18, a topic has no `.Lan_Only`, so an Admin by
       `ACCOUNTS_NICK_ADMIN_CIDRS` outside `LAN_CIDRS` gets ops' panel stream but not its page (give `hub.Topic` the
       flag, or have boot refuse such CIDRs; no exposure at the empty default); M2-21, a POST stream keeps its request
@@ -238,7 +241,11 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
 - [ ] **`mixed@file` on Linux** (`docs/perf/PARITY.md`, owner M3): M2's candidate read 0.95 of M1's in an A/B
       (rounds 0.93–1.05); A/B it with and without a handler's single read transaction before M3's gate.
 - [ ] **A WebKit flake to watch**: `chat over sse: an edit and a delete reach the other member` failed once in a full
-      streams run on Windows (2026-10-27), then passed 79 targeted runs and the next full run.
+      streams run on Windows (2026-10-27), then passed 79 targeted runs and the next full run. Since: `chat over
+      poll`'s same test failed once on CI's WebKit and passed its retry. `ops: the panel refreshes every second` failed
+      once by multipart and once by poll, each passing its retry, on WebKit in Playwright's image on four pinned cores:
+      the page logged its `#live` stream's `/events?…&after=…` fetch as failing "due to access control checks"
+      (WebKit's wording for a fetch that failed on the network). Find why that stream's request failed.
 
 **Answered by Alex (ANSWERS round 9, 2026-10-26), before slices 7–11:** nick is built in M2 (slice 6a);
 `ACCOUNTS_NICK_ADMIN_CIDRS` (none by default, loopback in e2e) makes its clients there Admin, so `/admin/ops` opens in

@@ -2367,7 +2367,8 @@ M2 resume specs**, including one across a server restart (§19).
 | 1013 | a slow consumer (`Too_Slow`) | yes |
 
 hx-ws reconnects only on 1001, 1005, 1006 and 1011–1014 (03 §7; 04 §4.4), so 1008 and 1009 stop a client for good and
-the rest bring it back with htmx's backoff (500 ms doubling to 60 s, ±30 % jitter; 03 §1, 04 §4.2). A kick or role
+the rest bring it back with htmx's backoff (500 ms doubling to 60 s, ±30 % jitter; 03 §1, 04 §4.2). WebKit on Linux
+(libsoup) takes 1012–1014 for protocol errors and hands the page 1006, which reconnects all the same. A kick or role
 change publishes a revoke that closes the affected streams with 1008 (07 §1.5). An SSE stream gets the named event
 `kicked` instead, which triggers a full navigation to `/login` and so removes `#live`, and a reconnect without auth
 gets a 403. `revoke.spec` (M4) asserts that the server sees at most 3 reconnects in 30 s; whether hx-sse itself stops
@@ -3499,8 +3500,9 @@ with `BOT_CONCURRENCY=1`, 1000 concurrent mock generations ≤ 1 core and ≤ +3
 - **The frames** are as above; a live answer's ids are `m-g<gen>` and `mb-g<gen>`, a stored one's its turn id. The
   render is the domain's (`bot.render`: markdown, else escaped text), since views import only html and their domain.
 - **Stop** is posted to the generation's loop (`workers.post`), which removes the mock's timer and sends
-  `Bot_Done{.Stopped}`: the e2e spec times it in the page at well under 100 ms on both deliveries. A browser that goes
-  away cancels the same way.
+  `Bot_Done{.Stopped}`: the e2e spec times it in the page, 5–9 ms idle on both deliveries in either engine, and
+  holds the best of up to three Stops under 100 ms, since a loaded CI runner's page clock reads its load. A browser
+  that goes away cancels the same way.
 - **Limits**: `BOT_MEMBER_PER_HOUR` and `BOT_GUEST_PER_HOUR` (`web.Limit`), and one answer at a time per member, each a
   429 into the toasts. The load driver lifts the hourly limits and sets `BOT_DELAY_MS=0`, so a quick run makes
   thousands of generations; it reaches Stop only on ended generations (a stream's id is in its body, which k6 reads at

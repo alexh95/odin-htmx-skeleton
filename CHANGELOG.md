@@ -376,6 +376,12 @@ live topics as defaulted parameters, so existing calls stand.
 - **robots.txt no longer hides a page beside a family of fragments**: the lab's `/lab/feed`, `/lab/publish`, … had
   collapsed to `Disallow: /lab/`, which also covered `/lab/streams`. A family collapses to its first segment only when
   no page lives under it; `seo.spec` checks that no Disallow covers a sitemap page.
+- **M2's first CI run**: three jobs failed. `docs/catalog.json` was behind the tree (accounts' and chat's line
+  counts, lab's `init`); the `generator` job holds it current. The lab's close-code specs failed on WebKit on Linux,
+  whose libsoup takes 1012–1014 for protocol errors and hands the page 1006 (hx-ws reconnects on that as well); the
+  specs expect 1006 there. The bot's Stop spec read 123 ms on CI's WebKit, against 5–9 ms idle: four workers on a
+  4-vCPU runner put the page's clock behind. It now holds the best of up to three Stops to 100 ms, and every Stop to
+  ending its answer.
 
 ## [2.0.0] - 2026-10-26
 
