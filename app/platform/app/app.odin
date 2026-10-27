@@ -64,6 +64,7 @@ PLATFORM_ENV := [?]env.Row {
 	{name = "HEADER_TIMEOUT_MS", kind = .Int, def = "10000", doc = "request line and headers (F-7)"},
 	{name = "IDLE_TIMEOUT_MS", kind = .Int, def = "75000", doc = "a kept-alive connection's next request (F-7)"},
 	{name = "BODY_TIMEOUT_MS", kind = .Int, def = "30000", doc = "a request body (F-7)"},
+	{name = "SEND_TIMEOUT_MS", kind = .Int, def = "30000", doc = "one send to a client that doesn't read; then the connection is cut (M1-02)"},
 	{name = "DRAIN_DEADLINE_MS", kind = .Int, def = "5000", doc = "what active requests get at shutdown (F-9)"},
 	{name = "TRUST_PROXY", kind = .Cidrs, doc = "proxies whose X-Real-IP and X-Forwarded-Proto count; empty = none"},
 	{name = "LAN_CIDRS", kind = .Cidrs, def = "192.168.0.0/16", doc = "what .Lan_Only routes accept"},
@@ -202,6 +203,7 @@ serve :: proc(hosts: []Host, jobs: [][]workers.Job, brand: ^html.Brand, headers 
 	obs.limit("http", "header_timeout", i64(env.int_("HEADER_TIMEOUT_MS")), "ms")
 	obs.limit("http", "idle_timeout", i64(env.int_("IDLE_TIMEOUT_MS")), "ms")
 	obs.limit("http", "body_timeout", i64(env.int_("BODY_TIMEOUT_MS")), "ms")
+	obs.limit("http", "send_timeout", i64(env.int_("SEND_TIMEOUT_MS")), "ms")
 	obs.limit("http", "drain_deadline", i64(env.int_("DRAIN_DEADLINE_MS")), "ms")
 	obs.limit("http", "max_body", web.MAX_BODY, "B")
 
@@ -213,6 +215,7 @@ serve :: proc(hosts: []Host, jobs: [][]workers.Job, brand: ^html.Brand, headers 
 		header_timeout  = ms("HEADER_TIMEOUT_MS"),
 		idle_timeout    = ms("IDLE_TIMEOUT_MS"),
 		body_timeout    = ms("BODY_TIMEOUT_MS"),
+		send_timeout    = ms("SEND_TIMEOUT_MS"),
 		drain_deadline  = ms("DRAIN_DEADLINE_MS"),
 		max_connections = env.int_("MAX_CONNS"),
 		front           = front,

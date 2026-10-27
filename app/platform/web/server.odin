@@ -22,6 +22,7 @@ Server_Config :: struct {
 	header_timeout:  time.Duration,
 	idle_timeout:    time.Duration,
 	body_timeout:    time.Duration,
+	send_timeout:    time.Duration, // one send to a peer that doesn't read (M1-02)
 	drain_deadline:  time.Duration,
 	max_connections: int, // 0 = the fd soft limit − 64 (F-8)
 	front:           Handler, // every request, whatever its route
@@ -61,6 +62,7 @@ server_run :: proc() {
 	opts.header_timeout = cfg.header_timeout
 	opts.idle_timeout = cfg.idle_timeout
 	opts.body_timeout = cfg.body_timeout
+	opts.send_timeout = cfg.send_timeout
 	opts.drain_deadline = cfg.drain_deadline
 	opts.max_connections = cfg.max_connections
 	opts.on_thread_init = proc(_: ^http.Server, i: int) {

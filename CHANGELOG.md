@@ -137,6 +137,12 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   chunk lands, and drop it: the server read that request from its middle (a 501) or waited for one already gone.
   About 1 in 300 rounds on a raw socket and 0.01-0.1 % of the requests after a stream under k6; 0 in 12,600 rounds
   since. `protocol.spec` keeps the check.
+- **A client that stops reading is cut at `SEND_TIMEOUT_MS`** (30 s; M1-02): a send still in flight past it cuts the
+  connection, as the drain does, where nothing had bounded it, so such a client held its descriptor and a copy of its
+  response for good. The drills' `slowread` phase pipelines 100 requests for og.png and reads nothing.
+- **Windows: `shutdown()` works on accepted sockets** (the fork's F-19). core:nbio set `SO_UPDATE_ACCEPT_CONTEXT`
+  with no value, which Windows rejects, so the drain's cut of a stuck connection (F-9) did nothing there; the fork
+  repeats the call with the listening socket.
 - **A crash in a deferred response's continuation answers 500** (M1-04): a write's reply or a pool's result that
   trapped after `web.resume` had left the connection unanswered and open for good. `web.resume` now gives the guard
   an unwind, which a crash before `web.finish` runs: the fork's `response_crashed` answers 500 and closes, and the

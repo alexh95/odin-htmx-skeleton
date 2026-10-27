@@ -2,8 +2,8 @@
 //
 //   node tools/drills/drills.mjs <profile> [phase …] [--wsl DIR]
 //
-// Phases (default: all): release pure dirty burst hang malformed streamcrash shutdown restart fdceiling
-// budgets.
+// Phases (default: all): release pure dirty burst hang malformed slowread streamcrash shutdown restart
+// fdceiling budgets.
 // It builds the profile twice through build.{sh,bat}: a TEST_ROUTES build, which mounts
 // /__test/crash/<kind> and /__test/shutdown (platform/web/drills.odin), and the release build at
 // -o:speed, which must answer 404 there and is the one the budgets measure. Every server is fresh,
@@ -35,7 +35,7 @@ if (!PROFILE) {
 const WIN = process.platform === 'win32' && !WSL;
 const LINUX = !WIN;
 const EXE = WIN ? '.exe' : '';
-const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'malformed', 'streamcrash', 'shutdown', 'restart', 'fdceiling', 'budgets'];
+const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'malformed', 'slowread', 'streamcrash', 'shutdown', 'restart', 'fdceiling', 'budgets'];
 const phases = PHASES.length ? PHASES : ALL;
 
 // PLAN §18.4 (ANSWERS round 7): binaries in MiB, Windows -o:speed, as CI reads them; idle memory
@@ -491,6 +491,40 @@ async function phaseBudgets() {
   else if (size) console.log(`info  budgets: binary ${size} B (the size budget is Windows')`);
 }
 
+// M1-02: a client that stops reading can't hold its connection, and a copy of its response,
+// forever. It pipelines 100 requests for og.png (23 MB of answers), far past what the socket
+// buffers take, and reads nothing; the send that stalls is cut at SEND_TIMEOUT_MS (plus the 1 s
+// sweep), so when it reads again, the answers end before the hundredth.
+async function phaseSlowRead() {
+  const TIMEOUT = 1500;
+  const s = start(DRILL_BIN, { SEND_TIMEOUT_MS: String(TIMEOUT) });
+  if (!(await ready(s))) return record('slowread: server starts', false);
+  const sock = net.connect(s.port, '127.0.0.1');
+  sock.on('error', () => {});
+  await new Promise((r) => sock.once('connect', r));
+  sock.pause();
+  sock.write('GET /static/og.png HTTP/1.1\r\nHost: x\r\n\r\n'.repeat(100));
+  await sleep(TIMEOUT + 2500);
+  let answers = 0;
+  let tail = '';
+  const closed = await new Promise((resolve) => {
+    sock.on('data', (d) => {
+      const text = tail + d.toString('latin1');
+      answers += (text.match(/HTTP\/1\.1 200 /g) || []).length;
+      tail = text.slice(-16);
+    });
+    sock.on('close', () => resolve(true));
+    sock.resume();
+    setTimeout(() => resolve(false), 8000);
+  });
+  sock.destroy();
+  const alive = (await get(s.port, '/livez')).status === 200;
+  const logged = /send waited past send_timeout/.test(s.out);
+  record(`slowread: a client that stops reading is cut at the send timeout; serving goes on`,
+    closed && answers < 100 && logged && alive && s.exited === null, `${answers}/100 answers, closed=${closed}, logged=${logged}`);
+  await stop(s);
+}
+
 // M1-26: a stream that ends hands its connection back, and the next request runs inside the
 // stream's own callback. One that crashes there is answered 500 and its connection closed, like
 // any other, and serving goes on. A profile with a chunked stream to end only (lab's tick).
@@ -530,7 +564,7 @@ const f = features();
 console.log(`${PROFILE} on ${WSL ? 'Linux (WSL)' : process.platform}: store ${f.store}; phases: ${phases.join(' ')}`);
 const PH = {
   release: phaseRelease, pure: phasePure, dirty: () => phaseDirty(f), burst: phaseBurst, hang: phaseHang,
-  malformed: phaseMalformed, streamcrash: () => phaseStreamCrash(f), shutdown: phaseShutdown, restart: phaseRestart, fdceiling: phaseFdCeiling, budgets: phaseBudgets,
+  malformed: phaseMalformed, slowread: phaseSlowRead, streamcrash: () => phaseStreamCrash(f), shutdown: phaseShutdown, restart: phaseRestart, fdceiling: phaseFdCeiling, budgets: phaseBudgets,
 };
 for (const p of phases) {
   if (!PH[p]) { console.error(`unknown phase ${p}`); process.exit(2); }

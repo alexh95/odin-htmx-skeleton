@@ -94,7 +94,7 @@ round 3).
   edits and `tools/check profile` keeps consistent (D7, D8; LC; ANSWERS round 3). Only the transport axes and the bot
   backend switch per request, named in `x-impl` (D8).
 - **The fork**: laytan/odin-http fac113f vendored in-tree at `app/vendor/odin-http/`, with an `UPSTREAM.md`, plus
-  eighteen generic changes F-1..F-18 (streams, timeouts, connection caps, shutdown deadlines, the guard hook, the
+  nineteen generic changes F-1..F-19 (streams, timeouts, connection caps, shutdown deadlines, the guard hook, the
   `Content-Length` fix, deferred responses for pool replies, S0.5); no separate repo; spike S0.2 proves k6 parity first (D11; Q4; ANSWERS F3).
 - **The hub**: topics `<feature>.<family>:<key>`, one wakeup per loop per burst, event ids `<epoch>-<seq>`, and
   persisted topics resume by SQLite rowid through a keyset replay before falling back to `resync` (D13).
@@ -277,7 +277,7 @@ milestone M<n> releases v2.<n−1>.0 through M12 (D40); v2.2.0 at the M3 exit is
 |---|---|
 | odin-htmx-starter | the starter; repo `alexh95/odin-htmx-starter`, formerly `odin-htmx-skeleton` ("the skeleton", `SK/`), which is frozen as tags v1.2.0 and v1.2.1 and branch `skeleton-1.x` (D1); its checkout is this workspace, `<WORKSPACE>`, from M0 (ANSWERS #5, F5) |
 | Houston | the product name of profile `full` (D28) |
-| the fork, `app/vendor/odin-http/` | laytan/odin-http fac113f plus F-1..F-18, vendored in-tree; its `UPSTREAM.md` names the base commit and each change. There is no separate repo; an upstream offer goes through a GitHub fork made at that time (D11; ANSWERS F3) |
+| the fork, `app/vendor/odin-http/` | laytan/odin-http fac113f plus F-1..F-19, vendored in-tree; its `UPSTREAM.md` names the base commit and each change. There is no separate repo; an upstream offer goes through a GitHub fork made at that time (D11; ANSWERS F3) |
 | spark | Alex's games workspace (`<SPARK_DIR>`), served at games.alexh95.com |
 | apollo | Alex's home server: a modest machine shared with Alex's other self-hosted services; LAN address `<APOLLO_LAN_IP>`, SSH alias `<APOLLO_SSH_ALIAS>` (D42); its spare GPU, `<APOLLO_GPU>`, hosts the bot's llama.cpp server (§14.3; RESOLUTIONS X41) |
 | site placeholders (`<APOLLO_LAN_IP>`, `<APOLLO_CPU>`, `<APOLLO_GPU>`, `<APOLLO_SERVICES>`, `<APOLLO_DATA_DIR>`, `<HOME_UPLINK>`, `<LLAMA_PORT>` …; the dev PC's local paths `<WORKSPACE>`, `<SPARK_DIR>`, `<OLD_DEMO_DIR>`, `<SKELETON_FIX_CLONE>`) | real site values (the LAN address, apollo's hardware, OS and services, the SSH alias and user, host paths, the home uplink, the folders on the dev PC); each is defined in the git-ignored `docs/private/SITE.md`, where agents look it up, so the public docs never spell them out (ANSWERS F4) |
@@ -320,7 +320,7 @@ Container services: `caddy`, `starter-full`, `starter-lab`, `starter-minimal`, `
 
 | Path | Holds |
 |---|---|
-| `app/vendor/odin-http/` | the fork, vendored in-tree, with `UPSTREAM.md` (laytan fac113f plus F-1..F-18; ANSWERS F3) |
+| `app/vendor/odin-http/` | the fork, vendored in-tree, with `UPSTREAM.md` (laytan fac113f plus F-1..F-19; ANSWERS F3) |
 | `app/vendor/{sqlite,htmx,hyperscript}` | pinned third-party sources |
 | `app/platform/<pkg>` | the platform packages (§2.6) |
 | `app/platform/static/` | `base.css` (D19), app.js, the core `_hs` set, favicon, og.png; not a package |
@@ -476,7 +476,7 @@ D10's names and defaults; types, meanings and the `*_FILE` rule are in §8.
 | the skeleton's, same meaning | `PORT BIND_ALL DB_PATH SEED SITE_URL THREADS LOG_LEVEL` |
 | lab host | `SITE_URL_LAB`, the origin of `HOSTS`' second host (`cmd/full/brand.odin` names `https://houston-lab.alexh95.com`; boot refuses it empty or naming `SITE_URL`'s host; §7.3, ANSWERS F2, **NEW**) |
 | store | `MEMMODE` (single\|ephemeral; default `ephemeral`, except the `skeleton` profile, whose mode D17 picks); the store family is the build's, so there is no `STORE` |
-| connections | `MAX_CONNS` (fd soft limit − 64), `HEADER_TIMEOUT_MS` 10000, `IDLE_TIMEOUT_MS` 75000, `BODY_TIMEOUT_MS` 30000, `DRAIN_DEADLINE_MS` 5000 |
+| connections | `MAX_CONNS` (fd soft limit − 64), `HEADER_TIMEOUT_MS` 10000, `IDLE_TIMEOUT_MS` 75000, `BODY_TIMEOUT_MS` 30000, `SEND_TIMEOUT_MS` 30000, `DRAIN_DEADLINE_MS` 5000 |
 | proxy and LAN | `TRUST_PROXY` (**empty = trust no peer**; on apollo, the stack Caddy's fixed address as a /32, RESOLUTIONS X43; §17.8), `LAN_CIDRS` 192.168.0.0/16 |
 | streams | `STREAM_HEARTBEAT_S` 20, `STREAM_MAX_QUEUED` 256KiB, `STREAMS_PER_USER` 8, `STREAMS_PER_CLIENT` 16, `STREAMS_TOTAL` 8192, `STREAM_CONNECTS` 20, `STREAM_QUEUED_TOTAL` 64MiB, `HUB_RING` 256, `HUB_RING_BYTES` 1MiB |
 | secrets and cookies | `METRICS_TOKEN_FILE`, `SESSION_KEY_FILE`, `COOKIE_SECURE` auto |
@@ -932,7 +932,7 @@ odin-htmx-starter/
   build.sh build.bat          build.{sh,bat} <profile>: the one place the family flags live (CMD=check|test|run)
   ols.json                    the editor's four collections, pinned to full's families (the skeleton's sat in app/)
   app/
-    vendor/odin-http/         the fork, vendored: laytan fac113f + F-1..F-18, with UPSTREAM.md (D11; ANSWERS F3)
+    vendor/odin-http/         the fork, vendored: laytan fac113f + F-1..F-19, with UPSTREAM.md (D11; ANSWERS F3)
     vendor/sqlite/            3.53.4 amalgamation; prepare builds it with D16's flags
     vendor/htmx/              the htmx 4.0.0 tarball pin → htmx.min.js + the 17 dist/ext files
     vendor/hyperscript/       _hyperscript.min.js 0.9.94 + its shipped .br
@@ -2043,7 +2043,7 @@ unknown variable inside a known prefix.
 | `THREADS`, `LOG_LEVEL` | one per core; `info` | event-loop threads; `debug`/`info`/`warn`/`error` (`warn` silences the access log) |
 | `MEMMODE` | `ephemeral` (`skeleton`: per D17) | `single` or `ephemeral` (§11); D10's `STORE` is gone, since the store family is the build's (LC §3) |
 | `MAX_CONNS` | fd soft limit − 64 | connection cap; past it new connections get 503 (F-8) |
-| `HEADER_TIMEOUT_MS`, `IDLE_TIMEOUT_MS`, `BODY_TIMEOUT_MS`, `DRAIN_DEADLINE_MS` | 10000, 75000, 30000, 5000 | F-7's timeouts; how long Active requests get at drain (F-9) |
+| `HEADER_TIMEOUT_MS`, `IDLE_TIMEOUT_MS`, `BODY_TIMEOUT_MS`, `SEND_TIMEOUT_MS`, `DRAIN_DEADLINE_MS` | 10000, 75000, 30000, 30000, 5000 | F-7's timeouts, and one send to a client that doesn't read (M2, M1-02: then the connection is cut); how long Active requests get at drain (F-9) |
 | `TRUST_PROXY` | **empty = trust no peer** | CIDR list of proxies whose forwarded headers count; on apollo, the stack Caddy's fixed `ipv4_address` as a /32 (§20.4; RESOLUTIONS X43) |
 | `LAN_CIDRS` | 192.168.0.0/16 | what `.Lan_Only` and `ACCOUNTS_NICK_FROM=lan` accept |
 | `STREAM_HEARTBEAT_S`, `STREAM_MAX_QUEUED` | 20, 256KiB | per-loop heartbeat; per-stream queue cap before `Too_Slow` (§9) |

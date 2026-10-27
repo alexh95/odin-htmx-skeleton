@@ -345,12 +345,14 @@ response_send_got_body :: proc(r: ^Response, will_close: bool) {
 	}
 
 	buf := bytes.buffer_to_bytes(&r._buf)
+	conn.send_deadline = _send_deadline(conn)
 	nbio.send_poly(conn.socket, {buf}, conn, on_response_sent)
 }
 
 
 @(private)
 on_response_sent :: proc(op: ^nbio.Operation, conn: ^Connection) {
+	conn.send_deadline = {}
 	if !_invoke(conn.server, proc(a, b: rawptr) { _on_response_sent((^nbio.Operation)(a), (^Connection)(b)) }, op, conn) {
 		connection_crashed(conn)
 	}

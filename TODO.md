@@ -140,7 +140,11 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       drain and the deferred paths; the profile's follow-ups (the connection arena's mutex and header reserves as a
       fork change, one read transaction per page, `tools/profile`). *Check:* each finding's own regression test or
       drill, and the parity gate. Progress: M1-04 (the guard's unwind and the fork's `response_crashed`; the
-      `continuation` drill) and M1-26 (with F-18; the `streamcrash` drill) fixed.
+      `continuation` drill), M1-26 (with F-18; the `streamcrash` drill) and M1-02 (`SEND_TIMEOUT_MS`, with F-19 for
+      Windows; the `slowread` drill) fixed.
+- [ ] **Report core:nbio's `SO_UPDATE_ACCEPT_CONTEXT` bug upstream** (found in slice 14; the fork's F-19 works around
+      it): `impl_windows.odin` passes no value, so Windows rejects the call and `shutdown` fails on accepted sockets.
+      Ask Alex before filing anything.
 - [ ] **15. Generator v1** (`tools/init` compose mode, §7.4): `--list [--json]` (committed as `docs/catalog.json`,
       checked fresh in CI), `--explain`, `--profile`, `--features`, `--add`, `--without`, the family commands,
       `--dry-run`, `--verify` (scratch copy, `build.*`, `tools/check profile`, `--features --json` against the plan),

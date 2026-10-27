@@ -60,6 +60,10 @@ Server_Opts :: struct {
 	idle_timeout:            time.Duration,
 	// Reading a request body, by the handler or by the server draining it. Default 30 s.
 	body_timeout:            time.Duration,
+	// One send waiting on a peer that doesn't read: a response's, or a stream's queued bytes. Past
+	// it the connection is cut, so a client that never reads can't hold its descriptor and a copy of
+	// its response forever (M1-02). Default 30 s.
+	send_timeout:            time.Duration,
 
 	// F-8: connections past this get a 503 and are closed. 0 derives it: the open-file soft limit
 	// minus 64 where there is one (Linux, macOS), else no limit. -1 means no limit.
@@ -92,6 +96,7 @@ Default_Server_Opts := Server_Opts {
 	header_timeout          = 10 * time.Second,
 	idle_timeout            = 75 * time.Second,
 	body_timeout            = 30 * time.Second,
+	send_timeout            = 30 * time.Second,
 	drain_deadline          = 5 * time.Second,
 	bind_retry              = 3 * time.Second,
 	// initial_temp_block_cap  = 256 * mem.Kilobyte,
@@ -291,7 +296,7 @@ _server_thread_init :: proc(s: ^Server, ttd: ^Server_Thread) {
 	td.accept = nbio.accept_poly(s.tcp_sock, s, on_accept)
 
 	// F-7: one timer per thread checks every connection's deadline once a second.
-	if s.opts.header_timeout > 0 || s.opts.idle_timeout > 0 || s.opts.body_timeout > 0 {
+	if s.opts.header_timeout > 0 || s.opts.idle_timeout > 0 || s.opts.body_timeout > 0 || s.opts.send_timeout > 0 {
 		td.sweep = nbio.timeout_poly(SWEEP_INTERVAL, s, _sweep_timeouts)
 	}
 
@@ -509,6 +514,15 @@ Connection :: struct {
 	// F-13: this request's generation (unique per thread), and its deferred response, if any.
 	gen:            u64,
 	deferred:       Deferred,
+	// M1-02: when the send in flight (a response's or a stream's) must have finished; zero: none.
+	send_deadline:  time.Time,
+}
+
+// M1-02: a send posted now must finish by this; zero when sends have no limit.
+@(private)
+_send_deadline :: proc(c: ^Connection) -> time.Time {
+	if c.server.opts.send_timeout <= 0 { return {} }
+	return time.time_add(nbio.now(), c.server.opts.send_timeout)
 }
 
 // Loop/request cycle state.
@@ -583,6 +597,7 @@ _on_accept :: proc(op: ^nbio.Operation, server: ^Server) {
 
 	// Accept next connection.
 	td.accept = nbio.accept_poly(server.tcp_sock, server, on_accept)
+	_accepted(server.tcp_sock, op.accept.client) // F-19
 
 	// F-8: past the cap, answer 503 and close, without allocating a connection.
 	if server.max_conns > 0 && sync.atomic_load(&server.conn_count) >= server.max_conns {
@@ -618,6 +633,14 @@ _sweep_timeouts :: proc(_: ^nbio.Operation, s: ^Server) {
 	if td.state != .Serving { return }
 	now := nbio.now()
 	for _, c in td.conns {
+		// M1-02: a send past its deadline. Cut as the drain cuts a connection: the pending send
+		// fails, and its own path closes the connection.
+		if c.send_deadline != {} && time.diff(c.send_deadline, now) >= 0 && c.state < .Closing {
+			log.infof("connection %i: a send waited past send_timeout, cutting it", c.socket)
+			c.send_deadline = {}
+			net.shutdown(c.socket, .Both)
+			continue
+		}
 		sc := &c.scanner
 		if sc.recv_op == nil || sc.deadline == {} || time.diff(sc.deadline, now) < 0 { continue }
 		#partial switch c.state {

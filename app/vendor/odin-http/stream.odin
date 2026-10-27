@@ -296,7 +296,9 @@ _stream_crashed_in :: proc(s: ^Stream, conn: ^Connection) {
 _stream_kick :: proc(s: ^Stream) {
 	if s.done || s.send_op != nil || len(s.queue) == 0 { return }
 	s.queue, s.flight = s.flight, s.queue // flight is empty here: swap instead of copying
+	s.conn.send_deadline = _send_deadline(s.conn)
 	s.send_op = nbio.send_poly(s.conn.socket, {s.flight[:]}, s, proc(op: ^nbio.Operation, s: ^Stream) {
+		s.conn.send_deadline = {}
 		conn := s.conn
 		if !_invoke(conn.server, proc(a, b: rawptr) { _stream_on_sent((^nbio.Operation)(a), (^Stream)(b)) }, op, s) {
 			_stream_crashed_in(s, conn)
