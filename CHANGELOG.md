@@ -251,6 +251,9 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   topics line a family named by a constant. `docs/catalog.json` lists chat, notify, accounts, nick and streams.
 
 ### Fixed
+- **The drills' `streamfd` phase runs natively on Linux** (CI's `linux-ops`): it spawned `curl` from the repo root, which
+  only worked when Windows drove WSL. Every profile's drills pass on both legs: Windows minimal 26/26, skeleton 28/28,
+  lab 28/28, streams 25/25; Linux 24/24, 26/26, 28/28, 24/24, every budget met.
 - **The hub's idle-ring sweep no longer aborts the server** (`free(): invalid pointer`, found by the 1 h soak and
   caught under gdb in `sweep_rings`). The sweep deleted from the rings map while iterating it, which can visit a ring
   it has already freed, and the map was keyed by the first message's topic string, which went with that message

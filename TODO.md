@@ -183,8 +183,8 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       (F-20), a handler's reads in one transaction (+2.1 % `pages`, Linux), the arena's mutex measured and left
       (95 ns a request), and `tools/profile` (perf samples, folded stacks, the top functions and a spall
       trace; its README), checked on the skeleton's `pages` and `write` in WSL. Slice 14 done.
-      Left over: the Linux leg of the new drills (`continuation`, `streamcrash`, `slowread`, `logstall`,
-      `latewrite`), with slice 13's.
+      The Linux leg of the new drills, with slice 13's: every profile passes (minimal 24/24, skeleton 26/26, lab
+      28/28, streams 24/24), once `streamfd`'s curl was taken from PATH on a native Linux run.
 - [ ] **Report core:nbio's `SO_UPDATE_ACCEPT_CONTEXT` bug upstream** (found in slice 14; the fork's F-19 works around
       it): `impl_windows.odin` passes no value, so Windows rejects the call and `shutdown` fails on accepted sockets.
       Ask Alex before filing anything.

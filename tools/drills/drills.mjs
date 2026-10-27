@@ -708,9 +708,10 @@ async function phaseStreamDrain(f) {
 // container's ulimits); /livez still answers within 100 ms. Linux only, as fdceiling is. The clients are
 // tools/streamload's, on the server's own side: under --wsl, WSL's localhost relay gave out near 2000
 // connections from Windows, which says nothing about the server.
+// A path in the repo (app/bin/streamload) from its root; a bare name (curl) from PATH.
 function onServerSide(cmd, args) {
   return WSL ? spawn('wsl', ['--cd', WSL, '-e', cmd, ...args], { stdio: ['ignore', 'pipe', 'pipe'] })
-    : spawn(path.join(ROOT, cmd), args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    : spawn(cmd.includes('/') ? path.join(ROOT, cmd) : cmd, args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
 async function phaseStreamFd(f) {
