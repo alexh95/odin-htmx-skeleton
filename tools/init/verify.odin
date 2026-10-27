@@ -55,7 +55,9 @@ verify_profile :: proc(name: string, want_features: []string = nil, want_members
 		step(scratch, fmt.tprintf("CMD=test ./build.sh %s", name), {"sh", "build.sh", name}, {"CMD=test"})
 		bin = fmt.tprintf("%s/app/bin/%s", scratch, name)
 	}
-	step(scratch, "tools/check profile routes topics exts", {"odin", "run", "tools/check", "--", "profile", "routes", "topics", "exts"})
+	// Every gate CI's `check all` runs before both suites: a plan that broke the layering
+	// passed here and failed the new project's first CI run (M2-20).
+	step(scratch, "tools/check imports profile routes contracts topics exts", {"odin", "run", "tools/check", "--", "imports", "profile", "routes", "contracts", "topics", "exts"})
 	out := step(scratch, fmt.tprintf("%s --features --json", name), {bin, "--features", "--json"})
 
 	Features :: struct {
