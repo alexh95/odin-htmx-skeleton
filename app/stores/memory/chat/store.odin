@@ -33,10 +33,11 @@ MAX_ROOMS :: 100 // public rooms in a memory build
 
 @(private)
 Room_State :: struct {
-	room:  m.Room,
-	ring:  mem_store.Ring(m.Message),
-	ver:   i64,
-	bytes: int,
+	room:    m.Room,
+	ring:    mem_store.Ring(m.Message),
+	ver:     i64,
+	bytes:   int,
+	dropped: i64, // the newest message let go: a cursor below it can't be served whole (M2-31)
 }
 
 @(private)
@@ -96,16 +97,16 @@ recent :: proc(room_id: i64, limit: int, out: ^[dynamic]m.Message) -> m.Error {
 	return .None
 }
 
-after :: proc(room_id: i64, after_id: i64, out: ^[dynamic]m.Message) -> m.Error {
+after :: proc(room_id: i64, after_id: i64, out: ^[dynamic]m.Message) -> (reached: bool, err: m.Error) {
 	mem_store.lock(&s.lock)
 	defer mem_store.unlock(&s.lock)
 	r := by_id(room_id)
-	if r == nil { return .Not_Found }
+	if r == nil { return false, .Not_Found }
 	for i := r.ring.n - 1; i >= 0; i -= 1 {
 		msg := mem_store.ring_newest(&r.ring, i)
 		if msg.id > after_id { append(out, copy_msg(msg^)) }
 	}
-	return .None
+	return r.dropped <= after_id, .None
 }
 
 count_after :: proc(room_id: i64, after_id: i64) -> int {
@@ -252,6 +253,7 @@ evict :: proc() {
 
 @(private)
 forget :: proc(r: ^Room_State, msg: m.Message) {
+	r.dropped = max(r.dropped, msg.id)
 	r.bytes -= cost(msg)
 	s.bytes -= cost(msg)
 	delete(msg.name)

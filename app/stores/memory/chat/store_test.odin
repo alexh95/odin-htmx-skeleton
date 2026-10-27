@@ -113,4 +113,16 @@ a_room_keeps_its_newest :: proc(t: ^testing.T) {
 	_ = recent(lobby.id, 1000, &msgs)
 	testing.expect(t, len(msgs) < KEEP)
 	testing.expect(t, s.bytes <= 4 * 1024)
+
+	// After the eviction a cursor from before what went can't be served whole; one at the
+	// newest can (M2-31).
+	newest_now: i64
+	for kept in msgs { newest_now = max(newest_now, kept.id) }
+	clear(&msgs)
+	reached: bool
+	reached, err = after(lobby.id, 0, &msgs)
+	testing.expect(t, err == .None && !reached && len(msgs) > 0)
+	clear(&msgs)
+	reached, err = after(lobby.id, newest_now, &msgs)
+	testing.expect(t, err == .None && reached && len(msgs) == 0)
 }

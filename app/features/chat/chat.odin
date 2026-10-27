@@ -147,7 +147,7 @@ room_by_id :: proc(id: i64) -> (m.Room, m.Error) {
 recent :: proc(room: i64, out: ^[dynamic]m.Message) -> m.Error { return chat_store.recent(room, SNAPSHOT, out) }
 
 // What came after `id`, oldest first: a multipart reconnect's HX-Last-Part-ID.
-after :: proc(room, id: i64, out: ^[dynamic]m.Message) -> m.Error { return chat_store.after(room, id, out) }
+after :: proc(room, id: i64, out: ^[dynamic]m.Message) -> (reached: bool, err: m.Error) { return chat_store.after(room, id, out) }
 
 // What changed (posted, edited, deleted) since the room's version `since`, and the
 // version now: the poll transport's tag.

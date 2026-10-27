@@ -57,7 +57,8 @@ Store_Rooms :: proc(out: ^[dynamic]Room) -> Error
 Store_Room :: proc(slug: string) -> (Room, Error)
 Store_Create_Room :: proc(slug, name: string) -> (Room, Error) // .Constraint: the slug is taken, or the rooms are full
 Store_Recent :: proc(room: i64, limit: int, out: ^[dynamic]Message) -> Error // oldest first
-Store_After :: proc(room: i64, after: i64, out: ^[dynamic]Message) -> Error // id > after, oldest first
+// id > after, oldest first; reached: nothing after `after` was let go, so `out` has no gap
+Store_After :: proc(room: i64, after: i64, out: ^[dynamic]Message) -> (reached: bool, err: Error)
 Store_Count_After :: proc(room: i64, after: i64) -> int // how many kept messages have id > after
 Store_Changed :: proc(room: i64, since: i64, out: ^[dynamic]Message) -> (ver: i64, err: Error) // ver > since; the room's version
 Store_Message :: proc(id: i64) -> (Message, Error)

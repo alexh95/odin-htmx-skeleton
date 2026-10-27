@@ -485,7 +485,11 @@ replay_room :: proc(key: string, after: i64, out: ^[dynamic]hub.Replay_Item) -> 
 	r, err := chat.room_by_id(room)
 	if err != .None { return false }
 	msgs := make([dynamic]m.Message, 0, 32, context.temp_allocator)
-	if chat.after(room, after, &msgs) != .None || len(msgs) > 200 { return false }
+	// Not reached: the room let go of messages after the page's newest, and a replay would
+	// skip them unseen; false resyncs, which refetches the log (M2-31).
+	reached: bool
+	reached, err = chat.after(room, after, &msgs)
+	if err != .None || !reached || len(msgs) > 200 { return false }
 	for msg in msgs { append(out, hub.Replay_Item{msg.id, chat_views.one(room, r.slug, msg)}) }
 	return true
 }

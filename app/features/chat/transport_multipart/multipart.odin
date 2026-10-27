@@ -42,9 +42,12 @@ parts :: proc(req: ^web.Request, res: ^web.Response) {
 	// Subscribed first, as the socket is: a message between the two comes twice, never not.
 	c.user = hub.subscribe(c, {chat.room_topic(r.id)})
 	msgs := make([dynamic]m.Message, 0, chat.SNAPSHOT, context.temp_allocator)
-	err = chat.after(r.id, i64(last), &msgs) if resumed else chat.recent(r.id, &msgs)
+	reached := true
+	if resumed { reached, err = chat.after(r.id, i64(last), &msgs) } else { err = chat.recent(r.id, &msgs) }
 	if err != .None || len(msgs) == 0 { return }
-	html, newest := chat_views.snapshot(r.id, r.slug, msgs[:], stream.backlog_budget())
+	// A resume the room can't serve whole replaces the log: upserted, it looked continuous
+	// across what the room had let go in between (M2-31).
+	html, newest := chat_views.snapshot(r.id, r.slug, msgs[:], stream.backlog_budget(), whole = !reached)
 	buf: [24]byte
 	stream.multipart_part(c, html, {{"HX-Part-ID", strconv.write_int(buf[:], newest, 10)}})
 }
