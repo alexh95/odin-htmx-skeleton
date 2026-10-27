@@ -21,6 +21,7 @@ PAGE_BUNDLES :: scripting_web.BUNDLES + compat_web.BUNDLES
 main :: proc() {
 	app.boot("lab")
 	about_web.init(ABOUT)
+	lab_web.init()
 	hub.init()
 	hub.mount("main", ..TOPICS[:])
 	app.check(HOSTS[:], JOBS[:], BUNDLE_EXTS, PAGE_BUNDLES)

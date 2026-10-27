@@ -35,7 +35,7 @@ met, the per-stream RSS row once the fork's F-17 was in (16.2 KiB an idle stream
 - **Box:** the dev PC, Ubuntu on WSL2 (kernel 6.18), the server and streamload in WSL's own filesystem (`~/m2`, a copy
   of the working tree). Other sessions' Docker stacks were running in WSL (`top`'s wait column read 86–92 %, its idle
   6–13 %), so these are upper bounds on latency.
-- **Server:** `THREADS=4 LOG_LEVEL=warn STREAM_CONNECTS=1000000 STREAMS_PER_CLIENT=100000 ./app/bin/lab` (one client
+- **Server:** `THREADS=4 LOG_LEVEL=warn STREAM_CONNECTS=1000000 STREAMS_PER_CLIENT=100000 LAB_PUBLISH_PER_MINUTE=100000000 ./app/bin/lab` (one client
   opens thousands of streams; the totals keep their defaults), `ulimit -n 65536`.
 - **Client:** `odin build tools/streamload -o:speed`; 4 threads, each an event loop holding its share of the clients.
   The publisher stamps each message with its own monotonic clock (`t=<ns>`), which every client reads back, so a

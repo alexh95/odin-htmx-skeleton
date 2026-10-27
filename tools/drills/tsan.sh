@@ -32,7 +32,7 @@ count() { # log, what
 
 # A server, ready; streams' per-client caps lifted, as the suites do.
 serve() { # bin, log
-  STREAMS_PER_CLIENT=100000 STREAM_CONNECTS=100000 PORT="$PORT" THREADS=4 LOG_LEVEL=warn "$1" "$PORT" >"$2" 2>&1 &
+  STREAMS_PER_CLIENT=100000 STREAM_CONNECTS=100000 LAB_PUBLISH_PER_MINUTE=100000000 PORT="$PORT" THREADS=4 LOG_LEVEL=warn "$1" "$PORT" >"$2" 2>&1 &
   SRV=$!
   i=0
   until curl -fs "http://127.0.0.1:$PORT/readyz" >/dev/null 2>&1; do

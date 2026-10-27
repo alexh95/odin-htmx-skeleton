@@ -12,12 +12,14 @@ import "core:strings"
 import "../../../platform/html"
 
 // The layout stream for `topic`, resuming after `after` (the hub's cursor at
-// render time). The URL goes through esc, so `&` is written `&amp;`.
+// render time, or the request's). The URL goes through esc, so `&` is written
+// `&amp;`; `after` is a component, url_encoded, or a request's could add a `t`
+// (M2-16).
 live :: proc(b: ^strings.Builder, topic, after: string) {
 	html.w(b, `<div id="live" hx-sse:connect="/events?t=`)
 	html.esc(b, topic)
 	html.w(b, `&amp;after=`)
-	html.esc(b, after)
+	html.w(b, html.url_encode(after))
 	html.w(b, `"></div>`)
 }
 

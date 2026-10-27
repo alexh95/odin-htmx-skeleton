@@ -58,7 +58,7 @@ export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {
     cwd: appDir,
     env: {
       ...process.env, PORT: String(port), DB_PATH: ':memory:', BIND_ALL: '', SITE_URL: '',
-      STREAM_CONNECTS: '1000000', STREAMS_PER_CLIENT: '4096',
+      STREAM_CONNECTS: '1000000', STREAMS_PER_CLIENT: '4096', LAB_PUBLISH_PER_MINUTE: '100000000',
       LAN_CIDRS: '127.0.0.0/8', ACCOUNTS_NICK_KEY: 'e2e-only-nickname-signing-key-0123456789',
       BOT_SEED: '7', BOT_DELAY_MS: '25',
       METRICS_TOKEN_FILE: path.join(coverage, '.token'), ...env,

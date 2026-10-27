@@ -28,7 +28,7 @@ odin build tools/streamload -o:speed -out:app/bin/streamload >/dev/null
 ulimit -n 8192
 
 serve() { # log
-  STREAMS_PER_CLIENT=100000 STREAM_CONNECTS=100000 STREAMS_PER_USER=100000 PORT="$PORT" THREADS=4 LOG_LEVEL=warn "$BIN" "$PORT" >>"$1" 2>&1 &
+  STREAMS_PER_CLIENT=100000 STREAM_CONNECTS=100000 STREAMS_PER_USER=100000 LAB_PUBLISH_PER_MINUTE=100000000 PORT="$PORT" THREADS=4 LOG_LEVEL=warn "$BIN" "$PORT" >>"$1" 2>&1 &
   SRV=$!
   i=0
   until curl -fs "http://127.0.0.1:$PORT/readyz" >/dev/null 2>&1; do

@@ -589,7 +589,7 @@ async function phaseLogStall() {
 // ---- streams (a profile that streams: lab's endpoints) --------------------------------------
 
 // Admission caps a person never meets and this one client would: hundreds of streams a second.
-const STREAMS_ENV = { STREAMS_PER_CLIENT: '100000', STREAM_CONNECTS: '100000', STREAMS_PER_USER: '100000' };
+const STREAMS_ENV = { STREAMS_PER_CLIENT: '100000', STREAM_CONNECTS: '100000', STREAMS_PER_USER: '100000', LAB_PUBLISH_PER_MINUTE: '100000000' };
 
 // An SSE client on a raw socket (spike S0.7's): whether the drain's retry: event came.
 function sseClient(port, path) {
@@ -615,7 +615,12 @@ function wsClient(port, path) {
     const c = { code: 0, opened: false, sock: null, send: (text) => {
       const p = Buffer.from(text), mask = Buffer.from([1, 2, 3, 4]);
       const masked = Buffer.from(p.map((b, i) => b ^ mask[i % 4]));
-      c.sock.write(Buffer.concat([Buffer.from([0x81, 0x80 | p.length]), mask, masked]));
+      let head = Buffer.from([0x81, 0x80 | p.length]);
+      if (p.length > 125) { // the 16-bit length (a frame here stays under WS_MAX_MESSAGE)
+        head = Buffer.from([0x81, 0x80 | 126, 0, 0]);
+        head.writeUInt16BE(p.length, 2);
+      }
+      c.sock.write(Buffer.concat([head, mask, masked]));
     } };
     const key = Buffer.from(Array.from({ length: 16 }, () => Math.floor(Math.random() * 256))).toString('base64');
     const sock = net.connect(port, '127.0.0.1', () => sock.write(
@@ -663,6 +668,19 @@ async function phaseWsData(f) {
   record('wsdata: a crash in a socket\'s on_data closes it 1011; the server and the other socket stay up',
     c.opened && c.code === 1011 && by.code === 0 && alive && line, `code=${c.code} bystander=${by.code} alive=${alive} line=${line}`);
   by.sock.destroy();
+
+  // M2-01: JSON nested past what core:encoding/json's recursion survives (a loop's stack is 1 MiB on Windows),
+  // to the public room. Refused unparsed (stream.ws_json): before, each frame was a stack overflow, and more than
+  // GUARD_BURST of them a minute exited the process. 15 frames: one overflowed, and the room caps 20 a second.
+  const room = await wsClient(s.port, '/lab/ws/chat?room=deep');
+  const deep = '{"message":"x","headers":' + '['.repeat(60000);
+  for (let i = 0; i < 15; i++) room.send(deep);
+  await sleep(500);
+  const up = (await get(s.port, '/livez')).status === 200 && s.exited === null;
+  const overflow = /kind=stack_overflow/.test(s.out);
+  record('wsdata: 15 frames of JSON nested 60,000 deep are refused unparsed; the socket stays open, the server up',
+    room.opened && room.code === 0 && up && !overflow, `code=${room.code} alive=${up} overflow=${overflow}`);
+  room.sock.destroy();
   await stop(s);
 }
 

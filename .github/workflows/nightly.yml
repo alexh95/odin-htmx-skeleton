@@ -132,7 +132,7 @@ jobs:
         run: sh app/prepare.sh && sh build.sh lab -o:speed
       - name: Serve lab
         run: |
-          STREAMS_PER_CLIENT=100000 STREAM_CONNECTS=100000 LOG_LEVEL=warn app/bin/lab 9001 > /tmp/lab.log 2>&1 &
+          STREAMS_PER_CLIENT=100000 STREAM_CONNECTS=100000 LAB_PUBLISH_PER_MINUTE=100000000 LOG_LEVEL=warn app/bin/lab 9001 > /tmp/lab.log 2>&1 &
           for i in $(seq 1 100); do curl -fs http://127.0.0.1:9001/readyz >/dev/null && break; sleep 0.1; done
       - name: The fuzzing client
         run: |

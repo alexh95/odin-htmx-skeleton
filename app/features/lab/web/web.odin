@@ -12,12 +12,12 @@ package lab_web
 // escaped into a fixed fragment, and a topic key is short and plain.
 
 import "base:runtime"
-import "core:encoding/json"
 import "core:nbio"
 import "core:strconv"
 import "core:strings"
 import "core:time"
 
+import "../../../platform/env"
 import "../../../platform/guard"
 import "../../../platform/html"
 import "../../../platform/hub"
@@ -45,6 +45,18 @@ ROUTES := [?]web.Route {
 	{.Get, "/lab/ws/chat", ws_chat, .Public, {.Stream, .Fragment}, 0},
 	{.Get, "/lab/multipart", multipart_parts, .Public, {.Stream, .Fragment}, 0},
 	{.Get, "/lab/mp/count", multipart_count, .Public, {.Stream, .Fragment}, 0},
+}
+
+ENV := [?]env.Row {
+	{name = "LAB_PUBLISH_PER_MINUTE", kind = .Int, def = "1200", doc = "publishes and closes one client may send the lab a minute; the test harnesses lift it"},
+}
+
+// The lab is public, and every publish lands in a ring: a client's rate is capped (M2-07).
+@(private) publishes := web.Limit{window = time.Minute}
+
+init :: proc() {
+	env.record("LAB_", ENV[:])
+	publishes.n = max(1, env.int_("LAB_PUBLISH_PER_MINUTE"))
 }
 
 // lab.bus: the producer job's beats. lab.feed:<key> and lab.room:<key>: a page's
@@ -123,6 +135,10 @@ frag_feed :: proc(req: ^web.Request, res: ^web.Response) {
 // subscribers, escaped into its fragment; ?t=lab.room:<key> with `text`: a room
 // message. Up to 60,000 bytes of text, so a spec can fill a slow consumer's queue.
 publish :: proc(req: ^web.Request, res: ^web.Response) {
+	if ok, retry := web.limit_hit(&publishes, web.client_key(web.ctx().client)); !ok {
+		web.respond_limited(res, retry, "")
+		return
+	}
 	t := web.query_get(req, "t")
 	family, key := split(t)
 	f := web.form(req)
@@ -150,6 +166,10 @@ publish :: proc(req: ^web.Request, res: ^web.Response) {
 // POST /lab/close?t=lab.<family>:<key>&code=<code>: ends that topic's streams,
 // as a kick does: SSE gets `kicked` and reconnects, a socket closes with the code.
 close_topic :: proc(req: ^web.Request, res: ^web.Response) {
+	if ok, retry := web.limit_hit(&publishes, web.client_key(web.ctx().client)); !ok {
+		web.respond_limited(res, retry, "")
+		return
+	}
 	t := web.query_get(req, "t")
 	family, key := split(t)
 	code := web.query_int(req, "code", 1000)
@@ -233,7 +253,7 @@ ws_chat :: proc(req: ^web.Request, res: ^web.Response) {
 	c, err := stream.ws_upgrade(req, res, proc(c: ^stream.Conn, text: bool, data: []byte) {
 		In :: struct { message: string }
 		m: In
-		if !text || json.unmarshal(data, &m, allocator = context.temp_allocator) != nil || m.message == "" { return }
+		if !text || !stream.ws_json(data, &m) || m.message == "" { return }
 		hub.publish((^Room)(c.user).topic, lab_views.room_message(m.message))
 	}, proc(c: ^stream.Conn) {
 		r := (^Room)(c.user)
@@ -321,7 +341,7 @@ Counter :: struct {
 multipart_count :: proc(req: ^web.Request, res: ^web.Response) {
 	last := 0
 	if lpi, ok := web.header(req, "hx-last-part-id"); ok {
-		if n, nok := web.parse_digits(lpi); nok { last = n }
+		if n, nok := web.parse_digits(lpi); nok { last = min(n, 1000) } // max's clamp: `last + n` can't wrap (M2-19)
 	}
 	if tag := key_or(req, "tag", ""); tag != "" { note_connect(tag) }
 	max_n := clamp(web.query_int(req, "max", 6), 1, 1000)
