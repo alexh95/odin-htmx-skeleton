@@ -19,6 +19,12 @@ package http
 // only to notice the peer leaving), the scanner's buffer goes back at stream_begin, and the
 // connection's arena once the handler returns. An idle SSE stream held about 16 KiB before
 // (4,000 held: 68 MB over 5 MB idle, Linux), against the starter's 6 KiB budget.
+//
+// F-18: what a chunked stream's peer sends is its next request (a keep-alive client sends it the
+// moment the last chunk lands, or pipelines it), so those bytes are kept and handed to the
+// scanner when the stream ends, never dropped. And a read still in flight at that end is waited
+// for, not removed: nbio.remove would drop any bytes it had already taken, and the scanner would
+// then parse the next request from its middle (a 501) or wait for one already gone.
 
 import "core:bytes"
 import "core:mem"
@@ -80,6 +86,7 @@ Stream :: struct {
 	close_after: bool, // the request asked for it, its body was never read, or the peer is HTTP/1.0
 	shutting:    bool,
 	done:        bool,
+	parked:      bool, // F-18: ended, keeping its connection alive, waiting for the read in flight
 	recv_buf:    []byte, // F-17: sized by kind
 }
 
@@ -219,6 +226,10 @@ stream_loop :: proc(s: ^Stream) -> ^nbio.Event_Loop { return s.loop }
 // Called by the server's shutdown loop on every tick until the stream is gone.
 @(private)
 stream_shutdown :: proc(s: ^Stream) {
+	if s != nil && s.parked {
+		_stream_unpark(s, nil)
+		return
+	}
 	if s == nil || s.done || s.shutting { return }
 	s.shutting = true
 	if s.on_shutdown != nil { s.on_shutdown(s) }
@@ -238,6 +249,10 @@ stream_shutdown :: proc(s: ^Stream) {
 // shutdown grace runs out).
 @(private)
 stream_crashed :: proc(s: ^Stream) {
+	if s.parked {
+		_stream_unpark(s, nil)
+		return
+	}
 	if s.done { return }
 	clear(&s.inbound)
 	if s.on_crash != nil && !s.ending {
@@ -260,7 +275,19 @@ stream_crashed :: proc(s: ^Stream) {
 // Runs a stream callback through the server's invoke (F-5).
 @(private)
 _stream_invoke :: proc(s: ^Stream, fn: proc(s: ^Stream)) {
-	if !_invoke(s.conn.server, proc(a, b: rawptr) { (proc(s: ^Stream))(a)((^Stream)(b)) }, rawptr(fn), s) {
+	conn := s.conn
+	if !_invoke(conn.server, proc(a, b: rawptr) { (proc(s: ^Stream))(a)((^Stream)(b)) }, rawptr(fn), s) {
+		_stream_crashed_in(s, conn)
+	}
+}
+
+// A callback of `s` crashed. Once the stream has handed its connection back (F-18), what ran there
+// was the next request, so it is that connection's crash (a 500 and a close), not the stream's.
+@(private)
+_stream_crashed_in :: proc(s: ^Stream, conn: ^Connection) {
+	if s.done && conn.stream != s {
+		connection_crashed(conn)
+	} else {
 		stream_crashed(s)
 	}
 }
@@ -270,8 +297,9 @@ _stream_kick :: proc(s: ^Stream) {
 	if s.done || s.send_op != nil || len(s.queue) == 0 { return }
 	s.queue, s.flight = s.flight, s.queue // flight is empty here: swap instead of copying
 	s.send_op = nbio.send_poly(s.conn.socket, {s.flight[:]}, s, proc(op: ^nbio.Operation, s: ^Stream) {
-		if !_invoke(s.conn.server, proc(a, b: rawptr) { _stream_on_sent((^nbio.Operation)(a), (^Stream)(b)) }, op, s) {
-			stream_crashed(s)
+		conn := s.conn
+		if !_invoke(conn.server, proc(a, b: rawptr) { _stream_on_sent((^nbio.Operation)(a), (^Stream)(b)) }, op, s) {
+			_stream_crashed_in(s, conn)
 		}
 	})
 }
@@ -296,27 +324,37 @@ _stream_recv :: proc(s: ^Stream) {
 	if s.done || s.recv_op != nil { return }
 	s.recv_op = nbio.recv_poly(s.conn.socket, {s.recv_buf[:]}, s, proc(op: ^nbio.Operation, s: ^Stream) {
 		s.recv_op = nil
-		if !_invoke(s.conn.server, proc(a, b: rawptr) { _stream_on_recv((^nbio.Operation)(a), (^Stream)(b)) }, op, s) {
-			stream_crashed(s)
+		conn := s.conn
+		if !_invoke(conn.server, proc(a, b: rawptr) { _stream_on_recv((^nbio.Operation)(a), (^Stream)(b)) }, op, s) {
+			_stream_crashed_in(s, conn)
 		}
 	})
 }
 
-// A chunked stream reads only to notice the peer leaving; a raw one feeds on_data.
+// A raw stream feeds on_data. A chunked one reads to notice the peer leaving; whatever it reads is
+// the connection's next request (F-18), kept for the scanner, and it reads no further: the peer is
+// evidently there, and a read left in flight would park the stream's end on bytes already in
+// hand. A parked stream hands its read over.
 @(private)
 _stream_on_recv :: proc(op: ^nbio.Operation, s: ^Stream) {
-	if op.recv.err != nil || op.recv.received == 0 {
+	failed := op.recv.err != nil || op.recv.received == 0
+	if s.parked {
+		_stream_unpark(s, nil if failed else s.recv_buf[:op.recv.received])
+		return
+	}
+	if failed {
 		_stream_finish(s, .Peer_Closed)
 		return
 	}
-	if s.kind == .Raw && s.on_data != nil {
-		append(&s.inbound, ..s.recv_buf[:op.recv.received])
+	append(&s.inbound, ..s.recv_buf[:op.recv.received])
+	if s.kind == .Chunked { return }
+	if s.on_data != nil {
 		_stream_feed(s)
 		if s.done { return }
-		if len(s.inbound) > STREAM_MAX_INBOUND {
-			_stream_finish(s, .Too_Slow)
-			return
-		}
+	}
+	if len(s.inbound) > STREAM_MAX_INBOUND {
+		_stream_finish(s, .Too_Slow)
+		return
 	}
 	_stream_recv(s)
 }
@@ -338,20 +376,71 @@ _stream_feed :: proc(s: ^Stream) {
 _stream_finish :: proc(s: ^Stream, why: Stream_End) {
 	if s.done { return }
 	s.done = true
+	keep := why == .Ended && s.framed && !s.close_after && !s.shutting
+	park := keep && s.recv_op != nil // F-18: the read in flight may hold the next request's bytes
 	for op in ([3]^^nbio.Operation{&s.recv_op, &s.send_op, &s.aux_op}) {
-		if op^ != nil { nbio.remove(op^); op^ = nil }
+		if op^ != nil && !(park && op == &s.recv_op) { nbio.remove(op^); op^ = nil }
 	}
 	if s.on_close != nil { s.on_close(s, why) }
 
+	if park {
+		s.parked = true
+		// Waiting for the next request is the idle phase, bounded as one is (F-7).
+		if idle := s.conn.server.opts.idle_timeout; idle > 0 {
+			s.aux_op = nbio.timeout_poly(idle, s, proc(_: ^nbio.Operation, s: ^Stream) {
+				s.aux_op = nil
+				_stream_unpark(s, nil)
+			})
+		}
+		return
+	}
+	if keep {
+		_stream_hand_over(s, nil)
+	} else {
+		s.conn.stream = nil
+		connection_close(s.conn)
+	}
+	_stream_free_later(s)
+}
+
+// F-18: a parked stream's read came back with `data` (the next request's first bytes), or its
+// wait is over (nil: the read failed, the idle timeout, shutdown, a crash). The connection then
+// serves that request, or closes; a close removes the read first, as the socket is going.
+@(private)
+_stream_unpark :: proc(s: ^Stream, data: []byte) {
+	for op in ([2]^^nbio.Operation{&s.recv_op, &s.aux_op}) {
+		if op^ != nil { nbio.remove(op^); op^ = nil }
+	}
+	s.parked = false
+	if data != nil {
+		_stream_hand_over(s, data)
+	} else {
+		s.conn.stream = nil
+		connection_close(s.conn)
+	}
+	_stream_free_later(s)
+}
+
+// F-18: the connection goes back to serving requests, starting from what the peer already sent:
+// the bytes the stream kept, then `data`, after anything the scanner still held.
+@(private)
+_stream_hand_over :: proc(s: ^Stream, data: []byte) {
 	conn := s.conn
 	conn.stream = nil
-	if why == .Ended && s.framed && !s.close_after && !s.shutting {
-		connection_set_state(conn, .Active)
-		clean_request_loop(conn)
-	} else {
-		connection_close(conn)
+	sc := &conn.scanner
+	n := len(s.inbound) + len(data)
+	if n > 0 {
+		if len(sc.buf) < sc.end + n { resize(&sc.buf, sc.end + n) }
+		copy(sc.buf[sc.end:], s.inbound[:])
+		copy(sc.buf[sc.end + len(s.inbound):], data)
+		sc.end += n
 	}
+	connection_set_state(conn, .Active)
+	clean_request_loop(conn)
+}
 
+@(private)
+_stream_free_later :: proc(s: ^Stream) {
 	nbio.next_tick_poly(s, proc(_: ^nbio.Operation, s: ^Stream) {
 		delete(s.queue)
 		delete(s.flight)

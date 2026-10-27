@@ -101,6 +101,13 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
 - **The unit tests build on `minimal`'s four families** (`.github/scripts/unit-tests.sh`): `platform/stream` reaches
   the family collections through `platform/web`.
 
+### Fixed
+- **A request that follows a stream on its keep-alive connection is read whole** (the fork's F-18). The stream's read,
+  kept to notice the peer leaving, could take the start of the next request, which a client sends the moment the last
+  chunk lands, and drop it: the server read that request from its middle (a 501) or waited for one already gone.
+  About 1 in 300 rounds on a raw socket and 0.01-0.1 % of the requests after a stream under k6; 0 in 12,600 rounds
+  since. `protocol.spec` keeps the check.
+
 ## [2.0.0] - 2026-10-26
 
 The repo becomes **odin-htmx-starter** (the plan: `docs/PLAN.md`; its M0 spikes: `docs/spikes/`), and this is

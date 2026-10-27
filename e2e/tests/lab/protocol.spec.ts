@@ -34,6 +34,37 @@ test.describe('SSE', T, () => {
     expect(r.reused).toBe(true);
   });
 
+  // F-18: a keep-alive client sends its next request the moment the last chunk lands, while
+  // the stream's read (kept to notice the peer leaving) may still be in flight. Those bytes
+  // are the next request's: lost, the server reads it from the middle (a 501, or a hang).
+  test('keep-alive: a request sent the moment a stream ends is read whole, every time', async ({ server }) => {
+    const s = net.connect(server.port, HOST);
+    s.setNoDelay(true);
+    let buf = '';
+    let wake: (() => void) | null = null;
+    s.on('data', (d) => { buf += d.toString('latin1'); wake?.(); });
+    await new Promise<void>((r) => s.once('connect', () => r()));
+    const until = async (what: string, done: () => boolean) => {
+      const end = Date.now() + 5000;
+      while (!done()) {
+        if (Date.now() > end) throw new Error(`${what}: timed out; got ${JSON.stringify(buf.slice(0, 200))}`);
+        await new Promise<void>((r) => { wake = r; setTimeout(r, 50); });
+      }
+    };
+    const statuses: string[] = [];
+    for (let i = 0; i < 300; i++) {
+      buf = '';
+      s.write(`GET /lab/sse/tick?n=1&ms=0 HTTP/1.1\r\nHost: ${HOST}\r\n\r\n`);
+      await until(`round ${i}: the stream`, () => buf.endsWith('\r\n0\r\n\r\n'));
+      buf = '';
+      s.write(`GET /healthz HTTP/1.1\r\nHost: ${HOST}\r\n\r\n`); // at once, on the same socket
+      await until(`round ${i}: the request after it`, () => /\r\n\r\n/.test(buf) && (buf.endsWith('ok') || !buf.startsWith('HTTP/1.1 200')));
+      statuses.push(buf.slice(0, 12));
+    }
+    s.destroy();
+    expect(statuses.filter((x) => x !== 'HTTP/1.1 200')).toEqual([]);
+  });
+
   test('03#04 the bus: beats from the producer job (no event loop) arrive', async ({ server }) => {
     const evs = await sse(server.port, '/events?t=lab.bus', { count: 3, ms: 4000 });
     expect(evs).toHaveLength(3);
