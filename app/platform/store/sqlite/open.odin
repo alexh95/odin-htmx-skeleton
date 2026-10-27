@@ -91,6 +91,7 @@ open_db :: proc(path: string, m: Mode, profile: string, legacy := "", adopt_prof
 		db.resets = obs.register_counter("app_store_reader_resets_total", "", "Reader statements reset after a pure crash (D15 rule 3).")
 		writer_register()
 		guard.register_drill("sqlite", drill_sqlite)
+		guard.register_drill("latewrite", drill_late_write)
 	}
 	db.db_path = path
 	db.mode = m

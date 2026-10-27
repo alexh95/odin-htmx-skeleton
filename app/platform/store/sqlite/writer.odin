@@ -24,6 +24,7 @@ import "../../guard"
 import "../../obs"
 import "../../sqlite"
 import "../../sys"
+import "../../workers"
 
 MAX_BATCH :: 100
 MAX_QUEUED :: 4096
@@ -44,14 +45,16 @@ wq: struct {
 }
 
 // Queues `op` (its `run` set by the feature's store, its `done` by the caller).
-// false: the queue is full or the store is closing; `done` will not run.
+// false: the queue is full, or the process is draining (as the pools refuse
+// then: no new write starts that the loops might leave before it answers,
+// M1-05); `done` will not run.
 write :: proc(op: ^store.Op) -> bool {
 	op.loop = nbio.current_thread_event_loop()
 	op.err = .None
 	op.next = nil
 	sync.mutex_lock(&wq.mu)
 	defer sync.mutex_unlock(&wq.mu)
-	if wq.stopping || wq.n >= MAX_QUEUED {
+	if wq.stopping || obs.is_draining() || wq.n >= MAX_QUEUED {
 		obs.inc(wq.refused)
 		return false
 	}
@@ -208,7 +211,7 @@ post_replies :: proc(head: ^store.Op) {
 		if i == n {
 			if n == MAX { // more loops than slots: this one goes alone
 				op.next = nil
-				nbio.next_tick_poly(op, on_replies, l = (^nbio.Event_Loop)(op.loop))
+				post_chain(op)
 				op = next
 				continue
 			}
@@ -220,7 +223,19 @@ post_replies :: proc(head: ^store.Op) {
 		op = next
 	}
 	for i in 0 ..< n {
-		nbio.next_tick_poly(chains[i], on_replies, l = (^nbio.Event_Loop)(loops[i]))
+		post_chain(chains[i])
+	}
+}
+
+// One loop's replies. A loop that has left gets none (M1-05): its ops are freed
+// here, their continuations never run.
+@(private)
+post_chain :: proc(head: ^store.Op) {
+	if workers.post((^nbio.Event_Loop)(head.loop), head, on_replies) { return }
+	for op := head; op != nil; {
+		next := op.next
+		store.free_op(op)
+		op = next
 	}
 }
 
@@ -234,6 +249,17 @@ on_replies :: proc(_: ^nbio.Operation, head: ^store.Op) {
 		guard.call(proc(data: rawptr) { op := (^store.Op)(data); op.done(op) }, op)
 		op = next
 	}
+}
+
+// TEST_ROUTES: a write that holds the writer 2 s, so a shutdown begun right after
+// it lets the loops leave before its reply comes back (M1-05's drill). The reply
+// does nothing but free the op.
+@(private)
+drill_late_write :: proc() {
+	op := store.new_op(store.Op, 0)
+	op.run = proc(_: ^store.Op) { time.sleep(2 * time.Second) }
+	op.done = proc(op: ^store.Op) { store.free_op(op) }
+	if !write(op) { store.free_op(op) }
 }
 
 // SELECT 1 on the writer within 100 ms of trying its lock: the store's health.

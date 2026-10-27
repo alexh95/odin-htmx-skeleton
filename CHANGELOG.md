@@ -137,6 +137,12 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   chunk lands, and drop it: the server read that request from its middle (a 501) or waited for one already gone.
   About 1 in 300 rounds on a raw socket and 0.01-0.1 % of the requests after a stream under k6; 0 in 12,600 rounds
   since. `protocol.spec` keeps the check.
+- **A shutdown no longer posts replies into loops that have left, and is bounded to the end** (M1-05): a write still
+  on the writer when the loops released their event loops posted its reply into a zeroed loop (a SIGSEGV on Linux, a
+  spin for good on Windows), and nothing bounded the store's close. The writer refuses writes once the drain starts
+  (503), a loop marks itself leaving before it releases (the fork's `on_thread_release`), every cross-thread post goes
+  through `workers.post`, which skips such a loop, and `app.shutdown` arms an exit at `DRAIN_DEADLINE_MS` + 1.5 s (70).
+  The drills' `latewrite` phase checks both.
 - **A SQLite reader that can't open fails its read, not the process** (M1-07): out of descriptors at the connection
   cap, a loop's first read called the store's boot-time `fatal` and exited 1. Each loop now opens its reader as it
   starts, so a shortage fails at boot, and a reader that can't open later answers its read with `.Failed` (500).

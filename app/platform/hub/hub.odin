@@ -39,6 +39,7 @@ import "../obs"
 import "../stream"
 import "../sys"
 import "../web"
+import "../workers"
 
 MAX_MESSAGE :: 64 * 1024 // §9.4: publish refuses a larger one
 MAX_TOPICS  :: 8         // per subscription
@@ -274,7 +275,8 @@ post :: proc(m: ^Msg, ring_cap: int) -> u64 {
 		wake := !b.armed
 		b.armed = true
 		sync.unlock(&b.mu)
-		if wake { nbio.next_tick_poly(b, drain, l = b.loop) }
+		// A loop that has left takes no wakeup (M1-05); its inbox goes with the exiting process.
+		if wake { _ = workers.post(b.loop, b, drain) }
 	}
 	return seq
 }

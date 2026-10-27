@@ -26,6 +26,7 @@ import "core:os"
 import "core:strconv"
 import "core:strings"
 import "core:sync"
+import "core:thread"
 import "core:time"
 
 import "../env"
@@ -222,6 +223,7 @@ serve :: proc(hosts: []Host, jobs: [][]workers.Job, brand: ^html.Brand, headers 
 		front           = front,
 		on_loop_start   = loop_start,
 		on_loop_stop    = loop_stop,
+		on_loop_release = loop_release,
 	})
 	if err != nil { fatal("listen on %s:%d failed: %v", host, st.port, err) }
 	workers.schedule(jobs)
@@ -251,10 +253,25 @@ wait :: proc() {
 // every loop has finished.
 shutdown :: proc() {
 	obs.set_draining()
+	// The watchdog stops here, so this bounds the rest (M1-05): the drain, then the
+	// profile's closes (a store's writer can wait out SQLITE_BUSY) within 1.5 s more.
+	thread.create_and_start_with_poly_data(time.Duration(env.int_("DRAIN_DEADLINE_MS")) * time.Millisecond + SHUTDOWN_GRACE, proc(after: time.Duration) {
+		time.sleep(after)
+		obs.bound_writes()
+		if l, ok := obs.begin(.Fatal, "app", "exit"); ok {
+			obs.str(&l, "why", "the shutdown didn't finish")
+			obs.end(&l)
+		}
+		obs.flush()
+		os.exit(guard.EXIT_DIRTY)
+	})
 	workers.unschedule()
 	guard.watchdog_stop()
 	web.stop()
 }
+
+// What the shutdown gets past DRAIN_DEADLINE_MS, for the profile's closes.
+SHUTDOWN_GRACE :: 1500 * time.Millisecond
 
 // §8.7 steps 7-8: logs flushed, then exit 0, or 70 after a dirty crash.
 exit :: proc() -> ! {
@@ -275,6 +292,12 @@ loop_start :: proc(loop: int) {
 	obs.thread_init(loop)
 	arm_tick()
 	store.loop_started() // the SQLite store opens this loop's reader (M1-07)
+	workers.joined()     // other threads post to this loop only while it hasn't left (M1-05)
+}
+
+@(private)
+loop_release :: proc(loop: int) {
+	workers.leaving()
 }
 
 @(private)

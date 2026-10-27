@@ -28,6 +28,7 @@ Server_Config :: struct {
 	front:           Handler, // every request, whatever its route
 	on_loop_start:   proc(loop: int), // F-4, on each loop as it starts
 	on_loop_stop:    proc(loop: int), // F-4, on each loop as its shutdown starts
+	on_loop_release: proc(loop: int), // on each loop just before it releases its event loop (M1-05)
 }
 
 @(private)
@@ -71,6 +72,9 @@ server_run :: proc() {
 	}
 	opts.on_thread_shutdown = proc(_: ^http.Server, i: int) {
 		srv.cfg.on_loop_stop(i)
+	}
+	opts.on_thread_release = proc(_: ^http.Server, i: int) {
+		if srv.cfg.on_loop_release != nil { srv.cfg.on_loop_release(i) }
 	}
 	srv.listen = http.listen(&srv.server, cfg.endpoint, opts)
 	sync.sema_post(&srv.bound)

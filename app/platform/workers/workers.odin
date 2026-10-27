@@ -19,6 +19,7 @@ import "core:nbio"
 import "core:strings"
 import "core:sync"
 import "core:thread"
+import "core:time"
 
 import "../guard"
 import "../obs"
@@ -180,8 +181,9 @@ worker :: proc(p: ^Pool) {
 				obs.inc(p.crashes)
 			}
 		}
-		// One op per result: at most `threads` posts in flight per pool.
-		nbio.next_tick_poly(t, on_done, l = t.loop)
+		// One op per result: at most `threads` posts in flight per pool. A loop that has
+		// left gets none; the task is dropped with the process that is exiting (M1-05).
+		_ = post(t.loop, t, on_done)
 		free_all(context.temp_allocator)
 	}
 }
@@ -192,4 +194,71 @@ worker :: proc(p: ^Pool) {
 on_done :: proc(_: ^nbio.Operation, t: ^Task) {
 	defer free_all(context.temp_allocator)
 	guard.call(proc(data: rawptr) { t := (^Task)(data); t.done(t) }, t)
+}
+
+// ---- posting to a loop that may be leaving (M1-05) -------------------------
+//
+// nbio's release zeroes a loop, and a post into it afterwards crashed the poster
+// (Linux: the zeroed wake descriptor) or spun it for good (Windows: an enqueue
+// that never lands). So a post from another thread (the writer's replies, a
+// pool's result, the hub's wakeup) goes through `post`, and each loop calls
+// `leaving` just before it releases: from then on a post to it reports false,
+// and the poster keeps or frees what it would have sent. Not a lock: nbio's
+// queue spins when full until the loop ticks, so the loop must tick while posts
+// in progress finish, which a lock held across the post would forbid.
+
+MAX_LOOPS :: 256
+
+@(private)
+gates: struct {
+	n:     int, // atomic: joined loops
+	loops: [MAX_LOOPS]Gate,
+}
+
+@(private)
+Gate :: struct {
+	loop:    ^nbio.Event_Loop, // atomic
+	left:    bool,             // atomic
+	posting: int,              // atomic: posts in progress
+}
+
+// On each loop as it starts (F-4).
+joined :: proc() {
+	i := sync.atomic_add(&gates.n, 1)
+	assert(i < MAX_LOOPS, "workers: more loops than MAX_LOOPS")
+	sync.atomic_store(&gates.loops[i].loop, nbio.current_thread_event_loop())
+}
+
+@(private)
+gate_of :: proc(l: ^nbio.Event_Loop) -> ^Gate {
+	for i in 0 ..< min(sync.atomic_load(&gates.n), MAX_LOOPS) {
+		if sync.atomic_load(&gates.loops[i].loop) == l { return &gates.loops[i] }
+	}
+	return nil
+}
+
+// Posts `cb(data)` to run on loop `l`; false when `l` has left. A loop that never
+// joined (a test's) is posted to as it is.
+post :: proc(l: ^nbio.Event_Loop, data: ^$T, cb: proc(op: ^nbio.Operation, data: ^T)) -> bool {
+	g := gate_of(l)
+	if g == nil {
+		nbio.next_tick_poly(data, cb, l = l)
+		return true
+	}
+	sync.atomic_add(&g.posting, 1)
+	defer sync.atomic_sub(&g.posting, 1)
+	if sync.atomic_load(&g.left) { return false }
+	nbio.next_tick_poly(data, cb, l = l)
+	return true
+}
+
+// On the loop, just before it releases its event loop: no post reaches it once
+// this returns. It ticks while posts already in progress finish, and once more
+// to run what they posted.
+leaving :: proc() {
+	g := gate_of(nbio.current_thread_event_loop())
+	if g == nil { return }
+	sync.atomic_store(&g.left, true)
+	for sync.atomic_load(&g.posting) > 0 { nbio.tick(time.Millisecond) }
+	nbio.tick(0)
 }

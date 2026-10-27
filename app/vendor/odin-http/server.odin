@@ -45,6 +45,9 @@ Server_Opts :: struct {
 	// per-loop state and timers, and to cancel those timers, so shutdown doesn't wait on them.
 	on_thread_init:          proc(s: ^Server, thread_index: int),
 	on_thread_shutdown:      proc(s: ^Server, thread_index: int),
+	// M1-05: on each thread at the end of its shutdown, just before it releases its event loop
+	// (nbio zeroes it): the application stops other threads posting to it here.
+	on_thread_release:       proc(s: ^Server, thread_index: int),
 
 	// F-5: when set, every completion callback the server owns (accept, the request scanner's
 	// reads, the handler dispatch inside them, response sends, stream operations and the server's
@@ -423,6 +426,7 @@ _server_thread_shutdown :: proc(s: ^Server, loc := #caller_location) {
 	for nbio.num_waiting() > 0 && time.tick_since(final) < SHUTDOWN_FINAL_WAIT {
 		nbio.tick(SHUTDOWN_INTERVAL)
 	}
+	if s.opts.on_thread_release != nil { s.opts.on_thread_release(s, td.index) }
 	nbio.release_thread_event_loop()
 
 	td.state = .Closed

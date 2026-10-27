@@ -2133,6 +2133,15 @@ a slowloris + a half body + a stuck idle peer: exit in 5.6 s on Windows and Linu
 100 ms shutdown tick, at most 500 ms of leftovers), 500/500 WebSockets got 1012 and 500/500 SSE streams their `retry:`
 event (`docs/spikes/S0.7.md`). The per-push shutdown-bound drill keeps it true (§19); §20's `promote.ps1` relies on it.
 
+**As built (M2), M1-05.** The SQLite writer refuses new writes from step 2 (503), as the pools do. A reply can still
+outlive its loop, a write already on the writer when the loops leave, so a loop marks itself leaving just before it
+releases its event loop (the fork's `on_thread_release`, M2), and every cross-thread post (the writer's replies, a
+pool's results, the hub's wakeups) goes through `workers.post`, which sends nothing to a loop that has left: the
+writer frees those ops instead. The rest of the shutdown is bounded too: `app.shutdown` arms an exit at
+`DRAIN_DEADLINE_MS` + 1.5 s, which covers the profile's closes (the writer can wait out `SQLITE_BUSY`) and exits 70,
+saying why. The drills' `latewrite` phase holds the writer 2 s across a shutdown: exit 0 at 2.0 s (the process spun
+for good on Windows before), and past the bound, exit 70 at 1.7 s.
+
 ## 9. Realtime: the hub and the page contract
 
 How server-side events reach browsers. The stream protocols (SSE encoder, WS codec, multipart writer) are §8.2; which

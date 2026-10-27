@@ -3,7 +3,7 @@
 //   node tools/drills/drills.mjs <profile> [phase …] [--wsl DIR]
 //
 // Phases (default: all): release pure dirty burst hang logstall malformed slowread streamcrash shutdown
-// restart fdceiling budgets.
+// latewrite restart fdceiling budgets.
 // It builds the profile twice through build.{sh,bat}: a TEST_ROUTES build, which mounts
 // /__test/crash/<kind> and /__test/shutdown (platform/web/drills.odin), and the release build at
 // -o:speed, which must answer 404 there and is the one the budgets measure. Every server is fresh,
@@ -35,7 +35,7 @@ if (!PROFILE) {
 const WIN = process.platform === 'win32' && !WSL;
 const LINUX = !WIN;
 const EXE = WIN ? '.exe' : '';
-const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'logstall', 'malformed', 'slowread', 'streamcrash', 'shutdown', 'restart', 'fdceiling', 'budgets'];
+const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'logstall', 'malformed', 'slowread', 'streamcrash', 'shutdown', 'latewrite', 'restart', 'fdceiling', 'budgets'];
 const phases = PHASES.length ? PHASES : ALL;
 
 // PLAN §18.4 (ANSWERS round 7): binaries in MiB, Windows -o:speed, as CI reads them; idle memory
@@ -266,10 +266,11 @@ async function phaseHang() {
 const CHUNKED = (target, body) => `${target} HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n${body}`;
 const F16 = [
   // The profile's write, under its cap: minimal's notes take 4 KiB, so 500 chunks there (refused early, a
-  // bigger body's unread rest would reset the connection before the 413 is read); the depth is skeleton's.
+  // bigger body's unread rest would reset the connection before the 413 is read); the depth is skeleton's,
+  // and lab's, on the compat page's save (an empty name is a 422).
   PROFILE === 'minimal'
     ? [CHUNKED('POST /notes', '1\r\na\r\n'.repeat(500) + '0\r\n\r\n'), '422']
-    : [CHUNKED('POST /contacts', '1\r\na\r\n'.repeat(12000) + '0\r\n\r\n'), '422'],
+    : [CHUNKED(PROFILE === 'lab' ? 'POST /compat/htmx2/save' : 'POST /contacts', '1\r\na\r\n'.repeat(12000) + '0\r\n\r\n'), '422'],
   [CHUNKED('GET /healthz', '1\r\na\r\n'.repeat(60000) + '0\r\n\r\n'), '413'],
   [CHUNKED('POST /', '1;' + 'x'.repeat(5000) + '\r\na\r\n0\r\n\r\n'), '413'],
   [CHUNKED('POST /', '1\r\na\r\n0\r\nX-T: ' + 'y'.repeat(5000) + '\r\n\r\n'), '413'],
@@ -374,6 +375,38 @@ async function phaseShutdown() {
   record('shutdown: a signal with slow, half-sent and idle peers open exits 0 within 6 s', s.exited === 0 && secs <= 6,
     `exit=${s.exited} after ${secs.toFixed(2)} s${WIN ? ' (/__test/shutdown)' : ' (SIGTERM)'}`);
   await stop(s);
+}
+
+// M1-05: a write still on the writer when the loops leave. Its reply must not be posted into a loop
+// that released its event loop (a SIGSEGV on Linux, a spin for good on Windows), and the store's
+// close must not outlast the shutdown. The write holds the writer 2 s; the drain deadline is 1 s.
+async function phaseLateWrite(f) {
+  if (f.store !== 'sqlite') return console.log(`skip  latewrite: a ${f.store} build has no writer task`);
+  const s = start(DRILL_BIN, { DRAIN_DEADLINE_MS: '1000' });
+  if (!(await ready(s))) return record('latewrite: server starts', false);
+  const w = await get(s.port, '/__test/crash/latewrite');
+  const t0 = performance.now();
+  if (WIN) get(s.port, '/__test/shutdown');
+  else signal(s, 'TERM');
+  await waitExit(s, 9000);
+  const secs = s.exited === null ? Infinity : (s.exitAt - t0) / 1000;
+  record('latewrite: a write that outlasts the loops lets the process exit 0 within 3 s', w.status === 200 && s.exited === 0 && secs <= 3,
+    `write=${w.status} exit=${s.exited} after ${secs.toFixed(2)} s`);
+  await stop(s);
+
+  // And a close that outlasts the shutdown's own bound: DRAIN_DEADLINE_MS + 1.5 s, then exit 70.
+  const t = start(DRILL_BIN, { DRAIN_DEADLINE_MS: '200' });
+  if (!(await ready(t))) return record('latewrite: server starts', false);
+  await get(t.port, '/__test/crash/latewrite');
+  const t1 = performance.now();
+  if (WIN) get(t.port, '/__test/shutdown');
+  else signal(t, 'TERM');
+  await waitExit(t, 9000);
+  const secs2 = t.exited === null ? Infinity : (t.exitAt - t1) / 1000;
+  const said = /why="the shutdown didn't finish"/.test(t.out);
+  record('latewrite: a close past DRAIN_DEADLINE_MS + 1.5 s exits 70, saying why', t.exited === 70 && secs2 <= 2.5 && said,
+    `exit=${t.exited} after ${secs2.toFixed(2)} s, said=${said}`);
+  await stop(t);
 }
 
 // kill -9, then the next server on the same port after 0, 50 and 100 ms: F-12's bind retry.
@@ -590,7 +623,7 @@ const f = features();
 console.log(`${PROFILE} on ${WSL ? 'Linux (WSL)' : process.platform}: store ${f.store}; phases: ${phases.join(' ')}`);
 const PH = {
   release: phaseRelease, pure: phasePure, dirty: () => phaseDirty(f), burst: phaseBurst, hang: phaseHang, logstall: phaseLogStall,
-  malformed: phaseMalformed, slowread: phaseSlowRead, streamcrash: () => phaseStreamCrash(f), shutdown: phaseShutdown, restart: phaseRestart, fdceiling: phaseFdCeiling, budgets: phaseBudgets,
+  malformed: phaseMalformed, slowread: phaseSlowRead, streamcrash: () => phaseStreamCrash(f), shutdown: phaseShutdown, latewrite: () => phaseLateWrite(f), restart: phaseRestart, fdceiling: phaseFdCeiling, budgets: phaseBudgets,
 };
 for (const p of phases) {
   if (!PH[p]) { console.error(`unknown phase ${p}`); process.exit(2); }

@@ -196,7 +196,10 @@ store error with `web.respond_store_error` (404 / 409 / 503 for Busy / 500).
 shared answers 500 and serving goes on; one that held a `guard.Mutex`, posted an nbio op or was
 inside SQLite is dirty: the server drains and exits 70. A loop that stops ticking, or a lock held
 too long, trips the watchdog (exit 70, naming the route and request). Take locks only through
-`guard.lock`/`guard.unlock`, and call `guard.posted()` after posting an op from a handler.
+`guard.lock`/`guard.unlock`, and call `guard.posted()` after posting an op from a handler. A thread
+that isn't a loop (the writer, a pool, a publisher) posts to a loop only through `workers.post`, which sends
+nothing to a loop that has left at shutdown: nbio zeroes a released loop, and a post into it crashed or spun
+(M1-05).
 
 ## Streams and the hub (M2; PLAN §8.2, §9)
 
