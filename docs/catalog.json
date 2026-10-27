@@ -1,15 +1,15 @@
 {
   "features": [
     {"name": "about", "lines": 100, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "init"], "profiles": ["minimal", "skeleton", "lab", "streams"]},
-    {"name": "accounts", "lines": 400, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": [], "profiles": ["streams"]},
+    {"name": "accounts", "lines": 300, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": [], "profiles": ["streams"]},
     {"name": "bot", "lines": 1100, "stores": ["memory"], "sqlite": "never", "deps": [], "switched": ["backend_mock"], "declares": ["ROUTES", "EXTS", "TOPICS", "init"], "profiles": ["streams"]},
-    {"name": "chat", "lines": 1700, "stores": ["memory"], "sqlite": "never", "deps": ["notify"], "switched": ["transport_multipart", "transport_poll", "transport_sse", "transport_ws"], "declares": ["ROUTES", "EXTS", "TOPICS", "JOBS", "init"], "profiles": ["streams"]},
+    {"name": "chat", "lines": 1800, "stores": ["memory"], "sqlite": "never", "deps": ["notify"], "switched": ["transport_multipart", "transport_poll", "transport_sse", "transport_ws"], "declares": ["ROUTES", "EXTS", "TOPICS", "JOBS", "init"], "profiles": ["streams"]},
     {"name": "compat", "lines": 100, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "BUNDLES"], "profiles": ["lab"]},
     {"name": "contacts", "lines": 1500, "stores": ["sqlite"], "sqlite": "required", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["skeleton"]},
     {"name": "dashboard", "lines": 200, "stores": [], "sqlite": "none", "deps": ["contacts"], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["skeleton"]},
     {"name": "gallery", "lines": 400, "stores": [], "sqlite": "none", "deps": ["contacts"], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["skeleton"]},
     {"name": "home", "lines": 100, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["EXTS", "init"], "profiles": ["minimal", "streams"]},
-    {"name": "lab", "lines": 600, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "TOPICS", "JOBS"], "profiles": ["lab"]},
+    {"name": "lab", "lines": 600, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "TOPICS", "JOBS", "init"], "profiles": ["lab"]},
     {"name": "notes", "lines": 400, "stores": ["memory", "sqlite"], "sqlite": "any", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "home_card"], "profiles": ["minimal", "streams"]},
     {"name": "notify", "lines": 500, "stores": ["memory"], "sqlite": "never", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "TOPICS", "JOBS", "home_card"], "profiles": ["streams"]},
     {"name": "ops", "lines": 400, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "TOPICS", "JOBS", "init"], "profiles": ["streams"]},
