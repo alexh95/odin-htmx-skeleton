@@ -22,7 +22,6 @@ import "../../env"
 import "../../guard"
 import "../../obs"
 import "../../sqlite"
-import "../../store"
 import "../../sys"
 
 APP_ID :: 0x4F485354 // 'OHST' in the header's application_id (12 §5)
@@ -122,14 +121,6 @@ open_db :: proc(path: string, m: Mode, profile: string, legacy := "", adopt_prof
 	db.is_open = true
 	writer_start()
 	pool_start()
-	@(static) hooked: bool
-	if !hooked {
-		hooked = true
-		// Each loop's reader opens as the loop starts: a descriptor short fails at boot (M1-07).
-		store.on_loop_start(proc() {
-			if db.is_open && db.mode != .Single && reader() == nil { fatal("store: a loop's reader can't open: see the line above") }
-		})
-	}
 	return ""
 }
 

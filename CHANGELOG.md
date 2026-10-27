@@ -144,8 +144,8 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   through `workers.post`, which skips such a loop, and `app.shutdown` arms an exit at `DRAIN_DEADLINE_MS` + 1.5 s (70).
   The drills' `latewrite` phase checks both.
 - **A SQLite reader that can't open fails its read, not the process** (M1-07): out of descriptors at the connection
-  cap, a loop's first read called the store's boot-time `fatal` and exited 1. Each loop now opens its reader as it
-  starts, so a shortage fails at boot, and a reader that can't open later answers its read with `.Failed` (500).
+  cap, a loop's first read called the store's boot-time `fatal` and exited 1; it answers `.Failed` (500) now. (Opening
+  every loop's reader at boot instead cost 1.65 MB idle, past the budget, so readers still open on first read.)
 - **A stalled log pipe no longer hangs the exits meant to end a hang** (M1-03): the watchdog and a dirty crash wrote
   their lines through the lock a blocked stderr write held, so a log reader that stopped hung the process for good.
   Both now write the crash file and arm their exit before they log, and their writes give up on the lock after

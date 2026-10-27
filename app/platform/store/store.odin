@@ -22,20 +22,6 @@ Error :: enum u8 {
 	Failed,     // anything else: I/O, a lock held past busy_timeout, a full disk
 }
 
-// What a store does on each event loop as it starts (F-4), registered at boot by
-// the store's open: the SQLite store opens the loop's reader there, so a missing
-// descriptor fails at boot rather than in a request (M1-07). platform/app runs
-// them from its loop-start hook.
-@(private) loop_hooks: [dynamic]proc()
-
-on_loop_start :: proc(hook: proc()) {
-	append(&loop_hooks, hook)
-}
-
-loop_started :: proc() {
-	for h in loop_hooks { h() }
-}
-
 // One migration of one feature's SQLite store: `MIGRATIONS := [?]store.Migration{
 // {1, "0001_init.sql", #load("migrations/0001_init.sql", string)}, …}`, a package
 // variable (a slice literal inside a proc would point into its frame, 09 §4.4).
