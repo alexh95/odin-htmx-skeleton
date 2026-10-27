@@ -1,5 +1,6 @@
 package hub
 
+import "core:strings"
 import "core:testing"
 
 @(private = "file")
@@ -90,6 +91,37 @@ sample_ring_keeps_one_and_owes_nothing :: proc(t: ^testing.T) {
 	ring_after(&r, 0, &after)
 	expect_seqs(t, after[:], {4})
 	free_all_msgs(&r, &out)
+}
+
+// The map is keyed by the ring's own copy of the topic: the first message's copy goes once the
+// ring lets that message go, and the next publish must still find the same ring (the soak's
+// `free(): invalid pointer`, M2). The sweep then frees the idle rings and only those.
+@(test)
+rings_keep_their_own_topics :: proc(t: ^testing.T) {
+	rings := make(map[string]^Ring)
+	defer delete(rings)
+	out: [dynamic]^Msg
+	defer delete(out)
+	first := strings.clone("lab.feed:a")
+	r := ring_for(&rings, first, .Queue, 2, 1 << 20, context.allocator)
+	delete(first) // what releasing the first message did to the old key
+	again := strings.clone("lab.feed:a")
+	testing.expect(t, ring_for(&rings, again, .Queue, 2, 1 << 20, context.allocator) == r)
+	delete(again)
+	testing.expect_value(t, len(rings), 1)
+
+	b := ring_for(&rings, "lab.feed:b", .Queue, 2, 1 << 20, context.allocator)
+	c := ring_for(&rings, "lab.feed:c", .Queue, 2, 1 << 20, context.allocator)
+	r.last_ns, b.last_ns, c.last_ns = 0, 30, 100
+	ring_add(b, msg(7, "b"), &out)
+	testing.expect_value(t, ring_sweep(&rings, 100, 60, &out, context.allocator), 7) // a and b idle for 60
+	testing.expect_value(t, len(rings), 1)
+	testing.expect(t, rings["lab.feed:c"] == c)
+	expect_seqs(t, out[:], {7})
+	for m in out { free(m) }
+	clear(&out)
+	_ = ring_sweep(&rings, 1000, 60, &out, context.allocator)
+	testing.expect_value(t, len(rings), 0)
 }
 
 @(test)

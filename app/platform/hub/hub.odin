@@ -248,13 +248,7 @@ post :: proc(m: ^Msg, ring_cap: int) -> u64 {
 		h.seq += 1
 		m.seq = h.seq
 		m.refs += 1
-		r := h.rings[m.topic]
-		if r == nil {
-			r = new(Ring, heap())
-			r.policy, r.cap, r.max = m.policy, ring_cap, h.ring_bytes
-			r.msgs.allocator = heap()
-			h.rings[m.topic] = r
-		}
+		r := ring_for(&h.rings, m.topic, m.policy, ring_cap, h.ring_bytes, heap())
 		r.last_ns = sys.mono_ns()
 		ring_add(r, m, &out)
 		h.since_sweep += 1
@@ -294,16 +288,7 @@ release_unowned :: proc(m: ^Msg) {
 @(private)
 sweep_rings :: proc(out: ^[dynamic]^Msg) {
 	h.since_sweep = 0
-	now := sys.mono_ns()
-	for topic, r in h.rings {
-		if now - r.last_ns < i64(RING_TTL) { continue }
-		for m in r.msgs { h.floor = max(h.floor, m.seq) }
-		h.floor = max(h.floor, r.dropped)
-		ring_empty(r, out)
-		delete(r.msgs)
-		free(r, heap())
-		delete_key(&h.rings, topic)
-	}
+	h.floor = max(h.floor, ring_sweep(&h.rings, sys.mono_ns(), i64(RING_TTL), out, heap()))
 }
 
 // ---- delivery, on each loop ---------------------------------------------------------

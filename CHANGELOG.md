@@ -155,6 +155,12 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   the family collections through `platform/web`.
 
 ### Fixed
+- **The hub's idle-ring sweep no longer aborts the server** (`free(): invalid pointer`, found by the 1 h soak and
+  caught under gdb in `sweep_rings`). The sweep deleted from the rings map while iterating it, which can visit a ring
+  it has already freed, and the map was keyed by the first message's topic string, which went with that message
+  once the ring let it go, so lookups compared against freed memory and could add a second ring for the topic. Each
+  ring now keeps its own copy of its topic as the key, and the sweep collects the idle rings before it deletes any
+  (`ring_for`, `ring_sweep`; `rings_keep_their_own_topics` tests both).
 - **An SSE stream gets its `retry:` event at a drain** (PLAN §8.7 step 3): `retry: 500–3000` (per client), as a named
   event, so the reconnects after a deploy spread out. The platform sent nothing there; the drills' `streamdrain` phase
   found it.

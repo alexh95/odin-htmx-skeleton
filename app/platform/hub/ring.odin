@@ -11,6 +11,9 @@ package hub
 //            each key's latest (presence, counters, progress rows);
 //   .Sample  only the newest message: telemetry, where a missed one is never owed.
 
+import "base:runtime"
+import "core:strings"
+
 Policy :: enum u8 {
 	Queue,
 	Latest,
@@ -18,6 +21,7 @@ Policy :: enum u8 {
 }
 
 Ring :: struct {
+	topic:   string, // its own copy: the rings map's key, never a message's topic, which goes with it
 	policy:  Policy,
 	cap:     int,
 	max:     int, // bytes held at most (HUB_RING_BYTES)
@@ -25,6 +29,39 @@ Ring :: struct {
 	bytes:   int,
 	dropped: u64, // the newest seq evicted while still owed: a cursor below it missed it
 	last_ns: i64, // the last publish, for the idle sweep
+}
+
+// The topic's ring, made on its first publish. The map is keyed by the ring's own copy of the
+// topic: keyed by the first message's (as it was), the key dangled once that message left the
+// ring, and a lookup compared against freed memory (the soak's `free(): invalid pointer`).
+ring_for :: proc(rings: ^map[string]^Ring, topic: string, policy: Policy, cap, max: int, allocator: runtime.Allocator) -> ^Ring {
+	if r := rings[topic]; r != nil { return r }
+	r := new(Ring, allocator)
+	r.topic = strings.clone(topic, allocator)
+	r.policy, r.cap, r.max = policy, cap, max
+	r.msgs.allocator = allocator
+	rings[r.topic] = r
+	return r
+}
+
+// Rings with no publish for `ttl` let their messages go (into `out`, for the caller to release)
+// and are freed; returns the newest seq they reached. Collected first, then deleted: a map
+// doesn't keep its iteration across a delete.
+ring_sweep :: proc(rings: ^map[string]^Ring, now, ttl: i64, out: ^[dynamic]^Msg, allocator: runtime.Allocator) -> (floor: u64) {
+	idle := make([dynamic]^Ring, context.temp_allocator)
+	for _, r in rings {
+		if now - r.last_ns >= ttl { append(&idle, r) }
+	}
+	for r in idle {
+		for m in r.msgs { floor = max(floor, m.seq) }
+		floor = max(floor, r.dropped)
+		ring_empty(r, out)
+		delete_key(rings, r.topic)
+		delete(r.msgs)
+		delete(r.topic, allocator)
+		free(r, allocator)
+	}
+	return
 }
 
 // Adds `m`, taking the ring's reference to it. What it pushes out is appended
