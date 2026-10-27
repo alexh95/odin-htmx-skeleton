@@ -135,7 +135,7 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       (WS got 1012); the fd ceiling with 3000 streams; restart, 4000 back ≤ 3 s; TSan with 0 reports on hub, stream,
       workers and store/sqlite (S0.11, one nbio suppression, S0.9); the 1 h soak. *Check:* `tools/drills` on both
       legs and in CI's `linux-ops`; TSan and soak as nightly jobs.
-- [ ] **14. M1's carried findings** (`docs/audit/M1.md`, owner M2): the MEDIUMs M1-02 (a send deadline), M1-03,
+- [x] **14. M1's carried findings** (`docs/audit/M1.md`, owner M2): the MEDIUMs M1-02 (a send deadline), M1-03,
       M1-04 with M1-26 (a crash in a continuation or a stream's end), M1-05 and M1-07, now that streams rework the
       drain and the deferred paths; the profile's follow-ups (the connection arena's mutex and header reserves as a
       fork change, one read transaction per page, `tools/profile`). *Check:* each finding's own regression test or
@@ -145,7 +145,10 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       that can't open is a 500; the store's test; opening them at boot cost 1.65 MB idle, so they stay lazy) and M1-05 (the loop gate, the writer's intake,
       the clean path's bound; the `latewrite` drill) fixed. The profile's follow-ups: the header maps reserved
       (F-20), a handler's reads in one transaction (+2.1 % `pages`, Linux), the arena's mutex measured and left
-      (95 ns a request); `tools/profile` left.
+      (95 ns a request), and `tools/profile` (perf samples, folded stacks, the top functions and a spall
+      trace; its README), checked on the skeleton's `pages` and `write` in WSL. Slice 14 done.
+      Left over: the Linux leg of the new drills (`continuation`, `streamcrash`, `slowread`, `logstall`,
+      `latewrite`), with slice 13's.
 - [ ] **Report core:nbio's `SO_UPDATE_ACCEPT_CONTEXT` bug upstream** (found in slice 14; the fork's F-19 works around
       it): `impl_windows.odin` passes no value, so Windows rejects the call and `shutdown` fails on accepted sockets.
       Ask Alex before filing anything.

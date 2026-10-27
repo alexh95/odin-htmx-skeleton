@@ -90,6 +90,10 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   `PAGE_BUNDLES`, the scripting and compat packages' `BUNDLES` lines) must be embedded.
 - **A feature's `static/*.js`** is appended to the profile's `app.js` (after `client/core.js` and the member's), as
   its CSS is to `app.css`: code that is no behaviour and runs under either client.
+- **`tools/profile`** (M1's profile follow-up): `sh tools/profile/profile.sh <profile> <scenario> [--spall]` on
+  Linux records the server under k6 with perf and writes the samples, folded stacks and the 30 heaviest functions
+  (an SVG too, with FlameGraph's scripts), and with `--spall` builds a scratch copy with an instrumentation hook
+  whose trace counts every call. The milestone exits' profiles come from it.
 - **`tools/check topics` and `exts`** (PLAN §6.1, §19.2.1), in `all`: each TOPICS family is its feature's and
   declared once, every host's packages with TOPICS are named by its `hub.mount` and nothing it doesn't mount is, a
   profile with topics calls `hub.init`, and a literal `hub.publish` names a declared family; every mounted web package

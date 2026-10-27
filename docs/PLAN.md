@@ -966,6 +966,7 @@ odin-htmx-starter/
   perf/         baseline/  results/
   tests/        parity-waivers.txt
   tools/        init/ (+ UPSTREAM)  bundle/  check/  baseline/  streamload/  fakellama/  transcode/  watch/  og/
+                profile/ (M2: perf and spall, M1's profile made repeatable)
                 upstream/ (paths.json)
   deploy/       compose.yaml  Caddyfile  promote.ps1  docker/Dockerfile  docker/seccomp-io-uring.json
                 fly/fly.toml  pi/term-agent.service

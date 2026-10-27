@@ -20,7 +20,7 @@ odin-htmx-starter/
   app/          the platform, features, stores and profiles: app/README.md is the tour
   e2e/          Playwright specs per feature (e2e/README.md)
   load-tests/   k6 scenarios per feature and the parity gate (load-tests/README.md)
-  tools/        check, bundle, drills, baseline, init, og
+  tools/        check, bundle, drills, baseline, init, og, streamload, profile
   tests/        parity-waivers.txt
   docs/         PLAN.md, design/, spikes/, perf/, audit/
   build.sh build.bat   the one place a profile's build flags live
@@ -79,6 +79,7 @@ app/run.sh                  # build and serve skeleton on :8080 (PROFILE=minimal
 odin run tools/check -- all # imports, profile, routes, contracts, topics, exts (parity after both suites ran)
 sh .github/scripts/unit-tests.sh   # every package with tests, leaks fatal
 node tools/drills/drills.mjs skeleton   # crash, shutdown, restart, fd and budget drills
+sh tools/profile/profile.sh skeleton pages   # Linux: perf samples and top functions (--spall: every call)
 ```
 
 A clean build is **zero warnings**: `build.sh` passes `-vet -strict-style -warnings-as-errors` and the further vet
