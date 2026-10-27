@@ -209,6 +209,8 @@ test.describe('chat', T, () => {
         for (let i = 0; i < 4; i++) await say(ann, `long ${i} ${'&'.repeat(1990)}`);
         await open(bob, slug, t);
         await expect(message(bob, 'long 3')).toHaveCount(1);
+        // What didn't fit is gone from the log, not left behind a gap (M2-26).
+        await expect(message(bob, 'long 0')).toHaveCount(0);
         await say(ann, 'short, after');
         await expect(message(bob, 'short, after')).toHaveCount(1);
       } finally {

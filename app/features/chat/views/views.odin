@@ -171,22 +171,24 @@ message :: proc(b: ^strings.Builder, msg: m.Message, slug: string, newest: bool)
 }
 
 // Messages as one fragment for the room's log (every transport sends this).
-partial :: proc(b: ^strings.Builder, room: i64, slug: string, msgs: []m.Message, newest_last := true) {
+partial :: proc(b: ^strings.Builder, room: i64, slug: string, msgs: []m.Message, newest_last := true, swap := "upsert sort") {
 	if len(msgs) == 0 { return }
-	fmt.sbprintf(b, `<hx-partial hx-target="#log-%d" hx-swap="upsert sort">`, room)
+	fmt.sbprintf(b, `<hx-partial hx-target="#log-%d" hx-swap="%s">`, room, swap)
 	for msg, i in msgs { message(b, msg, slug, newest_last && i == len(msgs) - 1) }
 	w(b, `</hx-partial>`)
 }
 
 // A snapshot within `budget` bytes, as a stream writes it at once: the newest messages that
 // fit, oldest dropped first. 50 long messages ran past a stream's queue cap, and every
-// reconnect to the room was closed the same way (M2-03).
+// reconnect to the room was closed the same way (M2-03). One that dropped any replaces the
+// log instead of upserting into it, which kept what the page had with a silent gap before
+// these (M2-26).
 snapshot :: proc(room: i64, slug: string, msgs: []m.Message, budget: int) -> (html: string, newest: i64) {
 	if len(msgs) == 0 { return "", 0 }
 	from := 0
 	for {
 		b := strings.builder_make(context.temp_allocator)
-		partial(&b, room, slug, msgs[from:])
+		partial(&b, room, slug, msgs[from:], swap = "upsert sort" if from == 0 else "innerHTML")
 		if strings.builder_len(b) <= budget || from == len(msgs) - 1 { return strings.to_string(b), msgs[len(msgs) - 1].id }
 		from += max(1, (len(msgs) - from) / 4)
 	}
