@@ -211,7 +211,9 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       The first run on a pushed commit (`d9e2e1c`): 41 jobs green, every `e2e-proxy` leg among them; the `generator`
       and lab's and streams' WebKit e2e failed (fixed since: the catalog, libsoup's 1006, the Stop spec's load), so
       `coverage` (the k6 quick runs) was skipped. Reproduced in Playwright's CI image in WSL: lab's extensions 20 of
-      20 and streams' suite 84 of 84 on WebKit. Left: a green run, `coverage` with it.
+      20 and streams' suite 84 of 84 on WebKit. The second run (`4b5d49b`): 42 green, and streams' WebKit lost chat
+      over poll's edit form to the poll's re-render on both tries (fixed since: the slot is `hx-preserve`). Left: a
+      green run, `coverage` with it.
 - [ ] **Ask Alex**: X40 says `e2e-proxy` pins apollo's NPM version, which `docs/private/SITE.md` keeps private. The job
       pins the config that version renders instead (`tests/proxy/npm.conf`); naming the image tag in CI would publish
       it. Confirm, or say the version may be public.
@@ -240,12 +242,15 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       socket's bracket bound is refused after the composer cleared it.
 - [ ] **`mixed@file` on Linux** (`docs/perf/PARITY.md`, owner M3): M2's candidate read 0.95 of M1's in an A/B
       (rounds 0.93–1.05); A/B it with and without a handler's single read transaction before M3's gate.
-- [ ] **A WebKit flake to watch**: `chat over sse: an edit and a delete reach the other member` failed once in a full
-      streams run on Windows (2026-10-27), then passed 79 targeted runs and the next full run. Since: `chat over
-      poll`'s same test failed once on CI's WebKit and passed its retry. `ops: the panel refreshes every second` failed
-      once by multipart and once by poll, each passing its retry, on WebKit in Playwright's image on four pinned cores:
-      the page logged its `#live` stream's `/events?…&after=…` fetch as failing "due to access control checks"
-      (WebKit's wording for a fetch that failed on the network). Find why that stream's request failed.
+- [ ] **A WebKit flake to watch**: `ops: the panel refreshes every second` failed once by multipart and once by poll,
+      each passing its retry, on WebKit in Playwright's image on four pinned cores: the page logged its `#live`
+      stream's `/events?…&after=…` fetch as failing "due to access control checks" (WebKit's wording for a fetch that
+      failed on the network). Find why that stream's request failed. Repeated there (2026-10-28) it failed 2 of 9:
+      by sse the same `#live` error, and by multipart a panel whose count never moved in 10 s (its stream stalled?).
+      A full streams run there also had `chat over sse: a message reaches the other member once` fail once, passing
+      its retry (its details were lost). (`chat: an edit and a delete reach the other
+      member` failed now and then over sse and poll: over poll it was a re-render wiping the edit form, fixed; the one
+      sse failure on Windows was most likely the same, its echo landing late.)
 
 **Answered by Alex (ANSWERS round 9, 2026-10-26), before slices 7–11:** nick is built in M2 (slice 6a);
 `ACCOUNTS_NICK_ADMIN_CIDRS` (none by default, loopback in e2e) makes its clients there Admin, so `/admin/ops` opens in
