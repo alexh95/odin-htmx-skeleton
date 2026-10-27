@@ -91,6 +91,7 @@ db: struct {
 @(private, thread_local) tl_read_locked: bool // single mode: this thread's read holds the writer's lock
 @(private, thread_local) tl_in_handler: bool  // between store.handler_begin and handler_end
 @(private, thread_local) tl_txn: ^Conn        // the reader holding this handler's read transaction
+@(private, thread_local) tl_handler_seen: u64  // guard.recoveries() when this handler began
 
 ENV := [?]env.Row {
 	{name = "DB_PATH", kind = .Path, def = ":memory:", doc = "the SQLite file; :memory: is fresh per process"},
@@ -181,6 +182,10 @@ read :: proc(sql: string) -> Stmt {
 	}
 	r := reader()
 	if r == nil { return nil }
+	// A crash since the handler began ended it, whatever the flag says: a reader opened after
+	// the crash has no reset to pull, and a continuation's read began a transaction no one
+	// ended (M2-27).
+	if tl_in_handler && tl_handler_seen != guard.recoveries() { tl_in_handler = false }
 	// A handler's reads share one transaction, begun at its first (a deferred
 	// request's continuation reads outside it, so no other request on this loop
 	// meets a snapshot left open).
@@ -196,7 +201,7 @@ read :: proc(sql: string) -> Stmt {
 handler_began :: proc() {
 	if tl_txn != nil { end_txn(false) }
 	if tl_reader != nil && tl_generation == db.generation { pull_reset(tl_reader) }
-	tl_in_handler = true
+	tl_in_handler, tl_handler_seen = true, guard.recoveries()
 }
 
 @(private)

@@ -349,6 +349,15 @@ handler_transactions :: proc(t: ^testing.T) {
 	testing.expect_value(t, read_count(), 5)
 	handler_ended()
 	testing.expect_value(t, read_count(), 6)
+
+	// A crash before the loop's reader exists, then a continuation's read: the reader opens
+	// after the crash, so it has no reset to pull, and the read must begin no transaction for
+	// the handler the crash ended (M2-27).
+	handler_began()
+	testing.expect(t, !guard.invoke(proc(_, _: rawptr) { panic("before any read") }, nil, nil))
+	tl_reader.seen = guard.recoveries() // as a reader opened now is
+	testing.expect_value(t, read_count(), 6)
+	testing.expect(t, tl_txn == nil && !tl_in_handler)
 }
 
 // One test, in order: the store is process-wide.
