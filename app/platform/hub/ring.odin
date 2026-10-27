@@ -14,6 +14,11 @@ package hub
 import "base:runtime"
 import "core:strings"
 
+// What a held message costs beyond its HTML, about: its struct and its topic and key copies.
+// Counted against a ring's bytes and so against HUB_RINGS_BYTES, or one-line messages held
+// several times what the budget said (M2-32).
+MSG_OVERHEAD :: 192
+
 Policy :: enum u8 {
 	Queue,
 	Latest,
@@ -104,6 +109,9 @@ ring_drop :: proc(rings: ^Rings, r: ^Ring, out: ^[dynamic]^Msg, allocator: runti
 }
 
 @(private)
+msg_cost :: proc(m: ^Msg) -> int { return len(m.html) + MSG_OVERHEAD }
+
+@(private)
 ring_link :: proc(rings: ^Rings, r: ^Ring) {
 	r.older, r.newer = rings.newest, nil
 	if rings.newest != nil { rings.newest.newer = r } else { rings.oldest = r }
@@ -127,7 +135,7 @@ ring_add :: proc(r: ^Ring, m: ^Msg, out: ^[dynamic]^Msg) {
 		for old, i in r.msgs {
 			if old.key == m.key {
 				ordered_remove(&r.msgs, i)
-				r.bytes -= len(old.html)
+				r.bytes -= msg_cost(old)
 				append(out, old)
 				break
 			}
@@ -138,11 +146,11 @@ ring_add :: proc(r: ^Ring, m: ^Msg, out: ^[dynamic]^Msg) {
 		r.bytes = 0
 	}
 	append(&r.msgs, m)
-	r.bytes += len(m.html)
+	r.bytes += msg_cost(m)
 	for len(r.msgs) > 1 && (len(r.msgs) > r.cap || r.bytes > r.max) {
 		old := r.msgs[0]
 		ordered_remove(&r.msgs, 0)
-		r.bytes -= len(old.html)
+		r.bytes -= msg_cost(old)
 		r.dropped = max(r.dropped, old.seq)
 		append(out, old)
 	}

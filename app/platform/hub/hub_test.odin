@@ -54,11 +54,11 @@ queue_ring_keeps_the_last_and_marks_what_it_dropped :: proc(t: ^testing.T) {
 
 @(test)
 queue_ring_holds_its_bytes_but_keeps_the_newest :: proc(t: ^testing.T) {
-	r := Ring{policy = .Queue, cap = 100, max = 10}
+	r := Ring{policy = .Queue, cap = 100, max = 10 + 2 * MSG_OVERHEAD}
 	out: [dynamic]^Msg
 	ring_add(&r, msg(1, "a", "12345"), &out)
 	ring_add(&r, msg(2, "a", "12345"), &out)
-	ring_add(&r, msg(3, "a", "123"), &out) // 13 bytes: 1 goes
+	ring_add(&r, msg(3, "a", "123"), &out) // 13 bytes and three messages' overhead: 1 goes
 	expect_seqs(t, r.msgs[:], {2, 3})
 	ring_add(&r, msg(4, "a", "0123456789abcdef"), &out) // larger than the cap alone: kept
 	expect_seqs(t, r.msgs[:], {4})
@@ -120,7 +120,7 @@ rings_keep_their_own_topics :: proc(t: ^testing.T) {
 	ring_add(b, msg(7, "b"), &out)
 	floor, freed := ring_sweep(&rings, 100, 60, &out, context.allocator) // a and b idle for 60
 	testing.expect_value(t, floor, 7)
-	testing.expect_value(t, freed, 1)
+	testing.expect_value(t, freed, 1 + MSG_OVERHEAD)
 	testing.expect_value(t, len(rings.by_topic), 1)
 	testing.expect(t, rings.by_topic["lab.feed:c"] == c && rings.oldest == c && rings.newest == c)
 	expect_seqs(t, out[:], {7})
@@ -155,7 +155,7 @@ the_oldest_ring_goes_past_the_total_budget :: proc(t: ^testing.T) {
 	ring_add(b, msg(4, "b", "xy"), &out)
 	ring_touch(&rings, a, 30)
 	floor, freed, ok := ring_evict_oldest(&rings, a, &out, context.allocator)
-	testing.expect(t, ok && floor == 4 && freed == 2)
+	testing.expect(t, ok && floor == 4 && freed == 2 + MSG_OVERHEAD)
 	testing.expect(t, rings.by_topic["lab.feed:b"] == nil && rings.by_topic["lab.feed:a"] == a)
 	_, _, ok = ring_evict_oldest(&rings, a, &out, context.allocator)
 	testing.expect(t, !ok) // only the one being published to is left
