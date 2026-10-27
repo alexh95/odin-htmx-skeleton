@@ -80,10 +80,12 @@ render_page :: proc(req: ^Request, res: ^Response, title, active, description, c
 page_html :: proc(title, active, description, content: string, bundle := Bundle.Main) -> string {
 	c := ctx()
 	site := c.site
+	// Trusted Types blocks every hyperscript `put` (11 §2.3): such a page loads none.
+	tt := c.route != nil && .Trusted_Types in c.route.flags
 	return html.layout({
 		brand = site.brand, origin = site.origin, nav = site.nav,
 		css = assets.css_href, htmx = assets.bundle_href[bundle], js = assets.js_href,
-		hs = assets.hs_href, behaviours = assets.behaviours_href,
+		hs = "" if tt else assets.hs_href, behaviours = "" if tt else assets.behaviours_href,
 		title = title, active = active, description = description,
 		bundle = bundle, nonce = c.nonce, private = c.route != nil && .Private in c.route.flags,
 	}, content)

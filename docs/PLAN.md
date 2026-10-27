@@ -2750,7 +2750,10 @@ layout boosts only on Main), and a boosted request for one (`HX-Boosted: true`) 
 `web.render_page`, so the browser loads it whole, whichever link it came from; each bundle's htmx-config JSON is
 `<bundle>.config.json` beside it, folded into a head constant per bundle. **Hyperscript** is a separate deferred file
 after the bundle, using upstream's shipped `.br`: both layouts are race-free, and separate keeps 175 KB cacheable
-when the extension set changes, for 1,151 B br more (11 §8.1).
+when the extension set changes, for 1,151 B br more (11 §8.1). **As built (M2):** the fixed bundles came out of the real
+packages byte for byte as the fixture had them (Scripting 85,173 B, 25,063 br; Compat_Htmx2 38,466 and Compat_Alpine
+38,487 B), and main names the ones its pages load in `PAGE_BUNDLES` (the scripting and compat packages' `BUNDLES`
+lines), which boot check 6 holds to the embedded set.
 
 **The htmx-config meta** is generated at boot from the same union as strict JSON (S14; hyperscript `JSON.parse`s it
 and dies on HCON, 05 §3), written with `w()`, never `fmt` (`SK/CLAUDE.md` "Views"). It names `hs-include` whenever
@@ -2768,7 +2771,7 @@ the hyperscript client is present: an extension missing from the list registers 
 | `htmx.min.js` | `minimal`, `skeleton` | htmx 4.0.0, byte-identical to the skeleton's, same crc32 name | 36,716 | 11,736 |
 | Main | `full`, `full-vanilla` | htmx + the 13 Houston extensions (§12.3) | 79,790 | 23,022 |
 | Main | `streams` | htmx + the profile's derived union: sse, ws, hx-multipart, upsert, hx-pending, ptag, hx-targets, download, hx-prompt, browser-indicator | 71,358 | 20,852 |
-| Main | `lab` | htmx + the lab's derived union (S0.10's fixture: 5 extensions) | 71,391 | 20,777 |
+| Main | `lab` | htmx + the lab's derived union (S0.10's fixture: 5 extensions; as built at M2: sse, ws, hx-multipart, 65,391 B raw, 19,201 B br) | 71,391 | 20,777 |
 | `_hyperscript.min.js` | `full`, `lab` | 0.9.94 core | 175,365 | 39,706 |
 | Scripting | `lab`; `full` (lab host only) | htmx + hx-csp + hx-live + sse, ws, hx-multipart, hx-pending | 85,173 | 25,063 |
 | Compat_Htmx2, Compat_Alpine | `lab`; `full` (lab host only) | htmx + htmx-2-compat; htmx + hx-alpine-compat | 38,466; 38,487 | 12,180; 12,249 |
@@ -2845,6 +2848,17 @@ the skeleton's verbatim, and `minimal` keeps the skeleton's exact header set. `/
 logs each report at warn and is rate-limited (§17.5). **As built (M2):** such a profile serves with
 `web.Header_Set.Reporting` and mounts `{"platform", web.REPORT_ROUTES[:]}`.
 
+**As built (M2), the nonce class.** The nonce is base64url (16 random bytes), so a page can put it in a connect URL as it
+is: `/scripting/streams` sends it as `pn`, and its streams stamp it (11 §2.3's first way). Trusted Types is a route
+flag, `.Trusted_Types`, which boot accepts only beside `.Nonce_Csp`; a page under it loads no hyperscript.
+`streams-hxcsp.spec` pins 11 §2.2's matrix on the real streams, in Chromium and WebKit: a streamed button works with
+the page's nonce or by delegation and is stripped with none or with the stream's own. The fail-open probe came out
+narrower than 11 §2.2 found on the pre-release: in 4.0.0 an unnonced `hx-sse:connect` or `hx-ws:connect` that arrives
+in an htmx swap is stripped (before-init now fires on it), while one that other code wrote into the page and handed to
+`htmx.process` inside a subtree is wired by the extension's after-process hook and connects. The reasons against
+app-wide hx-csp stand: streamed fragments are still stripped, that second path is still open, and `_` is still
+ungated.
+
 ### 12.3 The 17 extensions
 
 Thirteen have real uses in Houston; four are proven on the session-free lab pages with a written reason, in the `lab`
@@ -2866,7 +2880,7 @@ on its behaviour (no API lists registered extensions, 11 §8.2); `bundle-race.sp
 | hx-upsert | chat (replay, edits, tombstones), presence, notifications, jobs, lists, c4 cells, leaderboards; keys are zero-padded strings because upsert sorts with `localeCompare` (07 §6.2) | — |
 | hx-targets | unread badges `.unread-<room>`, `.notify-count`, user chips after a role or avatar change, RSVP counts `.rsvp-<id>` | — |
 | hx-download | CSV (audit, accounts), chat and bot transcripts, `.cast` recordings, wiki `.md`, calendar `.ics`, recovery codes; never video (it buffers the whole body in a Blob, 04 §5.14) | — |
-| hx-live | — | `/scripting/live`: the password-rules widget built three ways (app.js, hyperscript, hx-live). It needs eval: EvalError under the hash CSP (04 §5.4) |
+| hx-live | — | `/scripting/live`: the password-rules widget built three ways (app.js, hyperscript, hx-live). It needs eval: EvalError under the hash CSP (04 §5.4). As built (M2): the app.js way is the feature's `static/scripting.js`, the hyperscript way the `PasswordRules` behaviour, whose score hs-include sends to `POST /scripting/score` (hs-include's real use, and `bundle-race`'s proof that hyperscript, loaded last, registered it) |
 | hx-csp | — | `/scripting/*` with per-response nonces; `/scripting/streams` pins the upstream gaps so a fix shows up as a spec diff. App-wide it fails (11 §2) |
 | htmx-2-compat | — | `/compat/htmx2` replays the skeleton's htmx-2-era views (commit 78a31ca, 07 key facts): a 422 is not swapped and `htmx:afterSwap` fires. It breaks the 422 pattern and turns on implicit inheritance (04 §5.15) |
 | hx-alpine-compat | — | `/compat/alpine`: inert registration, no errors, no Alpine vendored. It needs Alpine, a client framework (PHILOSOPHY "The line we hold") |
@@ -2916,6 +2930,7 @@ behave :: proc(b: ^strings.Builder, x: Behaviour) { … } // _="install X" or da
 | `TermKeys`, `MeasureTerm` | keys from the labelled textarea → a hidden `hx-ws:send` form (custom trigger **UNVERIFIED (M11)**, fallback a 30-line app.js sender); columns and rows from `measure` → resize | no | term |
 | `Resume`, `Scrubber` | posts the watch position every 10 s (the page renders `data-resume`); thumbnails on seek-bar hover (VTT sprites) | no | video |
 | `Expire` | removes typing indicators after `data-ttl`; a `wait` read from an attribute is **UNVERIFIED (M6)**, the server's delete is the fallback (PF §5.5) | no | chat |
+| `PasswordRules` | ticks a password's rules and keeps the score for hs-include (`set dom :score`: a behaviour's own `:x` lives in the behaviour's scope, which hs-include doesn't read) | no | scripting (M2) |
 
 **The gate** is a `hyperscript:before:init` listener in app.js that cancels initialisation unless `_` matches
 `/^\s*install\s+[A-Z][A-Za-z0-9_]*(\s*\([^)]*\))?\s*$/` (05 §5: it blocked an injected `_` and an injected
@@ -2937,7 +2952,7 @@ vanilla profiles, also the eight twins. `escaping.spec` checks every rendered `_
 `data-behave` value against `BEHAVIOURS` (§19.1.5). Beyond its bytes (§12.1), hyperscript costs 5–19 ms of cold
 execution against htmx's 1.5–3 ms (05 §0); it is ledger line 3 (§3).
 
-**As built (M2):** `platform/html/behave.odin` holds the enum and the table above (20 members) and writes the
+**As built (M2):** `platform/html/behave.odin` holds the enum and the table above (20 members, 21 with slice 5's `PasswordRules`) and writes the
 attribute from `client.NAME`. A profile's `app.js` is `client/core.js` (the theme picker and its persistence,
 count-up, the overlay's Escape: everything both members keep) followed by the member's own `app.js`, concatenated by
 `tools/bundle`. The vanilla member's twins hang off one listener per event on `document`, dispatched by the nearest
@@ -2951,7 +2966,10 @@ count as outside, and Escape lives in `Dismiss`, which `SearchBox`'s results ins
 submit. `Composer` and `AutoScroll` land with chat (M2's slice 8). `lab` runs on the hyperscript client and
 `skeleton` and `minimal` on vanilla; the skeleton's specs also passed on a hyperscript build of it (Chromium and
 WebKit), the check `full-vanilla` makes from the other side. `escaping.spec` walks the sitemap and, on a hyperscript
-build, injects both forms of 05 §5 beside an `install` and checks that only the `install` initialised.
+build, injects both forms of 05 §5 beside an `install` and checks that only the `install` initialised. Code that is no
+behaviour and must run under either client goes in a feature's `static/*.js`, which tools/bundle appends to `app.js` as
+it appends `static/*.css` to `app.css` (each file wrapped in its own function): the scripting lab's plain-JS widget and
+the compat page's htmx 2 event counter are the two. `PasswordRules` (scripting) is the table's twenty-first row.
 
 ### 12.5 Themes
 
@@ -4211,6 +4229,14 @@ that the server sees at most 3 reconnects in 30 s. Whether hx-sse itself stops r
 | `a11y.spec` | `@axe-core/playwright` on every sitemap page without bypassCSP; lints: live regions in the initial markup, no click handlers on non-interactive elements | all 3 |
 
 CI also runs hyperscript's own `--validate` over rendered pages and `._hs` files (11 §7.3; R6).
+
+**As built (M2):** `csp-clean`, `csp-enforced`, `harness-csp` and `bundle-race` are in `e2e/tests/platform/`, each
+case tagged with the features it needs, and `streams-hxcsp` in `e2e/tests/scripting/`. `csp-clean` took over
+`security.spec`'s sitemap walk and checks each page before leaving it (a page's record starts over with each
+document). `csp-enforced` injects its markup as an escaping mistake would put it rather than mounting a test-only
+route. `bundle-race` runs the Main and Scripting layouts on `lab`'s hyperscript client; the separate-files control
+stays the spike's (S0.10), and the vanilla Main layout waits for a vanilla profile that streams (`streams`, slice 11).
+`streams-hxcsp` found 4.0.0 narrower than 11 §2.2: §12.2's as-built note.
 
 #### 19.1.5 Generated specs
 

@@ -39,6 +39,7 @@ Behaviour :: enum u8 {
 	Scrubber,
 	Otp_Input,
 	Expire,
+	Password_Rules,
 }
 
 // One row per behaviour: its hyperscript name and its vanilla twin's ("" = none).
@@ -66,6 +67,7 @@ BEHAVIOURS := [Behaviour]struct {
 	.Scrubber         = {"Scrubber", ""},
 	.Otp_Input        = {"OtpInput", ""},
 	.Expire           = {"Expire", ""},
+	.Password_Rules   = {"PasswordRules", ""},
 }
 
 // Writes the attribute that gives an element behaviour `x`, a leading space

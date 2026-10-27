@@ -75,7 +75,11 @@ tests/
                        write guard, input limits, operations (probes, /metrics, /licenses, the access log),
                        SEO contract, canonical redirect, style defaults, responsive, navigation + theme
                        picker, backup (@platform-sqlite), escaping (every `_` a lone install and every
-                       data-behave a twin, on every sitemap page; the hyperscript gate, on that client)
+                       data-behave a twin, on every sitemap page; the hyperscript gate, on that client),
+                       the client stack (PLAN §19): csp-clean (no violation on any sitemap page or in one
+                       interaction per feature), csp-enforced (the policy refuses an injected hx-on, and the
+                       nonce class strips an unnonced hx-get), harness-csp (what Playwright's own calls do
+                       under the CSP) and bundle-race (assets held 400 ms: the streams still wire)
   dashboard/           the dashboard's figures come from the store
   gallery/             components (tabs, accordion, toasts, modal, drawer) and forms (validation, sliders)
   contacts/            CRUD, paging, search, ids, escaping, writes, 422s, events (FK), persistence
@@ -85,6 +89,10 @@ tests/
                        extensions.spec (hx-sse, hx-ws, hx-multipart in the engine, the page contract, drain
                        and restart), pages.spec; streams.ts holds the SSE reader and the raw WebSocket client.
                        lab is built on the hyperscript client, so its run covers the behaviours and the gate
+  scripting/           the nonce class: each response's nonce on every htmx element, hx-on, a trigger
+                       filter, js: values, the password widget three ways and hs-include, Trusted Types;
+                       streams-hxcsp.spec pins hx-csp on SSE, WebSocket and multipart fragments
+  compat/              htmx-2-compat's semantics on its page only; hx-alpine-compat inert
 ```
 
 The regression tests pin bugs fixed earlier: the modal keeps its field on a

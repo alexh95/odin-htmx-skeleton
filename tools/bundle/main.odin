@@ -20,7 +20,8 @@ package main
 //   4. Precompress each with `brotli -q 11` and `gzip -9 -n` (see compress).
 //   5. Write the profile's app.css (the theme's sheet, then each reached
 //      feature's static CSS) and its app.js (client/core.js, then its client
-//      member's app.js), precompressed the same way. On the hyperscript client,
+//      member's app.js, then each reached feature's static JS), precompressed
+//      the same way. On the hyperscript client,
 //      also _hyperscript.min.js (pinned, with upstream's .br) and behaviours._hs
 //      (the member's core set, then each reached feature's static/*._hs), and
 //      every bundle's htmx-config names hs-include (05 §3).
@@ -149,7 +150,7 @@ main :: proc() {
 	// hyperscript client, its runtime and the behaviours.
 	outs := make([dynamic]struct{name: string, data: []byte})
 	append(&outs, struct{name: string, data: []byte}{"app.css", stylesheet(opt, files)})
-	append(&outs, struct{name: string, data: []byte}{"app.js", client_js(opt, member)})
+	append(&outs, struct{name: string, data: []byte}{"app.js", client_js(opt, member, files)})
 	hs_names := [2]string{"_hyperscript.min.js", "behaviours._hs"}
 	if member == "hyperscript" {
 		append(&outs, struct{name: string, data: []byte}{"_hyperscript.min.js", read(path_join(opt.repo, "app/vendor/hyperscript/_hyperscript.min.js"))})
@@ -206,21 +207,27 @@ stylesheet :: proc(opt: Options, files: []string) -> []byte {
 		strings.write_string(&b, line)
 		strings.write_byte(&b, '\n')
 	}
+	feature_statics(&b, opt, files, ".css")
+	return b.buf[:]
+}
+
+// Each reached feature's static/*<suffix>, in feature order and by name within
+// a feature, each after a newline.
+feature_statics :: proc(b: ^strings.Builder, opt: Options, files: []string, suffix: string) {
 	for f in reached_features(files) {
 		dir := path_join(opt.repo, "app/features", f, "static")
 		entries, err := os.read_all_directory_by_path(dir, context.temp_allocator)
 		if err != nil { continue }
 		names := make([dynamic]string, context.temp_allocator)
 		for e in entries {
-			if strings.has_suffix(e.name, ".css") { append(&names, e.name) }
+			if strings.has_suffix(e.name, suffix) { append(&names, e.name) }
 		}
 		slice.sort(names[:])
 		for n in names {
-			strings.write_string(&b, "\n")
-			strings.write_bytes(&b, read(path_join(dir, n)))
+			strings.write_string(b, "\n")
+			strings.write_bytes(b, read(path_join(dir, n)))
 		}
 	}
-	return b.buf[:]
 }
 
 // The build's client member: vanilla or hyperscript.
@@ -236,12 +243,15 @@ client_member :: proc(files: []string) -> string {
 }
 
 // app.js: what every client shares (client/core.js), then the member's own (its
-// delegated listener and twins, or the hyperscript gate).
-client_js :: proc(opt: Options, member: string) -> []byte {
+// delegated listener and twins, or the hyperscript gate), then each reached
+// feature's static/*.js: code that is no behaviour and runs under either client
+// (the scripting lab's plain-JS widget, the compat page's htmx 2 event log; §12.4).
+client_js :: proc(opt: Options, member: string, files: []string) -> []byte {
 	b := strings.builder_make()
 	strings.write_bytes(&b, read(path_join(opt.repo, "app/platform/client/core.js")))
 	strings.write_string(&b, "\n")
 	strings.write_bytes(&b, read(path_join(opt.repo, "app/platform/client", member, "app.js")))
+	feature_statics(&b, opt, files, ".js")
 	return b.buf[:]
 }
 
@@ -250,20 +260,7 @@ client_js :: proc(opt: Options, member: string) -> []byte {
 behaviours :: proc(opt: Options, files: []string) -> []byte {
 	b := strings.builder_make()
 	strings.write_bytes(&b, read(path_join(opt.repo, "app/platform/client/hyperscript/behaviours._hs")))
-	for f in reached_features(files) {
-		dir := path_join(opt.repo, "app/features", f, "static")
-		entries, err := os.read_all_directory_by_path(dir, context.temp_allocator)
-		if err != nil { continue }
-		names := make([dynamic]string, context.temp_allocator)
-		for e in entries {
-			if strings.has_suffix(e.name, "._hs") { append(&names, e.name) }
-		}
-		slice.sort(names[:])
-		for n in names {
-			strings.write_string(&b, "\n")
-			strings.write_bytes(&b, read(path_join(dir, n)))
-		}
-	}
+	feature_statics(&b, opt, files, "._hs")
 	return b.buf[:]
 }
 

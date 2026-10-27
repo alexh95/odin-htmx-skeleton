@@ -85,6 +85,8 @@ itself is scratch.
 | `lab/lab.js`         | the lab's pages, the resync refetch, a publish, `/lab/stats` | The contract pages, each rendering its live element and the hub's cursor. |
 | `lab/streams.js`     | `/lab/sse/tick`, `/lab/multipart`, `/lab/mp/count`, `/events` + `/lab/close` | Streams that end, measured whole; `/events` subscribed and ended by a kick (k6 returns from an SSE request only at its end: fan-out is `tools/streamload`'s, PLAN §19.1.7). |
 | `lab/sockets.js`     | the room page, then `/lab/ws/echo` and `/lab/ws/chat` | WebSocket round trips through `k6/websockets`, the room's through the hub. |
+| `scripting/scripting.js` | the nonce class's four pages, `/scripting/hello`, `/scripting/score`, its SSE (`end=1`), multipart and WebSocket streams | A fresh nonce per response; the streams' four buttons. The socket opens every tenth iteration: one per iteration left loopback pairs in TIME_WAIT faster than Windows frees them, and the client's dials failed. |
+| `compat/compat.js`   | `/compat`, `/compat/htmx2` with its save and refusal, `/compat/alpine`, the two pings | The refusal is a 422 by design (`expectedStatuses`). |
 
 The ten skeleton scenarios (static, seo, pages, list, search, api, detail, write, mixed, scale) are
 the parity gate's, unchanged from the skeleton so the same files measure HEAD and v1.1.1.
@@ -98,6 +100,11 @@ Loopback hides NIC cost and the load generator shares CPU with the server, so th
 for **relative** comparison (regressions, the thread-count before/after) but not absolute
 headline figures — for those, generator and target belong on separate hosts (see `PLAN.md` and
 [`../infra/PLAN.md`](../infra/PLAN.md)).
+
+On Windows, a sweep's socket scenarios (`lab/sockets.js`, `lab/streams.js`) leave thousands of loopback pairs in
+TIME_WAIT, which Windows holds for about two minutes; a scenario right after them can fail a few dials (k6 error
+1213, every route of a VU at once) and breach the 1 % gate. Run alone, it is clean: read such a failure that way
+before suspecting the server (`--out json` on k6 shows the codes).
 
 ## Keep in sync with e2e
 

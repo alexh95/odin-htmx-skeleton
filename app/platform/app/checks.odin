@@ -23,7 +23,7 @@ import identity "identity:."
 import stores "store:."
 
 // The problems in a profile's tables, one line each; empty when it may boot.
-boot_checks :: proc(hosts: []Host, sites: []web.Site, jobs: [][]workers.Job, bundle_exts: web.Exts) -> [dynamic]string {
+boot_checks :: proc(hosts: []Host, sites: []web.Site, jobs: [][]workers.Job, bundle_exts: web.Exts, page_bundles: bit_set[web.Bundle]) -> [dynamic]string {
 	problems := make([dynamic]string)
 	p :: proc(problems: ^[dynamic]string, format: string, args: ..any) {
 		append(problems, fmt.aprintf(format, ..args))
@@ -49,6 +49,7 @@ boot_checks :: proc(hosts: []Host, sites: []web.Site, jobs: [][]workers.Job, bun
 				// with no identity holds only .Public rows
 				if .Lab_Host in r.flags && h.identity && identity.SETS_COOKIE { p(&problems, "host %s: .Lab_Host route %q on a host where %s sets a cookie", h.name, id, identity.NAME) }
 				if !h.identity && r.perm != .Public { p(&problems, "host %s: route %q needs %v, but no identity runs on this host", h.name, id, r.perm) }
+				if .Trusted_Types in r.flags && .Nonce_Csp not_in r.flags { p(&problems, "host %s: route %q has .Trusted_Types without .Nonce_Csp, whose hx-csp makes the htmx policy", h.name, id) }
 				// 5. a router key fed by two mounted tables (the "/" bucket is shared by design)
 				key := web.key_of(r.pattern, context.temp_allocator)
 				if key != "/" {
@@ -75,6 +76,9 @@ boot_checks :: proc(hosts: []Host, sites: []web.Site, jobs: [][]workers.Job, bun
 	}
 	if b, ok := web.page_bundles_ok(); !ok {
 		p(&problems, "the embedded %v bundle doesn't carry its fixed extensions: run prepare", b)
+	}
+	for b in page_bundles {
+		if !web.page_bundle_embedded(b) { p(&problems, "main's pages load the %v bundle, which isn't embedded: run prepare", b) }
 	}
 	// 8. a job id mounted twice
 	seen := make(map[string]bool, context.temp_allocator)

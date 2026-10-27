@@ -119,6 +119,17 @@ bundle_exts :: proc() -> (set: ext.Exts, ok: bool) {
 
 // Boot check 6 for the fixed page bundles: each one embedded carries its table's
 // set (ext.PAGE_EXTS); a stale one names the bundle.
+// Whether prepare embedded page bundle `b` (boot check 6: main names the ones its pages load).
+page_bundle_embedded :: proc(b: ext.Bundle) -> bool {
+	switch b {
+	case .Main:          return len(MAIN_JS) > 0
+	case .Scripting:     return len(SCRIPTING_JS) > 0
+	case .Compat_Htmx2:  return len(COMPAT_HTMX2_JS) > 0
+	case .Compat_Alpine: return len(COMPAT_ALPINE_JS) > 0
+	}
+	return false
+}
+
 page_bundles_ok :: proc() -> (bad: ext.Bundle, ok: bool) {
 	for js, b in ([ext.Bundle]string{.Main = "", .Scripting = SCRIPTING_JS, .Compat_Htmx2 = COMPAT_HTMX2_JS, .Compat_Alpine = COMPAT_ALPINE_JS}) {
 		if js == "" { continue }

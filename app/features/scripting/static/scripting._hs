@@ -1,0 +1,22 @@
+-- /scripting/live's hyperscript build of the password rules (PLAN §12.3): the
+-- same four rules as scripting.js and the hx-live card, each <li data-rule>
+-- ticked with .ok as the password is typed, and the score. A behaviour's own
+-- `:score` would live in the behaviour's scope; `dom :score` is the element's,
+-- where the card's hs-include="^score" finds it.
+behavior PasswordRules
+  on input
+    set v to the target's value
+    set rules to {len: (v.length >= 12), digit: (v.search('[0-9]') >= 0), mixed: ((v.search('[a-z]') >= 0) and (v.search('[A-Z]') >= 0)), word: ((v is not '') and (v.toLowerCase().indexOf('password') < 0))}
+    set n to 0
+    for li in <li[data-rule]/> in me
+      if rules[li.dataset.rule]
+        add .ok to li
+        increment n
+      else
+        remove .ok from li
+      end
+    end
+    set dom :score to n
+    put (n + ' of 4') into the first <.scripting-pw-score/> in me
+  end
+end

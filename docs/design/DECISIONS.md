@@ -1228,6 +1228,11 @@ concatenation without precompression (core has no gzip writer and vendor:zlib li
 **Rejected.** App-wide hx-csp (11 §2: it strips hx-* from stream fragments and fails open for verb-less connect
 elements). `unsafe-eval`. Separate CSP modes per profile (one base plus flags is enough).
 
+**As built (M2):** Trusted Types is its own route flag, `.Trusted_Types`, valid only beside `.Nonce_Csp`; the nonce is
+base64url, so `/scripting/streams` can send it in a connect URL. On 4.0.0 the fail-open is narrower than 11 §2 found:
+an unnonced connect that arrives in an htmx swap is stripped, one handed to `htmx.process` inside a subtree that other
+code wrote still connects (`streams-hxcsp.spec` pins both; PLAN §12.2's note). The rejection stands.
+
 **Alex confirms:** no.
 
 ### D21. All 17 htmx extensions
@@ -1311,6 +1316,9 @@ and the skeleton is the vanilla member's witness. The pages grow by a few attrib
 behaviour are unchanged, and the skeleton's specs pass on both members. The code both members keep (the theme picker,
 count-up, the overlay's Escape) is `client/core.js`, which tools/bundle puts first in each profile's `app.js`. `lab`
 is the first profile on hyperscript; `full` and `full-vanilla` take over the both-members check when `full` exists.
+The table gained `Password_Rules` (scripting's, hyperscript-only). A feature's `static/*.js` is appended to `app.js`
+for code that is no behaviour and runs under either client (PLAN §12.4's note); a behaviour still goes through
+`html.behave`.
 
 **Rejected.** String behaviour names (RF §3.9, CF §4.1). RF §4.2's boot switch embedding both runtimes. A vanilla twin
 of every behaviour (PF's `houston-vanilla`): twin cost without user value.

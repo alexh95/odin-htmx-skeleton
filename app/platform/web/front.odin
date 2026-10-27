@@ -73,7 +73,10 @@ security_init :: proc(set: Header_Set, trusted: []env.Cidr) {
 csp :: proc() -> string { return sec.csp }
 
 // On every response, whatever produced it; a route's flags add their own. A
-// .Nonce_Csp route's response gets a fresh nonce, returned for the page to stamp.
+// .Nonce_Csp route's response gets a fresh nonce, returned for the page to stamp:
+// base64url, so it can ride in a URL's query as it is (a stream that stamps the
+// page's nonce is told it that way, §12.2), and still a CSP nonce. .Trusted_Types
+// adds hx-csp's policy, the only one allowed to touch a DOM sink (11 §2.3).
 security_headers :: proc(res: ^Response, flags: Route_Flags, path: string) -> (nonce: string) {
 	h := &res.headers
 	// Constant lowercase keys: the unsafe setter skips headers_set's lowercased copy of each,
@@ -82,8 +85,9 @@ security_headers :: proc(res: ^Response, flags: Route_Flags, path: string) -> (n
 	if .Nonce_Csp in flags {
 		raw: [16]byte
 		crypto.rand_bytes(raw[:])
-		nonce = base64.encode(raw[:], allocator = context.temp_allocator)
-		http.headers_set_unsafe(h, "content-security-policy", strings.concatenate({sec.nonce_head, nonce, sec.nonce_tail}, context.temp_allocator))
+		nonce = base64.encode(raw[:], base64.ENC_URL_TABLE, context.temp_allocator)
+		tt := "; require-trusted-types-for 'script'; trusted-types htmx" if .Trusted_Types in flags else ""
+		http.headers_set_unsafe(h, "content-security-policy", strings.concatenate({sec.nonce_head, nonce, sec.nonce_tail, tt}, context.temp_allocator))
 		http.headers_set_unsafe(h, "cache-control", "no-store")
 	} else {
 		http.headers_set_unsafe(h, "content-security-policy", sec.csp)

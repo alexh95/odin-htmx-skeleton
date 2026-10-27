@@ -30,15 +30,16 @@ Bundle :: ext.Bundle
 Handler :: #type proc(req: ^Request, res: ^Response)
 
 Route_Flag :: enum u8 {
-	Step_Up,     // a recent password or TOTP check (M4)
-	Lan_Only,    // 404 unless the client is in LAN_CIDRS
-	Private,     // no-store, noindex, hx-history="false"
-	Fragment,    // bare HTML to swap into a page: kept out of robots.txt's crawl
-	Stream,      // SSE, WS, multipart: no buffering by a proxy (M2)
-	Frame_Games, // frame-src for the games origin (M10)
-	Media,       // Range, immutable (M9)
-	Nonce_Csp,   // a per-response nonce CSP (lab pages, M2)
-	Lab_Host,    // a mount rule: only on a host where no cookie-setting identity runs
+	Step_Up,       // a recent password or TOTP check (M4)
+	Lan_Only,      // 404 unless the client is in LAN_CIDRS
+	Private,       // no-store, noindex, hx-history="false"
+	Fragment,      // bare HTML to swap into a page: kept out of robots.txt's crawl
+	Stream,        // SSE, WS, multipart: no buffering by a proxy (M2)
+	Frame_Games,   // frame-src for the games origin (M10)
+	Media,         // Range, immutable (M9)
+	Nonce_Csp,     // a per-response nonce CSP (lab pages, M2)
+	Lab_Host,      // a mount rule: only on a host where no cookie-setting identity runs
+	Trusted_Types, // with .Nonce_Csp: Trusted Types enforced, and no hyperscript on the page (/scripting/tt)
 }
 
 Route_Flags :: bit_set[Route_Flag]

@@ -11,7 +11,7 @@ Three profiles ship today:
 |---|---|---|---|---|
 | `skeleton` | dashboard, gallery, contacts, about | SQLite | full (6 styles × 23 schemes) | the 1.2.x contacts console at its exact URLs: the worked example and the performance witness |
 | `minimal` | home, notes, about | memory (no SQLite library at all) | lite (one style, two schemes) | the one-page starter: a notes card added to over HTMX |
-| `lab` | lab, about | memory | full | the stream contract pages: SSE, WebSocket and multipart from Odin to htmx 4's extensions (M2; scripting and compat follow) |
+| `lab` | lab, scripting, compat, about | memory | full | the stream contract pages (SSE, WebSocket and multipart from Odin to htmx 4's extensions), the nonce class (`/scripting`: hx-csp, hx-live, Trusted Types) and the compatibility layers (`/compat`), on the hyperscript client (M2) |
 
 ## Run it
 

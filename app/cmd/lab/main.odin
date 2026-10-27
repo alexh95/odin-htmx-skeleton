@@ -6,18 +6,24 @@ import "../../platform/app"
 import "../../platform/hub"
 import "../../platform/web"
 import about_web "../../features/about/web"
+import compat_web "../../features/compat/web"
 import lab_web "../../features/lab/web"
+import scripting_web "../../features/scripting/web"
 
 // Every extension the main bundle needs (D19). Boot refuses a bundle whose
 // header says otherwise.
-BUNDLE_EXTS :: lab_web.EXTS + about_web.EXTS
+BUNDLE_EXTS :: lab_web.EXTS + scripting_web.EXTS + compat_web.EXTS + about_web.EXTS
+
+// The fixed bundles its pages load besides Main (§12.1); boot refuses a build
+// that didn't embed them.
+PAGE_BUNDLES :: scripting_web.BUNDLES + compat_web.BUNDLES
 
 main :: proc() {
 	app.boot("lab")
 	about_web.init(ABOUT)
 	hub.init()
 	hub.mount("main", ..TOPICS[:])
-	app.check(HOSTS[:], JOBS[:], BUNDLE_EXTS)
+	app.check(HOSTS[:], JOBS[:], BUNDLE_EXTS, PAGE_BUNDLES)
 
 	// The standard set, and browsers' CSP violation reports to /csp-report (§12.2).
 	app.serve(HOSTS[:], JOBS[:], &BRAND, web.Header_Set.Reporting)

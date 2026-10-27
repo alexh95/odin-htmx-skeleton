@@ -3,8 +3,8 @@ package main
 // ---- lab's brand: its names, its nav, its copy ------------------------------------------
 //
 // The starter's own page, on an origin with no sessions (PLAN §7.1, §15.5): the
-// stream contract pages now; the scripting and compat pages, the landing page
-// and the witness board join it milestone by milestone.
+// stream contract pages, the nonce class and the compatibility layers now; the
+// landing page and the witness board join it at M3.
 
 import "../../platform/html"
 import about_web "../../features/about/web"
@@ -24,6 +24,8 @@ BRAND := html.Brand {
 NAV := [?]html.Nav_Item {
 	{"/", "Lab", "grid"},
 	{"/lab/streams", "Streams", "bolt"},
+	{"/scripting", "Scripting", "code"},
+	{"/compat", "Compat", "layers"},
 	{"/about", "About", "info"},
 }
 

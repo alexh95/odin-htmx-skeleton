@@ -68,13 +68,34 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   initialises an element only when its `_` is a lone `install <Name>`, so an injected `_` or `text/hyperscript`
   script never runs.
 - **`html.behave`** (`platform/html/behave.odin`): the one seam between markup and the client. `behave(&b, .Tabs)`
-  writes `_="install Tabs"` or `data-behave="tabs"` from one table of twenty behaviours, the eight twinned ones
+  writes `_="install Tabs"` or `data-behave="tabs"` from one table of twenty-one behaviours, the eight twinned ones
   with a vanilla name.
 - **`escaping.spec`** (e2e): on every sitemap page each `_` is a lone install and each `data-behave` a twin's name
   from the table; on a hyperscript build, an injected `_` and an injected hyperscript script stay inert beside a
   working `install`.
 - **The notices** carry _hyperscript's licence and the MIT notice of multipart-parser, which htmx's hx-multipart
   ports and whose minified file drops it (owed since the lab began loading hx-multipart); `ops.spec` checks it.
+- **The `scripting` feature** (`/scripting`, PLAN §12.2-12.3, §15.5), on the Scripting bundle under the nonce class:
+  a nonced `hx-get` whose answer's own nonce hx-csp rewrites, `hx-on`, a trigger filter and a `js:` value;
+  `/scripting/live`, one password-rules widget in plain JavaScript, a hyperscript behaviour (`PasswordRules`, with
+  hs-include sending its score to the server) and hx-live bindings; `/scripting/streams`, research 11 §2.2's
+  matrix on SSE, a WebSocket and multipart; `/scripting/tt`, with Trusted Types. Every row is `.Nonce_Csp` and
+  `.Lab_Host`.
+- **The `compat` feature** (`/compat`): `/compat/htmx2` runs htmx 2-era markup on htmx 4 with htmx-2-compat (a 422
+  left unswapped, implicit inheritance, htmx 2's event names), and `/compat/alpine` loads hx-alpine-compat with no
+  Alpine and changes nothing; each on its own bundle. The lab mounts both, with nav entries.
+- **`.Trusted_Types`**, a route flag: with `.Nonce_Csp`, `require-trusted-types-for 'script'; trusted-types htmx`,
+  and the page loads no hyperscript (its `put` has no policy). Boot refuses it without `.Nonce_Csp`.
+- **Boot check 6 covers the page bundles a profile's pages load**: `app.check`'s `page_bundles` (main's
+  `PAGE_BUNDLES`, the scripting and compat packages' `BUNDLES` lines) must be embedded.
+- **A feature's `static/*.js`** is appended to the profile's `app.js` (after `client/core.js` and the member's), as
+  its CSS is to `app.css`: code that is no behaviour and runs under either client.
+- **The client-stack specs** (PLAN §19): `csp-clean.spec` (every sitemap page, the picker, the gallery, the streams,
+  the behaviours and the scripting and compat pages, with no violation; it takes over `security.spec`'s sitemap
+  walk), `csp-enforced.spec` (an injected `hx-on` refused under the hash CSP; an injected, unnonced `hx-get` stripped
+  in the nonce class), `harness-csp.spec` (what Playwright's own calls do under the CSP), `bundle-race.spec` (assets
+  held 400 ms: the streams wire, `hx-ws:send` never navigates, hs-include arrives) and `streams-hxcsp.spec`; with
+  `scripting.spec` and `compat.spec`, and load scenarios for every new route.
 
 ### Changed
 - **An open stream holds 3 KiB, not 16** (the fork's F-17): its receive buffer is sized by kind, the scanner's buffer
@@ -95,6 +116,10 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   which tools/bundle puts first in every profile's `app.js`. A toast now arms its own timer on
   `htmx:after:process` instead of a body-wide observer.
 - **The lab runs on the hyperscript client.**
+- **A response's nonce is base64url** (still 16 random bytes), so a page can send it in a connect URL as it is.
+- **`core.js` and the vanilla twins clear an element with `replaceChildren()`**, not `innerHTML = ""`, which a
+  Trusted Types page refuses.
+- **The CSP sitemap walk moved from `security.spec` to `csp-clean.spec`.**
 - **PHILOSOPHY.md's line and ledger** follow PLAN §3.3: htmx with its extensions, the odin-http fork, optional SQLite
   and optional _hyperscript; the ledger counts app.js, SQLite, _hyperscript, the fork, tools/bundle and the crash
   guard.
@@ -109,7 +134,7 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   since. `protocol.spec` keeps the check.
 - **robots.txt no longer hides a page beside a family of fragments**: the lab's `/lab/feed`, `/lab/publish`, … had
   collapsed to `Disallow: /lab/`, which also covered `/lab/streams`. A family collapses to its first segment only when
-  no page lives under it.
+  no page lives under it; `seo.spec` checks that no Disallow covers a sitemap page.
 
 ## [2.0.0] - 2026-10-26
 

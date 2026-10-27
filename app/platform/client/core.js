@@ -99,7 +99,7 @@ document.addEventListener("click", function (e) {
 document.addEventListener("keydown", function (e) {
   if (e.key !== "Escape") return;
   var overlay = document.getElementById("overlay");
-  if (overlay) overlay.innerHTML = "";
+  if (overlay) overlay.replaceChildren(); // not innerHTML: a Trusted Types page refuses it
 });
 
 countUp();

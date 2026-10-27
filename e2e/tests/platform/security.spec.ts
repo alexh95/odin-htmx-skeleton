@@ -2,25 +2,15 @@ import { test, expect, has } from '../../fixtures';
 import type { Page } from '@playwright/test';
 
 // The security headers every response carries, and the Content-Security-Policy
-// actually holding: no inline handlers left to block, the theme pre-paint
-// script admitted by its hash, and no violation while the pages are used.
-// Every profile; a check that needs a feature or the full theme says so.
+// actually holding: no inline handlers left to block, and the theme pre-paint
+// script admitted by its hash. That using the pages raises no violation is
+// csp-clean.spec's. Every profile; a check that needs a feature or the full
+// theme says so.
 
 async function sitemapPaths(page: Page): Promise<string[]> {
   const body = await (await page.request.get('/sitemap.xml')).text();
   return [...body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname);
 }
-
-// Records every CSP violation the page reports, from before its first script.
-async function watchCsp(page: Page) {
-  await page.addInitScript(() => {
-    (window as any).__csp = [];
-    document.addEventListener('securitypolicyviolation', (e) =>
-      (window as any).__csp.push(`${e.violatedDirective} ${e.blockedURI} ${e.sourceFile}:${e.lineNumber}`),
-    );
-  });
-}
-const violations = (page: Page) => page.evaluate(() => (window as any).__csp as string[]);
 
 // Writes must come from the site's own pages. Browsers say where a request
 // comes from (Sec-Fetch-Site, Origin); one that is cross-site by either is
@@ -105,41 +95,5 @@ test.describe('security headers', { tag: '@platform' }, () => {
     // match, the browser would have refused it and the defaults would show.
     await expect(page.locator('html')).toHaveAttribute('data-style', style);
     await expect(page.locator('html')).toHaveAttribute('data-scheme', scheme);
-  });
-
-  test('using the pages raises no CSP violation', async ({ page }) => {
-    await watchCsp(page);
-    for (const path of await sitemapPaths(page)) {
-      await page.goto(path);
-      expect(await violations(page), path).toEqual([]);
-    }
-
-    // The picker is on every page, whichever theme the build has.
-    await page.goto('/');
-    await page.locator('.picker summary').click();
-    if (has('platform-full')) {
-      await page.locator('[data-pick-style="brutal"]').click();
-      await expect(page.locator('html')).toHaveAttribute('data-style', 'brutal');
-      await page.locator('[data-pick-scheme="acid"]').click();
-      await expect(page.locator('html')).toHaveAttribute('data-scheme', 'acid');
-    } else {
-      await page.locator('[data-pick-scheme="daylight"]').click();
-      await expect(page.locator('html')).toHaveAttribute('data-scheme', 'daylight');
-    }
-
-    if (has('gallery')) {
-      await page.goto('/components');
-      await page.locator('[data-sw-style="arcade"][data-sw-scheme="pop"]').click();
-      await expect(page.locator('html')).toHaveAttribute('data-scheme', 'pop');
-      await page.getByRole('tab', { name: 'Security' }).click();
-      await expect(page.getByRole('tab', { name: 'Security' })).toHaveAttribute('aria-selected', 'true');
-      await page.getByRole('button', { name: 'Success toast' }).click();
-      await page.locator('#toasts .toast-x').first().click();
-      await expect(page.locator('#toasts .toast:not(.leaving)')).toHaveCount(0);
-      await page.getByRole('button', { name: 'Open drawer' }).click();
-      await page.locator('.drawer h2').click(); // inside the drawer: must not close it
-      await expect(page.locator('.drawer')).toBeVisible();
-    }
-    expect(await violations(page)).toEqual([]);
   });
 });

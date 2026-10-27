@@ -62,7 +62,7 @@ function initRanges(root) {
 // results) or closes it (a <details>).
 function dismiss(el) {
   if (el.tagName === "DETAILS") el.removeAttribute("open");
-  else el.innerHTML = "";
+  else el.replaceChildren();
 }
 
 document.addEventListener("input", function (e) {
@@ -89,7 +89,7 @@ document.addEventListener("htmx:after:request", function (e) {
   var el = ctx.sourceElement;
   if (!el || !el.matches || !el.matches('form[data-behave="reset-on-success"]')) return;
   el.reset();
-  el.querySelectorAll(".form-error").forEach(function (m) { m.innerHTML = ""; });
+  el.querySelectorAll(".form-error").forEach(function (m) { m.replaceChildren(); });
 }, true);
 
 document.addEventListener("click", function (e) {

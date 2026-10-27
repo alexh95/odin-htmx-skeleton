@@ -447,6 +447,9 @@ the browser stops first. Store failures are separate: `web.respond_store_error` 
   `client/hyperscript/behaviours._hs` (or a feature's `static/<f>._hs`) *and* a twin in
   `client/vanilla/app.js`'s dispatcher; a hyperscript-only one (`""` in the table) is an
   enhancement the feature's core flow works without. `escaping.spec` holds every page to it.
+- **A feature's `static/*.js`** is appended to `app.js` after the member's (tools/bundle; wrap it in
+  its own function, it shares the file): only for code that is no behaviour and must run under
+  either client (the scripting lab's plain-JS widget, the compat page's event counter).
 - **Markup never carries code.** On the hyperscript client the gate in its `app.js` initialises an
   element only when its `_` is a lone `install <Name>`; data reaches a behaviour only through
   `data-*`. hyperscript's `socket`, `eventsource`, `worker`, `component` and `js` are banned.
@@ -460,6 +463,11 @@ the browser stops first. Store failures are separate: `web.respond_store_error` 
 - **No new inline `<script>`.** The only one is `html.THEME_PREPAINT_JS`, admitted by its hash
   (computed at boot, so editing the constant keeps the header right), and on a `.Nonce_Csp` page
   the layout's scripts by nonce; anything else goes in app.js or a behaviour.
+- **The nonce class** (`/scripting/*`, `.Nonce_Csp`): every htmx element carries
+  `hx-nonce="<%N%>"` (`html.NONCE_MARK`, which the response writer turns into the response's
+  nonce), or hx-csp strips its attributes; only such an element may carry code (`hx-on`, a trigger
+  filter, `js:`, hx-live). `.Trusted_Types` adds Trusted Types there and drops hyperscript. Clear
+  an element with `replaceChildren()`, never `innerHTML = ""`, which Trusted Types refuses.
 - **Keep per-node state swap-safe** — a boosted nav swaps the whole `<body>`. Make on-load init
   idempotent so `htmx:after:process` can re-run it after a swap (a toast's timer flags `data-armed`,
   the count-up `data-counted`; `markPicker` just re-sets aria state), and listen on `document`, never

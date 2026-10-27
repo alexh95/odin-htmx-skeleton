@@ -117,12 +117,14 @@ boot :: proc(profile: string) {
 }
 
 // §8.6 step 4: the boot checks, then the CLI that lists what boot recorded.
-check :: proc(hosts: []Host, jobs: [][]workers.Job, bundle_exts: web.Exts) {
+// `page_bundles` names the fixed bundles the profile's pages load (§12.1): the
+// BUNDLES lines of its scripting and compat packages.
+check :: proc(hosts: []Host, jobs: [][]workers.Job, bundle_exts: web.Exts, page_bundles := bit_set[web.Bundle]{}) {
 	mount(hosts)
 	for &s in st.sites {
 		for m in s.router.rows { m.obs = obs.register_route(m.id) }
 	}
-	problems := boot_checks(hosts, st.sites[:], jobs, bundle_exts)
+	problems := boot_checks(hosts, st.sites[:], jobs, bundle_exts, page_bundles)
 	for p in env.problems() { append(&problems, p) }
 	if len(problems) > 0 {
 		fmt.eprintfln("%s: %d problem(s) at boot:", st.profile, len(problems))
@@ -139,10 +141,10 @@ check :: proc(hosts: []Host, jobs: [][]workers.Job, bundle_exts: web.Exts) {
 }
 
 // The boot checks alone, for a profile's routes_test.odin: the problems, no exit.
-dry_check :: proc(hosts: []Host, jobs: [][]workers.Job, bundle_exts: web.Exts) -> [dynamic]string {
+dry_check :: proc(hosts: []Host, jobs: [][]workers.Job, bundle_exts: web.Exts, page_bundles := bit_set[web.Bundle]{}) -> [dynamic]string {
 	sites := make([dynamic]web.Site, context.temp_allocator)
 	for h in hosts { append(&sites, mounted(h)) }
-	return boot_checks(hosts, sites[:], jobs, bundle_exts)
+	return boot_checks(hosts, sites[:], jobs, bundle_exts, page_bundles)
 }
 
 @(private)

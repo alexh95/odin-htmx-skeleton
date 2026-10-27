@@ -80,8 +80,13 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       the platform specs, Chromium, WebKit, api), load scenarios for every lab route, route parity clean. Two
       lessons in the port: a burst of five 60 KB frames passes the 256 KiB cap while the kernel still has room (the
       never-reads check now fills the kernel first, one message at a time), and a k6 iteration cut off mid-await
-      stalls its VU's later awaits (the streams scenario lets the warmup's last iterations finish). Left:
-      `scripting` and `compat` (after slices 3 and 4) and the client-stack specs.
+      stalls its VU's later awaits (the streams scenario lets the warmup's last iterations finish). Then `scripting`
+      (`/scripting`, `/live`, `/streams`, `/tt`) and `compat` (`/compat`, `/htmx2`, `/alpine`) with `.Trusted_Types`,
+      `PAGE_BUNDLES` in boot check 6 and feature `static/*.js`; `csp-clean`, `csp-enforced`, `harness-csp`,
+      `bundle-race` and `streams-hxcsp` with `scripting.spec` and `compat.spec`: lab 226 passed (api, Chromium,
+      WebKit); load scenarios for both. Found on the way: the fork's F-18 (a request right after a stream on its
+      keep-alive connection lost its first bytes) and a robots.txt that hid `/lab/streams`. `lab` reaches no SQLite file
+      (its dependency list; CI's no-SQLite build of it is slice 16's). Left: the Linux leg of the lab specs.
 - [ ] **6. `platform/stream/client` and `tools/streamload`** (§8.2, §19.1.7): one non-blocking chunked, SSE and WS
       client on `core:net`; a multi-threaded fan-out generator with publisher-stamped `data-t` for delivery
       percentiles. *Check:* the client's parsers under table-driven random bytes; fan-out (1000 × 50, 3000), restart
@@ -90,6 +95,10 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       fanout, restart and hold runs meet every §18.4 row on Linux (`docs/perf/STREAMS.md`), per-stream RSS once the
       fork's F-17 was in (16.2 KiB an idle stream before, 3.0 after). Follow-ups: random-bytes tables for the client's
       parsers (slice 13's fuzz tier 2); streamload into the nightly soak (slice 13).
+- [ ] **A load sweep on Windows after the socket scenarios** fails a few dials (k6 1213: loopback pairs in
+      TIME_WAIT; `load-tests/README.md` "Caveats"), so `--strict` can trip on a scenario that runs clean alone.
+      Ways out, for slice 13 or 16: pause between scenarios until TIME_WAIT drains, run the socket scenarios last,
+      or gate the parity sweep on Linux only.
 - [ ] **The skeleton's size budget** (asked of Alex 2026-10-27): F-17 put the skeleton at 2,884,096 B, 512 B past its
       2.75 MiB (it had 16 B of slack in .text), so CI's Windows size check fails until Alex picks: (a) 3 MiB
       (recommended), (b) SQLite's OMIT flags (about 69 KB), (c) keep 2.75 MiB. Slices 3 and 4 also touch skeleton code: after slice 4 it is 2,894,848 B (11,264 B over),

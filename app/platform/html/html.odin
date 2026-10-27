@@ -109,6 +109,7 @@ icon :: proc(b: ^strings.Builder, name: string) {
 	case "trash":   w(b, `<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>`)
 	case "cycle":   w(b, `<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>`)
 	case "bolt":    w(b, `<path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/>`)
+	case "code":    w(b, `<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>`)
 	case "bell":    w(b, `<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>`)
 	case "check":   w(b, `<path d="M20 6 9 17l-5-5"/>`)
 	case "arrow":   w(b, `<path d="M12 19V5M5 12l7-7 7 7"/>`)
@@ -303,16 +304,19 @@ layout :: proc(p: Page, content: string) -> string {
 `)
 	// After app.js, whose gate must be listening before hyperscript initialises
 	// anything; after htmx, whose after-process hook hyperscript installs only if
-	// htmx is there (05 §3). The behaviours are text hyperscript fetches.
+	// htmx is there (05 §3). The behaviours are text hyperscript fetches. None on a
+	// Trusted Types page, whose policy hyperscript's `put` can't pass (11 §2.3).
 	when CLIENT == "hyperscript" {
-		w(&b, `<script src="`)
-		w(&b, p.hs)
-		nonce_attr(&b, p.nonce)
-		w(&b, `" defer></script>
+		if p.hs != "" {
+			w(&b, `<script src="`)
+			w(&b, p.hs)
+			nonce_attr(&b, p.nonce)
+			w(&b, `" defer></script>
 <script type="text/hyperscript" src="`)
-		w(&b, p.behaviours)
-		w(&b, `"></script>
+			w(&b, p.behaviours)
+			w(&b, `"></script>
 `)
+		}
 	}
 	// The site name a search engine prints above the result; without it the name is
 	// derived from the hostname. Google reads WebSite only from the home page, hence
