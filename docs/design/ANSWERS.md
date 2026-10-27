@@ -86,6 +86,29 @@ by the reply box's length limit; its last words are the button Alex clicked, "1 
 | Q35 (the light routes' reference) | "light routes (static, seo) gate against HEAD 709bc94 only, store routes against max(HEAD, v1.1.1)" | **Answered.** On `static` and `seo` the gate compares the candidate with HEAD alone, because v1.1.1 is faster there only by lacking 1.2.0's security middleware (S0.1); every other scenario keeps max(HEAD, v1.1.1). |
 | Q34 (the login-storm budget) | "Q34 take the default (absolute budget, 1 argon thread on ≤ 2 CPUs" | **Answered: the default.** 50 logins/s under `cpus: 2.0`: other routes' p99 ≤ their base + 0.5 ms, the cgroup never throttled, every login answered; `ACCOUNTS_ARGON_THREADS` is 1 when the container has ≤ 2 CPUs, else 2 (S0.5). |
 
+## Round 10 (2026-10-27)
+
+The skeleton's binary budget, relayed by the planning session with three options: (a) 3 MiB, (b) SQLite's OMIT flags
+(about 69 KB), (c) keep 2.75 MiB. The fork's F-17 had put the skeleton 512 B over 2.75 MiB, and M2's shared client
+code (slices 3 and 4) 11,264 B over.
+
+| Item | Alex said | What it means for the plan |
+|---|---|---|
+| The skeleton's binary budget | "Tell it (a)" | **(a).** `skeleton` ≤ 3 MiB on Windows `-o:speed`, in CI's size check, the drills, D38 and §18.4. No SQLite OMIT flags and no re-encode of the social card; nothing byte-neutral is needed to hold the old figure. |
+
+## Round 9 (2026-10-26)
+
+The three gaps M2's slices 7–11 found in the plan, relayed by the planning session with a recommendation for each:
+(1) §7.1 builds `streams` on the `nick` identity, while §22.3 puts nick with accounts at M4; (2) `/admin/ops` needs
+`Admin_Ops`, which only Admin holds, and nick gives only User, so nobody could open ops in `streams`; (3) §17.1 says
+off-LAN visitors to a nick witness "can read but not post", but D35's table gives a Guest no `Chat_Read`.
+
+| Item | Alex said | What it means for the plan |
+|---|---|---|
+| (1) nick at M2 | "Go with the recommended options." | **Build `features/accounts/identity_nick` in M2**: a signed nickname cookie with role User, granted by `ACCOUNTS_NICK_FROM=lan` to clients in `LAN_CIDRS`. The rest of `accounts` (sessions, passwords, TOTP, `identity_accounts`) stays at M4. |
+| (2) ops in `streams` | (the same) | **`ACCOUNTS_NICK_ADMIN_CIDRS`**, empty by default: nick gives Admin to clients in it, so `/admin/ops` opens in `streams` for them. The e2e suite sets it to loopback; on apollo Alex may set his PC's address. |
+| (3) off-LAN visitors | (the same) | **D35's role table stands**: an off-LAN visitor is a Guest, with no `Chat_Read`. Chat shows them a "chat is open on the LAN" notice instead of the rooms, and §17.1 says so in place of "can read but not post". |
+
 ## Round 8 (2026-10-26)
 
 CI's first run on the restated budgets, relayed by the planning session with two options: (a) gate the idle budget on

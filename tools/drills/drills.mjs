@@ -42,7 +42,7 @@ const phases = PHASES.length ? PHASES : ALL;
 // is 6 MB plus 0.4 MB per event loop (each has its log buffer, counters and io ring).
 const MiB = 1024 * 1024;
 const BUDGET = {
-  size: { minimal: 1.5 * MiB, skeleton: 2.75 * MiB },
+  size: { minimal: 1.5 * MiB, skeleton: 3 * MiB }, // ANSWERS rounds 7 and 10
   idle: (loops) => 6e6 + 0.4e6 * loops,
   readyMs: 50,
 };

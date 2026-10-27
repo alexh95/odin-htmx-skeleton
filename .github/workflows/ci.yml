@@ -124,7 +124,7 @@ jobs:
             budget: 1572864    # 1.5 MiB (ANSWERS round 7)
           - profile: skeleton
             write: /contacts name=CI+Smoke&email=ci@example.com
-            budget: 2883584    # 2.75 MiB
+            budget: 3145728    # 3 MiB (ANSWERS round 10)
           - profile: lab
             write: /compat/htmx2/save name=CI+smoke  # lab has no size budget of its own (§18.4)
           - { profile: minimal, os: ubuntu-latest, sqlite: none, write: /notes body=CI+smoke }

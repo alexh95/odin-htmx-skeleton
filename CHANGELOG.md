@@ -137,6 +137,9 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   `scripting.spec` and `compat.spec`, and load scenarios for every new route.
 
 ### Changed
+- **The skeleton's binary budget is 3 MiB** (ANSWERS round 10; D38, PLAN §18.4), in CI's Windows size check and the
+  drills: the fork's F-17 and M2's shared client code (`client/core.js`, the twins' dispatcher, `html.behave`) had put
+  it 11 KB past 2.75 MiB. No SQLite OMIT flags, no re-encode.
 - **CI covers lab** (PLAN §20.1): checked on its families, built on the four platforms (and without SQLite on Linux and
   Windows; no size budget of its own), its e2e specs in all three engines, its k6 quick run in the route coverage, and
   its drills in `linux-ops`.

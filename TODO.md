@@ -99,10 +99,14 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       TIME_WAIT; `load-tests/README.md` "Caveats"), so `--strict` can trip on a scenario that runs clean alone.
       Ways out, for slice 13 or 16: pause between scenarios until TIME_WAIT drains, run the socket scenarios last,
       or gate the parity sweep on Linux only.
-- [ ] **The skeleton's size budget** (asked of Alex 2026-10-27): F-17 put the skeleton at 2,884,096 B, 512 B past its
-      2.75 MiB (it had 16 B of slack in .text), so CI's Windows size check fails until Alex picks: (a) 3 MiB
-      (recommended), (b) SQLite's OMIT flags (about 69 KB), (c) keep 2.75 MiB. Slices 3 and 4 also touch skeleton code: after slice 4 it is 2,894,848 B (11,264 B over),
-      the shared `client/core.js` and the twins' dispatcher in `app.js` (three encodings each) and `html.behave`.
+- [x] **The skeleton's size budget**: F-17 put the skeleton 512 B past 2.75 MiB, and slices 3 and 4 11,264 B (the
+      shared `client/core.js`, the twins' dispatcher, `html.behave`). Alex chose (a), 3 MiB (ANSWERS round 10), in CI,
+      the drills, D38 and §18.4; no OMIT flags, no re-encode.
+- [ ] **6a. The `nick` identity** (`features/accounts/identity_nick`, §17.1, ANSWERS round 9): a signed nickname cookie,
+      role User for clients in `LAN_CIDRS` (`ACCOUNTS_NICK_FROM=lan`), Admin for those in `ACCOUNTS_NICK_ADMIN_CIDRS`
+      (none by default), Guest for the rest; `NAME`, `SETS_COOKIE`, `load_viewer`, `cli` and its `ROUTES` (the
+      nickname form), checked against `authz.Load_Viewer` by `tools/check contracts`; the rest of `accounts` stays at
+      M4. *Check:* unit tests (signing, tamper, each CIDR rule); e2e of the nickname form; load.
 - [ ] **7. `notify` (memory)** (§14.2): models, domain, the memory store (200 per user), views, web (`/notify`, the
       bell, `notify_web.send`), `notify.user:<uid>` over `#live` with hx-targets on `.notify-count`. *Check:* e2e and
       load, both suites reaching every route.
@@ -121,7 +125,7 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       `last-crash.txt` after a restart. `status`: one `multipart/parallel` response of each module's health, a
       ptag poll variant. *Check:* e2e per refresh mode; load.
 - [ ] **11. `cmd/streams`** (§7.1): home, notes, chat, notify, bot, ops, status, about on memory, vanilla and lite, with
-      the identity Alex settles for it (below); `build.*`, `tools/init`'s `PROFILES`, CI's matrix.
+      the `nick` identity (slice 6a); `build.*` and CI's matrix (tools/init reads the profiles from `build.sh`).
       *Check:* builds with no SQLite library; its e2e in chromium and webkit; its bundle's size recorded (§12.1's
       UNVERIFIED (M2)); route coverage with 0 unexplained waivers.
 - [x] **12. `tools/check topics` and `exts`**: every `TOPICS` row mounted per host, families unique and in their
@@ -185,10 +189,9 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       and `lab`); `docs/audit/M2.md` by an agent that didn't write the code, 0 open CRITICAL/HIGH (M1-04 and M1-26
       are due here); `Audited:` stamps; CHANGELOG's 2.1.0 entry; then ask Alex about tagging v2.1.0.
 
-**Asked of Alex (2026-10-26), before slices 7–11:** (1) §7.1 builds `streams` on the `nick` identity, while §22.3
-puts nick with accounts at M4: build `features/accounts/identity_nick` in M2? (2) `/admin/ops` needs `Admin_Ops`,
-which only Admin holds, and nick only ever gives User, so nobody could open ops in `streams`. (3) §17.1 says off-LAN
-visitors to a nick witness "can read but not post", but a Guest has no `Chat_Read` in D35's table.
+**Answered by Alex (ANSWERS round 9, 2026-10-26), before slices 7–11:** nick is built in M2 (slice 6a);
+`ACCOUNTS_NICK_ADMIN_CIDRS` (none by default, loopback in e2e) makes its clients there Admin, so `/admin/ops` opens in
+`streams`; off-LAN visitors stay Guests under D35's table, and chat shows them a "chat is open on the LAN" notice.
 
 ## M1 — request-path substrate, `skeleton` at parity (v2.0.0)
 
