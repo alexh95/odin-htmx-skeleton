@@ -55,6 +55,25 @@ the_room_knows_who_is_there :: proc(t: ^testing.T) {
 	readers(1, &readers_of)
 	testing.expect_value(t, len(readers_of), 1)
 
+	// Readers: at most MAX_READERS a room, one forgotten past it (M2-08).
+	for id in 0 ..< MAX_READERS + 8 { mark_read(3, u64(1000 + id), 1) }
+	clear(&readers_of)
+	readers(3, &readers_of)
+	testing.expect_value(t, len(readers_of), MAX_READERS)
+
+	// A leave from a room nobody joined makes no map, and a room everyone has left keeps none
+	// once the sweep has seen them away and gone (M2-05).
+	leave(99, 7)
+	testing.expect(t, 99 not_in st.here)
+	_, _ = join(2, 9, "cy")
+	leave(2, 9)
+	if r, ok := &st.here[2]; ok {
+		if p, pok := &r[9]; pok { p.closed_ns -= i64(PRESENCE_DEBOUNCE + AWAY_FOR) }
+	}
+	sweep_presence(&changes) // away
+	sweep_presence(&changes) // gone
+	testing.expect(t, 2 not_in st.here)
+
 	// Room names and slugs.
 	name, slug, problem := check_room("  Off Topic!  ")
 	testing.expect_value(t, problem, "")

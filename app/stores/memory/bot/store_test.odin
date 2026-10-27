@@ -65,4 +65,12 @@ a_conversation_is_its_owners_alone :: proc(t: ^testing.T) {
 	testing.expect_value(t, len(cs), KEEP)
 	_, err = conversation(7, c) // the first went with the 51st
 	testing.expect_value(t, err, m.Error.Not_Found)
+
+	// At most MAX_OWNERS members' conversations: past it a new member's first pushes out
+	// another member's (M2-06).
+	for owner in 0 ..< MAX_OWNERS + 4 { _ = open_conv(u64(100 + owner)) }
+	testing.expect_value(t, len(s.owners), MAX_OWNERS)
+	last := open_conv(u64(100 + MAX_OWNERS + 3))
+	_, err = conversation(u64(100 + MAX_OWNERS + 3), last)
+	testing.expect_value(t, err, m.Error.None)
 }

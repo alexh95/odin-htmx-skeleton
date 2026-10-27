@@ -74,4 +74,10 @@ a_member_keeps_their_newest :: proc(t: ^testing.T) {
 	testing.expect_value(t, prune(future), KEEP)
 	testing.expect_value(t, len(list_of(7)), 0)
 	testing.expect_value(t, len(list_of(8)), 1)
+
+	// At most MAX_USERS members' Inboxes: past it a new member's first item pushes out another
+	// member's (M2-06).
+	for user in 0 ..< MAX_USERS + 4 { send(u64(100 + user), "hello") }
+	testing.expect_value(t, len(s.users), MAX_USERS)
+	testing.expect_value(t, len(list_of(u64(100 + MAX_USERS + 3))), 1)
 }
