@@ -757,6 +757,7 @@ connection_crashed :: proc(c: ^Connection) {
 	if c.state == .Active && !c.loop.res.sent {
 		c.loop.res.sent = true
 		c.crashed = true
+		c.send_deadline = _send_deadline(c) // M2-28: cut like any other send that stalls
 		connection_set_state(c, .Will_Close)
 		nbio.send_poly(c.socket, {transmute([]byte)string(CRASHED_RESPONSE)}, c, proc(_: ^nbio.Operation, c: ^Connection) {
 			connection_close(c)

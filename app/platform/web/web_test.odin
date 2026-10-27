@@ -1,7 +1,24 @@
 package web
 
+import "core:net"
 import "core:strings"
 import "core:testing"
+
+// An IPv6 client is its /64 (M2-11); one a proxy reports IPv4-mapped is its IPv4 address,
+// not a /64 shared with every other such client (M2-25).
+@(test)
+client_key_takes_a_64_and_a_mapped_ipv4 :: proc(t: ^testing.T) {
+	v6 :: proc(b: [16]u8) -> net.Address { return transmute(net.IP6_Address)b }
+	a := v6({0x20, 0x01, 0x0d, 0xb8, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1})
+	b := v6({0x20, 0x01, 0x0d, 0xb8, 0, 1, 0, 2, 0xff, 0xff, 0, 0, 0, 0, 0, 9})
+	c := v6({0x20, 0x01, 0x0d, 0xb8, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 1})
+	testing.expect(t, client_key(a) == client_key(b))
+	testing.expect(t, client_key(a) != client_key(c))
+	m1 := v6({0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 10, 0, 0, 1})
+	m2 := v6({0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 10, 0, 0, 2})
+	testing.expect(t, client_key(m1) != client_key(m2))
+	testing.expect(t, client_key(m1) == client_key(net.IP4_Address{10, 0, 0, 1}))
+}
 
 // The policies security_init builds (§12.2): the base keeps 'self' and the
 // pre-paint hash, a reporting profile ends with report-to, and the nonce class

@@ -80,7 +80,11 @@ client_key :: proc(a: net.Address) -> u64 {
 		return hash.fnv64a(b[:])
 	case net.IP6_Address:
 		b := transmute([16]u8)v
-		return hash.fnv64a(b[:8])
+		// An IPv4 client that a proxy reports as `::ffff:a.b.c.d` is its IPv4 address, keyed as
+		// one: as a /64 every such client was one (M2-25).
+		mapped := b[10] == 0xff && b[11] == 0xff
+		for x in b[:10] { mapped &&= x == 0 }
+		return hash.fnv64a(b[12:] if mapped else b[:8])
 	}
 	return 0
 }
