@@ -28,3 +28,10 @@ process_alive :: proc(pid: int) -> bool {
 	code: win32.DWORD
 	return bool(win32.GetExitCodeProcess(h, &code)) && code == STILL_ACTIVE
 }
+
+// The process's working set, in bytes (ops's panel).
+rss_bytes :: proc() -> int {
+	pmc: win32.PROCESS_MEMORY_COUNTERS
+	if !win32.GetProcessMemoryInfo(win32.GetCurrentProcess(), &pmc, size_of(pmc)) { return 0 }
+	return int(pmc.WorkingSetSize)
+}

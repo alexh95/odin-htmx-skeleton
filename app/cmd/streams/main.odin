@@ -13,6 +13,8 @@ import home_web "../../features/home/web"
 import "../../features/notes"
 import notes_web "../../features/notes/web"
 import notify_web "../../features/notify/web"
+import ops_web "../../features/ops/web"
+import status_web "../../features/status/web"
 import identity "identity:."
 
 // The home page's cards, in order: a dispatch table, like ROUTES.
@@ -20,7 +22,7 @@ HOME_CARDS := [?]html.Home_Card{notify_web.home_card, notes_web.home_card}
 
 // Every extension the main bundle needs (D19). Boot refuses a bundle whose
 // header says otherwise.
-BUNDLE_EXTS :: notes_web.EXTS + chat_web.EXTS + notify_web.EXTS + bot_web.EXTS + home_web.EXTS + about_web.EXTS + identity.EXTS
+BUNDLE_EXTS :: notes_web.EXTS + chat_web.EXTS + notify_web.EXTS + bot_web.EXTS + ops_web.EXTS + status_web.EXTS + home_web.EXTS + about_web.EXTS + identity.EXTS
 
 main :: proc() {
 	app.boot("streams")
@@ -30,6 +32,8 @@ main :: proc() {
 	hub.mount("main", ..TOPICS[:])
 	chat_web.init()
 	bot_web.init()
+	ops_web.init()
+	status_web.init()
 	app.check(HOSTS[:], JOBS[:], BUNDLE_EXTS)
 
 	notes.seed() // the memory store is always new: the sample notes go in

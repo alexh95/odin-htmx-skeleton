@@ -1,0 +1,11 @@
+/* ---- status: is everything up (PLAN §15.4) ------------------------------------------------- */
+.status-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.status-card h2 { margin: 0 0 4px; font-size: 1rem; }
+.status-card p { margin: 2px 0; }
+.status-state { font-weight: 700; }
+.status-ok { border-color: color-mix(in oklab, var(--green) 50%, var(--line)); }
+.status-ok .status-state { color: var(--green); }
+.status-degraded .status-state { color: var(--amber); }
+.status-down { border-color: var(--red); }
+.status-down .status-state { color: var(--red); }
+.status-checking .status-state { color: var(--muted); }

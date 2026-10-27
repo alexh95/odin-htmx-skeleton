@@ -164,7 +164,14 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   mock answers canned "under construction" lines word by word, seeded by `BOT_SEED` and paced by `BOT_DELAY_MS`.
   Stop ends an answer in well under 100 ms. Members keep conversations (50, each 200 turns), ask one at a time and 30
   an hour; guests get the mock, 5 an hour, kept by no one. e2e `bot.spec` and k6 `bot/bot.js`.
-- **The `streams` profile** (`app/cmd/streams/`, PLAN §7.1): home, notes, chat, notify, bot, the nick identity and about,
+- **`ops`** (`/admin/ops`, PLAN §15.4): a 1 Hz panel for admins on the LAN: requests, streams, the hub and the process
+  (resident memory, the loops' ticks), each with a server-drawn SVG sparkline of the minute, the modules' health, the
+  limits and the last run's crash file. Rendered once a second and shared by every viewer, refreshed per request by
+  SSE, by a poll with hx-ptag (304 while it has the render) or by multipart. `obs.requests_total`, `sys.rss_bytes`, and
+  the hub's counters in `hub.numbers`; the hub and the bot report their health to obs.
+- **`status`** (`/status`): a card per probe (each module's health, the loops, the process), filled by one
+  `multipart/parallel` response, or every 30 s by a poll with hx-ptag; the details are an admin's.
+- **The `streams` profile** (`app/cmd/streams/`, PLAN §7.1): home, notes, chat, notify, bot, ops, status, the nick identity and about,
   on the memory store, the vanilla client and the lite theme, with no SQLite library; in CI's check, build (four
   platforms, and without SQLite), e2e (chromium and webkit), k6 and drills jobs.
 - **`Composer` and `AutoScroll`**, twinned behaviours (vanilla and hyperscript): Enter sends and a sent message clears

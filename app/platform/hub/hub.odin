@@ -161,6 +161,7 @@ init :: proc() {
 	obs.limit("hub", "ring", i64(h.ring_cap))
 	obs.limit("hub", "ring_bytes", i64(h.ring_bytes), "B")
 	obs.limit("hub", "message", MAX_MESSAGE, "B")
+	obs.set_health("hub", .Ok, "")
 }
 
 // A host's TOPICS tables, at boot. A family is mounted once per host; the
@@ -446,6 +447,9 @@ Numbers :: struct {
 	cursor:          string, // the hub sequence now
 	loops:           int,    // loops that have had a subscriber
 	loops_with_subs: int,    // loops with one now: fan-out spans more than one on Linux (03 §10.4)
+	published:       u64,    // since boot, as /metrics counts them
+	dropped:         u64,
+	resyncs:         u64,
 }
 
 numbers :: proc(allocator := context.temp_allocator) -> (n: Numbers) {
@@ -457,6 +461,7 @@ numbers :: proc(allocator := context.temp_allocator) -> (n: Numbers) {
 	}
 	guard.unlock(&h.mu)
 	n.cursor = cursor(seq, allocator)
+	n.published, n.dropped, n.resyncs = obs.counter_value(h.published), obs.counter_value(h.dropped), obs.counter_value(h.resyncs)
 	return
 }
 

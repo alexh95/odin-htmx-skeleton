@@ -18,8 +18,9 @@ import "core:time"
 
 import "../../../platform/authz"
 import "../../../platform/guard"
-import "../../../platform/hub"
 import "../../../platform/html"
+import "../../../platform/hub"
+import "../../../platform/obs"
 import "../../../platform/store"
 import "../../../platform/stream"
 import "../../../platform/web"
@@ -73,6 +74,8 @@ init :: proc() {
 	guests_hour.n = bot.guest_per_hour()
 	gens.owner = make(map[m.Bot_Gen_Id]Who, heap())
 	gens.active = make(map[u64]int, heap())
+	// The status page's line for the bot: the mock is always up (M7's llama reports its own).
+	obs.set_health("bot", .Ok, "the mock answers")
 }
 
 // ---- the backend switch (D8; LC §4) ----------------------------------------------------------

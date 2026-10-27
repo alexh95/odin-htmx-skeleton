@@ -37,3 +37,28 @@ process_alive :: proc(pid: int) -> bool {
 	if posix.kill(posix.pid_t(pid), .NONE) == .OK { return true }
 	return posix.errno() == .EPERM
 }
+
+// The process's resident memory, in bytes: /proc/self/statm's second field on Linux
+// (ops's panel); 0 where there is no such file.
+rss_bytes :: proc() -> int {
+	when ODIN_OS != .Linux { return 0 } else {
+		fd := posix.open("/proc/self/statm", {})
+		if fd < 0 { return 0 }
+		defer posix.close(fd)
+		buf: [128]byte
+		n := posix.read(fd, raw_data(buf[:]), len(buf))
+		if n <= 0 { return 0 }
+		fields := 0
+		pages := 0
+		for c in buf[:n] {
+			switch {
+			case c == ' ':
+				fields += 1
+				if fields == 2 { return pages * int(posix.sysconf(._PAGESIZE)) }
+			case fields == 1 && c >= '0' && c <= '9':
+				pages = pages * 10 + int(c - '0')
+			}
+		}
+		return 0
+	}
+}

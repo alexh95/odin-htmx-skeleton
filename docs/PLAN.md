@@ -1382,7 +1382,9 @@ with switches persisted in `app_settings` (CF §4.5), and a boot switch that emb
 4. **One store family per build.** A profile can't put chat in SQLite and notes in memory, as D8 allowed; no hosted
    profile wants that (§7.1).
 5. **Every chat profile ships all four transports** (X29's "a poll-only chat ships no ws" goes): ws, sse, hx-multipart
-   and ptag are in every chat bundle and binary. Their size is not measured: **UNVERIFIED (M2)**.
+   and ptag are in every chat bundle and binary. As built (M2), their four files are 28,965 B raw and 8,217 B br alone
+   (hx-multipart 13,892/4,549, hx-ws 8,515/2,623, hx-sse 6,225/2,257, ptag 333/194), of `streams`' Main at 68,186 B raw
+   and 19,967 B br.
 6. **Both bot backends and both games catalogs are linked** wherever their feature is; all four are pure Odin.
 7. **Notify comes with every producer**, so chat's hello world gains the bell (§7.5).
 8. **The generator edits hand-written files** (§7.4): a profile reshaped beyond the expected shape makes it stop and
@@ -1459,8 +1461,8 @@ read from the compiler's own package list (D19, D24; RESOLUTIONS X29; §12.1). E
 §6.3). Every hosted profile is all-SQLite or all-memory, so one store family per build costs none of them anything
 (LC §3).
 
-**As built (M2):** `streams` mounts home, notes, chat, notify, bot, the nick identity's `/login` and `/logout` (`{"accounts",
-identity.ROUTES[:]}`, its host's `identity` flag on) and about so far; ops and status join with their slice. Its
+**As built (M2):** `streams` mounts home, notes, chat, notify, bot, ops, status, the nick identity's `/login` and `/logout` (`{"accounts",
+identity.ROUTES[:]}`, its host's `identity` flag on) and about, as the catalog row above lists them. Its
 Main bundle is what those packages' `EXTS` name: htmx with sse, ws, hx-multipart, ptag, hx-pending and upsert. `tools/check`
 reads a profile's `identity:.`, `store:` and other family imports as `build.sh`'s line builds them.
 
@@ -2866,19 +2868,21 @@ the hyperscript client is present: an extension missing from the list registers 
 |---|---|---|---:|---:|
 | `htmx.min.js` | `minimal`, `skeleton` | htmx 4.0.0, byte-identical to the skeleton's, same crc32 name | 36,716 | 11,736 |
 | Main | `full`, `full-vanilla` | htmx + the 13 Houston extensions (§12.3) | 79,790 | 23,022 |
-| Main | `streams` | htmx + the profile's derived union: sse, ws, hx-multipart, upsert, hx-pending, ptag, hx-targets, download, hx-prompt, browser-indicator | 71,358 | 20,852 |
+| Main | `streams` | htmx + the profile's derived union: sse, ws, hx-multipart, upsert, hx-pending, ptag, hx-targets, download, hx-prompt, browser-indicator (as built at M2: sse, ws, hx-multipart, hx-pending, ptag, upsert, 68,186 B raw, 19,967 B br) | 71,358 | 20,852 |
 | Main | `lab` | htmx + the lab's derived union (S0.10's fixture: 5 extensions; as built at M2: sse, ws, hx-multipart, 65,391 B raw, 19,201 B br) | 71,391 | 20,777 |
 | `_hyperscript.min.js` | `full`, `lab` | 0.9.94 core | 175,365 | 39,706 |
 | Scripting | `lab`; `full` (lab host only) | htmx + hx-csp + hx-live + sse, ws, hx-multipart, hx-pending | 85,173 | 25,063 |
 | Compat_Htmx2, Compat_Alpine | `lab`; `full` (lab host only) | htmx + htmx-2-compat; htmx + hx-alpine-compat | 38,466; 38,487 | 12,180; 12,249 |
 
-Sizes: S0.10's `tools/bundle` over a fixture of the plan's packages (the real `streams` and `lab` unions come from the
-M1–M2 packages, **UNVERIFIED (M2)**); hyperscript from 11 §9. Budgets: §18.
+Sizes: S0.10's `tools/bundle` over a fixture of the plan's packages, with the real `streams` and `lab` unions as built
+at M2 in their rows; hyperscript from 11 §9. Budgets: §18.
 
 Every bundle list is derived from the build, never declared (D24's column is labelled so): `streams` gains hx-prompt
 (chat moderation reasons) and browser-indicator (bot generation), the real uses D21 gives them, and every chat
 selection ships ws, sse, hx-multipart and ptag, because every chat profile links all four transports (X29's lean
-transport sets go, LC §12; §7.4's sample). Their share of the bundle is not measured: **UNVERIFIED (M2)**.
+transport sets go, LC §12; §7.4's sample). As built (M2), the four transports' extensions are 28,965 B raw and 8,217 B br
+of `streams`' 68,186 and 19,967; hx-prompt, hx-targets, download and browser-indicator join when a package uses them
+(moderation and attachments at M6), since the list is derived.
 
 **How an implementation's extensions travel** (RESOLUTIONS X33, X34, as LC §11 recasts them):
 - The `Ext` enum and its two tables live in `platform/ext`, an L1 leaf package that imports nothing, and
@@ -3715,6 +3719,18 @@ health as pushed to `platform/obs` (§10.4), or a `STATUS_PROBES` external: llam
 games healthz, disk free, backup age, the witnesses. Each probe has a 2 s timeout and its part swaps in as it answers;
 M5 asserts the parallel order. Details sit behind `Admin_Ops`; a ptag poll every 30 s is the variant. In the lab, the
 same feature is the witness board (M3).
+
+**As built (M2)**, both in `streams`. `ops`: the `ops.sample` job (1 s) reads requests (`obs.requests_total`), streams,
+the hub's counters (`hub.numbers`), the loops' ticks and the resident memory (`sys.rss_bytes`: Linux's
+`/proc/self/statm`, Windows' working set; 0 elsewhere), keeps a minute of samples, renders the cards once out of band
+(`innerMorph`) and publishes them on `ops.panel` (`.Sample`); `?mode=poll` answers the kept render with its sample as
+the ptag (304 while the poller has it) and `?mode=multipart` streams the topic. The limits table and the last run's crash
+file are on the page. The views get obs's modules and limits as the domain's rows, since views import only html and
+their domain. `status`: a probe per module that reports to obs (the hub and the bot now do, beside the SQLite store),
+plus the loops (down when one hasn't ticked for 2 s) and the process (uptime, version); one `multipart/parallel`
+response fills the cards, and `?mode=poll` is the variant, its ptag a hash of the states. Specs: ops on servers of their
+own that make loopback admin (`ACCOUNTS_NICK_ADMIN_CIDRS`), each refresh mode, the 304, the crash file, 403 for a
+member; status in both modes, the 304, details hidden from a guest.
 
 **`jobs`** (`/admin/jobs`; M5; D36): the scheduler in `platform/workers` runs the mounted `JOBS` rows on the jobs pool
 (§6.2): retention sweeps, the nightly backup, the weekly FTS `optimize`, the video import scan, reminders, and in `full`

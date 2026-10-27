@@ -304,6 +304,12 @@ route_id :: proc(r: Route) -> string {
 	return routes[r].id if r != NO_ROUTE && int(r) < len(routes) else ""
 }
 
+// Every route's requests, summed: ops's request rate.
+requests_total :: proc() -> (n: u64) {
+	for r in routes { n += counter_value(r.requests) }
+	return
+}
+
 count_request :: proc(r: Route, us: i64) {
 	if r == NO_ROUTE { return }
 	inc(routes[r].requests)

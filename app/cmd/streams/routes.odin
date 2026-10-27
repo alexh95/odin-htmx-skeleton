@@ -12,6 +12,8 @@ import chat_web "../../features/chat/web"
 import home_web "../../features/home/web"
 import notes_web "../../features/notes/web"
 import notify_web "../../features/notify/web"
+import ops_web "../../features/ops/web"
+import status_web "../../features/status/web"
 import identity "identity:."
 
 ROUTES := [?]app.Mount {
@@ -24,6 +26,8 @@ ROUTES := [?]app.Mount {
 	{"chat", chat_web.ROUTES[:]},       // /chat: rooms, four transports
 	{"notify", notify_web.ROUTES[:]},   // /notify: the Inbox
 	{"bot", bot_web.ROUTES[:]},         // /bot: the assistant, on the mock
+	{"ops", ops_web.ROUTES[:]},         // /admin/ops: the 1 Hz panel
+	{"status", status_web.ROUTES[:]},   // /status: is everything up
 	{"accounts", identity.ROUTES[:]},   // /login /logout: the nickname form
 	{"about", about_web.ROUTES[:]},     // /about
 }
@@ -33,6 +37,7 @@ TOPICS := [?][]hub.Topic {
 	chat_web.TOPICS[:],   // chat.room, chat.presence, chat.typing
 	notify_web.TOPICS[:], // notify.user
 	bot_web.TOPICS[:],    // bot.health
+	ops_web.TOPICS[:],    // ops.panel
 }
 
 HOSTS := [?]app.Host{{"main", "SITE_URL", true, ROUTES[:], NAV[:]}}
@@ -40,4 +45,5 @@ HOSTS := [?]app.Host{{"main", "SITE_URL", true, ROUTES[:], NAV[:]}}
 JOBS := [?][]workers.Job {
 	chat_web.JOBS[:],   // chat.presence: away after the debounce, gone after 5 min
 	notify_web.JOBS[:], // notify.prune: read items after 30 days
+	ops_web.JOBS[:],    // ops.sample: the panel, once a second
 }

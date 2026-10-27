@@ -147,11 +147,13 @@ start_server() { # $1 = port
   # comparable with runs before it existed; export LOG_LEVEL=info to keep it.
   # k6 is one client opening far more streams than a person would, so the
   # per-client stream caps are lifted (PLAN §9.4); the totals stand. k6 is loopback,
-  # which a nick build counts as the LAN, so its VUs can pick nicknames. The bot's mock
-  # answers at once, and its hourly limits are lifted: a run measures the work, not the cap.
+  # which a nick build counts as the LAN, so its VUs can pick nicknames, and as its admins,
+  # so they can load /admin/ops. The bot's mock answers at once, and its hourly limits are
+  # lifted: a run measures the work, not the cap.
   PORT="$1" LOG_LEVEL="${LOG_LEVEL:-warn}" METRICS_TOKEN_FILE="$ROUTES/.token" \
     STREAM_CONNECTS="${STREAM_CONNECTS:-1000000}" STREAMS_PER_CLIENT="${STREAMS_PER_CLIENT:-4096}" \
-    LAN_CIDRS="${LAN_CIDRS:-127.0.0.0/8}" BOT_DELAY_MS="${BOT_DELAY_MS:-0}" \
+    LAN_CIDRS="${LAN_CIDRS:-127.0.0.0/8}" ACCOUNTS_NICK_ADMIN_CIDRS="${ACCOUNTS_NICK_ADMIN_CIDRS:-127.0.0.1/32}" \
+    BOT_DELAY_MS="${BOT_DELAY_MS:-0}" \
     BOT_MEMBER_PER_HOUR="${BOT_MEMBER_PER_HOUR:-100000000}" BOT_GUEST_PER_HOUR="${BOT_GUEST_PER_HOUR:-100000000}" \
     "$BIN" "$1" >"$RAW/server_$1.log" 2>&1 &
   SRV_PID=$!

@@ -137,19 +137,23 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       100 ms on both deliveries, the store's unit test; k6's `bot/bot.js` makes thousands of generations a quick run
       (about 23k requests a second at 20 VUs, p95 1.6 ms). Changed: the Stop storm is the e2e timing, since k6 reads a
       stream's body (and with it the generation's id) only at its end; `/admin/bot` waits for a second backend (M7).
-- [ ] **10. `ops` and `status` (basic)** (§15.4): ops's 1 Hz `.Sample` publisher rendering obs's registry once into
+- [x] **10. `ops` and `status` (basic)** (§15.4): ops's 1 Hz `.Sample` publisher rendering obs's registry once into
       OOB fragments and SVG sparklines on `ops.panel`, refreshed by SSE, `?mode=poll` (ptag 304s) or multipart;
       `last-crash.txt` after a restart. `status`: one `multipart/parallel` response of each module's health, a
-      ptag poll variant. *Check:* e2e per refresh mode; load.
-- [ ] **11. `cmd/streams`** (§7.1): home, notes, chat, notify, bot, ops, status, about on memory, vanilla and lite, with
+      ptag poll variant. *Check:* e2e per refresh mode; load. Done: ops's `panel.spec` (each mode, the 304, the
+      crash file, 403 and the guest's redirect; servers of its own with loopback admin) and `status.spec` (both modes,
+      the 304), chromium and webkit; k6's `ops/panel.js` (the load driver makes loopback admin) and `status/status.js`.
+- [x] **11. `cmd/streams`** (§7.1): home, notes, chat, notify, bot, ops, status, about on memory, vanilla and lite, with
       the `nick` identity (slice 6a); `build.*` and CI's matrix (tools/init reads the profiles from `build.sh`).
       *Check:* builds with no SQLite library; its e2e in chromium and webkit; its bundle's size recorded (§12.1's
       UNVERIFIED (M2)); route coverage with 0 unexplained waivers. Progress: the profile with home, notes, chat,
-      notify, bot, the nick identity and about, in `build.*` and every per-profile CI job; the generator composes it
+      notify, bot, ops, status, the nick identity and about, in `build.*` and every per-profile CI job; the generator composes it
       again; its e2e 151 passed (chromium, webkit, api), its k6 quick run clean, its drills 25/25 on Windows (binary
       1,714,176 B, idle 10.06 MB). The generator's identity handling too (nick by default unless scripting or
       compat, accounts with it, `identity.EXTS`, the host flag; a chat project made, tested, checked and built in a
-      scratch copy). Left: ops and status (slice 10), the bundle's size in §12.1.
+      scratch copy). Its bundle measured into §12.1: Main 68,186 B raw, 19,967 B br, the four transports' extensions
+      28,965 and 8,217 of it; it builds with no SQLite library present (WSL, prepare's SQLite step skipped). Slice 11
+      done.
 - [x] **12. `tools/check topics` and `exts`**: every `TOPICS` row mounted per host, families unique and in their
       feature's prefix; `BUNDLE_EXTS` names every mounted package with `EXTS` or `BUNDLES`. *Check:* a bad fixture
       trips each. Done: `topics` (families the feature's and declared once; every host's packages with `TOPICS`

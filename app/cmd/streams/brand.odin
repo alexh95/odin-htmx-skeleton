@@ -30,6 +30,7 @@ NAV := [?]html.Nav_Item {
 	{"/chat", "Chat", "users"},
 	{"/notify", "Inbox", "bell"},
 	{"/bot", "Bot", "bolt"},
+	{"/status", "Status", "check"},
 	{"/about", "About", "info"},
 }
 
