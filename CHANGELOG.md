@@ -107,6 +107,9 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   chunk lands, and drop it: the server read that request from its middle (a 501) or waited for one already gone.
   About 1 in 300 rounds on a raw socket and 0.01-0.1 % of the requests after a stream under k6; 0 in 12,600 rounds
   since. `protocol.spec` keeps the check.
+- **robots.txt no longer hides a page beside a family of fragments**: the lab's `/lab/feed`, `/lab/publish`, … had
+  collapsed to `Disallow: /lab/`, which also covered `/lab/streams`. A family collapses to its first segment only when
+  no page lives under it.
 
 ## [2.0.0] - 2026-10-26
 

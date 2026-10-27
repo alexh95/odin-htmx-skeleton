@@ -190,14 +190,19 @@ robots_txt :: proc(req: ^Request, res: ^Response) {
 // robots.txt for one host, at boot: a Disallow per .Fragment row's literal start,
 // dropping one another line already covers ("/contacts/" under "/contacts"), and
 // collapsing a family of rows under one first segment to it ("/ui/modal",
-// "/ui/drawer", … → "/ui/"). In mount order, each once.
+// "/ui/drawer", … → "/ui/"), unless a page lives under that segment too
+// ("/lab/streams" beside "/lab/feed"). In mount order, each once.
 robots_for :: proc(site: ^Site, allocator := context.allocator) -> string {
 	lits := make([dynamic]string, context.temp_allocator)
+	pages := make([dynamic]string, context.temp_allocator)
 	for m in site.router.rows {
-		if .Fragment not_in m.flags { continue }
 		lit := m.pattern
 		if i := strings.index_any(m.pattern, MAGIC); i >= 0 { lit = m.pattern[:i] }
-		append(&lits, lit)
+		if .Fragment in m.flags {
+			append(&lits, lit)
+		} else if m.method == .Get {
+			append(&pages, lit)
+		}
 	}
 	covered :: proc(lits: []string, l: string) -> bool {
 		for o in lits {
@@ -217,6 +222,9 @@ robots_for :: proc(site: ^Site, allocator := context.allocator) -> string {
 			family := 0
 			for o in lits {
 				if strings.has_prefix(o, seg) && !covered(lits[:], o) { family += 1 }
+			}
+			for p in pages {
+				if strings.has_prefix(p, seg) { family = 0 }
 			}
 			if family >= 2 { line = seg }
 		}

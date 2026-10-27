@@ -66,6 +66,18 @@ test.describe('SEO contract', { tag: '@platform' }, () => {
     }
   });
 
+  // A Disallow is a prefix: a fragment family collapsed to its first segment
+  // ("/lab/") would hide the pages beside it ("/lab/streams").
+  test('robots.txt disallows no page the sitemap lists', async ({ request }) => {
+    const robots = await (await request.get('/robots.txt')).text();
+    const disallowed = [...robots.matchAll(/^Disallow: (\S+)$/gm)].map((m) => m[1]);
+    const sitemap = await (await request.get('/sitemap.xml')).text();
+    for (const [, loc] of sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)) {
+      const path = new URL(loc).pathname;
+      for (const d of disallowed) expect(path.startsWith(d), `${path} under Disallow: ${d}`).toBe(false);
+    }
+  });
+
   test('sitemap.xml lists the nav pages, absolute and on one origin', async ({ request }) => {
     const res = await request.get('/sitemap.xml');
     expect(res.status()).toBe(200);

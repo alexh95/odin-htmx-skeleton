@@ -334,8 +334,9 @@ responses). Features never import it: `platform/web` wraps it.
   instead of sending visitors nowhere. **`/healthz` is exempt.**
 - **Derived, never duplicated.** `/sitemap.xml` walks the host's nav; the canonical URL is the
   origin plus the page's nav href; `robots.txt` disallows the literal start of every `.Fragment`
-  row (a family of rows under one first segment collapses to it: `/ui/`). Mark a fragment route
-  `.Fragment` and robots.txt follows.
+  row (a family of rows under one first segment collapses to it, `/ui/`, unless a page lives under
+  that segment too, as `/lab/streams` does beside `/lab/feed`). Mark a fragment route `.Fragment` and
+  robots.txt follows.
 - **`og.png` is deliberately unfingerprinted** (`/static/og.png`): social platforms cache a preview
   against its URL. Its source is **`tools/og/og.html`** (the command to re-render is in the file).
 - `<script type="application/ld+json">` is **all literal braces** — write it with `w()`, never
