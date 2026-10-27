@@ -31,6 +31,7 @@ THEME :: theme.NAME
 w :: escape.w
 esc :: escape.esc
 url_encode :: escape.url_encode
+site_path :: escape.site_path
 json_esc :: escape.json_esc
 
 // What a profile's brand.odin declares: its names, its origin, and the parts of

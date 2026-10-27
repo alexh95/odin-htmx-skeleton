@@ -9,6 +9,7 @@ package notify
 import "core:strings"
 import "core:time"
 
+import "../../platform/escape"
 import m "models"
 import notify_store "store:notify"
 
@@ -39,7 +40,7 @@ check :: proc(user: u64, kind, ref, html: string) -> string {
 	switch {
 	case user == 0:                                            return "no member"
 	case !valid_kind(kind):                                    return "a kind is <feature>.<name>"
-	case len(ref) > MAX_REF, ref != "" && !strings.has_prefix(ref, "/"): return "a ref is a path on this site"
+	case len(ref) > MAX_REF, ref != "" && !escape.site_path(ref): return "a ref is a path on this site"
 	case len(html) == 0, len(html) > MAX_HTML:                 return "a line is 1 to 4096 bytes"
 	}
 	return ""

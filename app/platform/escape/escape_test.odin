@@ -18,6 +18,14 @@ json_esc_keeps_a_string_inside_its_quotes_and_its_script :: proc(t: ^testing.T) 
 }
 
 @(test)
+site_path_stays_on_this_site :: proc(t: ^testing.T) {
+	testing.expect(t, site_path("/chat/r/lobby#m-1"))
+	for bad in ([]string{"", "chat", "//evil.example", "/\\evil.example", "https://evil.example", "/a b", "/a\x7f"}) {
+		testing.expectf(t, !site_path(bad), "%q kept", bad)
+	}
+}
+
+@(test)
 url_encode_escapes_the_query_specials :: proc(t: ^testing.T) {
 	testing.expect_value(t, url_encode("a b&c=d/é"), "a%20b%26c%3Dd%2F%C3%A9")
 }

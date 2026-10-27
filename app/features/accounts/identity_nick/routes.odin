@@ -93,12 +93,8 @@ go :: proc(req: ^web.Request, res: ^web.Response, to: string) {
 	web.respond_status(res, .See_Other)
 }
 
-// A path on this site, or "/": never another origin (`//host`, `/\host`).
+// A path on this site, or "/": never another origin.
 @(private)
 safe_next :: proc(next: string) -> string {
-	if len(next) == 0 || next[0] != '/' || len(next) > 1 && (next[1] == '/' || next[1] == '\\') { return "/" }
-	for c in transmute([]byte)next {
-		if c < 0x21 || c == 0x7f { return "/" }
-	}
-	return next
+	return next if html.site_path(next) else "/"
 }

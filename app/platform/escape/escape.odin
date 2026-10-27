@@ -36,6 +36,17 @@ url_encode :: proc(s: string) -> string {
 	return net.percent_encode(s, context.temp_allocator)
 }
 
+// A path on this site: never another origin (`//host`, `/\host`, which browsers
+// read as `//host`), and no space or control byte. What a redirect's `next` and a
+// link a producer hands the Inbox may be.
+site_path :: proc(s: string) -> bool {
+	if len(s) == 0 || s[0] != '/' || len(s) > 1 && (s[1] == '/' || s[1] == '\\') { return false }
+	for c in transmute([]byte)s {
+		if c < 0x21 || c == 0x7f { return false }
+	}
+	return true
+}
+
 // For the inside of a JSON string in a <script> block (JSON-LD). The HTML escaper
 // is wrong there: entities aren't decoded inside <script>, so they would reach
 // the JSON literally, and it leaves backslashes and control characters alone.
