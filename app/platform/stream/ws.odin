@@ -32,7 +32,9 @@ WS_JSON_DEPTH :: 16
 
 // A text frame's JSON, unmarshalled into `out` (strings in the request's temp arena), or
 // false: not JSON, the wrong shape, or nested past WS_JSON_DEPTH, which is refused by a
-// scan before anything parses it. Every handler reads a client's JSON through this.
+// scan before anything parses it. Every handler reads a client's JSON through this. Strict
+// JSON: core's default is JSON5, whose comments and single-quoted strings hid a `"` from the
+// scan and every bracket after it, and whose tokenizer recursed once per comment (M2-22).
 ws_json :: proc(data: []byte, out: ^$T) -> bool {
 	depth := 0
 	in_str, escaped := false, false
@@ -55,7 +57,7 @@ ws_json :: proc(data: []byte, out: ^$T) -> bool {
 			depth -= 1
 		}
 	}
-	return json.unmarshal(data, out, allocator = context.temp_allocator) == nil
+	return json.unmarshal(data, out, spec = .JSON, allocator = context.temp_allocator) == nil
 }
 
 // The close codes the starter sends (§9.4). hx-ws reconnects on 1001, 1005,

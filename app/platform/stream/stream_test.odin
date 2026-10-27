@@ -213,4 +213,26 @@ ws_json_refuses_deep_nesting_before_it_parses :: proc(t: ^testing.T) {
 	for i in 22 ..< len(deep) { deep[i] = '[' }
 	testing.expect(t, !ws_json(deep, &v))
 	testing.expect(t, !ws_json(transmute([]byte)string(`not json`), &v))
+	// M2-22's frames: a `"` the scan took for a string's, hidden in a JSON5 comment, then the
+	// brackets; and a frame of comments, which JSON5's tokenizer recursed through one by one.
+	copy(deep, `{"body":"x","headers":/*"*/`)
+	for i in 27 ..< len(deep) { deep[i] = '[' }
+	testing.expect(t, !ws_json(deep, &v))
+	copy(deep, `{"body":"x"`)
+	for i := 11; i + 3 <= len(deep); i += 3 { copy(deep[i:], "//\n") }
+	testing.expect(t, !ws_json(deep, &v))
+	testing.expect(t, !ws_json(transmute([]byte)string(`{'body':'single quotes'}`), &v))
+}
+
+// What a replay and publish count is what the stream is sent: a line costs "data: " and its
+// newline on top of its text (M2-23).
+@(test)
+sse_size_is_what_sse_event_writes :: proc(t: ^testing.T) {
+	defer free_all(context.temp_allocator)
+	for data in ([]string{"", "a", "a\nb", "a\r\nb", "a\rb", "a\n", "\n\n\n", "<p>one</p>"}) {
+		for id in ([]string{"", "1761500000123-42"}) {
+			testing.expectf(t, sse_size(id, "resync", data) == len(sse_event(id, "resync", data)), "%q %q", id, data)
+			testing.expectf(t, sse_size(id, "", data) == len(sse_event(id, "", data)), "%q %q", id, data)
+		}
+	}
 }

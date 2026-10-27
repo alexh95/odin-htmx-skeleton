@@ -57,3 +57,22 @@ sse_event :: proc(id, event, data: string, allocator := context.temp_allocator) 
 	strings.write_byte(&b, '\n')
 	return strings.to_string(b)
 }
+
+// The bytes sse_event writes, without writing them. A line costs "data: " and its newline on
+// top of its text, so 60,000 line feeds frame to 420 KB: what a budget counts (M2-23).
+sse_size :: proc(id, event, data: string) -> int {
+	n := 1 // the blank line that ends the event
+	if id != "" { n += len("id: \n") + len(id) }
+	if event != "" { n += len("event: \n") + len(event) }
+	lines := 1
+	for i := 0; i < len(data); i += 1 {
+		if data[i] != '\r' && data[i] != '\n' { continue }
+		lines += 1
+		n -= 1 // the break isn't written
+		if data[i] == '\r' && i + 1 < len(data) && data[i + 1] == '\n' {
+			i += 1
+			n -= 1
+		}
+	}
+	return n + len(data) + lines * len("data: \n")
+}
