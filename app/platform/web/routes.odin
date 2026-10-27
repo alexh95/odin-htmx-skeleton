@@ -70,7 +70,9 @@ csp_report :: proc(req: ^Request, res: ^Response) {
 }
 
 // A client's address as a map key, for the per-client limits (CSP reports,
-// stream admission); the address itself is never kept.
+// stream admission, the bot's guests); the address itself is never kept. An
+// IPv6 client is its /64: one host holds a whole /64, and keyed by its full
+// address it could count as 2^64 clients (M2-11).
 client_key :: proc(a: net.Address) -> u64 {
 	switch v in a {
 	case net.IP4_Address:
@@ -78,7 +80,7 @@ client_key :: proc(a: net.Address) -> u64 {
 		return hash.fnv64a(b[:])
 	case net.IP6_Address:
 		b := transmute([16]u8)v
-		return hash.fnv64a(b[:])
+		return hash.fnv64a(b[:8])
 	}
 	return 0
 }

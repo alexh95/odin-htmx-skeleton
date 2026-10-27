@@ -8,6 +8,7 @@ package stream
 
 import "core:crypto/legacy/sha1"
 import "core:encoding/base64"
+import "core:encoding/json"
 import "core:strings"
 import "core:time"
 import "core:unicode/utf8"
@@ -24,6 +25,38 @@ WS_BIN   :: u8(0x2)
 WS_CLOSE :: u8(0x8)
 WS_PING  :: u8(0x9)
 WS_PONG  :: u8(0xA)
+
+// A text frame's JSON nests at most this deep: core:encoding/json recurses a level per
+// bracket with no limit, and a 64 KiB frame of `[` overflowed a loop's stack (M2-01).
+WS_JSON_DEPTH :: 16
+
+// A text frame's JSON, unmarshalled into `out` (strings in the request's temp arena), or
+// false: not JSON, the wrong shape, or nested past WS_JSON_DEPTH, which is refused by a
+// scan before anything parses it. Every handler reads a client's JSON through this.
+ws_json :: proc(data: []byte, out: ^$T) -> bool {
+	depth := 0
+	in_str, escaped := false, false
+	for c in data {
+		switch {
+		case in_str:
+			if escaped {
+				escaped = false
+			} else if c == '\\' {
+				escaped = true
+			} else if c == '"' {
+				in_str = false
+			}
+		case c == '"':
+			in_str = true
+		case c == '[' || c == '{':
+			depth += 1
+			if depth > WS_JSON_DEPTH { return false }
+		case c == ']' || c == '}':
+			depth -= 1
+		}
+	}
+	return json.unmarshal(data, out, allocator = context.temp_allocator) == nil
+}
 
 // The close codes the starter sends (§9.4). hx-ws reconnects on 1001, 1005,
 // 1006 and 1011-1014, and stops for good on the rest.
@@ -97,10 +130,7 @@ ws_upgrade :: proc(
 		return nil, .Foreign_Origin
 	}
 
-	web.set_header(res, "upgrade", "websocket")
-	web.set_header(res, "connection", "Upgrade")
-	web.set_header(res, "sec-websocket-accept", accept_key(key))
-	c = open(res, .Raw, .Ws, "", user, on_close)
+	c = open(res, .Raw, .Ws, "", user, on_close, key)
 	if c == nil { return nil, .Refused }
 	c.on_message = on_message
 	c.assembly.frag.allocator = heap()

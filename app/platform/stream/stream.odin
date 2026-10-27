@@ -21,7 +21,10 @@ package stream
 // Not a virtual.Arena per stream: each would commit a 4 KiB page, and F-1's
 // Stream already holds a 4 KiB receive buffer, so the pair would pass §18.4's
 // 6 KiB a stream. Nothing of a stream lives in the request arena, which is
-// per-callback scratch once the handler returns.
+// per-callback scratch once the handler returns. A stream begun with no body
+// gives the arena back then (F-17); one begun from a body's callback (a POST:
+// the bot's asks) keeps it, with the copy of the body front made there (M2-09),
+// until the stream ends (M2-21, open).
 
 import "base:runtime"
 import "core:math/rand"
@@ -104,13 +107,20 @@ queued :: proc(c: ^Conn) -> int { return 0 if c.gone else web.stream_queued(c.s)
 
 // ---- the Conn's life ------------------------------------------------------------
 
-// nil when admission refused the stream: the response has been sent.
+// nil when admission refused the stream: the response has been sent. A socket's 101
+// headers are set only once it is admitted: a refusal that carried them said
+// `Connection: Upgrade`, with an accept key (M2-15).
 @(private)
-open :: proc(res: ^web.Response, kind: web.Stream_Kind, proto: Proto, content_type: string, user: rawptr, on_close: Close_Proc) -> ^Conn {
+open :: proc(res: ^web.Response, kind: web.Stream_Kind, proto: Proto, content_type: string, user: rawptr, on_close: Close_Proc, ws_key := "") -> ^Conn {
 	assert(inited, "platform/stream: call hub.init() (or stream.init()) at boot, before app.check")
 	client, member, ok := admit(res)
 	if !ok { return nil }
 	if content_type != "" { web.set_header(res, "content-type", content_type) }
+	if proto == .Ws {
+		web.set_header(res, "upgrade", "websocket")
+		web.set_header(res, "connection", "Upgrade")
+		web.set_header(res, "sec-websocket-accept", accept_key(ws_key))
+	}
 	if here.stat == nil {
 		here.stat = new(Loop_Stat, heap())
 		guard.lock(&adm.mu)

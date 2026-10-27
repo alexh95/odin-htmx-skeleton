@@ -93,10 +93,16 @@ Client_Count :: struct {
 	connects: int,
 }
 
+// Clients admission keeps a count for: past it, a new one is refused (503) until the
+// minute's sweep frees the idle (M2-11).
+@(private)
+MAX_CLIENTS :: 65536
+
 @(private)
 adm: struct {
 	mu:      guard.Mutex,
 	open:    int,
+	swept:   i64, // the minute of the last sweep
 	clients: map[u64]Client_Count,
 	users:   map[u64]int,
 	loops:   [dynamic]^Loop_Stat, // every loop that has had a stream
@@ -124,12 +130,19 @@ admit :: proc(res: ^web.Response) -> (client, user: u64, ok: bool) {
 		adm.clients = make(map[u64]Client_Count, heap())
 		adm.users = make(map[u64]int, heap())
 	}
-	if len(adm.clients) > 4096 { sweep_clients(minute) }
-	cl := adm.clients[client]
+	// Once a minute at most: a sweep walks the whole map, and run on every admission past a
+	// size it stalled every stream's open and close behind this lock (M2-11).
+	if len(adm.clients) > 4096 && adm.swept != minute {
+		sweep_clients(minute)
+		adm.swept = minute
+	}
+	cl, known := adm.clients[client]
 	if cl.minute != minute { cl.minute, cl.connects = minute, 0 }
 	cl.connects += 1
 	status := web.Status.OK
 	switch {
+	case !known && len(adm.clients) >= MAX_CLIENTS:
+		status = .Service_Unavailable
 	case cl.connects > lim.connects:
 		status = .Too_Many_Requests
 	case adm.open >= lim.total, cl.open >= lim.per_client, user != 0 && adm.users[user] >= lim.per_user, queued > lim.queued:
@@ -140,7 +153,7 @@ admit :: proc(res: ^web.Response) -> (client, user: u64, ok: bool) {
 		adm.open += 1
 		if user != 0 { adm.users[user] += 1 }
 	}
-	adm.clients[client] = cl
+	if known || len(adm.clients) < MAX_CLIENTS { adm.clients[client] = cl }
 	guard.unlock(&adm.mu)
 
 	if status == .OK { return client, user, true }
@@ -185,6 +198,11 @@ refresh_queued :: proc() {
 	for c in here.conns { n += web.stream_queued(c.s) }
 	sync.atomic_store(&here.stat.queued, n)
 }
+
+// What a stream may write at once, before its first send completes: a backlog (a
+// replay, a room's snapshot) kept to half the per-stream queue cap, which is for a slow
+// consumer, so a large one is cut or resynced instead of closing the stream (M2-03).
+backlog_budget :: proc() -> int { return lim.max_queued / 2 }
 
 // How many streams are open in all.
 open_total :: proc() -> int {

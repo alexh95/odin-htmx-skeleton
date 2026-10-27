@@ -195,3 +195,22 @@ part_counts_bytes_and_frames_with_crlf :: proc(t: ^testing.T) {
 	want := "--hx-0011\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: 9\r\nHX-Target: #a\r\nHX-Part-ID: 7\r\n\r\n<p>é</p>\r\n"
 	testing.expect_value(t, got, want)
 }
+
+// ---- a frame's JSON ---------------------------------------------------------------
+
+@(test)
+ws_json_refuses_deep_nesting_before_it_parses :: proc(t: ^testing.T) {
+	defer free_all(context.temp_allocator)
+	In :: struct { body: string }
+	v: In
+	testing.expect(t, ws_json(transmute([]byte)string(`{"body":"hi","headers":{"a":"b"}}`), &v))
+	testing.expect_value(t, v.body, "hi")
+	// Brackets inside a string, and an escaped quote before them, aren't nesting.
+	testing.expect(t, ws_json(transmute([]byte)string(`{"body":"[[[[[[[[[[[[[[[[[[[[\" {{{{{{{{{{{{{{{{{{"}`), &v))
+	// M2-01's frame: past WS_JSON_DEPTH it is refused without a parse (which would recurse a level a bracket).
+	deep := make([]byte, 64 * 1024, context.temp_allocator)
+	copy(deep, `{"body":"x","headers":`)
+	for i in 22 ..< len(deep) { deep[i] = '[' }
+	testing.expect(t, !ws_json(deep, &v))
+	testing.expect(t, !ws_json(transmute([]byte)string(`not json`), &v))
+}
