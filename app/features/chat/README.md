@@ -11,7 +11,9 @@ memory (`app/stores/memory/chat/`); SQLite, DMs, moderation, uploads and search 
 **One fragment for every transport.** A message is rendered once, `<article id="m-<id>">`, and travels as
 `<hx-partial hx-target="#log-<room>" hx-swap="upsert sort">`: upsert replaces what the log already has (an edit, a
 tombstone, a reconnect's snapshot, the author's own reply and the hub's copy of it) and sorts a new one in by id, so
-nothing doubles. What differs per viewer is asked for (the menu, `GET /chat/m/<id>/menu`) or marked on the client
+nothing doubles. The menu's slot, `#mm-<id>`, is `hx-preserve` (but on a tombstone), so a message rendered again
+keeps the menu or the half-typed edit open in it; a saved edit closes its form with its answer's empty main swap
+(`swapEmpty`). What differs per viewer is asked for (the menu, `GET /chat/m/<id>/menu`) or marked on the client
 (`AutoScroll` sets `.mine` where `data-author` is the log's `data-me`).
 
 | Transport | The pane | The composer | A reconnect |

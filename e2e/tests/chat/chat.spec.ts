@@ -90,7 +90,42 @@ for (const t of TRANSPORTS) {
       await again.getByRole('button', { name: 'Delete' }).click();
       await expect(messages(bob).filter({ hasText: 'Message deleted.' })).toHaveCount(1);
       await expect(messages(bob)).toHaveCount(1); // a tombstone keeps its place
+      await expect(messages(bob).locator('.chat-actions')).toHaveCount(0); // and drops the menu Bob had open
       await leave(ann, bob);
+    });
+
+    // A message rendered again while its edit form is open (here an edit from Ann's other tab; also its echo, or
+    // a poll's) keeps the form and what was typed in it, and Save still closes it.
+    test('an open edit form outlives its message being rendered again', async ({ browser, baseURL }) => {
+      const ann = await member(browser, baseURL!);
+      const slug = await newRoom(ann.page);
+      await open(ann, slug, t);
+      await say(ann, 'draft one');
+      const id = await message(ann, 'draft one').getAttribute('id');
+      const mine = ann.page.locator(`#${id}`);
+      await mine.hover();
+      await mine.getByRole('button', { name: 'Message actions' }).click();
+      await mine.getByRole('button', { name: 'Edit' }).click();
+      await mine.locator('.chat-edit textarea').fill('half typed');
+
+      const tab: Member = { ...ann, page: await ann.context.newPage() };
+      await open(tab, slug, t);
+      const there = tab.page.locator(`#${id}`);
+      await there.hover();
+      await there.getByRole('button', { name: 'Message actions' }).click();
+      await there.getByRole('button', { name: 'Edit' }).click();
+      await there.locator('.chat-edit textarea').fill('from the other tab');
+      await there.getByRole('button', { name: 'Save' }).click();
+
+      await expect(mine.locator('.chat-body')).toHaveText('from the other tab');
+      await expect(mine).toContainText('(edited)');
+      await expect(mine.locator('.chat-edit textarea')).toHaveValue('half typed');
+      await mine.getByRole('button', { name: 'Save' }).click();
+      await expect(mine.locator('.chat-body')).toHaveText('half typed');
+      await expect(mine.locator('.chat-edit')).toHaveCount(0);
+      await expect(there.locator('.chat-body')).toHaveText('half typed');
+      expect(ann.errors).toEqual([]);
+      await leave(ann);
     });
 
     // Playwright's offline emulation fails new requests (the poll's) and closes Chromium's socket, but leaves an

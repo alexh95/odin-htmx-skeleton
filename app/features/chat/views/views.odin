@@ -164,8 +164,11 @@ message :: proc(b: ^strings.Builder, msg: m.Message, slug: string, newest: bool)
 		esc(b, msg.body)
 		w(b, `</div>`)
 	}
-	// The menu's slot: a click outside the message, or Escape, empties it.
-	fmt.sbprintf(b, `<div class="chat-menu" id="mm-%d"`, msg.id)
+	// The menu's slot: a click outside the message, or Escape, empties it. hx-preserve keeps the
+	// slot, and the menu or edit form open in it, when the message is rendered again (its echo,
+	// a poll, an edit from another tab), which had wiped a half-typed edit; a tombstone's isn't
+	// kept, so a deleted message drops its menu.
+	fmt.sbprintf(b, `<div class="chat-menu" id="mm-%d"%s`, msg.id, "" if msg.gone else " hx-preserve")
 	html.behave(b, .Dismiss)
 	w(b, `></div></article>`)
 }
@@ -217,10 +220,12 @@ menu :: proc(msg: m.Message, slug: string, may_change: bool) -> string {
 	return strings.to_string(b)
 }
 
-// The edit form, filled with `body` (what was typed, after a refusal) and its reason.
+// The edit form, filled with `body` (what was typed, after a refusal) and its reason. A saved
+// edit answers only the message, whose re-render keeps the slot, so the answer's empty main
+// swap (swapEmpty) is what closes the form.
 edit_form :: proc(id: i64, body, problem: string) -> string {
 	b := strings.builder_make(context.temp_allocator)
-	fmt.sbprintf(&b, `<form class="chat-edit" hx-post="/chat/m/%d/edit" hx-target="#mm-%d"><textarea id="edit-%d" name="body" rows="2" maxlength="%d" required aria-label="Edit the message">`, id, id, id, chat.MAX_BODY)
+	fmt.sbprintf(&b, `<form class="chat-edit" hx-post="/chat/m/%d/edit" hx-target="#mm-%d" hx-swap="innerHTML swapEmpty:true"><textarea id="edit-%d" name="body" rows="2" maxlength="%d" required aria-label="Edit the message">`, id, id, id, chat.MAX_BODY)
 	esc(&b, body)
 	w(&b, `</textarea><button class="btn btn-primary" type="submit">Save</button>`)
 	if problem != "" {

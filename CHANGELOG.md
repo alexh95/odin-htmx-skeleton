@@ -382,6 +382,12 @@ live topics as defaulted parameters, so existing calls stand.
   specs expect 1006 there. The bot's Stop spec read 123 ms on CI's WebKit, against 5–9 ms idle: four workers on a
   4-vCPU runner put the page's clock behind. It now holds the best of up to three Stops to 100 ms, and every Stop to
   ending its answer.
+- **Chat: an open edit form survives its message being rendered again.** The menu and edit form open in a slot inside
+  the message, and every re-render (the author's own echo, the poll transport's next answer up to 2 s later, an edit
+  from another tab) replaced the whole message, slot and half-typed edit with it: CI's WebKit lost the form to the
+  poll's answer on both tries. The slot is now `hx-preserve` (a tombstone's isn't, so a deleted message drops its
+  menu), and a saved edit closes its form with its answer's empty main swap. `chat.spec` edits a message from a
+  second tab while the first has its form open, on every transport.
 
 ## [2.0.0] - 2026-10-26
 
