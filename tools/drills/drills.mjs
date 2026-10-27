@@ -2,7 +2,8 @@
 //
 //   node tools/drills/drills.mjs <profile> [phase …] [--wsl DIR]
 //
-// Phases (default: all): release pure dirty burst hang malformed shutdown restart fdceiling budgets.
+// Phases (default: all): release pure dirty burst hang malformed streamcrash shutdown restart fdceiling
+// budgets.
 // It builds the profile twice through build.{sh,bat}: a TEST_ROUTES build, which mounts
 // /__test/crash/<kind> and /__test/shutdown (platform/web/drills.odin), and the release build at
 // -o:speed, which must answer 404 there and is the one the budgets measure. Every server is fresh,
@@ -34,7 +35,7 @@ if (!PROFILE) {
 const WIN = process.platform === 'win32' && !WSL;
 const LINUX = !WIN;
 const EXE = WIN ? '.exe' : '';
-const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'malformed', 'shutdown', 'restart', 'fdceiling', 'budgets'];
+const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'malformed', 'streamcrash', 'shutdown', 'restart', 'fdceiling', 'budgets'];
 const phases = PHASES.length ? PHASES : ALL;
 
 // PLAN §18.4 (ANSWERS round 7): binaries in MiB, Windows -o:speed, as CI reads them; idle memory
@@ -170,7 +171,8 @@ function features() {
 
 // ---- phases -------------------------------------------------------------------------
 
-const PURE = ['panic', 'bounds', 'div', 'nil', 'stack'];
+// `continuation`: in a deferred response's continuation after resume, a write's or a pool's shape (M1-04).
+const PURE = ['panic', 'bounds', 'div', 'nil', 'stack', 'continuation'];
 
 async function phaseRelease() {
   const s = start(RELEASE_BIN);
@@ -489,6 +491,37 @@ async function phaseBudgets() {
   else if (size) console.log(`info  budgets: binary ${size} B (the size budget is Windows')`);
 }
 
+// M1-26: a stream that ends hands its connection back, and the next request runs inside the
+// stream's own callback. One that crashes there is answered 500 and its connection closed, like
+// any other, and serving goes on. A profile with a chunked stream to end only (lab's tick).
+async function phaseStreamCrash(f) {
+  if (!f.features.includes('lab')) return console.log('skip  streamcrash: no lab feature, no stream to end');
+  const s = start(DRILL_BIN);
+  if (!(await ready(s))) return record('streamcrash: server starts', false);
+  const got = await new Promise((resolve) => {
+    const sock = net.connect(s.port, '127.0.0.1');
+    let buf = '';
+    let sent = false;
+    sock.on('connect', () => sock.write('GET /lab/sse/tick?n=1&ms=0 HTTP/1.1\r\nHost: x\r\n\r\n'));
+    sock.on('data', (d) => {
+      buf += d.toString('latin1');
+      if (!sent && buf.endsWith('\r\n0\r\n\r\n')) {
+        sent = true;
+        buf = '';
+        sock.write('GET /__test/crash/panic HTTP/1.1\r\nHost: x\r\n\r\n'); // at once, on the same socket
+      }
+    });
+    sock.on('close', () => resolve({ buf, closed: true }));
+    sock.on('error', () => {});
+    setTimeout(() => { sock.destroy(); resolve({ buf, closed: false }); }, 5000);
+  });
+  const alive = (await get(s.port, '/livez')).status === 200;
+  record('streamcrash: a request after a stream that crashes gets 500 and a closed connection; serving goes on',
+    got.buf.startsWith('HTTP/1.1 500') && got.closed && alive && s.exited === null,
+    `got ${JSON.stringify(got.buf.slice(0, 12))} closed=${got.closed}`);
+  await stop(s);
+}
+
 // ---- run ----------------------------------------------------------------------------
 
 build(DRILL_BIN, '-define:TEST_ROUTES=true');
@@ -497,7 +530,7 @@ const f = features();
 console.log(`${PROFILE} on ${WSL ? 'Linux (WSL)' : process.platform}: store ${f.store}; phases: ${phases.join(' ')}`);
 const PH = {
   release: phaseRelease, pure: phasePure, dirty: () => phaseDirty(f), burst: phaseBurst, hang: phaseHang,
-  malformed: phaseMalformed, shutdown: phaseShutdown, restart: phaseRestart, fdceiling: phaseFdCeiling, budgets: phaseBudgets,
+  malformed: phaseMalformed, streamcrash: () => phaseStreamCrash(f), shutdown: phaseShutdown, restart: phaseRestart, fdceiling: phaseFdCeiling, budgets: phaseBudgets,
 };
 for (const p of phases) {
   if (!PH[p]) { console.error(`unknown phase ${p}`); process.exit(2); }

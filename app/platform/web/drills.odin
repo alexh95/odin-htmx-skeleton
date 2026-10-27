@@ -7,6 +7,8 @@ package web
 // class of crash, run inside the request:
 //
 //   panic, bounds, div, nil, stack   pure: 500, serving goes on, recoveries +1
+//   continuation                     pure, in a deferred response's continuation after
+//                                    resume, as a write's or a pool's runs: 500 (M1-04)
 //   lock, async                      dirty: a lock still held, an op posted; exit 70
 //   hang                             the loop stops ticking (?s=15): the watchdog's exit 70
 //   <registered>                     guard.register_drill's (store/sqlite's `sqlite`)
@@ -69,6 +71,19 @@ test_crash :: proc(req: ^Request, res: ^Response) {
 		panic("drill: a crash after posting an op")
 	case "hang":
 		time.sleep(time.Duration(query_int(req, "s", 15)) * time.Second)
+	case "continuation":
+		// The writer's and the pools' shape: the reply runs on the next tick, in its
+		// own guard.call, resumes and crashes. The Deferred leaks with the crash.
+		d := new(Deferred)
+		defer_response(req, res, d)
+		nbio.next_tick_poly(d, proc(_: ^nbio.Operation, d: ^Deferred) {
+			guard.call(proc(data: rawptr) {
+				if resume((^Deferred)(data)) == nil { return }
+				panic("drill: a crash in a continuation")
+			}, d)
+		})
+		guard.posted()
+		return
 	case:
 		for d in guard.drills {
 			if d.kind == kind {

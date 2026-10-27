@@ -305,7 +305,10 @@ response is flushed.
 - **A deferred response outlives its handler**: everything its continuation needs goes in the op
   (`store.new_op(T, bytes)`, whose tail is an arena: `store.op_allocator(op)`), and the continuation
   calls `web.resume(&op.deferred)` first: `nil` means the client left, so it frees the op and
-  returns. Never touch the request arena of a deferred request after the handler returns.
+  returns; otherwise it answers and calls `web.finish`. Between the two the response is the
+  continuation's: a crash there answers 500 and names the request, as a handler's does (the
+  guard's unwind, which `resume` sets and `finish` clears). Never touch the request arena of a
+  deferred request after the handler returns.
 - **Handlers never read the body themselves**: `front` reads it, capped, before calling them.
 
 ## odin-http (vendored fork, `app/vendor/odin-http`)

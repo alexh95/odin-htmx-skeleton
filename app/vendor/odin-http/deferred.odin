@@ -62,6 +62,16 @@ response_resume :: proc(ref: Response_Ref, loc := #caller_location) -> ^Response
 	return &c.loop.res
 }
 
+// The application's continuation crashed after `response_resume` handed it this ref's response
+// (M1-04): the connection answers 500 if nothing was sent, then closes, as the fork's own entry
+// points do through connection_crashed. On the ref's loop; a stale ref does nothing.
+response_crashed :: proc(ref: Response_Ref) {
+	if ref.loop != td.event_loop { return }
+	c, ok := td.conns[ref.socket]
+	if !ok || c.gen != ref.gen { return }
+	connection_crashed(c)
+}
+
 @(private)
 _deferred_watch :: proc(c: ^Connection) {
 	c.deferred.watch = nbio.poll_poly(c.socket, .Receive, c, _on_deferred_ready)

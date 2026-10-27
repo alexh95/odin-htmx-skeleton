@@ -53,6 +53,13 @@ Frame :: struct {
 
 @(private, thread_local) tl_frame: ^Frame
 @(private, thread_local) tl_recoveries: u64
+@(private, thread_local) tl_unwind: Unwind
+
+@(private)
+Unwind :: struct {
+	fn:   proc(data: rawptr),
+	data: rawptr,
+}
 
 @(private)
 g: struct {
@@ -87,11 +94,25 @@ recoveries :: proc() -> u64 {
 	return tl_recoveries
 }
 
+// What a crash in the current guarded call must still finish (M1-04): a
+// continuation that took a deferred response over (web.resume) owes it an
+// answer, which the fork gives (500, then close). Scoped to the innermost call;
+// cleared by the code that set it once it no longer applies (web.finish).
+set_unwind :: proc(fn: proc(data: rawptr), data: rawptr) {
+	tl_unwind = {fn, data}
+}
+
+clear_unwind :: proc() {
+	tl_unwind = {}
+}
+
 // The fork's Server_Opts.invoke (F-5).
 invoke :: proc(fn: proc(a, b: rawptr), a, b: rawptr) -> (returned: bool) {
 	f: Frame
 	prev := tl_frame
+	prev_unwind := tl_unwind
 	tl_frame = &f
+	tl_unwind = {}
 	saved := sys.counters
 	sys.counters.async_posted = 0
 	context.assertion_failure_proc = _assertion_failure
@@ -100,6 +121,8 @@ invoke :: proc(fn: proc(a, b: rawptr), a, b: rawptr) -> (returned: bool) {
 		tl_frame = intrinsics.volatile_load(&prev)
 		c := intrinsics.volatile_load(&f.crash)
 		n := intrinsics.volatile_load(&sys.counters)
+		u := tl_unwind
+		tl_unwind = intrinsics.volatile_load(&prev_unwind)
 		sys.after_trap(c.code)
 		_classify(&c, n)
 		if c.dirty {
@@ -110,12 +133,15 @@ invoke :: proc(fn: proc(a, b: rawptr), a, b: rawptr) -> (returned: bool) {
 			obs.inc(g.recoveries)
 		}
 		if g.on_crash != nil { g.on_crash(&c) }
+		// After the crash line, which names the request the unwind is about to end.
+		if u.fn != nil { u.fn(u.data) }
 		return false
 	}
 
 	fn(a, b)
 
 	tl_frame = prev
+	tl_unwind = prev_unwind
 	sys.counters.async_posted = saved.async_posted
 	return true
 }

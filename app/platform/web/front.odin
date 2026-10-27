@@ -17,6 +17,7 @@ import "core:strings"
 
 import http "../../vendor/odin-http"
 import "../env"
+import "../guard"
 import "../html"
 import "../obs"
 import "../sys"
@@ -332,10 +333,21 @@ defer_response :: proc(req: ^Request, res: ^Response, d: ^Deferred, on_gone: pro
 }
 
 // On the loop that deferred it. nil: the client left, or the connection moved
-// on (and the request's context with it).
+// on (and the request's context with it). From here the response is the
+// continuation's: a crash before `finish` names this request and answers it
+// with 500 (M1-04), as a crash in a handler does.
 resume :: proc(d: ^Deferred) -> ^Response {
 	res := http.response_resume(d.ref)
-	if res != nil { tl_ctx = d.ctx }
+	if res != nil {
+		tl_ctx = d.ctx
+		obs.set_request(string(d.id[:d.id_len]), d.route.obs if d.route != nil else obs.NO_ROUTE)
+		guard.set_unwind(proc(data: rawptr) {
+			d := (^Deferred)(data)
+			tl_ctx = nil
+			obs.clear_request()
+			http.response_crashed(d.ref)
+		}, d)
+	}
 	return res
 }
 
@@ -346,7 +358,11 @@ request :: proc(d: ^Deferred) -> ^Request {
 
 // After a resumed response was answered: its count and its access-log line.
 finish :: proc(d: ^Deferred, res: ^Response) {
-	defer tl_ctx = nil
+	defer {
+		tl_ctx = nil
+		obs.clear_request()
+		guard.clear_unwind()
+	}
 	us := (sys.mono_ns() - d.start) / 1000
 	if d.route != nil { obs.count_request(d.route.obs, us) }
 	access_log(d.method, d.route.id if d.route != nil else "", "", int(res.status), us, string(d.id[:d.id_len]), d.client, "")

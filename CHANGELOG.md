@@ -137,6 +137,12 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   chunk lands, and drop it: the server read that request from its middle (a 501) or waited for one already gone.
   About 1 in 300 rounds on a raw socket and 0.01-0.1 % of the requests after a stream under k6; 0 in 12,600 rounds
   since. `protocol.spec` keeps the check.
+- **A crash in a deferred response's continuation answers 500** (M1-04): a write's reply or a pool's result that
+  trapped after `web.resume` had left the connection unanswered and open for good. `web.resume` now gives the guard
+  an unwind, which a crash before `web.finish` runs: the fork's `response_crashed` answers 500 and closes, and the
+  crash line names the request. The drills crash a continuation (`continuation`).
+- **A crash in the request served after a stream ends is that connection's** (M1-26): 500 and a close, not a wedged
+  connection; the drills' `streamcrash` phase checks it.
 - **robots.txt no longer hides a page beside a family of fragments**: the lab's `/lab/feed`, `/lab/publish`, … had
   collapsed to `Disallow: /lab/`, which also covered `/lab/streams`. A family collapses to its first segment only when
   no page lives under it; `seo.spec` checks that no Disallow covers a sitemap page.

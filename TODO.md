@@ -139,7 +139,8 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       M1-04 with M1-26 (a crash in a continuation or a stream's end), M1-05 and M1-07, now that streams rework the
       drain and the deferred paths; the profile's follow-ups (the connection arena's mutex and header reserves as a
       fork change, one read transaction per page, `tools/profile`). *Check:* each finding's own regression test or
-      drill, and the parity gate.
+      drill, and the parity gate. Progress: M1-04 (the guard's unwind and the fork's `response_crashed`; the
+      `continuation` drill) and M1-26 (with F-18; the `streamcrash` drill) fixed.
 - [ ] **15. Generator v1** (`tools/init` compose mode, §7.4): `--list [--json]` (committed as `docs/catalog.json`,
       checked fresh in CI), `--explain`, `--profile`, `--features`, `--add`, `--without`, the family commands,
       `--dry-run`, `--verify` (scratch copy, `build.*`, `tools/check profile`, `--features --json` against the plan),
