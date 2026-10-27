@@ -253,6 +253,22 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
 ### Fixed
 - **M2's audit** (`docs/audit/M2.md`, by an agent that didn't write the code: 0 CRITICAL, 2 HIGH, 9 MEDIUM, 5 LOW,
   5 NIT) is resolved but for two NITs (M2-18, M2-21: `TODO.md`); its Resolution section maps each fix to what holds it.
+  A re-read of the fixes by a second such agent found eight more (M2-22 to M2-29: 1 HIGH, 2 MEDIUM, 3 LOW, 2 NIT), all
+  fixed.
+- **A WebSocket frame's JSON is parsed strictly** (M2-22, HIGH): core:encoding/json defaults to JSON5, whose comments
+  and single-quoted strings hid brackets from M2-01's depth scan (one frame of `/*"*/` and 65,000 `[` still overflowed
+  a loop's stack) and whose tokenizer recursed once per comment. The drills' `wsdata` sends all three kinds.
+- **Budgets count what a stream is sent** (M2-23): `stream.sse_size` is what `sse_event` writes, and a line costs
+  "data: " and a newline on top of its text, so a replay counts SSE frames and `hub.publish` refuses a message whose
+  frame passes the backlog budget. One publish of 60,000 line feeds (420 KB as SSE) had closed every subscriber of its
+  topic, and every reconnect again.
+- **The hub's rings are kept in order of their last publish** (M2-24): the total budget takes the oldest at once and
+  the sweep walks only the idle, where both walked every ring under the hub's lock; each ring costs 512 B against
+  `HUB_RINGS_BYTES` besides its messages, or a million one-byte rings fit it.
+- **Smaller edges** (M2-25 to M2-28): an IPv4 client a proxy reports as `::ffff:a.b.c.d` is keyed by its IPv4
+  address, not a /64 every such client shared; a chat snapshot that had to drop messages replaces the log instead of
+  leaving a gap behind what the page had; a handler that crashed before its loop opened a SQLite reader no longer
+  leaves a read transaction for a continuation to begin; a crashed connection's 500 has a send deadline.
 - **A WebSocket frame of deeply nested JSON no longer overflows a loop's stack** (M2-01, HIGH): `stream.ws_json`
   refuses nesting past 16 before `core:encoding/json` parses it; chat's socket and the lab's room decode through it.
   The drills' `wsdata` phase sends 60,000 `[`.

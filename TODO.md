@@ -216,8 +216,9 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       and `lab`); `docs/audit/M2.md` by an agent that didn't write the code, 0 open CRITICAL/HIGH (M1-04 and M1-26
       are due here); `Audited:` stamps; CHANGELOG's 2.1.0 entry; then ask Alex about tagging v2.1.0.
       Progress: the audit at `db27254` (0 CRITICAL, 2 HIGH, 9 MEDIUM, 5 LOW, 5 NIT; M1-04 and M1-26 borne out) is
-      resolved but for M2-18 and M2-21 (below); its Resolution section maps each fix to its test. Left: a re-read of
-      the fixes, the parity gate on both legs, the stamps, 2.1.0's entry.
+      resolved but for M2-18 and M2-21 (below); its Resolution section maps each fix to its test. The re-read of the
+      fixes at `a6bc5de` found M2-22 (HIGH: JSON5 hid brackets from M2-01's scan) to M2-29, all fixed since. Left: a
+      reader for those fixes, the parity gate on both legs, the stamps, 2.1.0's entry.
 - [ ] **M2's open audit findings** (`docs/audit/M2.md`, owner M3): M2-18, a topic has no `.Lan_Only`, so an Admin by
       `ACCOUNTS_NICK_ADMIN_CIDRS` outside `LAN_CIDRS` gets ops' panel stream but not its page (give `hub.Topic` the
       flag, or have boot refuse such CIDRs; no exposure at the empty default); M2-21, a POST stream keeps its request
