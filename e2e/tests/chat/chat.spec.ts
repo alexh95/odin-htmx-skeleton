@@ -196,6 +196,28 @@ test.describe('chat', T, () => {
     await leave(ann);
   });
 
+  // 4 messages of 2,000 `&` render to ~42 KB, past a 32 KiB queue: the snapshot a socket or a
+  // multipart feed opens with sent them all at once, and every connect was cut as too slow.
+  for (const t of ['ws', 'multipart'] as const) {
+    test(`a room of long messages over ${t}: the snapshot fits the stream, and live messages follow (M2-03)`, async ({ browser }) => {
+      const s = await startServer(test.info().config, { STREAM_MAX_QUEUED: '32KiB' });
+      const base = `http://127.0.0.1:${s.port}`;
+      const ann = await member(browser, base), bob = await member(browser, base);
+      try {
+        const slug = await newRoom(ann.page);
+        await open(ann, slug, 'sse');
+        for (let i = 0; i < 4; i++) await say(ann, `long ${i} ${'&'.repeat(1990)}`);
+        await open(bob, slug, t);
+        await expect(message(bob, 'long 3')).toHaveCount(1);
+        await say(ann, 'short, after');
+        await expect(message(bob, 'short, after')).toHaveCount(1);
+      } finally {
+        await leave(ann, bob);
+        await stopServer(s);
+      }
+    });
+  }
+
   test('the connection setting sticks to the member', async ({ browser, baseURL }) => {
     const ann = await member(browser, baseURL!);
     await ann.page.goto('/chat');

@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import http from 'node:http';
 import net from 'node:net';
 import { expect, test } from '../../fixtures';
+import { startServer, stopServer } from '../../helpers/server';
 import { closeTopic, epochOf, get, HOST, post, publish, say, seqOf, sleep, sse, stats, uid, wsRaw } from './streams';
 
 // 03's contract checks that speak the protocols from Node (03 §10.2; spike S0.3), numbered as 03
@@ -118,6 +119,19 @@ test.describe('SSE', T, () => {
     }
   });
 
+  test('a HEAD to a stream route gets 405 and Allow: GET, never a body that doesn\'t end (M2-14)', async ({ server }) => {
+    for (const p of ['/events?t=lab.bus', '/lab/sse/tick?n=1&ms=10', '/lab/mp/count?n=1&max=1']) {
+      const r = await new Promise<http.IncomingMessage>((res, rej) => {
+        const req = http.request({ host: HOST, port: server.port, path: p, method: 'HEAD' }, res);
+        req.on('error', rej);
+        req.end();
+      });
+      expect(r.statusCode, p).toBe(405);
+      expect(r.headers['allow'], p).toBe('GET');
+      r.destroy();
+    }
+  });
+
   test('/events refuses a topic its host does not mount (400) and a malformed one (400)', async ({ server }) => {
     for (const t of ['chat.room:1', 'lab.feed:BAD', 'lab.feed:a@x', '', 'lab.bus@5']) {
       expect((await get(server.port, `/events?t=${encodeURIComponent(t)}`)).status, t).toBe(400);
@@ -137,11 +151,24 @@ test.describe('the hub\'s cursors (PLAN §9.3)', T, () => {
     expect(again.map((e) => e.data)).toEqual([`<div hx-swap-oob="beforeend:#feed"><article id="m-after">after the resync</article></div>`]);
   });
 
+  test('a page\'s `after` is one URL component: it can\'t add a topic to the page\'s stream (M2-16)', async ({ server }) => {
+    const r = await get(server.port, '/lab/streams/live?after=1-1%26t%3Dlab.room%3Ax');
+    expect(r.body).toContain('&amp;after=1-1%26t%3Dlab.room%3Ax"');
+  });
+
   test('a gap older than the topic\'s ring gets `event: resync`, not a partial replay', async ({ server }) => {
     const key = uid('t');
     const old = (await stats(server.port)).cursor;
     for (let i = 0; i < 260; i++) await publish(server.port, key, `m${i}`); // HUB_RING is 256
     const evs = await sse(server.port, `/events?t=lab.feed:${key}`, { count: 1, ms: 2000, headers: { 'Last-Event-ID': old } });
+    expect(evs[0]?.event).toBe('resync');
+  });
+
+  test('a replay past a stream\'s backlog budget gets `event: resync`, not a cut as too slow (M2-03)', async ({ server }) => {
+    const key = uid('t');
+    const old = (await stats(server.port)).cursor;
+    for (let i = 0; i < 30; i++) await publish(server.port, key, `m${i}`, 'x'.repeat(10_000)); // 300 KB, past the 256 KiB queue
+    const evs = await sse(server.port, `/events?t=lab.feed:${key}`, { count: 1, ms: 3000, headers: { 'Last-Event-ID': old } });
     expect(evs[0]?.event).toBe('resync');
   });
 
@@ -218,6 +245,22 @@ test.describe('WebSocket protocol edges', T, () => {
     const other = await wsRaw(server.port, '/lab/ws/echo', { Origin: `http://${HOST}:${server.port + 1}` });
     expect(other.status).toBe(403);
     other.s.destroy();
+  });
+
+  test('a handshake admission refuses is a plain 429: no Upgrade, no accept key (M2-15)', async () => {
+    const s = await startServer(test.info().config, { STREAM_CONNECTS: '1' });
+    try {
+      const first = await wsRaw(s.port, '/lab/ws/echo');
+      expect(first.status).toBe(101);
+      const refused = await wsRaw(s.port, '/lab/ws/echo');
+      expect(refused.status).toBe(429);
+      expect(refused.head).not.toMatch(/^(upgrade|sec-websocket-accept):/im);
+      expect(refused.head).not.toMatch(/^connection: upgrade/im);
+      first.s.destroy();
+      refused.s.destroy();
+    } finally {
+      await stopServer(s);
+    }
   });
 
   test('03#23 handshake: version 8 gets 426 and Sec-WebSocket-Version: 13', async ({ server }) => {
