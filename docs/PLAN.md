@@ -1139,6 +1139,14 @@ feature's prefix exceptions from a `## Prefixes` table in its README (`| `/data`
 platform's in `app/platform/web/README.md`). `platform/app` imports `store:.` besides `identity:.`: the family's root
 package holds its `NAME` for `--features`. Its test runs every check on the repo (clean) and on
 `tools/check/testdata/bad`, a repo-shaped tree that trips each one (30 problems). `topics` and `exts` arrive with M2.
+**As built (M2):** both are in `all`. `topics` reads each TOPICS row's family (`family = …`, or first when positional):
+its feature's (`lab.feed` is lab's) and declared once; every package a host mounts that declares TOPICS is named by
+the profile's `hub.mount` for that host and nothing it doesn't mount is; a profile with topics calls `hub.init`; and
+every `hub.publish` with a literal topic names a declared family. `exts`: every mounted web package declares `EXTS`,
+and main's `BUNDLE_EXTS` and `PAGE_BUNDLES` name exactly the mounted packages with `EXTS` or `BUNDLES` (the handler of
+a profile's own row, as minimal's root, counts as mounted). `routes` also refuses a bare `-` after a literal character
+in a pattern, Lua's lazy quantifier (`/csp-report` matched nothing until it was `/csp%-report`). The bad fixture trips
+43 problems.
 
 **Derived, never declared twice** (D5; LC §11): `robots.txt` Disallow lines from `.Fragment` rows (the literal prefix up
 to the first pattern character; as built in M1, a prefix another line already covers is dropped and two or more rows

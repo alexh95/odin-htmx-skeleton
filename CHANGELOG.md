@@ -90,6 +90,11 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   `PAGE_BUNDLES`, the scripting and compat packages' `BUNDLES` lines) must be embedded.
 - **A feature's `static/*.js`** is appended to the profile's `app.js` (after `client/core.js` and the member's), as
   its CSS is to `app.css`: code that is no behaviour and runs under either client.
+- **`tools/check topics` and `exts`** (PLAN §6.1, §19.2.1), in `all`: each TOPICS family is its feature's and
+  declared once, every host's packages with TOPICS are named by its `hub.mount` and nothing it doesn't mount is, a
+  profile with topics calls `hub.init`, and a literal `hub.publish` names a declared family; every mounted web package
+  declares `EXTS`, and `BUNDLE_EXTS` and `PAGE_BUNDLES` name exactly the mounted packages with `EXTS` or `BUNDLES`.
+  `routes` refuses a bare `-` after a literal in a pattern (Lua's lazy quantifier). The bad fixture trips each.
 - **The client-stack specs** (PLAN §19): `csp-clean.spec` (every sitemap page, the picker, the gallery, the streams,
   the behaviours and the scripting and compat pages, with no violation; it takes over `security.spec`'s sitemap
   walk), `csp-enforced.spec` (an injected `hx-on` refused under the hash CSP; an injected, unnonced `hx-get` stripped

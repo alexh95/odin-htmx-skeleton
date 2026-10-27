@@ -20,6 +20,8 @@ checks :: proc(t: ^testing.T) {
 	check_profiles(&tree)
 	check_routes(&tree)
 	check_contracts(&tree)
+	check_topics(&tree)
+	check_exts(&tree)
 	testing.expectf(t, len(problems) == 0, "the tree has problems:\n%s", strings.join(problems[:], "\n"))
 
 	// The bad fixture: every check trips on what it was written to catch.
@@ -29,6 +31,8 @@ checks :: proc(t: ^testing.T) {
 	check_profiles(&bad)
 	check_routes(&bad)
 	check_contracts(&bad)
+	check_topics(&bad)
+	check_exts(&bad)
 	check_parity(&bad)
 	want := [?]string {
 		// imports
@@ -59,9 +63,24 @@ checks :: proc(t: ^testing.T) {
 		`the router key "/shared" is claimed by x and w`,
 		`host main has 2 root rows`,
 		`features/z declares ROUTES`,
+		`GET /w/csp-report has a '-' after a literal`,
 		// contracts
 		"app/stores/sqlite/x: no `_ : m.Store_Put : <proc>` line",
 		"app/platform/authz/anonymous: an identity states",
+		// topics
+		`features/w/web's family "x.feed" is outside its feature's`,
+		`the family "x.feed" is declared by features/w/web and features/x/web`,
+		`features/x/web's family "elsewhere" is outside its feature's`,
+		`features/x/web publishes to "x.ghost", which no package's TOPICS declares`,
+		`host main mounts features/w/web, whose TOPICS no hub.mount("main") names`,
+		`hub.mount("main") names features/u/web's TOPICS, but host main doesn't mount it`,
+		`hub.mount("lab"): bad has no such host`,
+		`bad mounts topics but never calls hub.init`,
+		// exts
+		`BUNDLE_EXTS doesn't name features/x/web, which bad mounts`,
+		`PAGE_BUNDLES doesn't name features/x/web`,
+		`features/w/web declares no EXTS`,
+		`BUNDLE_EXTS names features/u/web, which no host of bad mounts`,
 		// parity
 		`a route waiver without a reason: route | GET /x/y | load |`,
 		`app/bin/bad isn't built`,

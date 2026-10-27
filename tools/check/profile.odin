@@ -7,8 +7,9 @@ package main
 // <rows>}, …}` and `[?]app.Host{{name, env, identity, <table>[:], <nav>[:]}}`;
 // a mount's rows are a package's table (`contacts_web.ROUTES[:]`) or the
 // profile's own (`{{.Get, "/", dashboard_web.page, …}}`). main.odin's calls
-// are read from its `main` proc: `<alias>.init(…)` and
-// `store_sqlite.migrate("<f>", <alias>.MIGRATIONS[:])`.
+// are read from its `main` proc: `<alias>.init(…)`,
+// `store_sqlite.migrate("<f>", <alias>.MIGRATIONS[:])` and
+// `hub.mount("<host>", ..<table>[:])`; and its BUNDLE_EXTS and PAGE_BUNDLES.
 
 import "core:odin/ast"
 import "core:os"
@@ -20,6 +21,7 @@ Row :: struct {
 	method, pattern: string,
 	owner:           string, // the feature whose prefixes it must sit in
 	inline:          bool,   // written in the profile, not in a package's table
+	handler_pkg:     string, // an inline row's handler's package: it is mounted too
 	pos:             tokenizer.Pos,
 }
 
@@ -43,6 +45,17 @@ Profile :: struct {
 	hosts:                         [dynamic]Host,
 	inits:                         [dynamic]string, // the targets whose init main calls
 	migrates:                      [dynamic]Migrate,
+	topic_mounts:                  [dynamic]Topic_Mount, // main's hub.mount calls
+	bundle_exts, page_bundles:     ^ast.Value_Decl,      // main's BUNDLE_EXTS and PAGE_BUNDLES; nil if none
+}
+
+// `hub.mount("<host>", ..<table>[:])` in main: the host, and the packages whose
+// TOPICS the profile's `[?][]hub.Topic` table lists.
+Topic_Mount :: struct {
+	host:  string,
+	table: string,
+	pkgs:  [dynamic]string,
+	pos:   tokenizer.Pos,
 }
 
 Migrate :: struct {
@@ -108,6 +121,10 @@ read_profile :: proc(t: ^Tree, p: ^Profile) {
 				if ident(vd.names[0]) == "main" { read_main(t, p, pl) }
 				continue
 			}
+			switch ident(vd.names[0]) {
+			case "BUNDLE_EXTS":  p.bundle_exts = vd
+			case "PAGE_BUNDLES": p.page_bundles = vd
+			}
 			cl, is := comp_lit(vd.values[0])
 			if !is { continue }
 			switch comp_elem_type(cl) {
@@ -130,6 +147,24 @@ read_profile :: proc(t: ^Tree, p: ^Profile) {
 			continue
 		}
 		append(&p.hosts, Host{name, mounts})
+	}
+	// Each hub.mount's table: `[?][]hub.Topic{lab_web.TOPICS[:], …}`.
+	for &tm in p.topic_mounts {
+		cl: ^ast.Comp_Lit
+		is := false
+		if vd, ok := decl(p.pkg, tm.table); ok && len(vd.values) == 1 { cl, is = comp_lit(vd.values[0]) }
+		if !is {
+			problem("topics", "%s: hub.mount(%q) takes %q, which isn't a table of this profile", where_(tm.pos), tm.host, tm.table)
+			continue
+		}
+		for e in cl.elems {
+			alias, field := selector(sliced(e))
+			if field != "TOPICS" {
+				problem("topics", "%s: %s holds %s, not a package's TOPICS[:]", where_(e.pos), tm.table, field if field != "" else "an entry")
+				continue
+			}
+			append(&tm.pkgs, alias_target(t, p.pkg, alias))
+		}
 	}
 }
 
@@ -184,8 +219,11 @@ read_rows :: proc(t: ^Tree, in_pkg: ^Pkg, rows: ^ast.Comp_Lit, m: ^Mount, inline
 			// The handler says whose row it is: a profile row may only mount a
 			// handler of the feature its mount names.
 			if alias, _ := selector(r.elems[2]); alias != "" {
-				if q, has := t.by_path[alias_target(t, in_pkg, alias)]; has && q.feature != m.feature {
-					problem("profile", "%s: the %q mount's row %s %s is %s's handler", where_(r.pos), m.feature, method, pattern, q.feature)
+				if q, has := t.by_path[alias_target(t, in_pkg, alias)]; has {
+					row.handler_pkg = q.path
+					if q.feature != m.feature {
+						problem("profile", "%s: the %q mount's row %s %s is %s's handler", where_(r.pos), m.feature, method, pattern, q.feature)
+					}
 				}
 			}
 		}
@@ -208,6 +246,9 @@ read_main :: proc(t: ^Tree, p: ^Profile, pl: ^ast.Proc_Lit) {
 		switch {
 		case name == "init" && alias != "":
 			append(&cur.inits, alias_target(tree, cur.pkg, alias))
+		case name == "mount" && len(call.args) == 2 && alias_target(tree, cur.pkg, alias) == "platform/hub":
+			host, _ := string_lit(call.args[0])
+			append(&cur.topic_mounts, Topic_Mount{host = host, table = ident(sliced(call.args[1])), pos = call.pos})
 		case name == "migrate" && len(call.args) == 2:
 			feature, _ := string_lit(call.args[0])
 			a, field := selector(sliced(call.args[1]))
@@ -338,6 +379,9 @@ check_routes :: proc(t: ^Tree) {
 						}
 						continue
 					}
+					if lazy_dash(r.pattern) {
+						problem("routes", "%s: %s %s has a '-' after a literal, which Lua reads as a lazy quantifier: write %%-", where_(r.pos), r.method, r.pattern)
+					}
 					if !inside_prefixes(t, r) {
 						problem("routes", "%s: %s %s is outside %s's prefixes (/%s, /admin/%s, /api/%s and its README's)",
 							where_(r.pos), r.method, r.pattern, r.owner, r.owner, r.owner, r.owner)
@@ -384,6 +428,34 @@ inside_prefixes :: proc(t: ^Tree, r: Row) -> bool {
 	}
 	for x in readme_prefixes(t, r.owner) {
 		if x == r.pattern || under(lit, x) { return true }
+	}
+	return false
+}
+
+// Whether a pattern has a bare '-' after a literal character: in a Lua pattern
+// that is a lazy quantifier on it, so "/csp-report" matches "/cspreport" and
+// never itself. A '-' after '.', a %-class, a [set] or a %-escape is meant (or
+// written %-), and one inside a set is a range.
+lazy_dash :: proc(pattern: string) -> bool {
+	literal := false // the previous item is one plain character
+	for i := 0; i < len(pattern); i += 1 {
+		switch c := pattern[i]; c {
+		case '%':
+			i += 1
+			literal = false
+		case '[':
+			for i += 1; i < len(pattern) && pattern[i] != ']'; i += 1 {
+				if pattern[i] == '%' { i += 1 }
+			}
+			literal = false
+		case '-':
+			if literal { return true }
+			literal = false
+		case '.', '(', ')', '^', '$', '*', '+', '?':
+			literal = false
+		case:
+			literal = true
+		}
 	}
 	return false
 }

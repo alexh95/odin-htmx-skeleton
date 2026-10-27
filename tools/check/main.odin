@@ -14,10 +14,15 @@ package main
 //   contracts  every proc type of a feature's store contract has its typed
 //              constant in that feature's store in each family; every identity
 //              checks authz.Load_Viewer
+//   topics     each TOPICS family its feature's and declared once, mounted by
+//              hub.mount on every host that mounts its package; a literal
+//              publish names a declared family
+//   exts       every mounted web package declares EXTS; BUNDLE_EXTS and
+//              PAGE_BUNDLES name exactly the mounted packages with EXTS or BUNDLES
 //   parity     every route of each built profile reached by the e2e run and by
 //              the load run, or waived with a reason in tests/parity-waivers.txt
 //              (PLAN §19.1.11)
-//   all        imports, profile, routes and contracts (parity needs the runs)
+//   all        imports, profile, routes, contracts, topics and exts (parity needs the runs)
 //
 // It reads the source with core:odin/parser and builds nothing; parity alone
 // asks the built binaries (`--routes --json`) and reads the suites' counter
@@ -32,7 +37,7 @@ import "core:os"
 import "core:slice"
 import "core:strings"
 
-COMMANDS := [?]string{"imports", "profile", "routes", "contracts", "parity"}
+COMMANDS := [?]string{"imports", "profile", "routes", "contracts", "topics", "exts", "parity"}
 
 main :: proc() {
 	root := "."
@@ -45,7 +50,7 @@ main :: proc() {
 			i += 1
 			root = args[i]
 		case "all":
-			append(&cmds, "imports", "profile", "routes", "contracts")
+			append(&cmds, "imports", "profile", "routes", "contracts", "topics", "exts")
 		case:
 			if !slice.contains(COMMANDS[:], a) { usage() }
 			append(&cmds, a)
@@ -60,6 +65,8 @@ main :: proc() {
 		case "profile":   check_profiles(&tree)
 		case "routes":    check_routes(&tree)
 		case "contracts": check_contracts(&tree)
+		case "topics":    check_topics(&tree)
+		case "exts":      check_exts(&tree)
 		case "parity":    check_parity(&tree)
 		}
 	}
@@ -71,7 +78,7 @@ main :: proc() {
 }
 
 usage :: proc() {
-	fmt.eprintln("usage: odin run tools/check -- <imports|profile|routes|contracts|parity|all> … [--root DIR]")
+	fmt.eprintln("usage: odin run tools/check -- <imports|profile|routes|contracts|topics|exts|parity|all> … [--root DIR]")
 	os.exit(2)
 }
 

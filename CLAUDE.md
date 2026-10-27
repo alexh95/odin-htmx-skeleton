@@ -76,7 +76,7 @@ app/prepare.sh              # once: htmx, SQLite, each profile's bundled assets 
 ./build.sh skeleton         # build app/bin/skeleton; -o:speed etc. pass through (build.bat)
 CMD=check ./build.sh minimal    # odin check on the profile's families; CMD=test runs its tests
 app/run.sh                  # build and serve skeleton on :8080 (PROFILE=minimal for minimal)
-odin run tools/check -- all # imports, profile, routes, contracts (parity after both suites ran)
+odin run tools/check -- all # imports, profile, routes, contracts, topics, exts (parity after both suites ran)
 sh .github/scripts/unit-tests.sh   # every package with tests, leaks fatal
 node tools/drills/drills.mjs skeleton   # crash, shutdown, restart, fd and budget drills
 ```
@@ -317,7 +317,8 @@ responses). Features never import it: `platform/web` wraps it.
 
 - Routes are `web.Route` rows, `{.Get, "/contacts/(%d+)", handler, .Public, {.Fragment}, 0}`, in a
   package-level `ROUTES := [?]web.Route{…}` table. Patterns are Lua patterns, anchored; captures are
-  `req.url_params[i]`; escape a literal `.` as `%.`. The router keys rows by their first one or two
+  `req.url_params[i]`; escape a literal `.` as `%.` and a literal `-` as `%-` (a bare one after a
+  character is Lua's lazy quantifier; `tools/check routes` refuses it). The router keys rows by their first one or two
   literal segments, so dispatch is a map lookup, then the feature's few patterns.
 - Responses: `web.respond_html(res, html, status)`, `web.respond_plain`, `web.respond_json`,
   `web.render_page`, `web.not_found(req, res)`, `web.respond_store_error`; they add

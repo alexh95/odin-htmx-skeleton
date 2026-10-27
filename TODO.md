@@ -55,10 +55,10 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       every bundle. *Check:* CSP-builder unit tests; `headers.spec` (api) per flag class; `minimal`'s and
       `skeleton`'s headers unchanged. Progress: all of it in the platform (a boosted request for a fixed-bundle page
       gets `HX-Redirect`, PLAN §12.1 as built; `/csp-report` in `web.REPORT_ROUTES`, 10 a minute per client),
-      `headers.spec` green on the three profiles, the CSP builder's unit test. Left: `.Nonce_Csp`, `.Private` and the
-      page bundles exercised by real pages (slice 5's scripting and compat), and `.Lab_Host`'s `noindex` with
-      houston-lab (M4). Follow-up for slice 12: `tools/check routes` should refuse an unescaped `-` in a pattern
-      (`/csp-report` matched nothing until it was `/csp%-report`).
+      `headers.spec` green on the three profiles, the CSP builder's unit test. Left: `.Private` exercised by a real
+      page (chat, slice 8; `.Nonce_Csp` and the page bundles are, since slice 5), and `.Lab_Host`'s `noindex` with
+      houston-lab (M4). `tools/check routes` refuses a bare `-` after a literal since slice 12 (`/csp-report` had
+      matched nothing until it was `/csp%-report`).
 - [x] **4. `client/hyperscript` and `html.behave`** (§12.4, D22): _hyperscript 0.9.94 core pinned (SHA, upstream
       `.br`) by prepare and in `pins`; the `client` family's second member; the `Behaviour` table and `html.behave`
       (`_="install X"` or `data-behave="x"`); the gate in app.js; the platform's core `._hs` set with its vanilla
@@ -124,9 +124,13 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       the identity Alex settles for it (below); `build.*`, `tools/init`'s `PROFILES`, CI's matrix.
       *Check:* builds with no SQLite library; its e2e in chromium and webkit; its bundle's size recorded (§12.1's
       UNVERIFIED (M2)); route coverage with 0 unexplained waivers.
-- [ ] **12. `tools/check topics` and `exts`**: every `TOPICS` row mounted per host, families unique and in their
+- [x] **12. `tools/check topics` and `exts`**: every `TOPICS` row mounted per host, families unique and in their
       feature's prefix; `BUNDLE_EXTS` names every mounted package with `EXTS` or `BUNDLES`. *Check:* a bad fixture
-      trips each.
+      trips each. Done: `topics` (families the feature's and declared once; every host's packages with `TOPICS`
+      named by its `hub.mount`, and nothing it doesn't mount; `hub.init` called; a literal `hub.publish` names a
+      declared family), `exts` (every mounted web package declares `EXTS`; `BUNDLE_EXTS` and `PAGE_BUNDLES` name
+      exactly the mounted packages with `EXTS` or `BUNDLES`, an inline row's handler counting as mounted), and in
+      `routes` the `-` rule; both in `all`, so CI's check job runs them. The bad fixture trips 13 more (43 in all).
 - [ ] **13. Stream drills** (§19.1.10): `wsdata` → 1011 with the server up; shutdown ≤ 6 s with 500 SSE + 500 WS
       (WS got 1012); the fd ceiling with 3000 streams; restart, 4000 back ≤ 3 s; TSan with 0 reports on hub, stream,
       workers and store/sqlite (S0.11, one nbio suppression, S0.9); the 1 h soak. *Check:* `tools/drills` on both
