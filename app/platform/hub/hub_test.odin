@@ -2,6 +2,7 @@ package hub
 
 import "core:strings"
 import "core:testing"
+import "core:thread"
 
 @(private = "file")
 msg :: proc(seq: u64, key: string, html := "x") -> ^Msg {
@@ -103,25 +104,98 @@ rings_keep_their_own_topics :: proc(t: ^testing.T) {
 	out: [dynamic]^Msg
 	defer delete(out)
 	first := strings.clone("lab.feed:a")
-	r := ring_for(&rings, first, .Queue, 2, 1 << 20, context.allocator)
+	r := ring_for(&rings, first, .Queue, 2, 1 << 20, 0, context.allocator)
 	delete(first) // what releasing the first message did to the old key
 	again := strings.clone("lab.feed:a")
-	testing.expect(t, ring_for(&rings, again, .Queue, 2, 1 << 20, context.allocator) == r)
+	testing.expect(t, ring_for(&rings, again, .Queue, 2, 1 << 20, 0, context.allocator) == r)
 	delete(again)
 	testing.expect_value(t, len(rings), 1)
 
-	b := ring_for(&rings, "lab.feed:b", .Queue, 2, 1 << 20, context.allocator)
-	c := ring_for(&rings, "lab.feed:c", .Queue, 2, 1 << 20, context.allocator)
+	b := ring_for(&rings, "lab.feed:b", .Queue, 2, 1 << 20, 0, context.allocator)
+	c := ring_for(&rings, "lab.feed:c", .Queue, 2, 1 << 20, 0, context.allocator)
 	r.last_ns, b.last_ns, c.last_ns = 0, 30, 100
 	ring_add(b, msg(7, "b"), &out)
-	testing.expect_value(t, ring_sweep(&rings, 100, 60, &out, context.allocator), 7) // a and b idle for 60
+	floor, freed := ring_sweep(&rings, 100, 60, &out, context.allocator) // a and b idle for 60
+	testing.expect_value(t, floor, 7)
+	testing.expect_value(t, freed, 1)
 	testing.expect_value(t, len(rings), 1)
 	testing.expect(t, rings["lab.feed:c"] == c)
 	expect_seqs(t, out[:], {7})
 	for m in out { free(m) }
 	clear(&out)
-	_ = ring_sweep(&rings, 1000, 60, &out, context.allocator)
+	_, _ = ring_sweep(&rings, 1000, 60, &out, context.allocator)
 	testing.expect_value(t, len(rings), 0)
+
+	// Made again after the sweep (floor 7), the ring vouches for no cursor below what the sweep let
+	// go: one from before it resyncs instead of replaying across the gap (M2-04).
+	again2 := ring_for(&rings, "lab.feed:b", .Queue, 2, 1 << 20, 7, context.allocator)
+	testing.expect(t, !ring_covers(again2, 5))
+	testing.expect(t, ring_covers(again2, 7))
+	_, _ = ring_sweep(&rings, max(i64), 0, &out, context.allocator)
+}
+
+// Past the rings' total budget the one published to longest ago goes whole, never the one
+// being published to, and the floor it reached comes back (M2-07).
+@(test)
+the_oldest_ring_goes_past_the_total_budget :: proc(t: ^testing.T) {
+	rings := make(map[string]^Ring)
+	defer delete(rings)
+	out: [dynamic]^Msg
+	defer delete(out)
+	a := ring_for(&rings, "lab.feed:a", .Queue, 8, 1 << 20, 0, context.allocator)
+	b := ring_for(&rings, "lab.feed:b", .Queue, 8, 1 << 20, 0, context.allocator)
+	a.last_ns, b.last_ns = 10, 20
+	ring_add(a, msg(3, "a", "xyz"), &out)
+	ring_add(b, msg(4, "b", "xy"), &out)
+	floor, freed, ok := ring_evict_oldest(&rings, b, &out, context.allocator)
+	testing.expect(t, ok && floor == 3 && freed == 3)
+	testing.expect(t, rings["lab.feed:a"] == nil && rings["lab.feed:b"] == b)
+	_, _, ok = ring_evict_oldest(&rings, b, &out, context.allocator)
+	testing.expect(t, !ok) // only the one being published to is left
+	_, _ = ring_sweep(&rings, max(i64), 0, &out, context.allocator)
+	for m in out { free(m) }
+}
+
+// Two publishers on two threads into one subscriber's inbox: it holds their messages in
+// sequence order, so `deliver`, which skips what is at or below the newest it wrote, drops
+// none of them (M2-02: appended after the hub mutex, they crossed and the lower one dropped).
+@(test)
+an_inbox_holds_two_publishers_in_sequence_order :: proc(t: ^testing.T) {
+	N :: 2000
+	h.rings = make(map[string]^Ring, heap())
+	h.inboxes.allocator = heap()
+	h.ring_cap, h.ring_bytes = 256, 1 << 20
+	b := new(Inbox, heap())
+	b.items.allocator, b.spare.allocator = heap(), heap()
+	b.subs, b.armed = 1, true // armed: no drain is posted (there is no loop here)
+	append(&h.inboxes, b)
+	defer {
+		for m in b.items { release(m) }
+		delete(b.items)
+		delete(b.spare)
+		free(b, heap())
+		out := make([dynamic]^Msg, heap())
+		_, _ = ring_sweep(&h.rings, max(i64), 0, &out, heap())
+		for m in out { release(m) }
+		delete(out)
+		delete(h.rings)
+		delete(h.inboxes)
+		h = {}
+	}
+
+	publish_n :: proc(topic: string) {
+		for _ in 0 ..< N { post(new_msg(.Html, .Queue, topic, topic, "x"), 0) }
+	}
+	a := thread.create_and_start_with_poly_data("chat.room:1", publish_n)
+	c := thread.create_and_start_with_poly_data("chat.typing:1", publish_n)
+	thread.join_multiple(a, c)
+	thread.destroy(a)
+	thread.destroy(c)
+
+	testing.expect_value(t, len(b.items), 2 * N)
+	ordered := true
+	for i in 1 ..< len(b.items) { ordered &&= b.items[i].seq > b.items[i - 1].seq }
+	testing.expect(t, ordered)
 }
 
 @(test)

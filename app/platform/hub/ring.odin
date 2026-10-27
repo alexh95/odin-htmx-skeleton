@@ -33,34 +33,57 @@ Ring :: struct {
 
 // The topic's ring, made on its first publish. The map is keyed by the ring's own copy of the
 // topic: keyed by the first message's (as it was), the key dangled once that message left the
-// ring, and a lookup compared against freed memory (the soak's `free(): invalid pointer`).
-ring_for :: proc(rings: ^map[string]^Ring, topic: string, policy: Policy, cap, max: int, allocator: runtime.Allocator) -> ^Ring {
+// ring, and a lookup compared against freed memory (the soak's `free(): invalid pointer`). A new
+// ring vouches for nothing at or below `floor`, the newest seq the idle sweep let go: made again
+// after a sweep, it would otherwise cover a cursor from before it, and the gap went unseen (M2-04).
+ring_for :: proc(rings: ^map[string]^Ring, topic: string, policy: Policy, cap, max: int, floor: u64, allocator: runtime.Allocator) -> ^Ring {
 	if r := rings[topic]; r != nil { return r }
 	r := new(Ring, allocator)
 	r.topic = strings.clone(topic, allocator)
-	r.policy, r.cap, r.max = policy, cap, max
+	r.policy, r.cap, r.max, r.dropped = policy, cap, max, floor
 	r.msgs.allocator = allocator
 	rings[r.topic] = r
 	return r
 }
 
 // Rings with no publish for `ttl` let their messages go (into `out`, for the caller to release)
-// and are freed; returns the newest seq they reached. Collected first, then deleted: a map
-// doesn't keep its iteration across a delete.
-ring_sweep :: proc(rings: ^map[string]^Ring, now, ttl: i64, out: ^[dynamic]^Msg, allocator: runtime.Allocator) -> (floor: u64) {
+// and are freed; returns the newest seq they reached and the bytes they held. Collected first,
+// then deleted: a map doesn't keep its iteration across a delete.
+ring_sweep :: proc(rings: ^map[string]^Ring, now, ttl: i64, out: ^[dynamic]^Msg, allocator: runtime.Allocator) -> (floor: u64, freed: int) {
 	idle := make([dynamic]^Ring, context.temp_allocator)
 	for _, r in rings {
 		if now - r.last_ns >= ttl { append(&idle, r) }
 	}
 	for r in idle {
-		for m in r.msgs { floor = max(floor, m.seq) }
-		floor = max(floor, r.dropped)
-		ring_empty(r, out)
-		delete_key(rings, r.topic)
-		delete(r.msgs)
-		delete(r.topic, allocator)
-		free(r, allocator)
+		f, b := ring_drop(rings, r, out, allocator)
+		floor, freed = max(floor, f), freed + b
 	}
+	return
+}
+
+// The ring published to longest ago, other than `keep`, goes whole, as the sweep would take
+// it: what the rings' total budget does past HUB_RINGS_BYTES (M2-07). false: none to take.
+ring_evict_oldest :: proc(rings: ^map[string]^Ring, keep: ^Ring, out: ^[dynamic]^Msg, allocator: runtime.Allocator) -> (floor: u64, freed: int, ok: bool) {
+	oldest: ^Ring
+	for _, r in rings {
+		if r != keep && (oldest == nil || r.last_ns < oldest.last_ns) { oldest = r }
+	}
+	if oldest == nil { return }
+	floor, freed = ring_drop(rings, oldest, out, allocator)
+	return floor, freed, true
+}
+
+// Lets a ring's messages go and frees it: the newest seq it reached, and the bytes it held.
+@(private)
+ring_drop :: proc(rings: ^map[string]^Ring, r: ^Ring, out: ^[dynamic]^Msg, allocator: runtime.Allocator) -> (floor: u64, freed: int) {
+	for m in r.msgs { floor = max(floor, m.seq) }
+	floor = max(floor, r.dropped)
+	freed = r.bytes
+	ring_empty(r, out)
+	delete_key(rings, r.topic)
+	delete(r.msgs)
+	delete(r.topic, allocator)
+	free(r, allocator)
 	return
 }
 

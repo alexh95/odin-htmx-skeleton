@@ -112,6 +112,21 @@ events :: proc(req: ^web.Request, res: ^web.Response) {
 	for m in replay { sync.atomic_add(&m.refs, 1) }
 	guard.unlock(&h.mu)
 
+	// A backlog within the stream's budget: a replay past the queue cap closed the stream as
+	// too slow, and every reconnect asked for the same replay again (M2-03). Past it the
+	// ring's replay is dropped and those topics resync, which refetches the fragment.
+	budget := stream.backlog_budget()
+	backlog := 0
+	for m in replay { backlog += len(m.html) }
+	if backlog > budget {
+		for m in replay { release(m) }
+		clear(&replay)
+		for i in 0 ..< n {
+			if how[i] == .Ring { how[i] = .Resync }
+		}
+		backlog = 0
+	}
+
 	// Anything at or below the snapshot still in this loop's inbox is skipped by
 	// `last`; anything above it arrives after this handler returns.
 	s.last = snapshot
@@ -139,9 +154,13 @@ events :: proc(req: ^web.Request, res: ^web.Response) {
 		case .Keyset:
 			items := make([dynamic]Replay_Item, 0, 32, context.temp_allocator)
 			_, key := split_topic(want[i].topic)
-			if !rows[i].replay(key, want[i].rowid, &items) {
+			ok := rows[i].replay(key, want[i].rowid, &items)
+			size := 0
+			for it in items { size += len(it.html) }
+			if !ok || backlog + size > budget { // within the budget, as the ring's above
 				how[i] = .Resync
 			} else {
+				backlog += size
 				// The last carries the cursor, so the next reconnect replays from the ring.
 				for it, j in items {
 					stream.write(c, stream.sse_event(now if j == len(items) - 1 else "", "", it.html))

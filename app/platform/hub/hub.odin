@@ -48,6 +48,7 @@ RING_TTL    :: 10 * time.Minute // a topic with no publish for this long lets it
 ENV := [?]env.Row {
 	{name = "HUB_RING", kind = .Int, def = "256", doc = "messages each topic keeps for a reconnect to replay"},
 	{name = "HUB_RING_BYTES", kind = .Size, def = "1MiB", doc = "bytes each topic's ring holds at most"},
+	{name = "HUB_RINGS_BYTES", kind = .Size, def = "64MiB", doc = "bytes every topic's ring holds in all; past it the ring published to longest ago goes"},
 }
 
 // A persisted topic's keyset replay: what came after the page's rowid, oldest
@@ -124,6 +125,8 @@ h: struct {
 	since_sweep: int,
 	ring_cap:   int,
 	ring_bytes: int,
+	rings_max:  int, // HUB_RINGS_BYTES
+	rings_held: int, // what every ring holds, in bytes
 	hosts:      map[string][]Topic, // per host name, mounted at boot
 	families:   map[string]^Topic,  // every mounted row, for publish
 	published:  obs.Counter,
@@ -150,6 +153,7 @@ init :: proc() {
 	h.epoch = u64(sys.now_unix_ns() / 1e6)
 	h.ring_cap = max(1, env.int_("HUB_RING"))
 	h.ring_bytes = env.size("HUB_RING_BYTES")
+	h.rings_max = max(h.ring_bytes, env.size("HUB_RINGS_BYTES"))
 	h.rings = make(map[string]^Ring, heap())
 	h.hosts = make(map[string][]Topic, heap())
 	h.families = make(map[string]^Topic, heap())
@@ -160,6 +164,7 @@ init :: proc() {
 	h.resyncs = obs.register_counter("app_hub_resyncs_total", "", "subscriptions told to refetch instead of replaying")
 	obs.limit("hub", "ring", i64(h.ring_cap))
 	obs.limit("hub", "ring_bytes", i64(h.ring_bytes), "B")
+	obs.limit("hub", "rings_bytes", i64(h.rings_max), "B")
 	obs.limit("hub", "message", MAX_MESSAGE, "B")
 	obs.set_health("hub", .Ok, "")
 }
@@ -245,40 +250,59 @@ release :: proc(m: ^Msg) {
 @(private)
 post :: proc(m: ^Msg, ring_cap: int) -> u64 {
 	boxes := make([dynamic]^Inbox, 0, 16, context.temp_allocator)
+	wake := make([dynamic]bool, 0, 16, context.temp_allocator)
 	out := make([dynamic]^Msg, 0, 4, context.temp_allocator)
+	html := m.kind == .Html
 
 	guard.lock(&h.mu)
 	for b in h.inboxes {
 		if sync.atomic_load(&b.subs) > 0 { append(&boxes, b) }
 	}
 	m.refs = len(boxes)
-	if m.kind == .Html {
+	if html {
 		h.seq += 1
 		m.seq = h.seq
 		m.refs += 1
-		r := ring_for(&h.rings, m.topic, m.policy, ring_cap, h.ring_bytes, heap())
+		r := ring_for(&h.rings, m.topic, m.policy, ring_cap, h.ring_bytes, h.floor, heap())
 		r.last_ns = sys.mono_ns()
+		before := r.bytes
 		ring_add(r, m, &out)
+		h.rings_held += r.bytes - before
+		// Every topic's ring in all, within its budget: a public publisher could otherwise fill
+		// ring after ring until the process ran out of memory (M2-07).
+		for h.rings_held > h.rings_max {
+			floor, freed, ok := ring_evict_oldest(&h.rings, r, &out, heap())
+			if !ok { break }
+			h.floor = max(h.floor, floor)
+			h.rings_held -= freed
+		}
 		h.since_sweep += 1
 		if h.since_sweep >= 1024 { sweep_rings(&out) }
 	}
 	seq := m.seq
-	guard.unlock(&h.mu)
-
-	for old in out { release(old) }
-	if m.kind == .Html { obs.inc(h.published) }
-	if m.refs == 0 {
-		release_unowned(m)
-		return seq
-	}
+	unowned := m.refs == 0
+	// Into every inbox while the sequence is still ours, so each inbox holds its messages in
+	// sequence order: `deliver` skips what is at or below the newest it wrote, and appends made
+	// after the mutex let two publishers' messages cross and the lower one drop (M2-02). An
+	// inbox's lock nests inside the hub's; the drain takes its own alone.
 	for b in boxes {
 		sync.lock(&b.mu)
 		append(&b.items, m)
-		wake := !b.armed
+		append(&wake, !b.armed)
 		b.armed = true
 		sync.unlock(&b.mu)
-		// A loop that has left takes no wakeup (M1-05); its inbox goes with the exiting process.
-		if wake { _ = workers.post(b.loop, b, drain) }
+	}
+	guard.unlock(&h.mu)
+
+	for old in out { release(old) }
+	if html { obs.inc(h.published) }
+	if unowned {
+		release_unowned(m)
+		return seq
+	}
+	// A loop that has left takes no wakeup (M1-05); its inbox goes with the exiting process.
+	for b, i in boxes {
+		if wake[i] { _ = workers.post(b.loop, b, drain) }
 	}
 	return seq
 }
@@ -296,7 +320,9 @@ release_unowned :: proc(m: ^Msg) {
 @(private)
 sweep_rings :: proc(out: ^[dynamic]^Msg) {
 	h.since_sweep = 0
-	h.floor = max(h.floor, ring_sweep(&h.rings, sys.mono_ns(), i64(RING_TTL), out, heap()))
+	floor, freed := ring_sweep(&h.rings, sys.mono_ns(), i64(RING_TTL), out, heap())
+	h.floor = max(h.floor, floor)
+	h.rings_held -= freed
 }
 
 // ---- delivery, on each loop ---------------------------------------------------------
