@@ -1,8 +1,8 @@
 name: nightly
 
 # What's too slow or too noisy for every push (PLAN §19.2.1's nightly row). At M1:
-# ASan over the e2e suite and a k6 quick run, on Linux. Windows ASan, TSan, the soak,
-# libFuzzer and the combination matrices join with the milestones that need them.
+# ASan over the e2e suite and a k6 quick run, on Linux. At M2: TSan and the 1 h soak.
+# Windows ASan, libFuzzer and the combination matrices join with the milestones that need them.
 on:
   schedule:
     - cron: '17 3 * * *'
@@ -56,3 +56,62 @@ jobs:
         run: |
           if ls /tmp/asan/report.* >/dev/null 2>&1; then cat /tmp/asan/report.*; exit 1; fi
           echo "no ASan reports"
+
+  # The TSan gate (PLAN §19.2.1, M2): tools/drills/tsan.sh builds the hub's, stream's,
+  # workers' and store/sqlite's tests, lab under streamload's fan-out and skeleton under
+  # k6's write and pages with -sanitize:thread, each through its drain. Any report but
+  # core:nbio's one suppressed assert (tools/drills/tsan.supp, S0.9) fails it.
+  tsan:
+    name: TSan (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      K6_VERSION: v2.0.0
+      K6_SHA256: 2ae87d976f6cdba17185bdd980d8819a3a98e9092c6f0638cd58272ecefc8b90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-odin
+      - name: Install k6
+        run: |
+          curl -fsSL "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz" -o /tmp/k6.tar.gz
+          echo "${K6_SHA256}  /tmp/k6.tar.gz" | sha256sum -c -
+          sudo tar -xzf /tmp/k6.tar.gz -C /usr/local/bin --strip-components=1 "k6-${K6_VERSION}-linux-amd64/k6"
+      - name: Prepare
+        run: sh app/prepare.sh
+      - name: TSan gate
+        run: sh tools/drills/tsan.sh
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: tsan-logs
+          path: app/build/tsan/
+
+  # The soak (PLAN §19.1.8): lab for an hour with 2000 streams, k6's lab scenario at 10
+  # VUs and a redeploy at half time (SIGTERM, a new server on the port). RSS and the
+  # open fds plateau in each half, the queued bytes stay under 64 MiB, and every stream
+  # is back within 5 s of the redeploy.
+  soak:
+    name: Soak (lab, 1 h, Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    env:
+      K6_VERSION: v2.0.0
+      K6_SHA256: 2ae87d976f6cdba17185bdd980d8819a3a98e9092c6f0638cd58272ecefc8b90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-odin
+      - name: Install k6
+        run: |
+          curl -fsSL "https://github.com/grafana/k6/releases/download/${K6_VERSION}/k6-${K6_VERSION}-linux-amd64.tar.gz" -o /tmp/k6.tar.gz
+          echo "${K6_SHA256}  /tmp/k6.tar.gz" | sha256sum -c -
+          sudo tar -xzf /tmp/k6.tar.gz -C /usr/local/bin --strip-components=1 "k6-${K6_VERSION}-linux-amd64/k6"
+      - name: Prepare
+        run: sh app/prepare.sh
+      - name: Soak
+        run: sh tools/drills/soak.sh
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: soak
+          path: app/build/soak/
+

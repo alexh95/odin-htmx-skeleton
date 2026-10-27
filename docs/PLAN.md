@@ -4325,6 +4325,18 @@ Nightly, 1 h: 2000 streams, mixed load and a mid-run redeploy. It passes when RS
 `stream_queued_bytes` stays bounded, nothing exits but the deploy and reconnects take ≤ 5 s. At M3, 1 h through NPM
 on apollo (1000 SSE held with no idle cuts, D44). Before M12, 8 h.
 
+**As built (M2):** `sh tools/drills/soak.sh` (Linux; `SOAK_MINUTES`, 60) runs lab with `THREADS=4` and the per-client
+stream caps lifted. The first half holds 1000 SSE + 1000 WebSocket clients in `tools/streamload restart` (5
+publishes a second), with k6's lab scenario at 10 VUs throughout; at half time a SIGTERM drains the server and a new
+one starts on the same port, and streamload times the 2000 coming back; the second half holds 2000 again
+(`streamload hold`). Every 30 s it samples RSS and the open fds (`/proc`) and lab's `/lab/stats` (`open`, and
+`queued`: bytes waiting in the streams' send queues) into `app/build/soak/samples.csv`. It passes when, in each half,
+the last sample is within 10 % of the first one under full load (RSS and fds), `queued` stays under 64 MiB, the
+first server exits 0 and the second lives on, and all 2000 are back within 5 s. Nightly in CI. Its first hour (WSL,
+2026-10-27) found the hub's idle-ring sweep freeing a ring twice (`free(): invalid pointer` after a few minutes;
+fixed, see the hub's `ring_sweep`); the hour after the fix passed: RSS 16.3 MB, +0.3 % and +1.0 % over the halves,
+2023 fds throughout, no bytes queued at any sample, the first server out with 0, and 2000 of 2000 back in 1.5 s.
+
 #### 19.1.9 Fuzz
 
 Three tiers (02 §2.4):

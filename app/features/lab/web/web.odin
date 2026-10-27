@@ -401,6 +401,8 @@ stats :: proc(req: ^web.Request, res: ^web.Response) {
 	strings.write_int(&b, n.loops_with_subs)
 	html.w(&b, `,"open":`)
 	strings.write_int(&b, stream.open_total())
+	html.w(&b, `,"queued":`) // bytes the streams have waiting for their sockets: the soak's bound
+	strings.write_int(&b, stream.queued_total())
 	html.w(&b, `,"ended":{`)
 	for why, i in web.Stream_End {
 		if i > 0 { html.w(&b, ",") }

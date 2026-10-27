@@ -131,10 +131,16 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       declared family), `exts` (every mounted web package declares `EXTS`; `BUNDLE_EXTS` and `PAGE_BUNDLES` name
       exactly the mounted packages with `EXTS` or `BUNDLES`, an inline row's handler counting as mounted), and in
       `routes` the `-` rule; both in `all`, so CI's check job runs them. The bad fixture trips 13 more (43 in all).
-- [ ] **13. Stream drills** (§19.1.10): `wsdata` → 1011 with the server up; shutdown ≤ 6 s with 500 SSE + 500 WS
+- [x] **13. Stream drills** (§19.1.10): `wsdata` → 1011 with the server up; shutdown ≤ 6 s with 500 SSE + 500 WS
       (WS got 1012); the fd ceiling with 3000 streams; restart, 4000 back ≤ 3 s; TSan with 0 reports on hub, stream,
       workers and store/sqlite (S0.11, one nbio suppression, S0.9); the 1 h soak. *Check:* `tools/drills` on both
-      legs and in CI's `linux-ops`; TSan and soak as nightly jobs.
+      legs and in CI's `linux-ops`; TSan and soak as nightly jobs. Progress: the drills `wsdata`, `streamdrain`
+      (which found the drain sending SSE no `retry:`) and `streamfd` in `drills.mjs`, lab in `linux-ops`;
+      `tools/drills/tsan.sh` at 0 reports (138 at first: the fork's F-21, a shutdown that woke released loops, and
+      F-22, connection arenas TSan can't follow, plus a store test's loop released under the writer);
+      `tools/drills/soak.sh`, whose first hour found the hub's idle-ring sweep freeing a ring twice (fixed) and whose
+      hour after it passed (RSS 16.3 MB, +0.3 % and +1.0 % a half, 2000 of 2000 back in 1.5 s); both nightly. Slice 13
+      done.
 - [x] **14. M1's carried findings** (`docs/audit/M1.md`, owner M2): the MEDIUMs M1-02 (a send deadline), M1-03,
       M1-04 with M1-26 (a crash in a continuation or a stream's end), M1-05 and M1-07, now that streams rework the
       drain and the deferred paths; the profile's follow-ups (the connection arena's mutex and header reserves as a

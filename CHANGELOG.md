@@ -98,6 +98,10 @@ Milestone M2 under way (the stream substrate, the `streams` and `lab` profiles, 
   stream's, workers' and store/sqlite's tests, of lab under 200 SSE + 200 WebSocket clients and 200 publishes, and of
   skeleton under k6's `write` and `pages`, each through its drain; any report fails it. One suppression, core:nbio's
   mpsc assert (`tools/drills/tsan.supp`, S0.9). 0 reports.
+- **The soak** (`sh tools/drills/soak.sh`, Linux; PLAN §19.1.8): lab for an hour with 2000 streams, k6's lab
+  scenario at 10 VUs and a redeploy at half time; RSS and the open fds plateau in each half, the streams' queued
+  bytes stay under 64 MiB, and all 2000 are back within 5 s. Lab's `/lab/stats` reports `queued` for it. Nightly,
+  with the TSan gate (`nightly.yml`).
 - **The generator, v1** (`tools/init` compose mode; PLAN §7.4, D26): `--list [--json]` (committed as
   `docs/catalog.json`, held current by CI), `--explain`, a new project from `--profile` and `--features` with the
   family flags (`--store`, `--identity`, `--client`, `--theme`), `--add` and `--without` on a profile in place, a
