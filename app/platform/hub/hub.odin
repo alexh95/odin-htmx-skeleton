@@ -74,6 +74,7 @@ Topic :: struct {
 	policy:    Policy,
 	ring:      int, // 0 = HUB_RING
 	persisted: bool, // publishes carry a rowid, and `replay` reads the store
+	member:    bool, // keyed by the viewer's id (notify.user:<id>): on every page of theirs, and theirs alone
 	perm:      authz.Perm,
 	allow:     Allow_Proc,
 	replay:    Replay_Proc,
@@ -148,6 +149,7 @@ init :: proc() {
 	h.hosts = make(map[string][]Topic, heap())
 	h.families = make(map[string]^Topic, heap())
 	h.inboxes.allocator = heap()
+	web.on_live(live_html)
 	h.published = obs.register_counter("app_hub_published_total", "", "messages published to the hub")
 	h.dropped = obs.register_counter("app_hub_dropped_total", "", "publishes refused: no mounted topic, too large, or draining")
 	h.resyncs = obs.register_counter("app_hub_resyncs_total", "", "subscriptions told to refetch instead of replaying")

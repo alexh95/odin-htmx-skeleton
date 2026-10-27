@@ -68,16 +68,29 @@ is_htmx :: proc(req: ^Request) -> bool {
 // fixed bundle (the lab's scripting and compat pages) names it (§12.1), and a
 // boosted link into it gets HX-Redirect instead: a boosted swap would keep the
 // old document's CSP and scripts, so the browser loads it whole.
-render_page :: proc(req: ^Request, res: ^Response, title, active, description, content: string, status := Status.OK, bundle := Bundle.Main) {
+// `live` names the page's own topics for the layout's one SSE stream (§9.1), as
+// `chat.room:12`; the viewer's own topics (notify.user:<id>) join them without asking.
+render_page :: proc(req: ^Request, res: ^Response, title, active, description, content: string, status := Status.OK, bundle := Bundle.Main, live: []string = nil) {
 	if bundle != .Main && header(req, "hx-boosted") == "true" {
 		set_header(res, "hx-redirect", req.url.raw)
 		respond_status(res, .OK)
 		return
 	}
-	respond_html(res, page_html(title, active, description, content, bundle), status)
+	respond_html(res, page_html(title, active, description, content, bundle, live), status)
 }
 
-page_html :: proc(title, active, description, content: string, bundle := Bundle.Main) -> string {
+// The layout's #live, as the hub builds it for this request: set by hub.init, so a
+// profile that doesn't stream links none of it and its pages open no stream.
+Live_Proc :: #type proc(page: []string) -> string
+
+@(private)
+live_proc: Live_Proc
+
+on_live :: proc(p: Live_Proc) {
+	live_proc = p
+}
+
+page_html :: proc(title, active, description, content: string, bundle := Bundle.Main, live: []string = nil) -> string {
 	c := ctx()
 	site := c.site
 	// Trusted Types blocks every hyperscript `put` (11 §2.3): such a page loads none.
@@ -88,6 +101,7 @@ page_html :: proc(title, active, description, content: string, bundle := Bundle.
 		hs = "" if tt else assets.hs_href, behaviours = "" if tt else assets.behaviours_href,
 		title = title, active = active, description = description,
 		bundle = bundle, nonce = c.nonce, private = c.route != nil && .Private in c.route.flags,
+		live = live_proc(live) if live_proc != nil else "",
 	}, content)
 }
 

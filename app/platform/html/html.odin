@@ -76,6 +76,7 @@ Page :: struct {
 	bundle:                     ext.Bundle,
 	nonce:                      string,
 	private:                    bool,
+	live:                       string, // the page's one SSE stream, #live (§9.1): the hub's markup, or ""
 }
 
 // Views write this where a nonce goes (hx-nonce="<%N%>" on an hx-* element of a
@@ -400,6 +401,9 @@ layout :: proc(p: Page, content: string) -> string {
 	w(&b, content)
 	w(&b, `</main>
 `)
+	// Outside <main>, so a fragment swap never takes it; a boosted navigation swaps
+	// the body and so opens it again, with the new page's topics (D14).
+	w(&b, p.live)
 	if p.brand.overlays {
 		w(&b, `<div id="overlay"></div>
 <!-- hx-preserve keeps this node (and any live toast) across a boosted body swap,

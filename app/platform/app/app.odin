@@ -36,6 +36,7 @@ import "../obs"
 import "../sys"
 import "../web"
 import "../workers"
+import identity "identity:."
 
 // One table a host mounts, with the feature it belongs to: the name labels its
 // rows in --routes and --features and in boot check 5's message.
@@ -111,6 +112,7 @@ boot :: proc(profile: string) {
 
 	sys.raise_nofile()
 	env.record("", PLATFORM_ENV[:])
+	identity.init() // its env rows and keys, after the platform's (LAN_CIDRS)
 	burst := guard.RECOVERY_BURST
 	if v, ok := os.lookup_env("GUARD_BURST", context.temp_allocator); ok {
 		if n, nok := strconv.parse_int(v, 10); nok && n > 0 { burst = n }

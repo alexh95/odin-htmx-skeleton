@@ -15,5 +15,8 @@ load_viewer :: proc(ask: authz.Ask) -> (v: authz.Viewer, set_cookie: string) {
 	return authz.GUEST, ""
 }
 
+// At boot, from app.boot: an identity's env rows and keys. The anonymous one has none.
+init :: proc() {}
+
 // The identity's own CLI flags (--hash-password in the hashing identities).
 cli :: proc() {}

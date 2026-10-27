@@ -21,10 +21,12 @@ package hub
 // TOPICS mount (§7.3).
 
 import "core:slice"
+import "core:strconv"
 import "core:strings"
 import "core:sync"
 
 import "../authz"
+import "../escape"
 import "../guard"
 import "../obs"
 import "../stream"
@@ -68,7 +70,8 @@ events :: proc(req: ^web.Request, res: ^web.Response) {
 	}
 	for i in 0 ..< n {
 		_, key := split_topic(want[i].topic)
-		if !authz.can(ctx.viewer, rows[i].perm) || (rows[i].allow != nil && !rows[i].allow(key, ctx.viewer)) {
+		if !authz.can(ctx.viewer, rows[i].perm) || (rows[i].allow != nil && !rows[i].allow(key, ctx.viewer)) ||
+		   rows[i].member && (ctx.viewer.id == 0 || key != member_key(ctx.viewer)) {
 			web.respond_status(res, .Forbidden)
 			return
 		}
@@ -151,4 +154,36 @@ find_row :: proc(table: []Topic, topic: string) -> ^Topic {
 		if row.family == family { return &row }
 	}
 	return nil
+}
+
+// A member row's key for this viewer: their id, as the topic names it.
+member_key :: proc(v: authz.Viewer, allocator := context.temp_allocator) -> string {
+	buf: [24]byte
+	return strings.clone(strconv.write_uint(buf[:], v.id, 10), allocator)
+}
+
+// ---- the layout's #live (§9.1, D14) ------------------------------------------------------
+
+// The page's one SSE stream: the viewer's own topics (every member row this host
+// mounts, keyed by their id) and the page's, resuming after the hub's sequence now.
+// "" when there is nothing to open. web.render_page calls it through web.on_live.
+live_html :: proc(page: []string) -> string {
+	ctx := web.ctx()
+	topics := make([dynamic]string, 0, MAX_TOPICS, context.temp_allocator)
+	if ctx.viewer.id != 0 {
+		for row in h.hosts[ctx.site.name] {
+			if row.member { append(&topics, strings.concatenate({row.family, ":", member_key(ctx.viewer)}, context.temp_allocator)) }
+		}
+	}
+	for t in page {
+		if len(topics) < MAX_TOPICS { append(&topics, t) }
+	}
+	if len(topics) == 0 { return "" }
+	b := strings.builder_make(context.temp_allocator)
+	strings.write_string(&b, `<div id="live" hx-sse:connect="/events?t=`)
+	escape.esc(&b, strings.join(topics[:], ",", context.temp_allocator))
+	strings.write_string(&b, `&amp;after=`)
+	escape.esc(&b, cursor_now())
+	strings.write_string(&b, `"></div>`)
+	return strings.to_string(b)
 }
