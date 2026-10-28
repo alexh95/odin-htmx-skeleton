@@ -16,6 +16,79 @@ copy-and-start ergonomics and good defaults matter more than feature depth.
 > items (**bulk actions**, a **named console identity**) are **out of scope as goals** — they'd just
 > be cruft a copier deletes — and survive only as "example extensions you might add."
 
+## M3 — pipeline, apollo LAN, the landing page (v2.2.0)
+
+The starter's third milestone ([`docs/PLAN.md`](docs/PLAN.md) §22.3, M3's row; §20 pipeline, hosting and deploys,
+§15.5 the lab's pages, §18 the parity gate). Slices in order, each done only when its check passes. Slices 1–8 need
+nothing from Alex; 9 and 10 start with Alex's steps (§20.7) and every promote to apollo waits for Alex's go, as does
+every push and tag. apollo stays read-only until slice 9, and its other services are never touched. `FLY_DEPLOY` stays
+off until Alex sets it before the v2.2.0 tag.
+
+- [ ] **1. The release image** (§20.2): the runtime stage on distroless `base-nossl-debian13`, `USER 10001:10001`,
+      `STOPSIGNAL SIGTERM`, `HEALTHCHECK` through the binary's `--healthcheck`, the binary at `/app/bin`; the build
+      stage picks Odin's amd64 or arm64 asset by `TARGETARCH` (the digests `setup-odin` and `check-pins.sh` hold);
+      `SOURCES.md` naming the base's Debian source versions. *Check:* the `docker` job builds every hosted profile
+      (minimal, streams, skeleton, lab), each turns healthy through `--healthcheck`, runs as 10001 on a read-only
+      rootfs, stops on SIGTERM within 6 s, persists to a fresh `/data`; `readelf -d` lists only `libc.so.6` and
+      `libm.so.6` with SQLite linked (skeleton); each image ≤ 25 MB compressed (D38). `fly.toml` and the Fly job keep
+      working on the new image.
+- [ ] **2. The release workflow** (§20.1's `release`, §20.2): on a `v*` tag, each hosted profile built natively on
+      `ubuntu-latest` (amd64) and `ubuntu-24.04-arm` (arm64), pushed by digest and merged into one manifest list,
+      `ghcr.io/alexh95/odin-htmx-starter-<profile>:vX.Y.Z` and `:sha-<7>` (never `latest`), a provenance attestation,
+      and a GitHub Release whose notes are the tag's CHANGELOG section. `deploy-fly` moves onto the tag
+      (`vars.FLY_DEPLOY == 'true'`). *Check:* a `workflow_dispatch` dry run builds every profile on both arches and
+      merges the lists without pushing; the real run is v2.2.0's (Alex's go).
+- [ ] **3. The apollo stack** (§20.4): `deploy/compose.yaml` (the stack Caddy on `8120:80` with a fixed
+      `ipv4_address`, the four witnesses as witnesses, `starter-full` from M4; the pinned `172.31.120.0/24` subnet,
+      `TRUST_PROXY` = Caddy's address as a /32; every service's hardening, healthcheck and log rotation),
+      `deploy/.env.example` (the tags), and `docker/seccomp-io-uring.json` staged next to `compose.yaml` (X21).
+      *Check:* the `docker` job brings the stack up from locally built images with the file staged as promote stages
+      it: every service healthy, each host answers through the Caddy, a bare IP gets 421, the app sees the Caddy's
+      `X-Real-IP` and refuses it from anyone else.
+- [ ] **4. proxy-config** (§20.1, X26): a CI job: `caddy validate` on `deploy/Caddyfile` and every Caddyfile snippet in
+      the docs; `nginx -t` on §20.4's Advanced snippet inside NPM's template (`tests/proxy/npm.conf`); curl assertions
+      for every redirect alias, bare and deep (D25), and the 301 from `htmx-odin-starter`; the `8120:80` publish and
+      the catch-all's 421 (X23). *Check:* the job is green and fails on a broken alias.
+- [ ] **5. `deploy/promote.ps1`** (§20.5, D42): `-Target apollo-lan|apollo -Tag vX.Y.Z [-Service …]`: stage
+      `compose.yaml`, the Caddyfile, `.env` and the seccomp file over the SSH alias; `docker compose pull`; the
+      pre-deploy snapshot (`--backup`, keep 5) where a service has a volume; `up -d --no-deps` one service at a time,
+      no Caddy reload; smoke (`/readyz`, `x-version == tag`, an SSE first event, a WS echo); `deployed.json`; on a
+      failed smoke, the previous tag again, automatically. `-Status` is the read-only inventory (RAM, disk, kernel,
+      Docker's fd default, NPM version, `:8111` reachable); `-WhatIf` prints the plan. *Check:* against a local
+      Docker target in WSL: a good tag promotes, a deliberately broken one rolls back by itself, and `-Status` reads
+      without writing.
+- [ ] **6. `landing`** (§15.5): the lab's `/`, the catalog explorer from `docs/catalog.json` (features,
+      implementations, dependencies, sizes, SQLite needs), the init-command builder (the `odin run tools/init -- …`
+      line and its `--explain`; cut-list item 11) and links to every witness. *Check:* e2e (3 engines) and a k6
+      scenario; route coverage; `tools/check` all.
+- [ ] **7. The witness board** (§15.4, D36): `status` in `cmd/lab` with `STATUS_PROBES` externals, each witness's
+      `/healthz` and `x-version` over `platform/stream/client`, 2 s timeout each, its part swapping in as it answers.
+      *Check:* e2e with one probe answering slowly and one down; k6; the board's parts arrive in answer order.
+- [ ] **8. M2's carry-overs** (owner M3): the audit's M2-18, M2-21, M2-31's socket part, M2-33, M2-35, M2-36 (each
+      below); `mixed@file` on Linux; `scale`'s budget re-measured and tightened (Left over); `tools/init`'s
+      `new_project` removing `deploy/compose.yaml` and `deploy/promote.ps1` (Left over); lab's Firefox `page.goto`
+      stalls (below). *Check:* each finding's test fails without its fix; `docs/audit/M2.md` resolution updated.
+- [ ] **9. Stage 1a, apollo LAN direct** (§20.3). First, **Alex's steps** (§20.7): create
+      `<APOLLO_DATA_DIR>/odin-htmx-starter` with sudo; the seven DNS-only `A` records pointing at `<APOLLO_LAN_IP>`
+      (`houston`, `houston-lab`, `odin-htmx-starter`, `htmx-odin-starter`, `starter-minimal`, `starter-streams`,
+      `starter-skeleton`); the permission rule for `deploy/promote.ps1`. Then, each promote with Alex's go: minimal,
+      streams, skeleton and lab by `promote -Target apollo-lan -Tag v2.2.x` with smoke; the inventory (`-Status`)
+      recorded in `docs/private/APOLLO.md`; the seccomp path, the publish and the 421 confirmed on apollo; a broken tag
+      rolls back by itself; 0 5xx through Caddy during a promote under 50 VUs; two-host k6 (dev PC → apollo).
+- [ ] **10. Stage 1b, apollo LAN via NPM**. First, **Alex's steps**: the four NPM proxy hosts (houston, houston-lab,
+      starter, skeleton-lan) with §20.4's details and Advanced snippet, and the Access List "LAN only";
+      `worker_connections 4096` in NPM's `events.conf`. Then: e2e smoke through NPM; 1000 SSE held 1 h through NPM
+      with no idle cuts.
+- [ ] **11. Exit**: the parity gate on both legs (X25), with `starter-skeleton` passing it and the 01 (A) 40-item
+      checklist on apollo's LAN; `docs/audit/M3.md` by an agent that didn't write the code, 0 open CRITICAL/HIGH;
+      `Audited:` stamps; CHANGELOG's 2.2.0 entry. Then Alex sets `FLY_DEPLOY=true`, the v2.2.0 tag (Alex's go) runs
+      the release and `deploy-fly` from `cmd/skeleton`, and the Fly cost is recorded (warn Alex above $10/month).
+- [ ] **A Firefox flake to watch**: v2.1.0's release commit lost lab's Firefox e2e on CI's first try (run 40736711557):
+      `page.goto` hit the 30 s timeout in `escaping.spec`'s hyperscript gate (both tries), `scripting.spec`'s password
+      rules and `streams-hxcsp.spec`'s unnonced `hx-sse` (each passing its retry); the re-run passed with 3 flaky. The
+      same commit's code had passed every job before, so a page load stalls in Firefox now and then, as it did in the
+      local container. Find what the load waits on (a stream that never ends the load event?).
+
 ## M2 — stream substrate, `streams` and the lab pages, generator v1 (v2.1.0)
 
 The starter's second milestone ([`docs/PLAN.md`](docs/PLAN.md) §22.3, M2's row; §8.2 streams, §9 the hub, §12 the
