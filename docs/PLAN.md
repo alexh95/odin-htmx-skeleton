@@ -4869,6 +4869,9 @@ http://htmx-odin-starter.alexh95.com {
   `(alias)` snippet writes each bare and deep redirect pair (`/full`, `/minimal`, `/streams`, `/skeleton`), and
   `trusted_proxies` names `172.31.120.1`, the gateway of `172.31.120.0/24`, the stack subnet `deploy/compose.yaml` pins
   at M3. `caddy validate` passes on the pinned 2.11.7; the redirect aliases and the catch-all are proxy-config's (M3).
+- **As built (M3): proxy-config** is `deploy/proxy-config-test.sh`: it validates the Caddyfile and every
+  `caddyfile` block in the committed docs (placeholders filled), runs `nginx -t` on `tests/proxy/npm.conf`, and
+  asserts the Caddy's own answers with no app behind it: 8 aliases, the 301, the 421 and the publish.
 - **UNVERIFIED (proxy-config CI job)**: the block is D41's with RESOLUTIONS X23, X31 and X39 applied. It needs Caddy 2.8
   or later (`trusted_proxies_strict`; `{args[0]}`, `{client_ip}` and `stream_close_delay` need 2.7), which the pinned
   2.11.7 meets (10 §8.1). The snippet shows the placeholder; the committed Caddyfile names the gateway of the subnet

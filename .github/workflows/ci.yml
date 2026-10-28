@@ -493,3 +493,14 @@ jobs:
         env:
           IMAGE_PREFIX: local/starter
           TAG: ci
+
+  # The proxies' configuration on its own (PLAN §20.1's proxy-config, X26): caddy validate
+  # on deploy/Caddyfile and the docs' snippets, nginx -t on NPM's rendering, every redirect
+  # alias bare and deep, the 301, the catch-all's 421 and compose's 8120:80 publish.
+  proxy-config:
+    name: Proxy config
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - run: sh deploy/proxy-config-test.sh

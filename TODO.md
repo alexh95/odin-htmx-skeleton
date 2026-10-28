@@ -61,6 +61,9 @@ off until Alex sets it before the v2.2.0 tag.
       the docs; `nginx -t` on §20.4's Advanced snippet inside NPM's template (`tests/proxy/npm.conf`); curl assertions
       for every redirect alias, bare and deep (D25), and the 301 from `htmx-odin-starter`; the `8120:80` publish and
       the catch-all's 421 (X23). *Check:* the job is green and fails on a broken alias.
+      Progress: `deploy/proxy-config-test.sh` and the `proxy-config` job; in WSL it validates the Caddyfile and the
+      docs' 3 snippets, `nginx -t` passes, the 8 aliases, the 301 and the 421 answer as written, and a broken alias
+      fails it. Left: the job green on CI.
 - [ ] **5. `deploy/promote.ps1`** (§20.5, D42): `-Target apollo-lan|apollo -Tag vX.Y.Z [-Service …]`: stage
       `compose.yaml`, the Caddyfile, `.env` and the seccomp file over the SSH alias; `docker compose pull`; the
       pre-deploy snapshot (`--backup`, keep 5) where a service has a volume; `up -d --no-deps` one service at a time,
