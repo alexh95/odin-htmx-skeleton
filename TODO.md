@@ -187,7 +187,9 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       28/28, streams 24/24), once `streamfd`'s curl was taken from PATH on a native Linux run.
 - [ ] **Report core:nbio's `SO_UPDATE_ACCEPT_CONTEXT` bug upstream** (found in slice 14; the fork's F-19 works around
       it): `impl_windows.odin` passes no value, so Windows rejects the call and `shutdown` fails on accepted sockets.
-      Ask Alex before filing anything.
+      And its Linux tick (the fork's F-23 works around it): `__tick` in `impl_linux.odin` runs the completed queue's
+      length as it began, then `_flush_submissions` waits with the caller's timeout even when those callbacks queued
+      more, where `impl_windows.odin`'s `compute_timeout` and `impl_posix.odin` use 0. Ask Alex before filing anything.
 - [ ] **15. Generator v1** (`tools/init` compose mode, §7.4): `--list [--json]` (committed as `docs/catalog.json`,
       checked fresh in CI), `--explain`, `--profile`, `--features`, `--add`, `--without`, the family commands,
       `--dry-run`, `--verify` (scratch copy, `build.*`, `tools/check profile`, `--features --json` against the plan),
@@ -212,8 +214,10 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       and lab's and streams' WebKit e2e failed (fixed since: the catalog, libsoup's 1006, the Stop spec's load), so
       `coverage` (the k6 quick runs) was skipped. Reproduced in Playwright's CI image in WSL: lab's extensions 20 of
       20 and streams' suite 84 of 84 on WebKit. The second run (`4b5d49b`): 42 green, and streams' WebKit lost chat
-      over poll's edit form to the poll's re-render on both tries (fixed since: the slot is `hx-preserve`). Left: a
-      green run, `coverage` with it.
+      over poll's edit form to the poll's re-render on both tries (fixed since: the slot is `hx-preserve`). The third
+      (`c8e4007`): every e2e job green, and `coverage` ran its k6 quick runs for the first time: every scenario 0 %
+      failed, but the bot's p95 was 10 s on Linux, core:nbio's tick stall (fixed since: the fork's F-23). Left: a
+      green run.
 - [ ] **Ask Alex**: X40 says `e2e-proxy` pins apollo's NPM version, which `docs/private/SITE.md` keeps private. The job
       pins the config that version renders instead (`tests/proxy/npm.conf`); naming the image tag in CI would publish
       it. Confirm, or say the version may be public.
@@ -248,7 +252,11 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       failed on the network). Find why that stream's request failed. Repeated there (2026-10-28) it failed 2 of 9:
       by sse the same `#live` error, and by multipart a panel whose count never moved in 10 s (its stream stalled?).
       A full streams run there also had `chat over sse: a message reaches the other member once` fail once, passing
-      its retry (its details were lost). (`chat: an edit and a delete reach the other
+      its retry (its details were lost). The multipart panel failed on Windows' WebKit too (2026-10-28, no retry).
+      `chat: an edit and a delete reach the other member` takes 4–7 s alone on Linux WebKit but 14–29 s when four
+      copies share four cores, against the 30 s test timeout: one poll run there timed out (with F-23 or without,
+      the same). In that image Firefox flakes a few tests a run either way, never the same ones; CI's Firefox jobs
+      have been clean. (`chat: an edit and a delete reach the other
       member` failed now and then over sse and poll: over poll it was a re-render wiping the edit form, fixed; the one
       sse failure on Windows was most likely the same, its echo landing late.)
 
