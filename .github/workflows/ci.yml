@@ -472,3 +472,24 @@ jobs:
         run: |
           docker compose logs
           docker logs persist || true
+
+  # apollo's stack as deploy/compose.yaml runs it (PLAN §20.4): the four witnesses' images,
+  # built here, behind the stack Caddy on 8120, staged beside the Caddyfile and the seccomp
+  # profile as promote.ps1 stages them (X21). deploy/stack-test.sh checks each host, the
+  # 421 catch-all, the trusted-proxy chain, the hardening and a restart behind the Caddy.
+  stack:
+    name: The apollo stack (compose)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the four images
+        run: |
+          for p in minimal streams skeleton lab; do
+            docker build -q --build-arg PROFILE=$p --build-arg VERSION=ci -t local/starter-$p:ci .
+          done
+      - name: The stack, end to end
+        run: sh deploy/stack-test.sh
+        env:
+          IMAGE_PREFIX: local/starter
+          TAG: ci

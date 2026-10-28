@@ -20,6 +20,12 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `minimal`, `streams`, `skeleton` and `lab` on amd64 and arm64 runners and publishes each as one manifest list,
   `ghcr.io/alexh95/odin-htmx-starter-<profile>:vX.Y.Z` and `:sha-<7>`, with a provenance attestation, then
   a GitHub Release from the tag's CHANGELOG section. Run by hand it is a dry run.
+- **apollo's stack** (`deploy/compose.yaml`, M3, PLAN §20.4): the stack Caddy on `8120:80` at a fixed address on
+  the pinned `172.31.120.0/24` network, in front of the four witnesses (read-only, UID 10001, the io_uring seccomp
+  profile staged beside it, `init`, log rotation, `--healthcheck`, half a core and 64 MB each, no published
+  port), each trusting `X-Real-IP` from the Caddy alone; `deploy/.env.example` holds a tag per service. CI's
+  `stack` job runs `deploy/stack-test.sh`: each host through the Caddy, the 421 catch-all, the trusted chain,
+  the hardening and a restart behind the Caddy.
 
 ### Changed
 

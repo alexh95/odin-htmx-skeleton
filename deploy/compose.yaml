@@ -1,0 +1,118 @@
+# apollo's stack (PLAN §20.4, D25, D41): one container per hosted profile behind one stack
+# Caddy, which alone publishes a port. deploy/promote.ps1 stages this file, Caddyfile, .env
+# (the image tags) and seccomp-io-uring.json (docker/'s, X21) side by side on the host, then
+# updates one service at a time, never reloading the Caddy. `starter-full` (Houston) joins at
+# M4; until then the Caddyfile's Houston hosts answer 502.
+#
+#   docker compose --env-file .env up -d          (what promote runs, per service)
+
+name: odin-htmx-starter
+
+# What every app service shares. Witnesses hold no state, so nothing is mounted: the
+# root filesystem is read-only and /tmp a tmpfs.
+x-app: &app
+  user: "10001:10001"
+  read_only: true
+  tmpfs: /tmp
+  # Docker blocks io_uring by default since 25.0, and the server has no epoll fallback.
+  security_opt:
+    - seccomp=./seccomp-io-uring.json
+  init: true
+  # Docker outside Swarm never restarts an unhealthy container (§10): the watchdog's
+  # exit 70 is what brings it back.
+  restart: unless-stopped
+  stop_signal: SIGTERM
+  stop_grace_period: 10s
+  ulimits:
+    nofile: 65536
+  healthcheck:
+    test: ["CMD", "/app/bin", "--healthcheck"]
+    interval: 10s
+    timeout: 3s
+    retries: 3
+  # json-file never rotates by default (13 §5.6).
+  logging:
+    driver: local
+    options:
+      max-size: 20m
+      max-file: "5"
+  networks: [stack]
+
+# A witness's share of apollo (D38): one loop, half a core.
+x-witness: &witness
+  <<: *app
+  cpus: 0.5
+  mem_limit: 64m
+
+# Every app trusts X-Real-IP from the stack Caddy alone, as a /32 (§17.8, X43), and
+# serves .Lan_Only routes to the LAN behind it.
+x-env: &env
+  PORT: "8080"
+  BIND_ALL: "1"
+  THREADS: "1"
+  LOG_LEVEL: info
+  TRUST_PROXY: 172.31.120.10/32
+  LAN_CIDRS: 192.168.0.0/16
+
+services:
+  caddy:
+    # The digest CI's e2e-proxy and proxy-config jobs run (Caddy 2.11.7).
+    image: caddy@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
+    restart: unless-stopped
+    # The http:// sites bind :80 inside; apollo publishes it on 8120 (X23).
+    ports:
+      - "8120:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    logging:
+      driver: local
+      options:
+        max-size: 20m
+        max-file: "5"
+    networks:
+      stack:
+        # The apps' one trusted proxy (TRUST_PROXY above).
+        ipv4_address: 172.31.120.10
+
+  starter-minimal:
+    <<: *witness
+    image: ${IMAGE_PREFIX:-ghcr.io/alexh95/odin-htmx-starter}-minimal:${TAG_MINIMAL:?set TAG_MINIMAL in .env}
+    environment:
+      <<: *env
+      SITE_URL: https://starter-minimal.alexh95.com
+
+  starter-streams:
+    <<: *witness
+    image: ${IMAGE_PREFIX:-ghcr.io/alexh95/odin-htmx-starter}-streams:${TAG_STREAMS:?set TAG_STREAMS in .env}
+    environment:
+      <<: *env
+      SITE_URL: https://starter-streams.alexh95.com
+
+  # LAN only, for two-host perf runs (D2): its :memory: store reseeds on every start.
+  starter-skeleton:
+    <<: *witness
+    image: ${IMAGE_PREFIX:-ghcr.io/alexh95/odin-htmx-starter}-skeleton:${TAG_SKELETON:?set TAG_SKELETON in .env}
+    environment:
+      <<: *env
+      SITE_URL: https://starter-skeleton.alexh95.com
+
+  # The starter's own page and its redirect aliases (lab is a witness too: D2, X22).
+  starter-lab:
+    <<: *witness
+    image: ${IMAGE_PREFIX:-ghcr.io/alexh95/odin-htmx-starter}-lab:${TAG_LAB:?set TAG_LAB in .env}
+    environment:
+      <<: *env
+      SITE_URL: https://odin-htmx-starter.alexh95.com
+
+networks:
+  stack:
+    ipam:
+      config:
+        # Pinned so the Caddyfile's trusted proxy (the gateway, .1: where NPM's traffic
+        # arrives from, X39) and TRUST_PROXY (the Caddy, .10) are fixed addresses.
+        - subnet: 172.31.120.0/24
+          gateway: 172.31.120.1
+
+volumes:
+  caddy-data:

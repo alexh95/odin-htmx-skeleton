@@ -4793,6 +4793,11 @@ Every app service has: its image pinned by tag in `.env`; `user: 10001:10001`; `
 the stack network, whose subnet compose pins, with `TRUST_PROXY` set to `caddy`'s fixed `ipv4_address` as a /32, not to
 the subnet; and no published port, since only `caddy` publishes one (§17.8; RESOLUTIONS X43). Limits outside Swarm:
 UNVERIFIED (M3; 08 §6.5).
+**As built (M3):** `deploy/compose.yaml` is this table without `starter-full`, which joins at M4 (until then the
+Caddyfile's Houston hosts answer 502); the Caddy sits at `172.31.120.10`, which every app's `TRUST_PROXY` names as
+a /32, with the gateway `.1` as the Caddy's trusted proxy; each service's tag is its own line in `.env`
+(`deploy/.env.example`), so promote moves one at a time. `deploy/stack-test.sh` (CI's `stack` job) runs it from
+local images and checks the hosts, the 421, the trusted chain, the hardening and a restart behind the Caddy.
 The healthcheck is D41's in valid compose syntax (RESOLUTIONS X20):
 `healthcheck: {test: ["CMD", "/app/bin", "--healthcheck"], interval: 10s, timeout: 3s, retries: 3}`.
 

@@ -51,6 +51,12 @@ off until Alex sets it before the v2.2.0 tag.
       *Check:* the `docker` job brings the stack up from locally built images with the file staged as promote stages
       it: every service healthy, each host answers through the Caddy, a bare IP gets 421, the app sees the Caddy's
       `X-Real-IP` and refuses it from anyone else.
+      Progress: `deploy/compose.yaml`, `deploy/.env.example` (a tag per service, which promote changes one at a
+      time) and `deploy/stack-test.sh`, run by CI's new `stack` job; in WSL the four witnesses answer through the
+      Caddy, a bare address gets 421, `X-Forwarded-For` from the gateway reaches the app as the client (the
+      nickname form) and the gateway alone doesn't, every app is read-only as 10001 under the seccomp profile with
+      no published port, and a witness recreated behind the Caddy loses no request. The stack test found F-24 (a
+      HEAD sent the GET's body). Left: the job green on CI.
 - [ ] **4. proxy-config** (§20.1, X26): a CI job: `caddy validate` on `deploy/Caddyfile` and every Caddyfile snippet in
       the docs; `nginx -t` on §20.4's Advanced snippet inside NPM's template (`tests/proxy/npm.conf`); curl assertions
       for every redirect alias, bare and deep (D25), and the 301 from `htmx-odin-starter`; the `8120:80` publish and
