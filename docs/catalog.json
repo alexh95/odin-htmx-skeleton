@@ -10,6 +10,7 @@
     {"name": "gallery", "lines": 400, "stores": [], "sqlite": "none", "deps": ["contacts"], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["skeleton"]},
     {"name": "home", "lines": 100, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["EXTS", "init"], "profiles": ["minimal", "streams"]},
     {"name": "lab", "lines": 600, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "TOPICS", "JOBS", "init"], "profiles": ["lab"]},
+    {"name": "landing", "lines": 300, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "init"], "profiles": ["lab"]},
     {"name": "notes", "lines": 400, "stores": ["memory", "sqlite"], "sqlite": "any", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "home_card"], "profiles": ["minimal", "streams"]},
     {"name": "notify", "lines": 500, "stores": ["memory"], "sqlite": "never", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "TOPICS", "JOBS", "home_card"], "profiles": ["streams"]},
     {"name": "ops", "lines": 400, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "TOPICS", "JOBS", "init"], "profiles": ["streams"]},
@@ -25,7 +26,7 @@
   "profiles": [
     {"name": "minimal", "store": "memory", "identity": "anonymous", "client": "vanilla", "theme": "lite", "features": ["home", "notes", "about"]},
     {"name": "skeleton", "store": "sqlite", "identity": "anonymous", "client": "vanilla", "theme": "full", "features": ["dashboard", "gallery", "contacts", "about"]},
-    {"name": "lab", "store": "memory", "identity": "anonymous", "client": "hyperscript", "theme": "full", "features": ["lab", "scripting", "compat", "about"]},
+    {"name": "lab", "store": "memory", "identity": "anonymous", "client": "hyperscript", "theme": "full", "features": ["landing", "lab", "scripting", "compat", "about"]},
     {"name": "streams", "store": "memory", "identity": "nick", "client": "vanilla", "theme": "lite", "features": ["home", "notes", "chat", "notify", "bot", "ops", "status", "accounts", "about"]}
   ]
 }

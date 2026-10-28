@@ -80,6 +80,11 @@ off until Alex sets it before the v2.2.0 tag.
       implementations, dependencies, sizes, SQLite needs), the init-command builder (the `odin run tools/init -- …`
       line and its `--explain`; cut-list item 11) and links to every witness. *Check:* e2e (3 engines) and a k6
       scenario; route coverage; `tools/check` all.
+      Progress: `features/landing` (the catalog parsed at boot, `plan` mirroring the generator's rules, the page
+      rendered once, `GET /landing/command`) mounted at the lab's `/`, the lab index at `/lab`; `landing.spec`
+      (chromium, webkit, api) and `scenarios/landing` (20 VUs, 0 % failed); `tools/check all` and `odin test
+      tools/init` pass; the catalog lists it. Left: route coverage and Firefox on CI. A project that selects
+      `landing` would lose its catalog to `new_project`, which deletes `docs/catalog.json`: keep it then.
 - [ ] **7. The witness board** (§15.4, D36): `status` in `cmd/lab` with `STATUS_PROBES` externals, each witness's
       `/healthz` and `x-version` over `platform/stream/client`, 2 s timeout each, its part swapping in as it answers.
       *Check:* e2e with one probe answering slowly and one down; k6; the board's parts arrive in answer order.

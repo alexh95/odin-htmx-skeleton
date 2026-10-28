@@ -1,19 +1,17 @@
 import { expect, test } from '../../fixtures';
 
-// The lab's index: at /lab, and as the profile's root until landing takes it (M3). Each card
-// opens a contract page, and each page carries its one layout stream or socket.
+// The lab's index, at /lab (landing has the root since M3). Each card opens a contract page,
+// and each page carries its one layout stream or socket.
 
 const T = { tag: '@lab' };
 
 test.describe('the lab index', T, () => {
-  test('/lab links every contract page, and so does the root, whose canonical is the root', async ({ page }) => {
-    for (const [path, canonical] of [['/lab', '/lab'], ['/', '/']]) {
-      await page.goto(path);
-      await expect(page.locator('.lab-card h2')).toHaveText(['All three on one page', 'hx-sse', 'hx-ws', 'hx-multipart']);
-      const hrefs = await page.locator('.lab-card').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
-      expect(hrefs).toEqual(['/lab/streams', '/lab/streams/live', '/lab/streams/chat', '/lab/streams/mp']);
-      expect(new URL(await page.locator('link[rel=canonical]').getAttribute('href') ?? '').pathname).toBe(canonical);
-    }
+  test('/lab links every contract page', async ({ page }) => {
+    await page.goto('/lab');
+    await expect(page.locator('.lab-card h2')).toHaveText(['All three on one page', 'hx-sse', 'hx-ws', 'hx-multipart']);
+    const hrefs = await page.locator('.lab-card').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
+    expect(hrefs).toEqual(['/lab/streams', '/lab/streams/live', '/lab/streams/chat', '/lab/streams/mp']);
+    expect(new URL(await page.locator('link[rel=canonical]').getAttribute('href') ?? '').pathname).toBe('/lab');
   });
 
   test('a card opens its page: the live page carries the layout stream, the chat page a socket', async ({ page }) => {

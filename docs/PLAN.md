@@ -3773,6 +3773,13 @@ The `lab` profile is the starter's own page at `odin-htmx-starter.alexh95.com`, 
 | `lab` | `/lab/*` | M2 | `/lab/streams`: the raw SSE, WS and multipart contract pages (03's 29 checks), including the WS echo that the nightly Autobahn run fuzzes (§19.1.9) |
 | `wiki` | `/wiki` | M8 | `source_files`: the starter's own docs, read-only |
 
+**As built (M3): `landing`** renders the page once at boot from `docs/catalog.json`, embedded (`#load`; the
+Dockerfile copies it into the build): the witnesses, a table of profiles and one of features, and the builder, a form
+whose fragment `GET /landing/command` answers with the command and a plan computed from the catalog (the dependency
+closure, the root, the store a feature needs, the name's shape) or the reasons the generator would refuse it. The
+plan mirrors the generator's rules rather than running its `--explain`, which the page names as the authority. The
+lab's index moved to `/lab`.
+
 **Houston's lab host** (ANSWERS F2, round 3). From M4, when `cmd/full` first exists, `full` also serves the same
 packages on `houston-lab.alexh95.com`: `landing` at its root, `/lab/*`, `scripting` and `compat`, with the same bundles
 and nonce class as here, and beside them the skeleton's `notes`, `contacts`, `gallery`, `about` (RESOLUTIONS X36) and

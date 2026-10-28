@@ -89,11 +89,6 @@ index :: proc(req: ^web.Request, res: ^web.Response) {
 	web.render_page(req, res, "Lab", "/lab", INDEX_DESCRIPTION, lab_views.index_page())
 }
 
-// The same page as a host's root (the lab profile's, until landing at M3): its
-// canonical URL is the root's.
-root :: proc(req: ^web.Request, res: ^web.Response) {
-	web.render_page(req, res, "Lab", "/", INDEX_DESCRIPTION, lab_views.index_page())
-}
 
 @(private)
 INDEX_DESCRIPTION :: "The starter's stream contract: SSE, WebSocket and multipart from an Odin server to htmx 4, in real pages."

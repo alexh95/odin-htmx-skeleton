@@ -10,7 +10,8 @@ front end, a SQLite or in-memory store, in one binary. A site is a **profile** (
 selection of **features** (`app/features/<f>/`) composed on a shared **platform**
 (`app/platform/`). Four profiles ship: `skeleton`, the 1.2.x contacts console rebuilt from features
 at its exact URLs (the worked example and the performance witness), `minimal`, the one-page
-notes starter, `lab`, the stream contract pages (SSE, WebSocket and multipart), and `streams`, the
+notes starter, `lab`, the starter's own page (the catalog and the init-command builder at `/`) and the stream
+contract pages (SSE, WebSocket and multipart), and `streams`, the
 stream substrate's witness (chat on four transports, the Inbox, the `nick` identity; growing through
 M2). **Read [`PHILOSOPHY.md`](PHILOSOPHY.md) first**, then [`docs/PLAN.md`](docs/PLAN.md) (the plan:
 layers, features, milestones) and [`docs/design/DECISIONS.md`](docs/design/DECISIONS.md);

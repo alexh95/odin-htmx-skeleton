@@ -36,6 +36,10 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   port), each trusting `X-Real-IP` from the Caddy alone; `deploy/.env.example` holds a tag per service. CI's
   `stack` job runs `deploy/stack-test.sh`: each host through the Caddy, the 421 catch-all, the trusted chain,
   the hardening and a restart behind the Caddy.
+- **`landing`, the starter's own page** (M3, PLAN §15.5): the lab's `/` shows the profiles running now, the
+  catalog (`docs/catalog.json`, embedded at build time) as a table of profiles and one of features, and the
+  init-command builder, whose fragment (`GET /landing/command`) is the `odin run tools/init -- …` line with what it
+  pulls in, or why the generator would refuse it. The lab's index moved to `/lab`; e2e and k6 cover both routes.
 - **`deploy/promote.ps1`** (M3, PLAN §20.5, D42): promotes a release's images to apollo's stack from the dev PC,
   one service at a time: stage the compose file, Caddyfile and seccomp profile, pull, snapshot a service with a
   database, `up -d --no-deps` with no Caddy reload, smoke through the Caddy (`/readyz`, `x-version`, an SSE first

@@ -47,14 +47,16 @@ RUN case "${TARGETARCH}" in \
  && rm /tmp/odin.tar.gz
 ENV PATH="/opt/odin:${PATH}"
 
-# app/, build.sh (the one place a profile's flags live) and tools/bundle are what
-# the build needs. odin-http is vendored in app/vendor/odin-http (already in the
+# app/, build.sh (the one place a profile's flags live), tools/bundle and
+# docs/catalog.json are what the build needs. odin-http is vendored in app/vendor/odin-http (already in the
 # build context), so prepare only fetches htmx and SQLite (both pinned by
 # SHA-256), compiles SQLite and bundles each profile's assets; THIRD_PARTY_NOTICES
 # is embedded for /licenses.
 COPY app /src/app
 COPY tools/bundle /src/tools/bundle
 COPY build.sh THIRD_PARTY_NOTICES /src/
+# The lab's landing page embeds the generator's catalog.
+COPY docs/catalog.json /src/docs/catalog.json
 WORKDIR /src
 # Invoke via `sh` (not ./) so the build doesn't depend on the exec bit, which a
 # Windows-origin build context (e.g. local `flyctl deploy`) wouldn't carry.

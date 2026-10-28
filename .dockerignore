@@ -1,10 +1,12 @@
-# The build context is the repo root, but the Dockerfile needs only app/, tools/bundle, build.sh and
-# THIRD_PARTY_NOTICES: everything else stays out (node_modules, docs, results).
+# The build context is the repo root, but the Dockerfile needs only app/, tools/bundle, build.sh,
+# THIRD_PARTY_NOTICES and docs/catalog.json (the lab's landing page embeds it): everything else stays
+# out (node_modules, the rest of docs, results).
 *
 !app
 !tools/bundle
 !build.sh
 !THIRD_PARTY_NOTICES
+!docs/catalog.json
 
 # Inside app/, what prepare re-creates in the image. Do NOT ignore app/vendor/odin-http: the
 # vendored HTTP library must be in the build context, and so must app/vendor/htmx/PINS, the digests

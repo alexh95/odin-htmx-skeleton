@@ -8,6 +8,7 @@ import "../../platform/web"
 import "../../platform/workers"
 import about_web "../../features/about/web"
 import compat_web "../../features/compat/web"
+import landing_web "../../features/landing/web"
 import lab_web "../../features/lab/web"
 import scripting_web "../../features/scripting/web"
 
@@ -16,7 +17,8 @@ ROUTES := [?]app.Mount {
 	{"platform", web.PUBLIC_ROUTES[:]}, // /static /robots.txt /favicon.ico /licenses
 	{"platform", hub.ROUTES[:]},        // /events: the topics below
 	{"platform", web.REPORT_ROUTES[:]}, // /csp-report
-	{"lab", {{.Get, "/", lab_web.root, .Public, {}, 0}}}, // the root until landing (M3)
+	{"landing", {{.Get, "/", landing_web.page, .Public, {}, 0}}}, // the root: the catalog and the builder
+	{"landing", landing_web.ROUTES[:]}, // /landing/command
 	{"lab", lab_web.ROUTES[:]},         // /lab/streams and the contract endpoints
 	{"scripting", scripting_web.ROUTES[:]}, // /scripting: the nonce class
 	{"compat", compat_web.ROUTES[:]},   // /compat: htmx-2-compat and hx-alpine-compat
