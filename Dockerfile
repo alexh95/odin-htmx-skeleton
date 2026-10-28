@@ -22,11 +22,13 @@ FROM ${BUILD_BASE} AS build
 # SHA-256 is the release's published digest of that arch's tarball, the same ones
 # ci.yml and .github/actions/setup-odin pin (.github/scripts/check-pins.sh fails CI
 # if they drift apart). The release workflow builds each arch on its own runner,
-# so TARGETARCH is the runner's.
+# so TARGETARCH is the runner's. It is declared bare: BuildKit fills it, and a default
+# here won over BuildKit's value (an arm64 build fetched amd64's Odin); a builder that
+# sets none gets amd64 below.
 ARG ODIN_VERSION=dev-2026-10
 ARG ODIN_SHA256=c3c8b095621fd0c75f7f73e3a0829f1b4d45324225f20ba11ed8dc4da310a8ab
 ARG ODIN_SHA256_ARM64=99c43e9670a285901d6cfee5f56197b74c7d6f7c537b35ecba0c1b44ac2e4df8
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 
 # clang is the linker driver and also compiles the SQLite amalgamation (prepare.sh);
 # unzip extracts it and binutils (ar) archives it into sqlite3.a; brotli compresses
@@ -35,12 +37,13 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends clang binutils unzip brotli git curl ca-certificates tar \
  && rm -rf /var/lib/apt/lists/*
 
-RUN case "${TARGETARCH}" in \
+RUN arch="${TARGETARCH:-amd64}" \
+ && case "${arch}" in \
       amd64) sha="${ODIN_SHA256}" ;; \
       arm64) sha="${ODIN_SHA256_ARM64}" ;; \
-      *) echo "no Odin asset for ${TARGETARCH}" >&2; exit 1 ;; \
+      *) echo "no Odin asset for ${arch}" >&2; exit 1 ;; \
     esac \
- && curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-linux-${TARGETARCH}-${ODIN_VERSION}.tar.gz" -o /tmp/odin.tar.gz \
+ && curl -fsSL "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-linux-${arch}-${ODIN_VERSION}.tar.gz" -o /tmp/odin.tar.gz \
  && echo "${sha}  /tmp/odin.tar.gz" | sha256sum -c - \
  && mkdir -p /opt/odin \
  && tar -xzf /tmp/odin.tar.gz -C /opt/odin --strip-components=1 \
