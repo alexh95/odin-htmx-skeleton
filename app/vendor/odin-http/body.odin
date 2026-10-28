@@ -28,12 +28,25 @@ Do not call this more than once.
 body :: proc(req: ^Request, max_length: int = -1, user_data: rawptr, cb: Body_Callback) {
 	assert(req._body_ok == nil, "you can only call body once per request")
 
+	req._body_cb, req._body_user = cb, user_data
 	enc_header, ok := headers_get_unsafe(req.headers, "transfer-encoding")
 	if ok && strings.has_suffix(enc_header, "chunked") {
-		_body_chunked(req, max_length, user_data, cb)
+		_body_chunked(req, max_length, req, _body_returned)
 	} else {
-		_body_length(req, max_length, user_data, cb)
+		_body_length(req, max_length, req, _body_returned)
 	}
+}
+
+// F-17 (M2-21): a handler called from a body's callback (a POST stream: the bot's asks, `POST
+// /lab/sse/tick`) began its stream after on_headers_end had looked, so the connection's arena
+// goes back here, once that callback returns, as it does there for a handler called from the
+// headers. Giving back an arena already given back is a no-op: a zero arena holds no block.
+@(private)
+_body_returned :: proc(r: rawptr, body: Body, err: Body_Error) {
+	req := (^Request)(r)
+	req._body_cb(req._body_user, body, err)
+	conn := container_of(req, Loop, "req").conn
+	if conn.stream != nil { conn_arena_destroy(&conn.temp_allocator) }
 }
 
 /*

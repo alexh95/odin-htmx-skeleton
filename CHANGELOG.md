@@ -10,6 +10,9 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ### Fixed
 
+- **A POST stream gives its request arena back** (M2-21, the fork's F-17): a handler called from a body's
+  callback (the bot's asks, `POST /lab/sse/tick`) began its stream after the headers' path had looked, so it kept up
+  to 64 KiB of form until the stream ended; `body` now gives the arena back where that callback returns.
 - **Ops' panel stream is LAN-only, like its page** (M2-18): a hub topic can be `lan_only`, which `/events` refuses
   (403) to a client outside `LAN_CIDRS`; before, an admin by `ACCOUNTS_NICK_ADMIN_CIDRS` off the LAN got the 1 Hz
   panel on `/events?t=ops.panel` while the page answered 404.

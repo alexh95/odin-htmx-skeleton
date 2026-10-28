@@ -329,7 +329,7 @@ start. Every exit re-runs the skeleton parity gate (§18.2); released as v2.1.0 
 - [ ] **M2's open audit findings** (`docs/audit/M2.md`, owner M3): M2-18, a topic has no `.Lan_Only`, so an Admin by
       `ACCOUNTS_NICK_ADMIN_CIDRS` outside `LAN_CIDRS` gets ops' panel stream but not its page (fixed in M3:
       `hub.Topic.lan_only`); M2-21, a POST stream keeps its request
-      arena until it ends (documented in UPSTREAM's F-17 row; give it back where the handler returns on both paths);
+      arena until it ends (fixed in M3: `_body_returned` gives it back where the body's callback returns);
       M2-31's socket part, a chat socket's reconnect upserts the room's last 50 with no cursor, so a page away for more
       than that sees no gap (the page should send its newest id as the socket's first frame, and a snapshot past it
       replace the log); and the third re-read's (`docs/audit/M2.md`): M2-33, core:encoding/json `alloca`s stack per

@@ -22,6 +22,9 @@ Request :: struct {
 	// Internal usage only.
 	_scanner:   ^Scanner,
 	_body_ok:   Maybe(bool),
+	// F-17 (M2-21): the caller's callback, which `body` calls through `_body_returned`.
+	_body_cb:   Body_Callback,
+	_body_user: rawptr,
 }
 
 request_init :: proc(r: ^Request, allocator := context.allocator) {

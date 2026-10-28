@@ -24,6 +24,8 @@ Bot_Turn :: struct {
 	text: string,
 }
 
+// Its strings live in the asking request's arena, which goes back once the answer's stream has
+// begun (the fork's F-17): a backend's `start` copies whatever it keeps.
 Bot_Request :: struct {
 	conv_id:     i64,
 	user_id:     u64,
