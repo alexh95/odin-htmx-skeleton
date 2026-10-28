@@ -10,6 +10,10 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ### Fixed
 
+- **A chat message full of brackets posts over the socket** (M2-36, with M2-33): `stream.ws_field` reads hx-ws's
+  field by hand, in one pass, recursing only per real container up to 16 deep, so brackets inside a string are
+  text. Before, a scan counted every `[` and `{` against a bound that guarded core:encoding/json (which `alloca`d
+  stack per key), and refused a pasted message after the composer had cleared it.
 - **A HEAD no longer sends the page's body** (the fork's F-24): odin-http runs a HEAD as a GET and meant to
   answer it without the body, but changed a copy of the request line, so the body went out and a keep-alive
   client read it as the next response. Found by M3's stack test behind Caddy.

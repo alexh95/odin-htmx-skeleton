@@ -8,7 +8,6 @@ package stream
 
 import "core:crypto/legacy/sha1"
 import "core:encoding/base64"
-import "core:encoding/json"
 import "core:strings"
 import "core:time"
 import "core:unicode/utf8"
@@ -26,62 +25,205 @@ WS_CLOSE :: u8(0x8)
 WS_PING  :: u8(0x9)
 WS_PONG  :: u8(0xA)
 
-// A text frame's JSON nests at most this deep: core:encoding/json recurses a level per
-// bracket with no limit, and a 64 KiB frame of `[` overflowed a loop's stack (M2-01).
+// A text frame's JSON nests at most this deep. Brackets inside a string are text.
 WS_JSON_DEPTH :: 16
 
-// And holds at most this many `[` and `{` bytes, in strings or not: the parse can't nest
-// deeper than there are, whatever it takes a string to be. The depth scan has to agree with
-// the tokenizer on where strings end, and twice it didn't (M2-22, M2-30); this bound doesn't.
-// A default thread's 1 MiB stack (a Windows loop's) held 512 levels of `[` in a debug build's
-// parse and 1,024 at -o:speed; `{"":` costs more a level, and each key some stack (M2-33).
-WS_JSON_OPENS :: 256
-
-// A text frame's JSON, unmarshalled into `out` (strings in the request's temp arena), or
-// false: not JSON, the wrong shape, or past WS_JSON_DEPTH or WS_JSON_OPENS, which are refused
-// by a scan before anything parses it. Every handler reads a client's JSON through this. Strict
-// JSON: core's default is JSON5, whose comments and single-quoted strings hid a `"` from the
-// scan and every bracket after it, and whose tokenizer recursed once per comment (M2-22).
-ws_json :: proc(data: []byte, out: ^$T) -> bool {
-	if !ws_json_bounded(data) { return false }
-	return json.unmarshal(data, out, spec = .JSON, allocator = context.temp_allocator) == nil
-}
-
-// ws_json's scan, apart so a test can hold it: what it refuses, the parse mostly refuses too,
-// but only after recursing (M2-34).
-@(private)
-ws_json_bounded :: proc(data: []byte) -> bool {
-	depth, opens := 0, 0
-	in_str, escaped := false, false
-	for c in data {
-		if c == '[' || c == '{' {
-			opens += 1
-			if opens > WS_JSON_OPENS { return false }
-		}
-		switch {
-		case in_str:
-			// A raw line feed ends the strict tokenizer's string, with an error it parses past,
-			// but didn't end this scan's: every bracket after it went uncounted (M2-30). Strict
-			// JSON has no raw control byte inside a string at all.
-			if c < 0x20 { return false }
-			if escaped {
-				escaped = false
-			} else if c == '\\' {
-				escaped = true
-			} else if c == '"' {
-				in_str = false
+// One string field of a text frame's JSON object, as hx-ws sends it (`{"body": …, "headers":
+// {…}}`), unescaped into the temp allocator: "" when the object has no such string, false when
+// the frame isn't one strict JSON object nesting at most WS_JSON_DEPTH deep. Every handler reads
+// a client's JSON through this. It reads by hand, in one pass with no allocation but the value:
+// core:encoding/json recursed a level a bracket (M2-01), took JSON5 by default (M2-22), had to
+// be guarded by a scan that agreed with its tokenizer on where strings end (M2-30), and
+// `alloca`d stack per key (M2-33), and that scan's count of brackets in strings refused a
+// pasted JSON message after the composer had cleared it (M2-36).
+ws_field :: proc(data: []byte, name: string) -> (value: string, ok: bool) {
+	r := Json_Reader{data = data}
+	json_reader_space(&r)
+	if !json_reader_eat(&r, '{') { return }
+	json_reader_space(&r)
+	if !json_reader_eat(&r, '}') {
+		for {
+			key := json_reader_str(&r, true) or_return
+			json_reader_space(&r)
+			if !json_reader_eat(&r, ':') { return }
+			json_reader_space(&r)
+			if key == name && json_reader_at(&r, '"') {
+				value = json_reader_str(&r, true) or_return
+			} else {
+				json_reader_value(&r, 1) or_return
 			}
-		case c == '"':
-			in_str = true
-		case c == '[' || c == '{':
-			depth += 1
-			if depth > WS_JSON_DEPTH { return false }
-		case c == ']' || c == '}':
-			depth -= 1
-			if depth < 0 { return false } // closes with nothing open would buy depth for later opens
+			json_reader_space(&r)
+			if json_reader_eat(&r, ',') { json_reader_space(&r); continue }
+			if !json_reader_eat(&r, '}') { return }
+			break
 		}
 	}
+	json_reader_space(&r)
+	return value, r.i == len(r.data)
+}
+
+@(private)
+Json_Reader :: struct {
+	data: []byte,
+	i:    int,
+}
+
+@(private)
+json_reader_at :: proc(r: ^Json_Reader, c: byte) -> bool { return r.i < len(r.data) && r.data[r.i] == c }
+
+@(private)
+json_reader_eat :: proc(r: ^Json_Reader, c: byte) -> bool {
+	if !json_reader_at(r, c) { return false }
+	r.i += 1
 	return true
+}
+
+@(private)
+json_reader_space :: proc(r: ^Json_Reader) {
+	for r.i < len(r.data) {
+		switch r.data[r.i] {
+		case ' ', '\t', '\n', '\r': r.i += 1
+		case: return
+		}
+	}
+}
+
+// Any value, its containers at `depth` (the object around it is 1): recursion bounded by
+// WS_JSON_DEPTH, not by the frame.
+@(private)
+json_reader_value :: proc(r: ^Json_Reader, depth: int) -> bool {
+	if r.i >= len(r.data) { return false }
+	switch r.data[r.i] {
+	case '"':
+		_, ok := json_reader_str(r, false)
+		return ok
+	case '{', '[':
+		close := byte('}') if r.data[r.i] == '{' else ']'
+		if depth + 1 > WS_JSON_DEPTH { return false }
+		r.i += 1
+		json_reader_space(r)
+		if json_reader_eat(r, close) { return true }
+		for {
+			if close == '}' {
+				json_reader_str(r, false) or_return
+				json_reader_space(r)
+				if !json_reader_eat(r, ':') { return false }
+				json_reader_space(r)
+			}
+			json_reader_value(r, depth + 1) or_return
+			json_reader_space(r)
+			if json_reader_eat(r, ',') { json_reader_space(r); continue }
+			return json_reader_eat(r, close)
+		}
+	case 't': return json_reader_word(r, "true")
+	case 'f': return json_reader_word(r, "false")
+	case 'n': return json_reader_word(r, "null")
+	case '-', '0' ..= '9': return json_reader_number(r)
+	}
+	return false
+}
+
+@(private)
+json_reader_word :: proc(r: ^Json_Reader, w: string) -> bool {
+	if len(r.data) - r.i < len(w) || string(r.data[r.i:r.i + len(w)]) != w { return false }
+	r.i += len(w)
+	return true
+}
+
+// -?(0|[1-9]d*)(.d+)?([eE][+-]?d+)?
+@(private)
+json_reader_number :: proc(r: ^Json_Reader) -> bool {
+	digits :: proc(r: ^Json_Reader) -> bool {
+		from := r.i
+		for r.i < len(r.data) && r.data[r.i] >= '0' && r.data[r.i] <= '9' { r.i += 1 }
+		return r.i > from
+	}
+	json_reader_eat(r, '-')
+	if !json_reader_eat(r, '0') { digits(r) or_return }
+	if json_reader_eat(r, '.') { digits(r) or_return }
+	if json_reader_eat(r, 'e') || json_reader_eat(r, 'E') {
+		if !json_reader_eat(r, '+') { json_reader_eat(r, '-') }
+		digits(r) or_return
+	}
+	return true
+}
+
+// A string, unescaped into the temp allocator when `keep`. Strict JSON: no raw control byte.
+@(private)
+json_reader_str :: proc(r: ^Json_Reader, keep: bool) -> (s: string, ok: bool) {
+	if !json_reader_eat(r, '"') { return }
+	from := r.i
+	escaped := false
+	for r.i < len(r.data) {
+		c := r.data[r.i]
+		if c < 0x20 { return }
+		r.i += 1
+		switch {
+		case c == '"':
+			raw := string(r.data[from:r.i - 1])
+			if !escaped { return strings.clone(raw, context.temp_allocator) if keep else raw, true }
+			return json_unescape(raw, keep)
+		case c == '\\':
+			escaped = true
+			if r.i >= len(r.data) { return }
+			r.i += 1 // the escaped byte (json_unescape checks it)
+		}
+	}
+	return
+}
+
+@(private)
+json_unescape :: proc(raw: string, keep: bool) -> (s: string, ok: bool) {
+	b: strings.Builder
+	if keep { strings.builder_init(&b, 0, len(raw), context.temp_allocator) }
+	hex4 :: proc(raw: string, at: int) -> (rune, bool) {
+		if at + 4 > len(raw) { return 0, false }
+		v: rune
+		for c in transmute([]byte)raw[at:at + 4] {
+			d: rune
+			switch c {
+			case '0' ..= '9': d = rune(c - '0')
+			case 'a' ..= 'f': d = rune(c - 'a' + 10)
+			case 'A' ..= 'F': d = rune(c - 'A' + 10)
+			case: return 0, false
+			}
+			v = v * 16 + d
+		}
+		return v, true
+	}
+	for i := 0; i < len(raw); i += 1 {
+		c := raw[i]
+		if c != '\\' {
+			if keep { strings.write_byte(&b, c) }
+			continue
+		}
+		i += 1
+		if i >= len(raw) { return }
+		out: rune
+		switch raw[i] {
+		case '"', '\\', '/': out = rune(raw[i])
+		case 'b': out = '\b'
+		case 'f': out = '\f'
+		case 'n': out = '\n'
+		case 'r': out = '\r'
+		case 't': out = '\t'
+		case 'u':
+			v := hex4(raw, i + 1) or_return
+			i += 4
+			// A surrogate pair is one rune; a lone surrogate is U+FFFD, as browsers decode it.
+			if v >= 0xD800 && v < 0xDC00 && i + 6 < len(raw) && raw[i + 1] == '\\' && raw[i + 2] == 'u' {
+				if lo, lok := hex4(raw, i + 3); lok && lo >= 0xDC00 && lo < 0xE000 {
+					v = 0x10000 + (v - 0xD800) << 10 + (lo - 0xDC00)
+					i += 6
+				}
+			}
+			if v >= 0xD800 && v < 0xE000 { v = utf8.RUNE_ERROR }
+			out = v
+		case: return
+		}
+		if keep { strings.write_rune(&b, out) }
+	}
+	return strings.to_string(b) if keep else "", true
 }
 
 // The close codes the starter sends (§9.4). hx-ws reconnects on 1001, 1005,

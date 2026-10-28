@@ -251,10 +251,10 @@ ws_chat :: proc(req: ^web.Request, res: ^web.Response) {
 	tag := key_or(req, "tag", "")
 	hello := web.query_get(req, "hello") != ""
 	c, err := stream.ws_upgrade(req, res, proc(c: ^stream.Conn, text: bool, data: []byte) {
-		In :: struct { message: string }
-		m: In
-		if !text || !stream.ws_json(data, &m) || m.message == "" { return }
-		hub.publish((^Room)(c.user).topic, lab_views.room_message(m.message))
+		if !text { return }
+		message, ok := stream.ws_field(data, "message")
+		if !ok || message == "" { return }
+		hub.publish((^Room)(c.user).topic, lab_views.room_message(message))
 	}, proc(c: ^stream.Conn) {
 		r := (^Room)(c.user)
 		hub.unsubscribe(r.sub)

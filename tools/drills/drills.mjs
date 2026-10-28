@@ -670,7 +670,7 @@ async function phaseWsData(f) {
   by.sock.destroy();
 
   // M2-01: JSON nested past what core:encoding/json's recursion survives (a loop's stack is 1 MiB on Windows),
-  // to the public room. Refused unparsed (stream.ws_json): before, each frame was a stack overflow, and more than
+  // to the public room. Refused by stream.ws_field at WS_JSON_DEPTH: before, each frame was a stack overflow, and more than
   // GUARD_BURST of them a minute exited the process. M2-22: the same brackets behind a JSON5 comment holding a
   // `"`, which hid them from the scan, and a frame of 20,000 comments, which JSON5's tokenizer recursed through.
   // M2-30: behind a raw line feed in a key, which ends the strict tokenizer's string. 15 frames: one overflowed,

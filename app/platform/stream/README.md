@@ -8,4 +8,4 @@ a `Conn` registered on its loop: one timer per loop sends SSE a comment line and
 a socket that has sent nothing for 45 s. A stream answers only from a `.Stream` row, whose headers `front` sends.
 Layer L3 (PLAN §5.1).
 
-Audited: 5395ae0 2026-10-27 docs/audit/M2.md; since, its scan moved into `ws_json_bounded` for a test (M2-34), unchanged
+Audited: 5395ae0 2026-10-27 docs/audit/M2.md; since, `ws_json` and its scan became `ws_field`, a hand reader of hx-ws's field (M3: M2-33, M2-36), audit debt

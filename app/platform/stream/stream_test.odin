@@ -199,55 +199,54 @@ part_counts_bytes_and_frames_with_crlf :: proc(t: ^testing.T) {
 // ---- a frame's JSON ---------------------------------------------------------------
 
 @(test)
-ws_json_refuses_deep_nesting_before_it_parses :: proc(t: ^testing.T) {
+ws_field_reads_hx_ws_and_refuses_deep_nesting :: proc(t: ^testing.T) {
 	defer free_all(context.temp_allocator)
-	In :: struct { body: string }
-	v: In
-	testing.expect(t, ws_json(transmute([]byte)string(`{"body":"hi","headers":{"a":"b"}}`), &v))
-	testing.expect_value(t, v.body, "hi")
-	// Brackets inside a string, and an escaped quote before them, aren't nesting.
-	testing.expect(t, ws_json(transmute([]byte)string(`{"body":"[[[[[[[[[[[[[[[[[[[[\" {{{{{{{{{{{{{{{{{{"}`), &v))
-	// M2-01's frame: past WS_JSON_DEPTH it is refused without a parse (which would recurse a level a bracket).
+	field :: proc(s: string, name := "body") -> (string, bool) { return ws_field(transmute([]byte)s, name) }
+	v, ok := field(`{"body":"hi","headers":{"HX-Request":"true","a":[1,-2.5e3,true,null]}}`)
+	testing.expect(t, ok)
+	testing.expect_value(t, v, "hi")
+	v, ok = field(`{"headers":{"body":"not this one"}}`) // only the object's own field
+	testing.expect(t, ok)
+	testing.expect_value(t, v, "")
+	v, ok = field(`{"body":"a\tb\nc \"q\" \\ \u00e9\ud83d\ude00\ud800"}`) // escapes; a lone surrogate is U+FFFD
+	testing.expect(t, ok)
+	testing.expect_value(t, v, "a\tb\nc \"q\" \\ é😀\uFFFD")
+	// M2-36: brackets inside a string are text, however many: a pasted JSON message posts.
+	many := make([]byte, 16 * 1024, context.temp_allocator)
+	copy(many, `{"body":"`)
+	for i in 9 ..< len(many) - 2 { many[i] = '[' if i % 2 == 0 else '{' }
+	copy(many[len(many) - 2:], `"}`)
+	v, ok = ws_field(many, "body")
+	testing.expect(t, ok)
+	testing.expect_value(t, len(v), len(many) - 11)
+	// M2-01's frame, and M2-33's `{"":` nesting: past WS_JSON_DEPTH, refused, with recursion
+	// bounded by the depth rather than the frame.
 	deep := make([]byte, 64 * 1024, context.temp_allocator)
 	copy(deep, `{"body":"x","headers":`)
 	for i in 22 ..< len(deep) { deep[i] = '[' }
-	testing.expect(t, !ws_json(deep, &v))
-	testing.expect(t, !ws_json(transmute([]byte)string(`not json`), &v))
-	// M2-22's frames: a `"` the scan took for a string's, hidden in a JSON5 comment, then the
-	// brackets; and a frame of comments, which JSON5's tokenizer recursed through one by one.
-	copy(deep, `{"body":"x","headers":/*"*/`)
-	for i in 27 ..< len(deep) { deep[i] = '[' }
-	testing.expect(t, !ws_json(deep, &v))
-	copy(deep, `{"body":"x"`)
-	for i := 11; i + 3 <= len(deep); i += 3 { copy(deep[i:], "//\n") }
-	testing.expect(t, !ws_json(deep, &v))
-	testing.expect(t, !ws_json(transmute([]byte)string(`{'body':'single quotes'}`), &v))
-	// M2-30's frame: a raw line feed ends the strict tokenizer's string but didn't end the
-	// scan's, so the brackets after it went uncounted. And closes with nothing open.
-	copy(deep, "{\"a\n:")
-	for i in 5 ..< len(deep) { deep[i] = '[' }
-	testing.expect(t, !ws_json(deep, &v))
-	copy(deep, "]]]]]]]]]]]]]]]]]]]]")
-	for i in 20 ..< len(deep) { deep[i] = '[' }
-	testing.expect(t, !ws_json(deep, &v))
-	testing.expect(t, !ws_json(transmute([]byte)string("{\"body\":\"a\tb\"}"), &v)) // a raw tab
-	// Frames only the scan's control-byte check refuses, well within WS_JSON_OPENS (M2-34): a
-	// line feed cuts a key, and the parse then nests 20 deep where the scan saw 1. The parse
-	// refuses them too, but only after recursing, so the scan is what's held.
-	testing.expect(t, !ws_json_bounded(transmute([]byte)string("{\"a\n:1}")))
-	testing.expect(t, !ws_json_bounded(transmute([]byte)string("{\"a\n:[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]}")))
-	testing.expect(t, ws_json_bounded(transmute([]byte)string(`{"a\n":[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]}`))) // escaped, 16 deep
-	testing.expect(t, ws_json(transmute([]byte)string(`{"body":"a\tb\nc"}`), &v)) // escaped, they're text
-	testing.expect_value(t, v.body, "a\tb\nc")
-	// Past WS_JSON_OPENS brackets even inside a string: whatever the parse takes a string to
-	// be, it can't nest deeper than the frame has brackets.
-	many := make([]byte, 16 + WS_JSON_OPENS + 1, context.temp_allocator)
-	copy(many, `{"body":"`)
-	for i in 9 ..< len(many) - 2 { many[i] = '[' }
-	copy(many[len(many) - 2:], `"}`)
-	testing.expect(t, !ws_json(many, &v))
-	short := `{"body":"` + "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[" + `"}`
-	testing.expect(t, ws_json(transmute([]byte)short, &v)) // text with brackets is text
+	_, ok = ws_field(deep, "body")
+	testing.expect(t, !ok)
+	for i := 0; i + 5 <= len(deep); i += 5 { copy(deep[i:], `{"":`) }
+	_, ok = ws_field(deep, "body")
+	testing.expect(t, !ok)
+	sixteen := `{"a":[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]],"body":"ok"}` // the object and 15 arrays
+	v, ok = field(sixteen)
+	testing.expect(t, ok)
+	testing.expect_value(t, v, "ok")
+	_, ok = field(`{"a":[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]}`) // 17
+	testing.expect(t, !ok)
+	// Strict JSON only: no JSON5 comments or quotes (M2-22), no raw control byte in a string
+	// (M2-30), nothing after the object, nothing that isn't an object.
+	for bad in ([]string{
+		`not json`, `{'body':'single'}`, `{"body":"x"/**/}`, "{\"body\":\"a\nb\"}", "{\"body\":\"a\tb\"}",
+		`{"body":"x"} {}`, `["body"]`, `"body"`, `{"body":"x",}`, `{"body":"x"`, `{"body":01}`, `{"body":tru}`,
+		`]]]]`, `{"body":"\x"}`, `{"body":"\u12"}`, `{"a":[1,]}`, `{"a" 1}`,
+	}) {
+		_, ok = field(bad)
+		testing.expectf(t, !ok, "%q was read", bad)
+	}
+	v, ok = field(` { } `)
+	testing.expect(t, ok && v == "")
 }
 
 // What a replay and publish count is what the stream is sent: a line costs "data: " and its

@@ -336,7 +336,8 @@ start. Every exit re-runs the skeleton parity gate (§18.2); released as v2.1.0 
       key, which neither of `ws_json`'s bounds counts (count `:` outside strings, `#assert` the target's size,
       measure `{"":` nesting, report it upstream); M2-35, SSE's resync and the poll transport upsert across a gap the
       room let go (`changed` reports whether it reached the version; SSE's pane gets a tag); M2-36, a message past the
-      socket's bracket bound is refused after the composer cleared it.
+      socket's bracket bound is refused after the composer cleared it. M3: M2-33 and M2-36 fixed (`stream.ws_field`
+      reads hx-ws's field by hand; core:encoding/json is gone from the socket path).
 - [ ] **`mixed@file` on Linux** (`docs/perf/PARITY.md`, owner M3): M2's candidate read 0.95 of M1's in an A/B
       (rounds 0.93–1.05); A/B it with and without a handler's single read transaction before M3's gate.
 - [ ] **A WebKit flake to watch**: `ops: the panel refreshes every second` failed once by multipart and once by poll,

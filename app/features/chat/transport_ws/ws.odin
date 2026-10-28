@@ -75,17 +75,14 @@ send :: proc(s: ^Socket, html: string) {
 
 @(private)
 on_message :: proc(c: ^stream.Conn, text: bool, data: []byte) {
-	In :: struct {
-		body: string,
-	}
-	msg: In
 	if !text { return }
-	if !stream.ws_json(data, &msg) {
-		// Refused unparsed (stream.ws_json's bounds), so the member hears why it went nowhere.
-		send((^Socket)(c.user), html.toast("error", "That message couldn't be read: too many brackets?", true))
+	body, ok := stream.ws_field(data, "body")
+	if !ok {
+		// Not hx-ws's JSON (or nested past stream.WS_JSON_DEPTH), so the member hears why it went nowhere.
+		send((^Socket)(c.user), html.toast("error", "That message couldn't be read.", true))
 		return
 	}
-	if post != nil { post((^Socket)(c.user), msg.body) }
+	if post != nil { post((^Socket)(c.user), body) }
 }
 
 @(private)

@@ -255,14 +255,18 @@ test.describe('chat', T, () => {
     });
   }
 
-  test('over ws, a message past the socket\'s bracket bound gets a toast, and the socket stays (M2-30)', async ({ browser, baseURL }) => {
+  // Brackets in a message are text: over the socket they once counted against its nesting bound,
+  // and the message was refused after the composer had cleared it (M2-36).
+  test('over ws, a message full of brackets posts, as it does on the other transports (M2-36)', async ({ browser, baseURL }) => {
     const ann = await member(browser, baseURL!);
     const slug = await newRoom(ann.page);
     await open(ann, slug, 'ws');
     const box = ann.page.locator('.chat-composer textarea');
-    await box.fill('['.repeat(300));
+    const text = '{"a":' + '['.repeat(300) + '}';
+    await box.fill(text);
     await box.press('Enter');
-    await expect(ann.page.locator('#toasts .toast')).toContainText('too many brackets');
+    await expect(message(ann, text)).toHaveCount(1);
+    await expect(ann.page.locator('#toasts .toast')).toHaveCount(0);
     await say(ann, 'still here');
     await expect(message(ann, 'still here')).toHaveCount(1);
     await leave(ann);
