@@ -112,11 +112,17 @@ off until Alex sets it before the v2.2.0 tag.
       checklist on apollo's LAN; `docs/audit/M3.md` by an agent that didn't write the code, 0 open CRITICAL/HIGH;
       `Audited:` stamps; CHANGELOG's 2.2.0 entry. Then Alex sets `FLY_DEPLOY=true`, the v2.2.0 tag (Alex's go) runs
       the release and `deploy-fly` from `cmd/skeleton`, and the Fly cost is recorded (warn Alex above $10/month).
-- [ ] **A Firefox flake to watch**: v2.1.0's release commit lost lab's Firefox e2e on CI's first try (run 40736711557):
+- [x] **A Firefox flake to watch** (found and fixed in M3): v2.1.0's release commit lost lab's Firefox e2e on CI's first try (run 40736711557):
       `page.goto` hit the 30 s timeout in `escaping.spec`'s hyperscript gate (both tries), `scripting.spec`'s password
       rules and `streams-hxcsp.spec`'s unnonced `hx-sse` (each passing its retry); the re-run passed with 3 flaky. The
       same commit's code had passed every job before, so a page load stalls in Firefox now and then, as it did in the
       local container. Find what the load waits on (a stream that never ends the load event?).
+      Cause: every response's `Cross-Origin-Opener-Policy: same-origin`. A page's first navigation from `about:blank`
+      swaps browsing-context groups, and Playwright's Firefox driver now and then loses it: the server answered
+      (`/healthz` in 16 µs), the page reported `complete`, and `goto` never resolved. Python's file server stalled the
+      same way with the header added (8 of 120) and never without (0 of 160); so did our `/healthz`, plain text. Fixed
+      in the e2e config: Firefox's `browser.tabs.remote.useCrossOriginOpenerPolicy` off in the test browser (0 of 320
+      after; lab's and skeleton's Firefox suites clean in CI's image). Worth an upstream Playwright report (ask Alex).
 
 ## M2 — stream substrate, `streams` and the lab pages, generator v1 (v2.1.0)
 
@@ -362,8 +368,7 @@ start. Every exit re-runs the skeleton parity gate (§18.2); released as v2.1.0 
       its retry (its details were lost). The multipart panel failed on Windows' WebKit too (2026-10-28, no retry).
       `chat: an edit and a delete reach the other member` takes 4–7 s alone on Linux WebKit but 14–29 s when four
       copies share four cores, against the 30 s test timeout: one poll run there timed out (with F-23 or without,
-      the same). In that image Firefox flakes a few tests a run either way, never the same ones; CI's Firefox jobs
-      have been clean. (`chat: an edit and a delete reach the other
+      the same). The Firefox flakes in that image were COOP's (above, fixed in M3). (`chat: an edit and a delete reach the other
       member` failed now and then over sse and poll: over poll it was a re-render wiping the edit form, fixed; the one
       sse failure on Windows was most likely the same, its echo landing late.)
 

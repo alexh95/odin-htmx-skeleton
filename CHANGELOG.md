@@ -10,6 +10,10 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ### Fixed
 
+- **Firefox e2e no longer stalls on a page load now and then**: Playwright's Firefox driver sometimes lost a page's
+  first navigation across the browsing-context-group swap our `Cross-Origin-Opener-Policy: same-origin` causes, so
+  `page.goto` timed out on a page that had loaded. The test browser turns COOP's enforcement off
+  (`browser.tabs.remote.useCrossOriginOpenerPolicy`); the server still sends the header and `headers.spec` holds it.
 - **A chat poll from before what the room let go replaces the log** (M2-35): the store's `changed` says whether it
   still reached the poll's version, and when it didn't the answer is the room's snapshot with `innerHTML`; an upsert
   had kept what the page had with a silent gap before the newest.

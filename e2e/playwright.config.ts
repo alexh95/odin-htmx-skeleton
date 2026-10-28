@@ -15,6 +15,15 @@ const ENGINES = ['skeleton', 'lab'].includes(PROFILE) ? ['chromium', 'firefox', 
   : PROFILE === 'streams' ? ['chromium', 'webkit'] : ['chromium'];
 const DEVICE: Record<string, string> = { chromium: 'Desktop Chrome', firefox: 'Desktop Firefox', webkit: 'Desktop Safari' };
 
+// Every response carries Cross-Origin-Opener-Policy: same-origin, so Firefox's first navigation
+// of a page (from about:blank) swaps browsing-context groups, and Playwright's Firefox driver
+// now and then loses that navigation: page.goto never resolves though the page has loaded and
+// the server answered (one test in 25 in CI's image; Python's file server with the header
+// added stalls the same way, and without it never). Real Firefox is unaffected. The pref turns
+// off COOP's enforcement in the test browser only; the server still sends the header, and the
+// header specs still hold it.
+const FIREFOX = { launchOptions: { firefoxUserPrefs: { 'browser.tabs.remote.useCrossOriginOpenerPolicy': false } } };
+
 // E2E_PROXY (CI's e2e-proxy job, PLAN §20.1): the pages go through a proxy in front of one server
 // on a fixed port, so one worker, in chromium; the browser-less specs need no proxy and don't run.
 const PROXY = process.env.E2E_PROXY || '';
@@ -38,7 +47,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: PROXY ? [{ name: 'chromium', testIgnore: API_ONLY, use: { ...devices[DEVICE.chromium] } }] : [
-    ...ENGINES.map((name) => ({ name, testIgnore: API_ONLY, use: { ...devices[DEVICE[name]] } })),
+    ...ENGINES.map((name) => ({ name, testIgnore: API_ONLY, use: { ...devices[DEVICE[name]], ...(name === 'firefox' ? FIREFOX : {}) } })),
     { name: 'api', testMatch: API_ONLY },
   ],
 });
