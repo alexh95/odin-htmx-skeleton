@@ -10,6 +10,9 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ### Fixed
 
+- **Ops' panel stream is LAN-only, like its page** (M2-18): a hub topic can be `lan_only`, which `/events` refuses
+  (403) to a client outside `LAN_CIDRS`; before, an admin by `ACCOUNTS_NICK_ADMIN_CIDRS` off the LAN got the 1 Hz
+  panel on `/events?t=ops.panel` while the page answered 404.
 - **A chat message full of brackets posts over the socket** (M2-36, with M2-33): `stream.ws_field` reads hx-ws's
   field by hand, in one pass, recursing only per real container up to 16 deep, so brackets inside a string are
   text. Before, a scan counted every `[` and `{` against a bound that guarded core:encoding/json (which `alloca`d

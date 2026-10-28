@@ -71,6 +71,20 @@ test.describe('ops', T, () => {
     }
   });
 
+  // M2-18: an admin by ACCOUNTS_NICK_ADMIN_CIDRS outside LAN_CIDRS gets neither the page nor its
+  // topic, which once streamed the panel to anyone the page refused.
+  test('an admin off the LAN gets neither the page nor the panel\'s stream', async ({ browser }) => {
+    const s = await adminServer({ LAN_CIDRS: '10.0.0.0/8', ACCOUNTS_NICK_FROM: 'all' });
+    const admin = await member(browser, `http://127.0.0.1:${s.port}`);
+    try {
+      expect((await admin.page.goto('/admin/ops'))!.status()).toBe(404);
+      expect((await admin.context.request.get('/events?t=ops.panel')).status()).toBe(403);
+    } finally {
+      await leave(admin);
+      await stopServer(s);
+    }
+  });
+
   // A server of its own too: behind a proxy the worker's sees the proxy, not the LAN, and .Lan_Only
   // answers 404 to everyone off the LAN before any perm is checked.
   test('a member gets 403, a guest the nickname page', async ({ browser }) => {

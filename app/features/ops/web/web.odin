@@ -33,7 +33,7 @@ ROUTES := [?]web.Route {
 PANEL :: "ops.panel"
 
 TOPICS := [?]hub.Topic {
-	{family = PANEL, policy = .Sample, perm = .Admin_Ops},
+	{family = PANEL, policy = .Sample, perm = .Admin_Ops, lan_only = true},
 }
 
 JOBS := [?]workers.Job {

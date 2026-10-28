@@ -85,6 +85,7 @@ Topic :: struct {
 	ring:      int, // 0 = HUB_RING
 	persisted: bool, // publishes carry a rowid, and `replay` reads the store
 	member:    bool, // keyed by the viewer's id (notify.user:<id>): on every page of theirs, and theirs alone
+	lan_only:  bool, // only to a client in LAN_CIDRS, as its page's .Lan_Only route (M2-18)
 	perm:      authz.Perm,
 	allow:     Allow_Proc,
 	replay:    Replay_Proc,
@@ -128,6 +129,7 @@ h: struct {
 	rings:      Rings,
 	floor:      u64, // the newest seq of a ring the idle sweep let go
 	since_sweep: int,
+	lan:        []env.Cidr, // LAN_CIDRS, for a lan_only topic
 	ring_cap:   int,
 	ring_bytes: int,
 	rings_max:  int, // HUB_RINGS_BYTES
@@ -156,6 +158,7 @@ init :: proc() {
 	stream.init()
 	env.record("", ENV[:])
 	h.epoch = u64(sys.now_unix_ns() / 1e6)
+	h.lan = env.cidrs("LAN_CIDRS")
 	h.ring_cap = max(1, env.int_("HUB_RING"))
 	h.ring_bytes = env.size("HUB_RING_BYTES")
 	h.rings_max = max(h.ring_bytes, env.size("HUB_RINGS_BYTES"))

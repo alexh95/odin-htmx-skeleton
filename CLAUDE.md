@@ -213,7 +213,7 @@ nothing to a loop that has left at shutdown: nbio zeroes a released loop, and a 
   Its state lives on the heap, freed a tick after its `on_close`; never in the request arena.
 - **`platform/hub`** fans events out: `hub.publish(topic, html, rowid, key)` from any thread. A package declares
   its topic families in a `TOPICS` table (`hub.Topic{family = "chat.room", policy = .Queue, perm = …, allow = …,
-  replay = …}`), and a profile that streams calls `hub.init()` and `hub.mount("<host>", ..TOPICS[:])` in `main`
+  replay = …}`; `lan_only` for the topic of a `.Lan_Only` page), and a profile that streams calls `hub.init()` and `hub.mount("<host>", ..TOPICS[:])` in `main`
   and mounts `{"platform", hub.ROUTES[:]}` (`/events`) on that host. A page opens one `#live` stream, which
   the layout writes: `web.render_page(…, live = {topics})` adds the page's topics to the viewer's own (a row with
   `member = true`, `notify.user:<id>`), and `/events?t=<topic>[@rowid],…&after=<cursor>` resumes them; a `resync`

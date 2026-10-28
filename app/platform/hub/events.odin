@@ -26,6 +26,7 @@ import "core:strings"
 import "core:sync"
 
 import "../authz"
+import "../env"
 import "../escape"
 import "../guard"
 import "../obs"
@@ -71,7 +72,8 @@ events :: proc(req: ^web.Request, res: ^web.Response) {
 	for i in 0 ..< n {
 		_, key := split_topic(want[i].topic)
 		if !authz.can(ctx.viewer, rows[i].perm) || (rows[i].allow != nil && !rows[i].allow(key, ctx.viewer)) ||
-		   rows[i].member && (ctx.viewer.id == 0 || key != member_key(ctx.viewer)) {
+		   rows[i].member && (ctx.viewer.id == 0 || key != member_key(ctx.viewer)) ||
+		   rows[i].lan_only && !env.contains(h.lan, ctx.client) {
 			web.respond_status(res, .Forbidden)
 			return
 		}
