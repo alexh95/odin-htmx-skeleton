@@ -8,6 +8,12 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Fixed
+
+- **A HEAD no longer sends the page's body** (the fork's F-24): odin-http runs a HEAD as a GET and meant to
+  answer it without the body, but changed a copy of the request line, so the body went out and a keep-alive
+  client read it as the next response. Found by M3's stack test behind Caddy.
+
 ### Added
 
 - **The release workflow** (`.github/workflows/release.yml`, M3, PLAN §20.1-20.2): a `v*` tag builds

@@ -1,3 +1,4 @@
+import * as net from 'node:net';
 import { test, expect } from '../../fixtures';
 
 // What the router answers outside the happy path: a known path with the wrong
@@ -23,6 +24,26 @@ test.describe('routing', { tag: '@platform' }, () => {
     const res = await request.get('/no-such-page', { headers: { 'HX-Request': 'true' } });
     expect(res.status()).toBe(404);
     expect(await res.text()).toBe('');
+  });
+
+  // F-24: a HEAD runs as a GET and answers its heading alone. A body sent anyway sits on the
+  // keep-alive connection, where the next response is read from (Caddy logged it as an
+  // unsolicited response).
+  test('a HEAD answers headers only, and the connection serves the next request', async ({ server }) => {
+    const got = await new Promise<string>((resolve) => {
+      const sock = net.connect(server.port, '127.0.0.1', () =>
+        sock.write('HEAD / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\nGET /healthz HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n'));
+      let buf = '';
+      sock.setTimeout(5000, () => sock.destroy());
+      sock.on('data', (d) => { buf += d; });
+      sock.on('close', () => resolve(buf));
+    });
+    const head = got.slice(0, got.indexOf('\r\n\r\n') + 4);
+    expect(head).toMatch(/^HTTP\/1\.1 200 /);
+    expect(head.toLowerCase()).toMatch(/content-length: [1-9]/); // the GET's length, as RFC 9110 allows
+    const next = got.slice(head.length);
+    expect(next).toMatch(/^HTTP\/1\.1 200 /); // not the page's HTML
+    expect(next.endsWith('\r\n\r\nok')).toBe(true);
   });
 
   test('text responses declare UTF-8', async ({ request }) => {

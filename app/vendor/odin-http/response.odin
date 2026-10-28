@@ -25,6 +25,7 @@ Response :: struct {
 	// connection (maybe a small buffer in this struct).
 	_buf:             bytes.Buffer,
 	_heading_written: bool,
+	_heading_end:     int, // F-24: where the body starts in _buf, which a HEAD's answer ends at
 }
 
 response_init :: proc(r: ^Response, allocator := context.allocator) {
@@ -284,6 +285,7 @@ _response_write_heading :: proc(r: ^Response, content_length: int) {
 
 	// Empty line denotes end of headers and start of body.
 	ws(b, "\r\n")
+	r._heading_end = bytes.buffer_length(b)
 }
 
 // Sends the response over the connection.
@@ -342,6 +344,9 @@ response_send_got_body :: proc(r: ^Response, will_close: bool) {
 	if bytes.buffer_length(&r._buf) == 0 {
 		_response_write_heading(r, 0)
 	}
+	// F-24: a HEAD ran as a GET (redirect_head_to_get), so its answer is the GET's heading, length
+	// and all, without the body: a body sent anyway is read as the start of the next response.
+	if conn.loop.req.is_head { bytes.buffer_truncate(&r._buf, r._heading_end) }
 
 	buf := bytes.buffer_to_bytes(&r._buf)
 	conn.send_deadline = _send_deadline(conn)
