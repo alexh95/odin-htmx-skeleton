@@ -787,7 +787,7 @@ what still applies lives here.
       `docs/` (PLAN, BRIEF, USE_CASES, design, spikes, perf, audit), `e2e/PLAN.md`, `load-tests/RESULTS.md` and
       `lib/config.js`'s `TERMS`; it drops only `docs/catalog.json` (`tools/init/project.odin:49`), and PLAN §7.4
       has no step for them. Decide per file: delete, a starter stub, or keep.
-- [ ] **init and M3's apollo files** (#44): when M3 adds `deploy/compose.yaml` and `deploy/promote.ps1`, add them
+- [x] **init and M3's apollo files** (#44, done in M3's slice 5): when M3 adds `deploy/compose.yaml` and `deploy/promote.ps1`, add them
       to what `new_project` removes beside `deploy/Caddyfile` (`tools/init/project.odin:47-49`), so a project
       doesn't inherit the starter's own hosting again.
 - [ ] **Upstream (odin-http)**: its shared `Date`-header buffer is rewritten every second while

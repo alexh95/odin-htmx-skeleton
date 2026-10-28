@@ -44,9 +44,12 @@ new_project :: proc(s: Selection, opt: Options) -> Profile_Text {
 	for job in ([]string{"tsan", "soak", "autobahn"}) { drop_job(".github/workflows/nightly.yml", job) }
 	for f in ([]string{"tools/drills/tsan.sh", "tools/drills/tsan.supp", "tools/drills/soak.sh", "tests/autobahn/fuzzingclient.json"}) { remove(f) }
 	// The template's own: its catalog and the generator job that keeps it, and its hosting on apollo
-	// (the stack Caddyfile and the job that runs the lab through it and through NPM).
-	for job in ([]string{"generator", "e2e-proxy"}) { drop_job(".github/workflows/ci.yml", job) }
-	for f in ([]string{"docs/catalog.json", "deploy/Caddyfile", "tests/proxy/npm.conf"}) { remove(f) }
+	// (the stack Caddyfile, compose file and promote script, and the jobs that test them).
+	for job in ([]string{"generator", "e2e-proxy", "stack", "proxy-config"}) { drop_job(".github/workflows/ci.yml", job) }
+	for f in ([]string{
+		"docs/catalog.json", "deploy/Caddyfile", "tests/proxy/npm.conf", "deploy/compose.yaml", "deploy/.env.example",
+		"deploy/promote.ps1", "deploy/stack-test.sh", "deploy/proxy-config-test.sh",
+	}) { remove(f) }
 	put("UPSTREAM.md", upstream_md(s, opt))
 	put("CHANGELOG.md", fmt.aprintf(
 		"# Changelog\n\nThis project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and\n[Semantic Versioning](https://semver.org/).\n\n## [Unreleased]\n\n### Added\n- **The project**, from %s (UPSTREAM.md): %s, on store=%s identity=%s client=%s theme=%s.\n",
@@ -223,14 +226,20 @@ trim_ci :: proc(s: Selection, profiles: []string) {
 	}
 	if s.members[.Store] == "sqlite" {
 		append(&repls, Repl{`[ "${{ matrix.profile }}" = skeleton ]`, fmt.aprintf(`[ "${{{{ matrix.profile }}}}" = %s ]`, s.name)})
+		append(&repls, Repl{`if: matrix.profile == 'skeleton'`, fmt.aprintf(`if: matrix.profile == '%s'`, s.name)})
 	}
 	if !slice.contains(s.features, "about") {
 		for l in lines {
 			if strings.contains(l, `curl -fsS "http://127.0.0.1:8099/about"`) { append(&repls, Repl{strings.concatenate({l, "\n"}), ""}) }
 		}
 	}
-	append(&repls, Repl{"Build the image (skeleton)", fmt.aprintf("Build the image (%s)", s.name)})
 	edit(path, repls[:])
+
+	// The release publishes the project's one image.
+	edit(".github/workflows/release.yml", {
+		{fmt.aprintf("profile: [%s]", listed), fmt.aprintf("profile: [%s]", s.name)},
+		{fmt.aprintf("for p in %s;", spaced), fmt.aprintf("for p in %s;", s.name)},
+	})
 }
 
 // `write: /notes body=CI+smoke  # …` → "/notes body=CI+smoke".

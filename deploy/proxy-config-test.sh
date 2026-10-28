@@ -58,7 +58,7 @@ for pair in full=https://houston.alexh95.com minimal=https://starter-minimal.ale
 	expect odin-htmx-starter.alexh95.com "/$p/a/b?c=1" "302 $to/a/b?c=1"
 done
 expect htmx-odin-starter.alexh95.com "/x/y?z=1" "301 https://odin-htmx-starter.alexh95.com/x/y?z=1"
-expect 192.168.1.2 / "421 "
+expect 10.0.0.2 / "421 "
 
 # compose publishes the Caddy's :80 on 8120, and nothing else publishes a port.
 pub=$(grep -c '^      - "8120:80"$' deploy/compose.yaml || true)

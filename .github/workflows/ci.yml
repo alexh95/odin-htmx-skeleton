@@ -402,7 +402,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [minimal, streams, skeleton, lab]
+        profile: [minimal, skeleton, lab, streams]
     env:
       PROFILE: ${{ matrix.profile }}
     steps:

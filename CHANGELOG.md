@@ -32,6 +32,9 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   line, a WebSocket upgrade), `deployed.json`, and the previous tag again on a failed smoke. `-Status` is a
   read-only inventory, `-WhatIf` the plan, `-Target local` the same against WSL's Docker. The SSH alias, the
   directory and the address come from the git-ignored `deploy/promote.local.psd1`.
+- **A new project leaves the starter's apollo hosting behind** (`tools/init`): `deploy/compose.yaml`, `.env.example`,
+  `promote.ps1` and the two stack tests go, with CI's `stack` and `proxy-config` jobs, and `release.yml` publishes
+  the project's one profile. The docker job's old step name it still edited is gone.
 - **proxy-config** (CI, M3, PLAN §20.1, X26): `deploy/proxy-config-test.sh` runs `caddy validate` on
   `deploy/Caddyfile` and every Caddyfile snippet in the docs, `nginx -t` on NPM's rendering, and asserts every
   redirect alias bare and deep, the `htmx-odin-starter` 301, the catch-all's 421 and the `8120:80` publish.
