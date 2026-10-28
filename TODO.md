@@ -32,6 +32,8 @@ off until Alex sets it before the v2.2.0 tag.
       rootfs, stops on SIGTERM within 6 s, persists to a fresh `/data`; `readelf -d` lists only `libc.so.6` and
       `libm.so.6` with SQLite linked (skeleton); each image ≤ 25 MB compressed (D38). `fly.toml` and the Fly job keep
       working on the new image.
+      Progress: the Dockerfile and the per-profile `docker` job, replayed in WSL: all four pass (6.5–7.4 MB
+      compressed; glibc only; stop 0.6–1.2 s). Left: the job green on CI.
 - [ ] **2. The release workflow** (§20.1's `release`, §20.2): on a `v*` tag, each hosted profile built natively on
       `ubuntu-latest` (amd64) and `ubuntu-24.04-arm` (arm64), pushed by digest and merged into one manifest list,
       `ghcr.io/alexh95/odin-htmx-starter-<profile>:vX.Y.Z` and `:sha-<7>` (never `latest`), a provenance attestation,

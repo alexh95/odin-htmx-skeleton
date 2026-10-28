@@ -391,21 +391,29 @@ jobs:
       - name: Drills and budgets
         run: node tools/drills/drills.mjs ${{ matrix.profile }}
 
-  # The production image through compose.yaml, so a broken Dockerfile fails here
-  # rather than in Fly's builder, and a fork without Fly gets its image tested at
-  # all. Host runner: it needs the Docker daemon.
+  # The release image (PLAN §20.2) of every hosted profile through compose.yaml, so a
+  # broken Dockerfile fails here rather than in the release or Fly's builder, and a
+  # fork without either gets its images tested at all. Host runner: it needs the
+  # Docker daemon.
   docker:
-    name: Docker image (build + run)
+    name: Docker image (${{ matrix.profile }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [minimal, streams, skeleton, lab]
+    env:
+      PROFILE: ${{ matrix.profile }}
     steps:
       - uses: actions/checkout@v7
 
-      - name: Build the image (skeleton)
+      - name: Build the image
         run: docker compose build --build-arg VERSION=${GITHUB_SHA::7}
 
-      # --wait returns once the HEALTHCHECK passes, and fails if the container exits
-      # or never turns healthy: the server started under docker/seccomp-io-uring.json.
+      # --wait returns once the HEALTHCHECK (the binary's --healthcheck) passes, and
+      # fails if the container exits or never turns healthy: the server started on a
+      # read-only rootfs under docker/seccomp-io-uring.json.
       - name: Start it (compose.yaml)
         run: docker compose up --wait --wait-timeout 60
 
@@ -414,9 +422,24 @@ jobs:
           test "$(curl -fsS http://127.0.0.1:8080/healthz)" = "ok"
           curl -fsS http://127.0.0.1:8080/ -o /dev/null
           curl -fsS http://127.0.0.1:8080/licenses | head -1 | grep -q 'THIRD-PARTY NOTICES'
-          test "$(docker compose exec -T app id -u)" = "10001"   # not root
+          curl -fsSI http://127.0.0.1:8080/ | grep -qi "^x-version: ${GITHUB_SHA::7}"
+          # Not root: distroless has no `id`, so read the process's UID from the host.
+          test "$(ps -o uid= -p "$(docker inspect -f '{{.State.Pid}}' "$(docker compose ps -q app)")" | tr -d ' ')" = "10001"
 
-      # STOPSIGNAL SIGINT reaches the server's drain: a clean exit 0 within a
+      # D38 and §20.2: the binary needs only glibc (SQLite is linked in), and the image
+      # stays under 25 MB compressed.
+      - name: Libraries and size
+        run: |
+          img=$(docker inspect -f '{{.Image}}' "$(docker compose ps -q app)")
+          id=$(docker create "$img") && docker cp "$id:/app/bin" bin && docker cp "$id:/app/SOURCES.md" . && docker rm "$id"
+          readelf -d bin | grep NEEDED
+          test -z "$(readelf -d bin | grep NEEDED | grep -vE '\[(libc\.so\.6|libm\.so\.6|ld-linux-x86-64\.so\.2)\]')"
+          grep -q '^| libc6 | ' SOURCES.md
+          bytes=$(docker save "$img" | gzip -c | wc -c)
+          echo "image: $bytes bytes compressed"
+          test "$bytes" -le $((25 * 1024 * 1024))
+
+      # STOPSIGNAL SIGTERM reaches the server's drain: a clean exit 0 within a
       # second or two. A missed signal shows as a SIGKILL (137) after 10 s.
       - name: docker stop shuts it down cleanly
         run: |
@@ -429,18 +452,20 @@ jobs:
           test "$code" = 0 && test "$ms" -lt 6000
 
       # The non-root user must be able to create the DB (and its -wal/-shm) on a
-      # fresh volume at /data, the documented DB_PATH home.
+      # fresh volume at /data, the documented DB_PATH home, and back it up there.
       - name: Persist to a fresh /data volume
+        if: matrix.profile == 'skeleton'
         run: |
           img=$(docker inspect -f '{{.Image}}' "$(docker compose ps -aq app)")
-          docker run -d --name persist --security-opt seccomp=docker/seccomp-io-uring.json \
+          docker run -d --name persist --security-opt seccomp=docker/seccomp-io-uring.json --read-only --tmpfs /tmp \
             -e DB_PATH=/data/data.db -v ci-data:/data "$img"
           for i in $(seq 1 30); do
             [ "$(docker inspect -f '{{.State.Health.Status}}' persist)" = healthy ] && break
             sleep 1
           done
-          docker exec persist test -s /data/data.db
+          docker exec persist /app/bin --backup /data/backup.db
           docker stop persist
+          docker run --rm -v ci-data:/d debian:trixie-slim sh -c 'ls -ln /d && test -s /d/data.db && test -s /d/backup.db'
 
       - name: Container output
         if: ${{ !cancelled() }}

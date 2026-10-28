@@ -1,12 +1,18 @@
-# Optional local prod-parity run. Builds the same image Fly deploys, so you can
-# reproduce production on your machine — handy before a risky change or for
+# Optional local prod-parity run. Builds the same image the release publishes, so you
+# can reproduce production on your machine — handy before a risky change or for
 # pointing load-tests at a prod-like container. Requires Docker; not needed for
-# day-to-day dev (use app/run.* for that). CI's docker job runs this file.
+# day-to-day dev (use app/run.* for that). CI's docker job runs this file once per
+# hosted profile. apollo's stack is deploy/compose.yaml.
 #
-#   docker compose up --build      ->  http://localhost:8080
+#   docker compose up --build                  ->  http://localhost:8080 (skeleton)
+#   PROFILE=lab docker compose up --build      ->  the lab
+#   HOST_PORT=18080 docker compose up --build  ->  on another host port
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        PROFILE: ${PROFILE:-skeleton}
     # The server needs Linux io_uring: odin-http's event loop (core:nbio) has no
     # epoll fallback, and Docker's default seccomp profile has blocked io_uring
     # since 25.0, so a default container aborts at startup. This profile is
@@ -14,8 +20,12 @@ services:
     # Docker's seccomp, so it doesn't need one.)
     security_opt:
       - seccomp=docker/seccomp-io-uring.json
+    # As apollo runs it (PLAN §20.4): nothing on the image's filesystem is written
+    # but /data, which a volume holds when DB_PATH points there.
+    read_only: true
+    tmpfs: /tmp
     ports:
-      - "8080:8080"
+      - "${HOST_PORT:-8080}:8080"
     environment:
       PORT: "8080"
       BIND_ALL: "1"

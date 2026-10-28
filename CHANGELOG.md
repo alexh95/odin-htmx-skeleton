@@ -8,6 +8,15 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Changed
+
+- **The image is the release image** (M3, PLAN §20.2): the binary at `/app/bin` on distroless
+  `base-nossl-debian13` (both bases pinned by digest), stopped by SIGTERM, health-checked by its own
+  `--healthcheck`, with `/app/SOURCES.md` naming the base's Debian source packages; Odin's arm64 asset is picked
+  by `TARGETARCH`. CI's `docker` job builds and runs `minimal`, `streams`, `skeleton` and `lab` on a read-only
+  rootfs, and checks the UID, the libraries (glibc only), the 25 MB compressed budget, the stop and, for
+  `skeleton`, a backup on a fresh `/data`. `compose.yaml` takes `PROFILE` and `HOST_PORT`.
+
 ## [2.1.0] - 2026-10-28
 
 The starter's second milestone, M2: the stream substrate. `platform/stream` speaks SSE,

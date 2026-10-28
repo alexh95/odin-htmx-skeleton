@@ -3,7 +3,8 @@
 # that misses one fails CI instead of quietly building two different things.
 #   - Odin: the Dockerfile's ODIN_VERSION and ODIN_SHA256 args, the same two in
 #     every workflow's env, and .github/actions/setup-odin's asset names and its
-#     linux-amd64 digest.
+#     linux-amd64 digest; the Dockerfile's ODIN_SHA256_ARM64 and the action's
+#     linux-arm64 digest.
 #   - htmx, _hyperscript and SQLite: prepare.sh and prepare.bat fetch the same htmx and
 #     _hyperscript versions (their files' digests are app/vendor/<package>/PINS, which
 #     both read), pin the same SQLite
@@ -47,6 +48,9 @@ done
 # The linux-amd64 runner downloads the tarball the env pin describes.
 leg=$(grep 'Linux-X64)' "$action" | grep -o 'sha=[0-9a-f]*' | sed 's/^sha=//')
 [ "$leg" = "$sha" ] || bad "$action's linux-amd64 digest isn't ci.yml's ODIN_SHA256"
+# The Dockerfile builds arm64 images from the tarball the linux-arm64 runner downloads.
+arm=$(grep 'Linux-ARM64)' "$action" | grep -o 'sha=[0-9a-f]*' | sed 's/^sha=//')
+[ "$(sed -n 's/^ARG ODIN_SHA256_ARM64=//p' Dockerfile)" = "$arm" ] || bad "Dockerfile ODIN_SHA256_ARM64 isn't $action's linux-arm64 digest"
 
 # prepare.sh: `SQLITE_SHA256=…` (indented inside a step); prepare.bat: `set "SQLITE_SHA256=…"`.
 for pin in HTMX_VERSION HYPERSCRIPT_VERSION SQLITE_SHA256 SQLITE_FLAGS; do

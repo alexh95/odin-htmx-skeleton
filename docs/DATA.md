@@ -51,11 +51,11 @@ live server, and it refuses to overwrite an existing file. `/healthz` stays gree
 **Back up** (from wherever the database lives; use a dated name, so each run makes a new file):
 
 ```sh
-# Fly (the Dockerfile puts the binary at /app/server; the volume at /data):
-fly ssh console -C "/app/server --backup /data/backup-$(date +%F).db"   # DB_PATH is already set
+# Fly (the Dockerfile puts the binary at /app/bin; the volume at /data):
+fly ssh console -C "/app/bin --backup /data/backup-$(date +%F).db"   # DB_PATH is already set
 fly ssh sftp get /data/backup-$(date +%F).db                                     # take it off the volume
 # Docker host:
-docker exec <container> /app/server --backup /data/backup-$(date +%F).db
+docker exec <container> /app/bin --backup /data/backup-$(date +%F).db
 docker cp <container>:/data/backup-$(date +%F).db .
 ```
 

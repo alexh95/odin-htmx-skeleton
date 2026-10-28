@@ -4704,6 +4704,11 @@ policy and the transition in §4).
   never `latest` in a deploy (the tag is pinned in `.env`). Public GHCR images are free and apollo pulls them without
   credentials (08 §5.3; Q18); the Dockerfile picks Odin's amd64 or arm64 asset by `TARGETARCH` (08 §5.3) and builds
   through `./build.sh <profile> -o:speed`, as every CI job does (§20.1).
+- **As built (M3):** the Dockerfile ships `/app/bin` on distroless `base-nossl-debian13`, both bases pinned by
+  digest, `STOPSIGNAL SIGTERM` and `HEALTHCHECK` through `--healthcheck`, and `/app/SOURCES.md` generated from the
+  base's `dpkg/status.d`. `readelf -d` lists only `libc.so.6`, `libm.so.6` and the loader with SQLite linked
+  (skeleton), and the four hosted profiles' images are 6.5–7.4 MB compressed. CI's `docker` job checks all of it
+  per profile.
 - **M1's image** builds one profile (`--build-arg PROFILE=…`, `skeleton` by default) through `build.sh` and ships it
   as `/app/server` on the skeleton's `debian:trixie-slim` base with its bash health check; the per-profile names,
   distroless and `--healthcheck` arrive with the release workflow (M3).
