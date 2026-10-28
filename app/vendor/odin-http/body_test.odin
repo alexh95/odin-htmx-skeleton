@@ -66,3 +66,32 @@ chunk_framing :: proc(t: ^testing.T) {
 	testing.expect(t, err != nil)
 	free_all(context.temp_allocator)
 }
+
+// M2-21: a POST stream's handler runs from its body's callback and begins its stream there, after
+// the headers' end looked; once that callback returns, the connection's arena goes back, as it
+// does for a handler called from the headers (F-17). A request that didn't begin a stream keeps it.
+@(test)
+post_stream_gives_its_arena_back :: proc(t: ^testing.T) {
+	Probe :: struct {
+		c:     ^Connection,
+		s:     Stream,
+		begin: bool,
+	}
+	handler :: proc(user: rawptr, _: Body, _: Body_Error) {
+		p := (^Probe)(user)
+		_ = make([]byte, 4096, conn_arena_allocator(&p.c.temp_allocator))
+		if p.begin { p.c.stream = &p.s } // as stream_begin sets it
+	}
+	for begin in ([]bool{true, false}) {
+		c := new(Connection)
+		conn_arena_init(&c.temp_allocator)
+		c.loop.conn = c
+		p := Probe{c = c, begin = begin}
+		c.loop.req._body_cb, c.loop.req._body_user = handler, &p
+		_body_returned(&c.loop.req, "", nil)
+		testing.expectf(t, (c.temp_allocator.curr_block == nil) == begin, "stream begun %v: arena block %p", begin, c.temp_allocator.curr_block)
+		c.stream = nil
+		conn_arena_destroy(&c.temp_allocator)
+		free(c)
+	}
+}
