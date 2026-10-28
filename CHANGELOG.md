@@ -10,6 +10,9 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ### Fixed
 
+- **A chat poll from before what the room let go replaces the log** (M2-35): the store's `changed` says whether it
+  still reached the poll's version, and when it didn't the answer is the room's snapshot with `innerHTML`; an upsert
+  had kept what the page had with a silent gap before the newest.
 - **A POST stream gives its request arena back** (M2-21, the fork's F-17): a handler called from a body's
   callback (the bot's asks, `POST /lab/sse/tick`) began its stream after the headers' path had looked, so it kept up
   to 64 KiB of form until the stream ended; `body` now gives the arena back where that callback returns.

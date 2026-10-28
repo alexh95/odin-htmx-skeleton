@@ -255,6 +255,37 @@ test.describe('chat', T, () => {
     });
   }
 
+  // A poll whose tag predates what the room let go gets the snapshot, which replaces the log
+  // (M2-35): upserted, it kept what the page had with a silent gap before the newest. A tag the
+  // room still covers upserts as before, and so does a refetch with no tag (SSE's resync), which
+  // after a restart must keep what the page had (D37).
+  test('a poll from before what the room let go replaces the log (M2-35)', async ({ browser }) => {
+    const s = await startServer(test.info().config, { CHAT_RING_BYTES: '3KiB' });
+    const base = `http://127.0.0.1:${s.port}`;
+    const ann = await member(browser, base);
+    try {
+      const slug = await newRoom(ann.page);
+      await open(ann, slug, 'sse');
+      await say(ann, 'first');
+      const since = (tag?: string) => ann.context.request.get(`${base}/chat/r/${slug}/since`, { headers: tag ? { 'HX-PTag': tag } : {} });
+      const resync = await since();
+      expect(await resync.text()).toContain('hx-swap="upsert sort"');
+      const before = resync.headers()['hx-ptag'];
+      for (let i = 0; i < 4; i++) await say(ann, `long ${i} ${'x'.repeat(1000)}`);
+      const gap = await since(before);
+      expect(gap.status()).toBe(200);
+      const body = await gap.text();
+      expect(body).toContain('hx-swap="innerHTML"');
+      expect(body).not.toContain('first'); // let go: the snapshot is what the room still holds
+      const now = BigInt(gap.headers()['hx-ptag']); // past 2^53: a Number would round it
+      const near = await since(String(now - 1n));
+      expect(await near.text()).toContain('hx-swap="upsert sort"');
+    } finally {
+      await leave(ann);
+      await stopServer(s);
+    }
+  });
+
   // Brackets in a message are text: over the socket they once counted against its nesting bound,
   // and the message was refused after the composer had cleared it (M2-36).
   test('over ws, a message full of brackets posts, as it does on the other transports (M2-36)', async ({ browser, baseURL }) => {

@@ -40,13 +40,24 @@ since :: proc(req: ^web.Request, res: ^web.Response) {
 	}
 	msgs := make([dynamic]m.Message, 0, 16, context.temp_allocator)
 	ver: i64
+	// A poll whose tag the room can't serve whole gets the snapshot, which replaces the log:
+	// upserted, it kept what the page had with a silent gap before the newest (M2-35). SSE's
+	// resync (no tag) still upserts: after a restart the room is new and empty, and a
+	// replace would cost the page everything it had (D37).
+	whole := false
 	tag, has := web.header(req, "hx-ptag")
 	from, ok := web.parse_digits(tag)
 	if has && ok {
-		ver, err = chat.changed(r.id, i64(from), &msgs)
+		reached: bool
+		ver, reached, err = chat.changed(r.id, i64(from), &msgs)
 		if err == .None && ver == i64(from) {
 			web.respond_status(res, .Not_Modified)
 			return
+		}
+		if err == .None && !reached {
+			clear(&msgs)
+			ver, err = chat.snapshot(r.id, &msgs)
+			whole = true
 		}
 	} else {
 		ver, err = chat.snapshot(r.id, &msgs)
@@ -58,6 +69,6 @@ since :: proc(req: ^web.Request, res: ^web.Response) {
 	buf: [24]byte
 	web.set_header(res, "hx-ptag", strconv.write_int(buf[:], ver, 10))
 	b := strings.builder_make(context.temp_allocator)
-	chat_views.partial(&b, r.id, r.slug, msgs[:])
+	chat_views.partial(&b, r.id, r.slug, msgs[:], swap = "innerHTML" if whole else "upsert sort")
 	web.respond_html(res, strings.to_string(b))
 }

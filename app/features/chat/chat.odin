@@ -149,9 +149,10 @@ recent :: proc(room: i64, out: ^[dynamic]m.Message) -> m.Error { return chat_sto
 // What came after `id`, oldest first: a multipart reconnect's HX-Last-Part-ID.
 after :: proc(room, id: i64, out: ^[dynamic]m.Message) -> (reached: bool, err: m.Error) { return chat_store.after(room, id, out) }
 
-// What changed (posted, edited, deleted) since the room's version `since`, and the
-// version now: the poll transport's tag.
-changed :: proc(room, since: i64, out: ^[dynamic]m.Message) -> (ver: i64, err: m.Error) {
+// What changed (posted, edited, deleted) since the room's version `since`, the version
+// now (the poll transport's tag), and whether the room still holds all of it: false when
+// something changed after `since` has since left it (M2-35).
+changed :: proc(room, since: i64, out: ^[dynamic]m.Message) -> (ver: i64, reached: bool, err: m.Error) {
 	return chat_store.changed(room, since, out)
 }
 
@@ -160,7 +161,7 @@ message :: proc(id: i64) -> (m.Message, m.Error) { return chat_store.message(id)
 // The newest SNAPSHOT and the room's version now: a poll's first answer, a resync's.
 snapshot :: proc(room: i64, out: ^[dynamic]m.Message) -> (ver: i64, err: m.Error) {
 	none := make([dynamic]m.Message, context.temp_allocator)
-	ver = chat_store.changed(room, max(i64), &none) or_return
+	ver, _ = chat_store.changed(room, max(i64), &none) or_return
 	return ver, chat_store.recent(room, SNAPSHOT, out)
 }
 

@@ -38,6 +38,7 @@ Room_State :: struct {
 	ver:     i64,
 	bytes:   int,
 	dropped: i64, // the newest message let go: a cursor below it can't be served whole (M2-31)
+	dropped_ver: i64, // and the newest version among those let go: a poll's tag below it can't be (M2-35)
 }
 
 @(private)
@@ -122,16 +123,16 @@ count_after :: proc(room_id: i64, after_id: i64) -> int {
 	return n
 }
 
-changed :: proc(room_id: i64, since: i64, out: ^[dynamic]m.Message) -> (ver: i64, err: m.Error) {
+changed :: proc(room_id: i64, since: i64, out: ^[dynamic]m.Message) -> (ver: i64, reached: bool, err: m.Error) {
 	mem_store.lock(&s.lock)
 	defer mem_store.unlock(&s.lock)
 	r := by_id(room_id)
-	if r == nil { return 0, .Not_Found }
+	if r == nil { return 0, false, .Not_Found }
 	for i := r.ring.n - 1; i >= 0; i -= 1 {
 		msg := mem_store.ring_newest(&r.ring, i)
 		if msg.ver > since { append(out, copy_msg(msg^)) }
 	}
-	return r.ver, .None
+	return r.ver, r.dropped_ver <= since, .None
 }
 
 message :: proc(id: i64) -> (m.Message, m.Error) {
@@ -254,6 +255,7 @@ evict :: proc() {
 @(private)
 forget :: proc(r: ^Room_State, msg: m.Message) {
 	r.dropped = max(r.dropped, msg.id)
+	r.dropped_ver = max(r.dropped_ver, msg.ver)
 	r.bytes -= cost(msg)
 	s.bytes -= cost(msg)
 	delete(msg.name)

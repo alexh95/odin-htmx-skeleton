@@ -60,7 +60,7 @@ Store_Recent :: proc(room: i64, limit: int, out: ^[dynamic]Message) -> Error // 
 // id > after, oldest first; reached: nothing after `after` was let go, so `out` has no gap
 Store_After :: proc(room: i64, after: i64, out: ^[dynamic]Message) -> (reached: bool, err: Error)
 Store_Count_After :: proc(room: i64, after: i64) -> int // how many kept messages have id > after
-Store_Changed :: proc(room: i64, since: i64, out: ^[dynamic]Message) -> (ver: i64, err: Error) // ver > since; the room's version
+Store_Changed :: proc(room: i64, since: i64, out: ^[dynamic]Message) -> (ver: i64, reached: bool, err: Error) // ver > since; the room's version; false: something changed after `since` has left the room
 Store_Message :: proc(id: i64) -> (Message, Error)
 Store_Post :: proc(op: ^Post) -> bool // false: the store is busy; `done` won't run
 Store_Change :: proc(op: ^Change) -> bool

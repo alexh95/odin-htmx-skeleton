@@ -80,13 +80,20 @@ a_room_keeps_its_newest :: proc(t: ^testing.T) {
 	testing.expect_value(t, count_after(lobby.id, newest - 3), 3)
 
 	clear(&msgs)
-	ver, _ := changed(lobby.id, max(i64), &msgs)
+	ver, reached, _ := changed(lobby.id, max(i64), &msgs)
 	testing.expect_value(t, len(msgs), 0)
+	testing.expect(t, reached)
 	testing.expect_value(t, ver, s.base + KEEP + 6)
 	testing.expect(t, got.id > s.base) // ids count from the boot epoch
 	clear(&msgs)
-	_, _ = changed(lobby.id, ver - 2, &msgs)
+	_, reached, _ = changed(lobby.id, ver - 2, &msgs)
 	testing.expect_value(t, len(msgs), 2)
+	testing.expect(t, reached)
+	// A tag from before the 5 the ring let go: those changes are gone, and it says so (M2-35).
+	clear(&msgs)
+	_, reached, _ = changed(lobby.id, s.base + 3, &msgs)
+	testing.expect(t, !reached)
+	testing.expect_value(t, len(msgs), KEEP)
 
 	// Only the author edits, inside the window; a delete leaves a tombstone.
 	edit := store.new_op(m.Change, 64)
@@ -119,7 +126,6 @@ a_room_keeps_its_newest :: proc(t: ^testing.T) {
 	newest_now: i64
 	for kept in msgs { newest_now = max(newest_now, kept.id) }
 	clear(&msgs)
-	reached: bool
 	reached, err = after(lobby.id, 0, &msgs)
 	testing.expect(t, err == .None && !reached && len(msgs) > 0)
 	clear(&msgs)
