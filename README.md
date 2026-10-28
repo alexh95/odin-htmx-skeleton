@@ -70,9 +70,10 @@ profile) and the tour in [app/README.md](app/README.md).
 
 ## Deploy
 
-The deployable is one binary in a slim container (`docker build --build-arg PROFILE=…`, `skeleton`
-by default; the binary is `/app/server`). [infra/PLAN.md](infra/PLAN.md) covers Fly.io (the
-`fly.toml` and the CI deploy job here) and its operator steps; [deploy/docker-host](deploy/docker-host)
+The deployable is one binary in a small container (`docker build --build-arg PROFILE=…`, `skeleton`
+by default; the binary is `/app/bin`, on distroless). A `v*` tag publishes each hosted profile's image to
+GHCR (`.github/workflows/release.yml`). [infra/PLAN.md](infra/PLAN.md) covers Fly.io (the
+`fly.toml` and the release's deploy job here) and its operator steps; [deploy/docker-host](deploy/docker-host)
 runs it on any Linux box with Docker, with the SQLite database on a persistent volume. Linux deploys
 need io_uring, which Docker's default seccomp profile blocks: run containers under
 `docker/seccomp-io-uring.json`, as `compose.yaml` does. See [infra/PLAN.md](infra/PLAN.md) →

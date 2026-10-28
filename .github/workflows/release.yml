@@ -1,0 +1,182 @@
+name: release
+
+# A v* tag publishes the release (PLAN §20.1's `release`, §20.2): each hosted profile's
+# image built natively for amd64 and arm64, merged into one manifest list on GHCR as
+# ghcr.io/<owner>/odin-htmx-starter-<profile>:vX.Y.Z and :sha-<7> (never `latest`: a
+# deploy pins its tag in .env), a provenance attestation per list, a GitHub Release whose
+# notes are the tag's CHANGELOG section, and, when FLY_DEPLOY is on, Fly's skeleton
+# witness redeployed from the tag. Tag a commit CI has passed on the default branch.
+#
+# Run by hand (workflow_dispatch) it is a dry run: both arches of every profile build
+# and turn healthy, and nothing is pushed or published.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/odin-htmx-starter
+  PUBLISH: ${{ github.event_name == 'push' }}
+
+jobs:
+  # One image per profile and arch, on a runner of that arch, so nothing is emulated.
+  # A tag pushes it by digest alone; `merge` names the list.
+  image:
+    name: Image (${{ matrix.profile }}, ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        profile: [minimal, streams, skeleton, lab]
+        arch: [amd64, arm64]
+        include:
+          - { arch: amd64, runner: ubuntu-latest }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Version
+        run: |
+          if [ "$PUBLISH" = true ]; then v=$GITHUB_REF_NAME; else v=dry-${GITHUB_SHA::7}; fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
+      - name: Log in to GHCR
+        if: env.PUBLISH == 'true'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build (and push by digest on a tag)
+        run: |
+          docker buildx create --use --name rel >/dev/null
+          if [ "$PUBLISH" = true ]; then
+            out="type=image,name=$IMAGE-${{ matrix.profile }},push-by-digest=true,name-canonical=true,push=true"
+          else
+            out="type=docker,name=rel-${{ matrix.profile }}:${{ matrix.arch }}"
+          fi
+          docker buildx build --platform linux/${{ matrix.arch }} \
+            --build-arg PROFILE=${{ matrix.profile }} --build-arg VERSION="$VERSION" \
+            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+            --label org.opencontainers.image.revision=$GITHUB_SHA \
+            --label org.opencontainers.image.version="$VERSION" \
+            --output "$out" --metadata-file meta.json .
+          mkdir -p digests
+          jq -r '."containerimage.digest"' meta.json > "digests/${{ matrix.arch }}"
+          cat "digests/${{ matrix.arch }}"
+
+      # The dry run's proof that this arch's image runs: healthy under the seccomp
+      # profile apollo uses, answering with its version.
+      - name: Smoke (dry run)
+        if: env.PUBLISH != 'true'
+        run: |
+          docker run -d --name smoke --security-opt seccomp=docker/seccomp-io-uring.json --read-only --tmpfs /tmp \
+            -p 8080:8080 rel-${{ matrix.profile }}:${{ matrix.arch }}
+          for i in $(seq 1 30); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' smoke)" = healthy ] && break
+            sleep 1
+          done
+          test "$(curl -fsS http://127.0.0.1:8080/healthz)" = "ok"
+          curl -fsSI http://127.0.0.1:8080/ | grep -qi "^x-version: $VERSION"
+          docker stop smoke
+
+      - uses: actions/upload-artifact@v7
+        if: env.PUBLISH == 'true'
+        with:
+          name: digest-${{ matrix.profile }}-${{ matrix.arch }}
+          path: digests/${{ matrix.arch }}
+          retention-days: 1
+
+  # One manifest list per profile, tagged vX.Y.Z and sha-<7>, and its provenance.
+  merge:
+    name: Publish (${{ matrix.profile }})
+    if: github.event_name == 'push'
+    needs: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      matrix:
+        profile: [minimal, streams, skeleton, lab]
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: digest-${{ matrix.profile }}-*
+          path: digests
+          merge-multiple: true
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Merge the arches into one list
+        run: |
+          repo=$IMAGE-${{ matrix.profile }}
+          docker buildx imagetools create -t "$repo:$GITHUB_REF_NAME" -t "$repo:sha-${GITHUB_SHA::7}" \
+            "$repo@$(cat digests/amd64)" "$repo@$(cat digests/arm64)"
+          docker buildx imagetools inspect "$repo:$GITHUB_REF_NAME"
+          echo "DIGEST=$(docker buildx imagetools inspect "$repo:$GITHUB_REF_NAME" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_ENV"
+
+      # SHA-pinned (tag v4.2.2), as every third-party action here is.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}-${{ matrix.profile }}
+          subject-digest: ${{ env.DIGEST }}
+          push-to-registry: true
+
+  # The GitHub Release: the tag's section of CHANGELOG.md, between its heading and the next.
+  github-release:
+    name: GitHub Release
+    if: github.event_name == 'push'
+    needs: merge
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Notes from CHANGELOG.md
+        run: |
+          v=${GITHUB_REF_NAME#v}
+          awk -v h="## [$v]" 'index($0, h) == 1 { on = 1; next } on && /^## \[/ { exit } on' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "CHANGELOG.md has no ## [$v] section" >&2; exit 1; }
+          {
+            echo; echo "**Images** (linux/amd64 and linux/arm64):"; echo
+            for p in minimal streams skeleton lab; do echo "- \`$IMAGE-$p:$GITHUB_REF_NAME\`"; done
+          } >> notes.md
+      - name: Create it
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  # Fly's skeleton witness (PLAN §20.6, X2): redeployed from the tag, only once Alex has
+  # set the repo variable FLY_DEPLOY=true (the first is v2.2.0, the M3 exit) and the
+  # FLY_API_TOKEN secret exists. Until then it's skipped.
+  deploy-fly:
+    name: Deploy (Fly.io)
+    if: github.event_name == 'push' && vars.FLY_DEPLOY == 'true'
+    needs: merge
+    runs-on: ubuntu-latest
+    # Longer than the others: Fly's remote builder has stalled for ~10 min before.
+    timeout-minutes: 30
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      # SHA-pinned (tag 1.6): a floating branch can move under a deploying job.
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
+      - run: flyctl deploy --remote-only --build-arg PROFILE=skeleton --build-arg VERSION=$GITHUB_REF_NAME
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

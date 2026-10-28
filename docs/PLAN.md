@@ -4708,7 +4708,11 @@ policy and the transition in §4).
   digest, `STOPSIGNAL SIGTERM` and `HEALTHCHECK` through `--healthcheck`, and `/app/SOURCES.md` generated from the
   base's `dpkg/status.d`. `readelf -d` lists only `libc.so.6`, `libm.so.6` and the loader with SQLite linked
   (skeleton), and the four hosted profiles' images are 6.5–7.4 MB compressed. CI's `docker` job checks all of it
-  per profile.
+  per profile. **`release.yml`** is §20.1's `release`: on a `v*` tag, the four hosted profiles (`full` joins at
+  M4) built natively on amd64 and arm64 runners, pushed by digest, merged into one list tagged `vX.Y.Z` and
+  `sha-<7>`, attested (`attest-build-provenance`, pushed to the registry), then a GitHub Release from the tag's
+  CHANGELOG section and, with `FLY_DEPLOY`, `deploy-fly`, which moved there from `ci.yml`. Run by hand it is a
+  dry run: every image builds and turns healthy, and nothing is published.
 - **M1's image** builds one profile (`--build-arg PROFILE=…`, `skeleton` by default) through `build.sh` and ships it
   as `/app/server` on the skeleton's `debian:trixie-slim` base with its bash health check; the per-profile names,
   distroless and `--healthcheck` arrive with the release workflow (M3).

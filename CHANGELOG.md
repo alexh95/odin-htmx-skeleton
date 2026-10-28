@@ -8,8 +8,17 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Added
+
+- **The release workflow** (`.github/workflows/release.yml`, M3, PLAN §20.1-20.2): a `v*` tag builds
+  `minimal`, `streams`, `skeleton` and `lab` on amd64 and arm64 runners and publishes each as one manifest list,
+  `ghcr.io/alexh95/odin-htmx-starter-<profile>:vX.Y.Z` and `:sha-<7>`, with a provenance attestation, then
+  a GitHub Release from the tag's CHANGELOG section. Run by hand it is a dry run.
+
 ### Changed
 
+- **Fly deploys on a tag**: the dormant Fly job moved from `ci.yml` to `release.yml` as `deploy-fly`, so with
+  `FLY_DEPLOY` on a release redeploys the skeleton witness, never a push to `master` (PLAN §20.3, X2).
 - **The image is the release image** (M3, PLAN §20.2): the binary at `/app/bin` on distroless
   `base-nossl-debian13` (both bases pinned by digest), stopped by SIGTERM, health-checked by its own
   `--healthcheck`, with `/app/SOURCES.md` naming the base's Debian source packages; Odin's arm64 asset is picked

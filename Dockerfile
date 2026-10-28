@@ -59,8 +59,8 @@ WORKDIR /src
 # Invoke via `sh` (not ./) so the build doesn't depend on the exec bit, which a
 # Windows-origin build context (e.g. local `flyctl deploy`) wouldn't carry.
 RUN sh app/prepare.sh
-# VERSION names the build in the x-version header and /healthz; the deploy job
-# passes the commit or the tag. Declared after prepare so a new commit doesn't re-run it.
+# VERSION names the build in the x-version header and /healthz; the docker and
+# release jobs pass the commit or the tag. Declared after prepare so a new commit doesn't re-run it.
 ARG PROFILE=skeleton
 ARG VERSION=dev
 # /out/data is the empty /data the runtime stage copies (and chowns to the app's

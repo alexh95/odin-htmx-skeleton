@@ -39,7 +39,11 @@ off until Alex sets it before the v2.2.0 tag.
       `ghcr.io/alexh95/odin-htmx-starter-<profile>:vX.Y.Z` and `:sha-<7>` (never `latest`), a provenance attestation,
       and a GitHub Release whose notes are the tag's CHANGELOG section. `deploy-fly` moves onto the tag
       (`vars.FLY_DEPLOY == 'true'`). *Check:* a `workflow_dispatch` dry run builds every profile on both arches and
-      merges the lists without pushing; the real run is v2.2.0's (Alex's go).
+      turns each healthy without pushing; the real run is v2.2.0's (Alex's go).
+      Progress: `release.yml` (the Fly job moved there from `ci.yml`), actionlint clean; the dry run's amd64 leg
+      replayed in WSL for lab (healthy, `x-version`) and the notes' CHANGELOG cut checked on 2.1.0. Left: the dry run
+      on GitHub (both arches; needs the workflow pushed). At v2.2.0, check the four GHCR packages are public: a
+      new package can start private, and apollo pulls without credentials (Q18), so Alex may have to flip each once.
 - [ ] **3. The apollo stack** (§20.4): `deploy/compose.yaml` (the stack Caddy on `8120:80` with a fixed
       `ipv4_address`, the four witnesses as witnesses, `starter-full` from M4; the pinned `172.31.120.0/24` subnet,
       `TRUST_PROXY` = Caddy's address as a /32; every service's hardening, healthcheck and log rotation),

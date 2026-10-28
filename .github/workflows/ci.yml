@@ -1,7 +1,7 @@
 name: ci
 
-# Both default-branch names, so a fork on main keeps its CI. (deploy below follows
-# whichever the repo's default branch is.)
+# Both default-branch names, so a fork on main keeps its CI. A v* tag runs
+# release.yml instead: the images, the GitHub Release and the Fly deploy.
 on:
   push:
     branches: [master, main]
@@ -9,13 +9,13 @@ on:
     branches: [master, main]
 
 # Every job only reads the repo. Caches and artifacts go through the runner's own
-# token, and the deploy authenticates with FLY_API_TOKEN, so nothing needs more.
+# token, so nothing needs more.
 permissions:
   contents: read
 
 # A new push to a PR supersedes the checks still running on its old head. Pushes
 # to the branch get a group per run instead, so they never cancel or queue behind
-# each other: every merge runs to the end, deploy included.
+# each other: every merge runs to the end.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -472,24 +472,3 @@ jobs:
         run: |
           docker compose logs
           docker logs persist || true
-
-  # Deploys the live instance after a green run on the default branch. Dormant
-  # until opted in: the FLY_API_TOKEN secret and the repo variable FLY_DEPLOY=true
-  # (infra/PLAN.md → Operator steps). Until then it's skipped, so CI stays green.
-  deploy:
-    name: Deploy (Fly.io)
-    needs: [pins, check, build, e2e, coverage, linux-ops, docker]
-    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch && vars.FLY_DEPLOY == 'true'
-    runs-on: ubuntu-latest
-    # Longer than the others: Fly's remote builder has stalled for ~10 min before.
-    timeout-minutes: 30
-    concurrency:
-      group: deploy
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v7
-      # SHA-pinned (tag 1.6): a floating branch can move under a deploying job.
-      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
-      - run: flyctl deploy --remote-only --build-arg VERSION=${GITHUB_SHA::7}
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

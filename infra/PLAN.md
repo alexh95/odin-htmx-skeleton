@@ -35,8 +35,10 @@ reachable, at free or near-zero cost.
      plus the browser-less `api` project, in Playwright's container image.
   5. `coverage`: a k6 quick run of each profile, then every route must have been reached by both
      suites (`tools/check parity`).
-  6. `docker`: the image through `compose.yaml`: healthy, UID 10001, a clean stop, a fresh `/data`.
-  7. `deploy`: `flyctl deploy --remote-only` on a green push to `master`, once you opt in (step 2).
+  6. `docker`: each hosted profile's image through `compose.yaml`: healthy, UID 10001, glibc only,
+     under 25 MB compressed, a clean stop, a fresh `/data`.
+  7. `release.yml`, on a `v*` tag: the images on GHCR (amd64 and arm64), the GitHub Release, and
+     `deploy-fly`, `flyctl deploy --remote-only` of `skeleton`, once you opt in (step 2).
 - **`deploy/docker-host`**: the same image on any Linux box with Docker, over SSH, with the SQLite
   database on a named volume. See its README.
 
@@ -118,7 +120,7 @@ Cloudflare (free). Realistic total: **$0–5 / month.**
 ## Operator steps
 
 These touch external accounts, not the repo. Run them from the repo root with `flyctl` and `gh`
-logged in; `gh` targets the repo of the current checkout. The deploy job runs on pushes to `master`.
+logged in; `gh` targets the repo of the current checkout. The deploy job runs on `v*` tags.
 
 **1. Create the Fly app** (once). The name must match `app` in `fly.toml`, which `tools/init` set:
 
@@ -137,18 +139,18 @@ redirects `*.fly.dev` requests to it (see `canonical_host` in `app/src/main.odin
 
 **2. Wire CI/CD deploys.** Two mutually exclusive options; pick one:
 
-- **GitHub Actions (recommended, already in `ci.yml`):** the `deploy` job stays dormant until you
+- **GitHub Actions (recommended, already in `release.yml`):** the `deploy-fly` job stays dormant until you
   opt in. Create a deploy token scoped to this app, store it as a secret, and flip the variable:
   ```sh
   fly tokens create deploy -x 2160h                 # 90 days; prints the token
   gh secret set FLY_API_TOKEN                       # paste it
   gh variable set FLY_DEPLOY --body true
   ```
-  After that, every push to `master` builds, tests and deploys. The token expires on purpose: rotate
+  After that, every `v*` tag publishes and deploys (tag a commit CI passed on `master`). The token expires on purpose: rotate
   it by running the first two lines again before then. (Leave `FLY_DEPLOY` unset and the deploy job
-  stays skipped; CI still runs on every PR.)
+  stays skipped; the rest of the release still runs.)
 - **Fly's GitHub integration:** if you'd rather Fly auto-deploy on push from its dashboard, **delete
-  the `deploy` job from `ci.yml`** so the two don't double-deploy.
+  the `deploy-fly` job from `release.yml`** so the two don't double-deploy.
 
 **3. Put Cloudflare in front** (needs a domain on your Cloudflare account):
 
