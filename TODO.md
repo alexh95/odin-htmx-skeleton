@@ -24,7 +24,7 @@ nothing from Alex; 9 and 10 start with Alex's steps (§20.7) and every promote t
 every push and tag. apollo stays read-only until slice 9, and its other services are never touched. `FLY_DEPLOY` stays
 off until Alex sets it before the v2.2.0 tag.
 
-- [ ] **1. The release image** (§20.2): the runtime stage on distroless `base-nossl-debian13`, `USER 10001:10001`,
+- [x] **1. The release image** (§20.2): the runtime stage on distroless `base-nossl-debian13`, `USER 10001:10001`,
       `STOPSIGNAL SIGTERM`, `HEALTHCHECK` through the binary's `--healthcheck`, the binary at `/app/bin`; the build
       stage picks Odin's amd64 or arm64 asset by `TARGETARCH` (the digests `setup-odin` and `check-pins.sh` hold);
       `SOURCES.md` naming the base's Debian source versions. *Check:* the `docker` job builds every hosted profile
@@ -33,7 +33,7 @@ off until Alex sets it before the v2.2.0 tag.
       `libm.so.6` with SQLite linked (skeleton); each image ≤ 25 MB compressed (D38). `fly.toml` and the Fly job keep
       working on the new image.
       Progress: the Dockerfile and the per-profile `docker` job, replayed in WSL: all four pass (6.5–7.4 MB
-      compressed; glibc only; stop 0.6–1.2 s). Left: the job green on CI.
+      compressed; glibc only; stop 0.6–1.2 s). Green on CI run 40772472633 on `681c283`, all four profiles.
 - [ ] **2. The release workflow** (§20.1's `release`, §20.2): on a `v*` tag, each hosted profile built natively on
       `ubuntu-latest` (amd64) and `ubuntu-24.04-arm` (arm64), pushed by digest and merged into one manifest list,
       `ghcr.io/alexh95/odin-htmx-starter-<profile>:vX.Y.Z` and `:sha-<7>` (never `latest`), a provenance attestation,
@@ -41,10 +41,14 @@ off until Alex sets it before the v2.2.0 tag.
       (`vars.FLY_DEPLOY == 'true'`). *Check:* a `workflow_dispatch` dry run builds every profile on both arches and
       turns each healthy without pushing; the real run is v2.2.0's (Alex's go).
       Progress: `release.yml` (the Fly job moved there from `ci.yml`), actionlint clean; the dry run's amd64 leg
-      replayed in WSL for lab (healthy, `x-version`) and the notes' CHANGELOG cut checked on 2.1.0. Left: the dry run
-      on GitHub (both arches; needs the workflow pushed). At v2.2.0, check the four GHCR packages are public: a
+      replayed in WSL for lab (healthy, `x-version`) and the notes' CHANGELOG cut checked on 2.1.0. The first dry run
+      on GitHub (run 40785174422, on `681c283`) failed on arm64: the build stage's `ARG TARGETARCH=amd64` won over
+      BuildKit's value, so the arm64 runner fetched (and checksummed) amd64's Odin, which couldn't run there
+      ("Exec format error" in `prepare`); every other leg was cancelled with it. Fixed: the ARG is declared bare and
+      the RUN falls back to amd64 only when it's empty. Left: the dry run again, green on both arches (needs the fix
+      pushed). At v2.2.0, check the four GHCR packages are public: a
       new package can start private, and apollo pulls without credentials (Q18), so Alex may have to flip each once.
-- [ ] **3. The apollo stack** (§20.4): `deploy/compose.yaml` (the stack Caddy on `8120:80` with a fixed
+- [x] **3. The apollo stack** (§20.4): `deploy/compose.yaml` (the stack Caddy on `8120:80` with a fixed
       `ipv4_address`, the four witnesses as witnesses, `starter-full` from M4; the pinned `172.31.120.0/24` subnet,
       `TRUST_PROXY` = Caddy's address as a /32; every service's hardening, healthcheck and log rotation),
       `deploy/.env.example` (the tags), and `docker/seccomp-io-uring.json` staged next to `compose.yaml` (X21).
@@ -56,14 +60,14 @@ off until Alex sets it before the v2.2.0 tag.
       Caddy, a bare address gets 421, `X-Forwarded-For` from the gateway reaches the app as the client (the
       nickname form) and the gateway alone doesn't, every app is read-only as 10001 under the seccomp profile with
       no published port, and a witness recreated behind the Caddy loses no request. The stack test found F-24 (a
-      HEAD sent the GET's body). Left: the job green on CI.
-- [ ] **4. proxy-config** (§20.1, X26): a CI job: `caddy validate` on `deploy/Caddyfile` and every Caddyfile snippet in
+      HEAD sent the GET's body). Green on CI run 40772472633 on `681c283` (`The apollo stack (compose)`).
+- [x] **4. proxy-config** (§20.1, X26): a CI job: `caddy validate` on `deploy/Caddyfile` and every Caddyfile snippet in
       the docs; `nginx -t` on §20.4's Advanced snippet inside NPM's template (`tests/proxy/npm.conf`); curl assertions
       for every redirect alias, bare and deep (D25), and the 301 from `htmx-odin-starter`; the `8120:80` publish and
       the catch-all's 421 (X23). *Check:* the job is green and fails on a broken alias.
       Progress: `deploy/proxy-config-test.sh` and the `proxy-config` job; in WSL it validates the Caddyfile and the
       docs' 3 snippets, `nginx -t` passes, the 8 aliases, the 301 and the 421 answer as written, and a broken alias
-      fails it. Left: the job green on CI.
+      fails it. Green on CI run 40772472633 on `681c283`.
 - [x] **5. `deploy/promote.ps1`** (§20.5, D42): `-Target apollo-lan|apollo -Tag vX.Y.Z [-Service …]`: stage
       `compose.yaml`, the Caddyfile, `.env` and the seccomp file over the SSH alias; `docker compose pull`; the
       pre-deploy snapshot (`--backup`, keep 5) where a service has a volume; `up -d --no-deps` one service at a time,
@@ -76,27 +80,32 @@ off until Alex sets it before the v2.2.0 tag.
       (another profile's image, so its `x-version` is wrong) failed its smoke and went back to the previous tag by
       itself, exit 1; `-Status` printed the inventory. The site values are in the git-ignored
       `deploy/promote.local.psd1`. Its first run against apollo is slice 9's, with Alex's go.
-- [ ] **6. `landing`** (§15.5): the lab's `/`, the catalog explorer from `docs/catalog.json` (features,
+- [x] **6. `landing`** (§15.5): the lab's `/`, the catalog explorer from `docs/catalog.json` (features,
       implementations, dependencies, sizes, SQLite needs), the init-command builder (the `odin run tools/init -- …`
       line and its `--explain`; cut-list item 11) and links to every witness. *Check:* e2e (3 engines) and a k6
       scenario; route coverage; `tools/check` all.
       Progress: `features/landing` (the catalog parsed at boot, `plan` mirroring the generator's rules, the page
       rendered once, `GET /landing/command`) mounted at the lab's `/`, the lab index at `/lab`; `landing.spec`
       (chromium, webkit, api) and `scenarios/landing` (20 VUs, 0 % failed); `tools/check all` and `odin test
-      tools/init` pass; the catalog lists it. Left: route coverage and Firefox on CI. A project that selects
+      tools/init` pass; the catalog lists it. Route coverage and lab's Firefox e2e green on CI run 40772472633. A project that selects
       `landing` would lose its catalog to `new_project`, which deletes `docs/catalog.json`: keep it then.
-- [ ] **7. The witness board** (§15.4, D36): `status` in `cmd/lab` with `STATUS_PROBES` externals, each witness's
+- [x] **7. The witness board** (§15.4, D36): `status` in `cmd/lab` with `STATUS_PROBES` externals, each witness's
       `/healthz` and `x-version` over `platform/stream/client`, 2 s timeout each, its part swapping in as it answers.
       *Check:* e2e with one probe answering slowly and one down; k6; the board's parts arrive in answer order.
       Progress: `status` gained `STATUS_PROBES`, probed by its own thread every 10 s (the board shows the last
       answers, so it never waits on a probe: the answer-order check is M5's, for probes it runs per request); the lab
       mounts it, its nav names it, and the stack's lab probes the other three. `status.spec` (lab and streams) has a
       live witness ok with its version and a closed port down; the stack test sees all three witnesses up with their
-      versions. k6's status scenario runs on lab too. Left: green on CI.
-- [ ] **8. M2's carry-overs** (owner M3): the audit's M2-18, M2-21, M2-31's socket part, M2-33, M2-35, M2-36 (each
+      versions. k6's status scenario runs on lab too. Green on CI run 40772472633 on `681c283`.
+- [x] **8. M2's carry-overs** (owner M3): the audit's M2-18, M2-21, M2-31's socket part, M2-33, M2-35, M2-36 (each
       below); `mixed@file` on Linux; `scale`'s budget re-measured and tightened (Left over); `tools/init`'s
       `new_project` removing `deploy/compose.yaml` and `deploy/promote.ps1` (Left over); lab's Firefox `page.goto`
       stalls (below). *Check:* each finding's test fails without its fix; `docs/audit/M2.md` resolution updated.
+      Done: M2-18 (`panel.spec`), M2-21 (`body_test`'s `post_stream_gives_its_arena_back`), M2-31's socket part and
+      M2-35 (`chat.spec`'s `a poll from before…` and the two `a reconnect past what the room let go` tests), M2-33 and
+      M2-36 (`stream_test`, `chat.spec`'s brackets): each test fails with its fix taken out and passes with it, and
+      `docs/audit/M2.md` closes every finding. `mixed@file`: no cost (below). `scale`'s budget, `new_project`'s M3
+      files and the Firefox stalls: done earlier in M3.
 - [ ] **9. Stage 1a, apollo LAN direct** (§20.3). First, **Alex's steps** (§20.7): create
       `<APOLLO_DATA_DIR>/odin-htmx-starter` with sudo; the seven DNS-only `A` records pointing at `<APOLLO_LAN_IP>`
       (`houston`, `houston-lab`, `odin-htmx-starter`, `htmx-odin-starter`, `starter-minimal`, `starter-streams`,
@@ -342,7 +351,7 @@ start. Every exit re-runs the skeleton parity gate (§18.2); released as v2.1.0 
       TSan gate (0 reports), the 1 h soak (PASS, back 2000 of 2000 in 1.5 s) and every profile's drills and e2e on
       both OSes; 2.1.0's summary is in `CHANGELOG.md`. Pushed (Alex's go, 2026-10-27); tagged
       v2.1.0 once CI was green (Alex: "Tag it", 2026-10-28).
-- [ ] **M2's open audit findings** (`docs/audit/M2.md`, owner M3): M2-18, a topic has no `.Lan_Only`, so an Admin by
+- [x] **M2's open audit findings** (`docs/audit/M2.md`, owner M3): M2-18, a topic has no `.Lan_Only`, so an Admin by
       `ACCOUNTS_NICK_ADMIN_CIDRS` outside `LAN_CIDRS` gets ops' panel stream but not its page (fixed in M3:
       `hub.Topic.lan_only`); M2-21, a POST stream keeps its request
       arena until it ends (fixed in M3: `_body_returned` gives it back where the body's callback returns);
@@ -354,11 +363,15 @@ start. Every exit re-runs the skeleton parity gate (§18.2); released as v2.1.0 
       room let go (`changed` reports whether it reached the version; SSE's pane gets a tag); M2-36, a message past the
       socket's bracket bound is refused after the composer cleared it. M3: M2-33 and M2-36 fixed (`stream.ws_field`
       reads hx-ws's field by hand; core:encoding/json is gone from the socket path). M2-35's poll part fixed in M3
-      (`changed` reports whether it reached the tag); SSE's resync and M2-31's socket part stay open: replacing the log
-      there needs the page's newest id to tell a gap from a restart (after which it must keep what it had, D37). Owner
-      M6 (chat on SQLite, with its cursors).
-- [ ] **`mixed@file` on Linux** (`docs/perf/PARITY.md`, owner M3): M2's candidate read 0.95 of M1's in an A/B
+      (`changed` reports whether it reached the tag). SSE's resync and M2-31's socket part fixed later in M3: the page's
+      version (`#ver-<room>`, kept current by every fragment) goes back on a reconnect (a socket's first frame; SSE's
+      resync by `hx-include`), so a gap replaces the log and a restart keeps it (D37); `chat.spec`'s two `a reconnect
+      past what the room let go` tests fail without it. M2-21's own test: the fork's `post_stream_gives_its_arena_back`.
+      Every M2 finding is closed.
+- [x] **`mixed@file` on Linux** (`docs/perf/PARITY.md`, owner M3): M2's candidate read 0.95 of M1's in an A/B
       (rounds 0.93–1.05); A/B it with and without a handler's single read transaction before M3's gate.
+      Done (2026-10-29, n = 5 through `parity.sh`'s measurement): with the transaction it reads 1.03 of without on
+      `mixed@file` (0.95–1.06) and 1.01 on `api@file`, the control. No cost; nothing to change.
 - [ ] **A WebKit flake to watch**: `ops: the panel refreshes every second` failed once by multipart and once by poll,
       each passing its retry, on WebKit in Playwright's image on four pinned cores: the page logged its `#live`
       stream's `/events?…&after=…` fetch as failing "due to access control checks" (WebKit's wording for a fetch that

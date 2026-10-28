@@ -22,7 +22,10 @@ v1.1.1 (ad98023), built by `tools/baseline` · **Raw rows:** `perf/results/v2.0.
   max) dipped further. An A/B of the two candidates, M1's binary against M2's on n = 5 at 3–9 % background, put
   `api@mem` at 1.00, `api@file` 1.00, `mixed@mem` 1.01 and `mixed@file` 0.95 (rounds 0.93–1.05): the `api` dip was
   the box, and `mixed@file` may carry a few per cent of M2's one change on its path (a handler's reads in one read
-  transaction), which `TODO.md` keeps to A/B before M3's gate.
+  transaction), which `TODO.md` keeps to A/B before M3's gate. *M3's A/B (2026-10-29, Linux, n = 5, file DB, at
+  9–20 % background):* the skeleton at `681c283` against the same build with the handler's read transaction taken out
+  read `mixed@file` at a median of 1.03 (rounds 0.95–1.06) and `api@file`, the control, at 1.01 (1.00–1.05): the read
+  transaction costs nothing measurable, and M2's 0.95 was the box.
 - **Exceptions in force** (`tests/parity-waivers.txt`), unchanged from M1: `pages@mem` and `list@mem` gate against
   HEAD on both legs and `write@mem` on Linux (Q6); Linux `write@mem` passes at a median of 0.93 of HEAD (ANSWERS round
   6). No file-DB cell is waived.

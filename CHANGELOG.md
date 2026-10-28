@@ -10,6 +10,10 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ### Fixed
 
+- **The release image builds on arm64**: the Dockerfile's build stage declared `ARG TARGETARCH=amd64`, and that
+  default won over BuildKit's value, so an arm64 build fetched amd64's Odin (its checksum matched, being amd64's) and
+  `prepare` failed with "Exec format error"; the release workflow's first dry run caught it. The ARG is declared bare
+  now, and the build falls back to amd64 only when no builder sets it.
 - **Firefox e2e no longer stalls on a page load now and then**: Playwright's Firefox driver sometimes lost a page's
   first navigation across the browsing-context-group swap our `Cross-Origin-Opener-Policy: same-origin` causes, so
   `page.goto` timed out on a page that had loaded. The test browser turns COOP's enforcement off
@@ -17,9 +21,17 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 - **A chat poll from before what the room let go replaces the log** (M2-35): the store's `changed` says whether it
   still reached the poll's version, and when it didn't the answer is the room's snapshot with `innerHTML`; an upsert
   had kept what the page had with a silent gap before the newest.
+- **A chat socket's reconnect and SSE's resync replace the log across a gap, and keep it across a restart** (M2-31's
+  socket part, M2-35's SSE part): a room page now holds the newest room version it has seen (`#ver-<room>`, which
+  every message fragment keeps current), and a reconnect sends it back: a socket's first frame (`{"ver": …}`, sent
+  from the field's form on hx-ws's `after:connection`), SSE's resync by `hx-include` (`/since?ver=`, read before
+  `HX-PTag`, which hx-ptag leaves at the pane's last resync). The answer is what changed since, or the last 50 with
+  `innerHTML` when the room let some of it go. A version from before a restart is reached, so the page keeps what it
+  had (D37). A socket no longer gets the last 50 on every connect, only what its page hasn't seen.
 - **A POST stream gives its request arena back** (M2-21, the fork's F-17): a handler called from a body's
   callback (the bot's asks, `POST /lab/sse/tick`) began its stream after the headers' path had looked, so it kept up
-  to 64 KiB of form until the stream ended; `body` now gives the arena back where that callback returns.
+  to 64 KiB of form until the stream ended; `body` now gives the arena back where that callback returns
+  (`body_test`'s `post_stream_gives_its_arena_back`).
 - **Ops' panel stream is LAN-only, like its page** (M2-18): a hub topic can be `lan_only`, which `/events` refuses
   (403) to a client outside `LAN_CIDRS`; before, an admin by `ACCOUNTS_NICK_ADMIN_CIDRS` off the LAN got the 1 Hz
   panel on `/events?t=ops.panel` while the page answered 404.
