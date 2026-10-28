@@ -5,6 +5,7 @@ import "base:runtime"
 import "core:bufio"
 import "core:bytes"
 import "core:c/libc"
+import "core:container/queue"
 import "core:fmt"
 import "core:log"
 import "core:mem"
@@ -322,7 +323,7 @@ _server_thread_init :: proc(s: ^Server, ttd: ^Server_Thread) {
 		if td.state == .Closed { break }
 		if td.state == .Cleaning { continue }
 
-		err := nbio.tick()
+		err := _server_tick()
 		if err != nil {
 			log.errorf("non-blocking io tick error: %v", err)
 			break
@@ -335,6 +336,15 @@ _server_thread_init :: proc(s: ^Server, ttd: ^Server_Thread) {
 		runtime.default_temp_allocator_destroy(auto_cast context.temp_allocator.data)
 	}
 	sync.wait_group_done(&s.threads_closed)
+}
+
+// F-23: one turn of a serving loop. core:nbio's Linux tick runs the callbacks queued before it
+// began, then waits on the kernel even when they queued more (a next_tick, a 0 ms timeout), so
+// that work waited for some unrelated event, on a quiet loop the next 1 s timer. Its Windows and
+// posix ticks don't wait while work is queued, and neither does this one.
+_server_tick :: proc() -> nbio.General_Error {
+	l := nbio.current_thread_event_loop()
+	return nbio.tick(0 if queue.len(l.completed) > 0 else nbio.NO_TIMEOUT)
 }
 
 

@@ -388,6 +388,13 @@ live topics as defaulted parameters, so existing calls stand.
   poll's answer on both tries. The slot is now `hx-preserve` (a tombstone's isn't, so a deleted message drops its
   menu), and a saved edit closes its form with its answer's empty main swap. `chat.spec` edits a message from a
   second tab while the first has its form open, on every transport.
+- **Linux: work a loop queues for itself no longer waits for an unrelated event** (the fork's F-23). core:nbio's
+  Linux tick ran the callbacks queued before it began and then waited on the kernel with no timeout, even when they
+  had queued more (a next_tick, a 0 ms timeout): that work ran only after the loop's next unrelated event, on a quiet
+  loop the next 1 s timer. The bot's mock at `BOT_DELAY_MS=0` took about 460 ms a word, which failed CI's first k6
+  coverage run; Stop on its generation's own loop, the hub's delivery to the publisher's own loop and a stream's
+  first buffered bytes took the same path. The serving loop now ticks with 0 while work is queued, as nbio's
+  Windows and posix ticks already do; `queued_work_runs_without_waiting` took 4.9 s on Linux before, 1 ms after.
 
 ## [2.0.0] - 2026-10-26
 
