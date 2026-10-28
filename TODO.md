@@ -770,7 +770,7 @@ The patterns + harness a fork inherits. (Was "Now / next"; the initiative below 
 What the fixes for #13–#44 didn't finish, by area. Each names its issue where one exists. The last open issues
 (#12, #14, #23, #29, #35, #40, #42, #43, #44) were swept against v2.1.0 and closed on 2026-10-28, each with a note;
 what still applies lives here.
-- [ ] **`scale`'s budget predates store v3** (#14). `load-tests/scenarios/contacts/scale.js` still allows p95
+- [x] **`scale`'s budget predates store v3** (#14). Done in M3: 70/97 ms on the dev PC, 198/300 ms on CI, bound 1 s / 2 s. `load-tests/scenarios/contacts/scale.js` still allows p95
       3 s / p99 6 s and says every request queues on one exclusive lock; reads have had a connection per loop
       since M1. Re-measure at 20 VUs over 20k rows, tighten `SCALE_P95`/`SCALE_P99`, fix the comment. (Search's
       `contains_ci` scan and the dashboard's `GROUP BY` stay: PLAN §11.8.)

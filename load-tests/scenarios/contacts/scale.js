@@ -16,14 +16,14 @@ import { options as build, summarize } from '../../lib/options.js';
 // the same range; when every request loaded the whole table into Odin they grew
 // about a hundredfold (#14).
 //
-// Its latency budget is its own, not the suite's 50 ms: at 20k rows every request
-// still queues on the store's one exclusive lock, so p95 sits near a second under
-// 20 VUs either way (the per-request win shows with one client). The loose bound
-// catches a collapse (timeouts, a scan per keystroke again) and keeps
-// `run.sh --strict` usable. Tighten it once reads get their own connections
-// (TODO.md).
-const P95 = __ENV.SCALE_P95 || '3000';
-const P99 = __ENV.SCALE_P99 || '6000';
+// Its latency budget is its own, not the suite's 50 ms: a search that matches nothing still
+// examines every row. Since store v3 each loop reads through its own connection, and at 20 VUs
+// over 20k rows p95/p99 measured 70/97 ms on the dev PC and 198/300 ms on CI's 4-vCPU runner
+// (2026-10-28; it was 3 s / 6 s while every request queued on one lock). The bound is about
+// five times CI's: it catches a collapse (timeouts, a scan per keystroke again) and keeps
+// `run.sh --strict` usable on a shared runner.
+const P95 = __ENV.SCALE_P95 || '1000';
+const P99 = __ENV.SCALE_P99 || '2000';
 export const options = Object.assign(
   build({ 'http_req_duration{phase:load}': [`p(95)<${P95}`, `p(99)<${P99}`] }),
   { setupTimeout: '300s' },

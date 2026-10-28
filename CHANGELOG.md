@@ -61,6 +61,8 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ### Changed
 
+- **`scale`'s budget is store v3's** (#14): p95 < 1 s and p99 < 2 s at 20 VUs over 20k contacts, about five times what
+  CI's runner measures (198/300 ms; 70/97 ms on the dev PC), down from 3 s / 6 s set when every request queued on one lock.
 - **Fly deploys on a tag**: the dormant Fly job moved from `ci.yml` to `release.yml` as `deploy-fly`, so with
   `FLY_DEPLOY` on a release redeploys the skeleton witness, never a push to `master` (PLAN §20.3, X2).
 - **The image is the release image** (M3, PLAN §20.2): the binary at `/app/bin` on distroless
