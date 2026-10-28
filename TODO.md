@@ -465,9 +465,10 @@ the starter docs. Next up is **1.x** (below), headlined by auth.
       reinvents login/sessions/CSRF and it's easy to get wrong. A minimal, in-philosophy
       session-cookie pattern (login page, a protected-route guard, a CSRF token on POST/DELETE),
       held to the "few dependencies" line. Also closes the current CSRF gap on the mutating surface.
-- [ ] **Per-thread WAL connections** — already **load-justified** (reads scale ~3–4× not ~5× under
+- [x] **Per-thread WAL connections** — already **load-justified** (reads scale ~3–4× not ~5× under
       the v1 single shared connection; the `detail` JOIN worst at 1.9×). Ship the right concurrency
-      default and re-measure in `load-tests/RESULTS.md`.
+      default and re-measure in `load-tests/RESULTS.md`. Done by store v3 in M1 (722cd3e): a read-only
+      connection per loop and one writer task (D16), measured in `docs/perf/PARITY.md`.
 - [ ] **A second entity as a worked "add your own resource" example** (e.g. teams/companies a
       contact belongs to) — doubles as the multi-resource nav pattern *and* the literal tutorial for
       extending the skeleton. App / e2e / load at par, as always.
@@ -588,7 +589,7 @@ The patterns + harness a fork inherits. (Was "Now / next"; the initiative below 
         cascade test; **42 e2e**) + load (`detail.js` now exercises the JOIN). Load re-measured:
         reads scale ~3–4× under the single-connection exclusive lock (`detail` JOIN worst at 1.9×) —
         see `load-tests/RESULTS.md`.
-  - [ ] **Per-thread WAL connections** — moved to the **1.x roadmap** above (load-justified).
+  - [x] **Per-thread WAL connections** — moved to the **1.x roadmap** above (load-justified); done by store v3.
 - [~] **Set up infrastructure** per [`infra/PLAN.md`](infra/PLAN.md). Code + config landed;
       what's left are operator actions on Fly/GitHub/Cloudflare (no repo changes).
   - [x] Prereq code change: `app/main.odin` reads `PORT` and binds `0.0.0.0` on `BIND_ALL`
@@ -660,33 +661,43 @@ The patterns + harness a fork inherits. (Was "Now / next"; the initiative below 
       meanwhile.)
 
 ### Left over from the 2026-10-07 review (tracker #12)
-What the fixes for #13–#44 didn't finish, by area. Each names its issue where one exists.
-- [ ] **Reads under load** (#14). Lists and counts are in SQL now, but search still scans every
-      row (FTS5 if that matters) and every op still takes the one global exclusive lock, so at 20k
-      rows and 20 VUs p95 only drops 1.7 s → 1.2 s. Per-thread WAL read connections is the fix (the
-      1.x item above). The dashboard's `GROUP BY` is O(n), about 6–10 ms at 20k rows.
-- [ ] **`--minimal` still carries demo weight** (#29). `CLAUDE.md`, `app/README.md`,
-      `docs/USE_CASES.md`, `e2e/PLAN.md`, `load-tests/RESULTS.md`, `load-tests/lib/config.js`'s
-      `TERMS`, and the full `app.css`/`app.js` theme library (≈134 of 190 classes unused by the
-      starter) all describe or serve the demo.
-- [ ] **Load parity is checked, not enforced** (#40). `load-tests/parity.sh` reports the routes
-      with no load scenario (about 14 of 26 in the demo) but isn't in CI. Wire it in once the gaps
-      are closed, and consider `run.sh --quick --strict` in the minimal job.
+What the fixes for #13–#44 didn't finish, by area. Each names its issue where one exists. The last open issues
+(#12, #14, #23, #29, #35, #40, #42, #43, #44) were swept against v2.1.0 and closed on 2026-10-28, each with a note;
+what still applies lives here.
+- [ ] **`scale`'s budget predates store v3** (#14). `load-tests/scenarios/contacts/scale.js` still allows p95
+      3 s / p99 6 s and says every request queues on one exclusive lock; reads have had a connection per loop
+      since M1. Re-measure at 20 VUs over 20k rows, tighten `SCALE_P95`/`SCALE_P99`, fix the comment. (Search's
+      `contains_ci` scan and the dashboard's `GROUP BY` stay: PLAN §11.8.)
+- [ ] **`minimal` still carries the skeleton's CSS and JS** (#29). The lite bundle is about 45 KB against the
+      skeleton's 72 KB, but `app/platform/static/app.css` still holds the skeleton's component styles (about 110
+      of 187 classes unused by `minimal`, by a rough grep), and minimal's `app.js` is the skeleton's file.
 - [ ] **Test-suite gaps** (#42): order-dependent "first row" tests; the toast
       test races a 3.6 s timer; occasional Firefox-only flakes in `search.spec` and the
       `components.spec` drawer under local parallel load. The concurrent-cycle test documents the
       single-UPDATE contract but doesn't reproduce the old race.
 - [ ] **Supply chain** (#44): pin `debian:trixie-slim`, the Playwright image and the actions by
-      digest; add Dependabot or Renovate; turn on branch protection with required checks (today
-      nothing is required, so GitHub auto-merge would merge immediately).
-- [ ] **CI cost** (#43): document the per-run minutes for private forks in the README.
-- [ ] **Ops polish**: origin gzip (#23); request ids in the access log (#20); optionally run e2e
-      against the `-o:speed` binary (#37); a CSS watch loop for local dev (#35).
+      digest (the proxy and Autobahn images and the flyctl action already are); add Dependabot or Renovate.
+      Required checks: the only ruleset requires linear history and auto-merge is off, so nothing merges early
+      today; a required-checks rule would also block the direct pushes to `master` this repo takes, so decide
+      it together with how pushes land.
+- [ ] **CI cost** (#43): document the per-run minutes for private forks in the README. The green master run
+      40648389468 was 45 jobs, about 82 job-minutes and 13 minutes of wall time (about 159 billed if private).
+- [ ] **CI apt time** (#43): `setup-odin` apt-installs clang, binutils, unzip and brotli in every Linux job,
+      15–79 s each in run 40648389468 with Odin cached. Cache the packages or bake them into an image; settle
+      it with the `noble` move (Backlog).
+- [ ] **Dev loop**: optionally run e2e against the `-o:speed` binary (#37); a watch loop for local dev (#35),
+      now slower since a CSS or JS edit needs `prepare` and a build. PLAN §2.5 names `tools/watch`, but no
+      milestone builds it. (Origin gzip, #23, is superseded: assets are precompressed and HTML compression is
+      the proxy's, PLAN §20.4, D41; request ids, #20, are in the access log.)
 - [ ] **Auth will need**: a session CSRF token and `SameSite=Lax` cookies on top of today's
       `Sec-Fetch-Site`/`Origin` guard (#18).
-- [ ] **`init --minimal` and the planning docs**: since the starter's plan lives in `docs/` (`PLAN.md`, `BRIEF.md`,
-      `README.md`, `design/`, `spikes/`), a minimal fork inherits it, and init's report lists those files as
-      still naming the upstream. The generator (M2) strips them; until then the `minimal` CI job passes regardless.
+- [ ] **A new project inherits the template's docs** (#29). Compose-mode init keeps `CLAUDE.md`, `app/README.md`,
+      `docs/` (PLAN, BRIEF, USE_CASES, design, spikes, perf, audit), `e2e/PLAN.md`, `load-tests/RESULTS.md` and
+      `lib/config.js`'s `TERMS`; it drops only `docs/catalog.json` (`tools/init/project.odin:49`), and PLAN §7.4
+      has no step for them. Decide per file: delete, a starter stub, or keep.
+- [ ] **init and M3's apollo files** (#44): when M3 adds `deploy/compose.yaml` and `deploy/promote.ps1`, add them
+      to what `new_project` removes beside `deploy/Caddyfile` (`tools/init/project.odin:47-49`), so a project
+      doesn't inherit the starter's own hosting again.
 - [ ] **Upstream (odin-http)**: its shared `Date`-header buffer is rewritten every second while
       other threads read it. k6 saw 2 malformed `Date:` headers with NUL bytes in about 800k
       requests. Fixed in the vendored fork (F-11, `app/vendor/odin-http/UPSTREAM.md`); still to
