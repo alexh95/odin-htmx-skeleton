@@ -8,7 +8,9 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
-The starter's second milestone, M2, meant to ship as **2.1.0**: the stream substrate. `platform/stream` speaks SSE,
+## [2.1.0] - 2026-10-28
+
+The starter's second milestone, M2: the stream substrate. `platform/stream` speaks SSE,
 WebSocket and multipart on the fork's streams (F-1, with M2's F-17 to F-22), under admission caps, heartbeats and a
 slow-consumer cut; `platform/hub` fans events out to one `#live` stream per page, with cursors that resume or resync.
 Two profiles witness it: `lab`, the stream contract pages, and `streams`, with chat on four transports, the Inbox,
@@ -1823,7 +1825,8 @@ pre-1.0; **1.0.0 marks the point it became clone-and-go.**
   - Hand-written, token-driven CSS with a dark/light theme toggle and snappy animations.
   - Cross-platform `prepare`/`run` scripts (Windows / Linux / macOS).
 
-[Unreleased]: https://github.com/alexh95/odin-htmx-starter/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/alexh95/odin-htmx-starter/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/alexh95/odin-htmx-starter/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/alexh95/odin-htmx-starter/compare/v1.2.1...v2.0.0
 [1.2.1]: https://github.com/alexh95/odin-htmx-starter/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/alexh95/odin-htmx-starter/compare/v1.1.1...v1.2.0

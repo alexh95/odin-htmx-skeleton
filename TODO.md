@@ -22,7 +22,8 @@ The starter's second milestone ([`docs/PLAN.md`](docs/PLAN.md) §22.3, M2's row;
 client stack, §14.1–14.3 chat, notify and bot, §15.4–15.5 ops, status and the lab pages, §7.4 the generator, §19.1
 the tests). Slices in order, each done only when its check passes; a later slice builds only on earlier ones (§22.4).
 The S0.3 prototype (`docs/spikes/S0.3/server/`) and its specs (`e2e/spikes/S0.3/`) are where slices 1, 2 and 5
-start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only when Alex says so; `FLY_DEPLOY` stays off.
+start. Every exit re-runs the skeleton parity gate (§18.2); released as v2.1.0 on 2026-10-28 at Alex's go;
+`FLY_DEPLOY` stays off.
 
 - [x] **1. Stream protocols** (`platform/stream`, L3, over F-1 through `platform/web`, which stays the one importer of
       odin-http): the SSE encoder (CR, LF and CRLF each start a `data:` line; ids, named events; `: open` with the
@@ -201,7 +202,7 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       --profile lab`, `--store sqlite --profile lab`, a client swap that verify refused (lab's test pins hyperscript).
       The rename-only path, broken since M1 (a token the README no longer held), runs again. All nine singletons
       made and verified on Windows (`init ci-<f> --features <f> --yes`). Left: the CI job's first run (a push).
-- [ ] **16. CI**: `streams` (chromium, webkit) and `lab` (all three, Firefox included) e2e; `e2e-proxy` ({streams,
+- [x] **16. CI**: `streams` (chromium, webkit) and `lab` (all three, Firefox included) e2e; `e2e-proxy` ({streams,
       lab} × chromium through `deploy/Caddyfile` and through nginx with the config apollo's NPM version generates;
       X26, X40); nightly Autobahn|Testsuite against the lab's WS echo (X24), TSan and soak; `pins` with hyperscript.
       *Check:* every job green on a pushed commit. Progress: lab in every per-profile job, three engines in e2e; the
@@ -216,12 +217,12 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       20 and streams' suite 84 of 84 on WebKit. The second run (`4b5d49b`): 42 green, and streams' WebKit lost chat
       over poll's edit form to the poll's re-render on both tries (fixed since: the slot is `hx-preserve`). The third
       (`c8e4007`): every e2e job green, and `coverage` ran its k6 quick runs for the first time: every scenario 0 %
-      failed, but the bot's p95 was 10 s on Linux, core:nbio's tick stall (fixed since: the fork's F-23). Left: a
-      green run.
+      failed, but the bot's p95 was 10 s on Linux, core:nbio's tick stall (fixed since: the fork's F-23). The
+      fourth (`118fc82`, run 40648389468): every job green, `coverage` included.
 - [ ] **Ask Alex**: X40 says `e2e-proxy` pins apollo's NPM version, which `docs/private/SITE.md` keeps private. The job
       pins the config that version renders instead (`tests/proxy/npm.conf`); naming the image tag in CI would publish
       it. Confirm, or say the version may be public.
-- [ ] **17. Exit**: the parity gate on both legs; the budgets (bundle sizes, idle, no SQLite in `minimal`, `streams`
+- [x] **17. Exit**: the parity gate on both legs; the budgets (bundle sizes, idle, no SQLite in `minimal`, `streams`
       and `lab`); `docs/audit/M2.md` by an agent that didn't write the code, 0 open CRITICAL/HIGH (M1-04 and M1-26
       are due here); `Audited:` stamps; CHANGELOG's 2.1.0 entry; then ask Alex about tagging v2.1.0.
       Progress: the audit at `db27254` (0 CRITICAL, 2 HIGH, 9 MEDIUM, 5 LOW, 5 NIT; M1-04 and M1-26 borne out) is
@@ -231,8 +232,8 @@ start. Every exit re-runs the skeleton parity gate (§18.2); tag v2.1.0 only whe
       a third at `5395ae0` read them sound (no CRITICAL or HIGH open), and the stamps are on. The parity gate passes
       on both legs at `40f8716`, 20 of 20 cells each counting §18.2's n = 5 re-runs (`docs/perf/PARITY.md`), after the
       TSan gate (0 reports), the 1 h soak (PASS, back 2000 of 2000 in 1.5 s) and every profile's drills and e2e on
-      both OSes; 2.1.0's summary is in `CHANGELOG.md`. Pushed (Alex's go, 2026-10-27). Left: slice 16's green run,
-      and Alex's go to tag v2.1.0.
+      both OSes; 2.1.0's summary is in `CHANGELOG.md`. Pushed (Alex's go, 2026-10-27); tagged
+      v2.1.0 once CI was green (Alex: "Tag it", 2026-10-28).
 - [ ] **M2's open audit findings** (`docs/audit/M2.md`, owner M3): M2-18, a topic has no `.Lan_Only`, so an Admin by
       `ACCOUNTS_NICK_ADMIN_CIDRS` outside `LAN_CIDRS` gets ops' panel stream but not its page (give `hub.Topic` the
       flag, or have boot refuse such CIDRs; no exposure at the empty default); M2-21, a POST stream keeps its request
