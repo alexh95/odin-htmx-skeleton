@@ -40,6 +40,9 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   catalog (`docs/catalog.json`, embedded at build time) as a table of profiles and one of features, and the
   init-command builder, whose fragment (`GET /landing/command`) is the `odin run tools/init -- …` line with what it
   pulls in, or why the generator would refuse it. The lab's index moved to `/lab`; e2e and k6 cover both routes.
+- **The witness board** (M3, PLAN §15.4): `status` takes `STATUS_PROBES` (`name=host:port,…`), each probed at
+  `/healthz` every 10 s by a thread of its own with a 2 s timeout, and shows each one's state, version and time on
+  `/status`. The lab mounts it; on apollo it watches the other three witnesses.
 - **`deploy/promote.ps1`** (M3, PLAN §20.5, D42): promotes a release's images to apollo's stack from the dev PC,
   one service at a time: stage the compose file, Caddyfile and seccomp profile, pull, snapshot a service with a
   database, `up -d --no-deps` with no Caddy reload, smoke through the Caddy (`/readyz`, `x-version`, an SSE first

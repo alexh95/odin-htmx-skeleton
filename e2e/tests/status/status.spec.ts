@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures';
+import { startServer, stopServer } from '../../helpers/server';
 
 // /status (PLAN §15.4): a card per probe, filled by one multipart/parallel response or, with
 // ?mode=poll, every 30 s (304 while no state changed). What a probe says beyond its state is
@@ -30,5 +31,27 @@ test.describe('status', T, () => {
     expect(tag).toMatch(/^\d+$/);
     const again = await request.get('/status/board', { headers: { 'HX-PTag': tag } });
     expect(again.status()).toBe(304);
+  });
+
+  // The witness board (M3): STATUS_PROBES' externals, each its own card, whose state and the
+  // version it answers are anyone's to see. One witness runs; the other's port is closed.
+  test('external probes: a live witness is ok with its version, a gone one down', async ({ browser }) => {
+    const live = await startServer(test.info().config);
+    const s = await startServer(test.info().config, { STATUS_PROBES: `alive=127.0.0.1:${live.port},gone=127.0.0.1:9` });
+    const context = await browser.newContext({ baseURL: `http://127.0.0.1:${s.port}` });
+    const page = await context.newPage();
+    try {
+      // Both answer within a round (a refused connect takes about 2 s on Windows).
+      await expect.poll(async () => {
+        await page.goto('/status');
+        return [await page.locator('#st-alive .status-state').innerText(), await page.locator('#st-gone .status-state').innerText()];
+      }, { timeout: 15000 }).toEqual(['ok', 'down']);
+      await expect(page.locator('#st-alive')).toContainText(/version \S+, \d+ ms/);
+      await expect(page.locator('#st-gone')).toContainText('refused');
+    } finally {
+      await context.close();
+      await stopServer(s);
+      await stopServer(live);
+    }
   });
 });

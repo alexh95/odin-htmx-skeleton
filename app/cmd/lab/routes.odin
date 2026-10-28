@@ -11,6 +11,7 @@ import compat_web "../../features/compat/web"
 import landing_web "../../features/landing/web"
 import lab_web "../../features/lab/web"
 import scripting_web "../../features/scripting/web"
+import status_web "../../features/status/web"
 
 ROUTES := [?]app.Mount {
 	{"platform", web.ROUTES[:]},        // /healthz /livez /readyz /metrics /sitemap.xml …
@@ -22,6 +23,7 @@ ROUTES := [?]app.Mount {
 	{"lab", lab_web.ROUTES[:]},         // /lab/streams and the contract endpoints
 	{"scripting", scripting_web.ROUTES[:]}, // /scripting: the nonce class
 	{"compat", compat_web.ROUTES[:]},   // /compat: htmx-2-compat and hx-alpine-compat
+	{"status", status_web.ROUTES[:]},   // /status: the witness board (STATUS_PROBES)
 	{"about", about_web.ROUTES[:]},     // /about
 }
 

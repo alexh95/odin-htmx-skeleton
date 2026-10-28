@@ -42,7 +42,7 @@ card :: proc(b: ^strings.Builder, p: status.Probe, details, oob: bool) {
 	w(b, `</h2><p class="status-state">`)
 	esc(b, p.state)
 	w(b, `</p>`)
-	if details && p.message != "" {
+	if (details || p.public) && p.message != "" {
 		w(b, `<p class="muted">`)
 		esc(b, p.message)
 		w(b, `</p>`)

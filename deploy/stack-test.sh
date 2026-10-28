@@ -45,6 +45,18 @@ off=$(curl -sS -H 'Host: starter-streams.alexh95.com' http://127.0.0.1:8120/logi
 echo "$lan" | grep -q 'Chat is open on the LAN' && bad "a LAN client behind the proxies isn't seen as on the LAN"
 echo "$off" | grep -q 'Chat is open on the LAN' || bad "the gateway is taken for a LAN client"
 
+# The lab's witness board sees the other three up, each with its version (its first round
+# runs at boot; give it a few seconds).
+for i in $(seq 1 15); do
+	board=$(curl -sS -H 'Host: odin-htmx-starter.alexh95.com' http://127.0.0.1:8120/status/board)
+	[ "$(echo "$board" | grep -cE 'id="st-(minimal|streams|skeleton)" class="card status-card status-ok"')" = 3 ] && break
+	sleep 1
+done
+for w in minimal streams skeleton; do
+	echo "$board" | grep -q "id=\"st-$w\" class=\"card status-card status-ok\"" || bad "the witness board doesn't see $w up"
+done
+echo "$board" | grep -q "version $TAG" || bad "the witness board shows no version"
+
 # Hardened as §20.4 says.
 for s in starter-minimal starter-streams starter-skeleton starter-lab; do
 	id=$(dc ps -q "$s")

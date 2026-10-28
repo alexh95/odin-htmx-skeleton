@@ -104,6 +104,8 @@ services:
     environment:
       <<: *env
       SITE_URL: https://odin-htmx-starter.alexh95.com
+      # The witness board (/status): the other witnesses' /healthz, by their names on the stack network.
+      STATUS_PROBES: minimal=starter-minimal:8080,streams=starter-streams:8080,skeleton=starter-skeleton:8080
 
 networks:
   stack:

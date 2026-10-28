@@ -4,7 +4,7 @@ package main
 //
 // The starter's own page, on an origin with no sessions (PLAN §7.1, §15.5): the
 // landing page (the catalog and the init-command builder), the stream contract pages,
-// the nonce class and the compatibility layers; the witness board joins it at M3.
+// the nonce class, the compatibility layers and the witness board (status, M3).
 
 import "../../platform/html"
 import about_web "../../features/about/web"
@@ -27,6 +27,7 @@ NAV := [?]html.Nav_Item {
 	{"/lab/streams", "Streams", "bolt"},
 	{"/scripting", "Scripting", "code"},
 	{"/compat", "Compat", "layers"},
+	{"/status", "Status", "check"},
 	{"/about", "About", "info"},
 }
 

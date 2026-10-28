@@ -88,6 +88,11 @@ off until Alex sets it before the v2.2.0 tag.
 - [ ] **7. The witness board** (§15.4, D36): `status` in `cmd/lab` with `STATUS_PROBES` externals, each witness's
       `/healthz` and `x-version` over `platform/stream/client`, 2 s timeout each, its part swapping in as it answers.
       *Check:* e2e with one probe answering slowly and one down; k6; the board's parts arrive in answer order.
+      Progress: `status` gained `STATUS_PROBES`, probed by its own thread every 10 s (the board shows the last
+      answers, so it never waits on a probe: the answer-order check is M5's, for probes it runs per request); the lab
+      mounts it, its nav names it, and the stack's lab probes the other three. `status.spec` (lab and streams) has a
+      live witness ok with its version and a closed port down; the stack test sees all three witnesses up with their
+      versions. k6's status scenario runs on lab too. Left: green on CI.
 - [ ] **8. M2's carry-overs** (owner M3): the audit's M2-18, M2-21, M2-31's socket part, M2-33, M2-35, M2-36 (each
       below); `mixed@file` on Linux; `scale`'s budget re-measured and tightened (Left over); `tools/init`'s
       `new_project` removing `deploy/compose.yaml` and `deploy/promote.ps1` (Left over); lab's Firefox `page.goto`

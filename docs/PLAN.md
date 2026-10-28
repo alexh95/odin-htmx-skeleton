@@ -3721,6 +3721,10 @@ health as pushed to `platform/obs` (§10.4), or a `STATUS_PROBES` external: llam
 games healthz, disk free, backup age, the witnesses. Each probe has a 2 s timeout and its part swaps in as it answers;
 M5 asserts the parallel order. Details sit behind `Admin_Ops`; a ptag poll every 30 s is the variant. In the lab, the
 same feature is the witness board (M3).
+**As built (M3):** `STATUS_PROBES` (`name=host:port,…`) is probed by a thread of the feature's own every 10 s, each
+`/healthz` with a 2 s socket timeout; the board shows each external's last answer (its state, and its version and
+time, which are anyone's), so the parts don't wait on a probe. The lab mounts `status`; the stack's lab names the
+three other witnesses. Connect and resolve have no timeout of their own, which a stack network doesn't need.
 
 **As built (M2)**, both in `streams`. `ops`: the `ops.sample` job (1 s) reads requests (`obs.requests_total`), streams,
 the hub's counters (`hub.numbers`), the loops' ticks and the resident memory (`sys.rss_bytes`: Linux's
