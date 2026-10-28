@@ -28,3 +28,6 @@ perf/baseline/
 
 # A dirty crash's or a watchdog exit's reason (CRASH_FILE's default).
 last-crash.txt
+
+# promote.ps1's site values (the SSH alias, the stack's directory, the LAN address): never public.
+deploy/promote.local.psd1

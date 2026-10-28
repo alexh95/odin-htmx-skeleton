@@ -4947,6 +4947,11 @@ permission rule for it, as for spark's; agents run it only when Alex asks. Targe
 6. write `deployed.json`;
 7. on failure, re-promote the previous tag automatically; restore the snapshot only after a destructive migration (D16).
 
+**As built (M3):** steps 1–7 as written, with `-Target local` (WSL's Docker, local images) as the script's own
+test: a `broken` tag (another profile's image, so `x-version` is wrong) fails its smoke and the previous tag comes
+back by itself. The smoke runs `curl.exe` from the dev PC with `--connect-to` the stack's address, so it works before
+the split-DNS records exist; the WebSocket check is the upgrade (101). The alias, directory and address are in the
+git-ignored `deploy/promote.local.psd1`. Only `starter-full` (M4) has a database to snapshot.
 Users see the gap as latency, and streams reconnect once (4,000 back within 1.5 s after a 0.2 s gap, 13 §3.4).
 `promote -Status` is a read-only inventory (RAM, disk, kernel, Docker's fd default, NPM version, reachability of
 `<APOLLO_LAN_IP>:8111` for the games API), recorded at M3. Backups (off-box per Q16) are in §11; secrets in §17.

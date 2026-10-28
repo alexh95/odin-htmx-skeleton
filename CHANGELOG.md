@@ -26,6 +26,12 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   port), each trusting `X-Real-IP` from the Caddy alone; `deploy/.env.example` holds a tag per service. CI's
   `stack` job runs `deploy/stack-test.sh`: each host through the Caddy, the 421 catch-all, the trusted chain,
   the hardening and a restart behind the Caddy.
+- **`deploy/promote.ps1`** (M3, PLAN §20.5, D42): promotes a release's images to apollo's stack from the dev PC,
+  one service at a time: stage the compose file, Caddyfile and seccomp profile, pull, snapshot a service with a
+  database, `up -d --no-deps` with no Caddy reload, smoke through the Caddy (`/readyz`, `x-version`, an SSE first
+  line, a WebSocket upgrade), `deployed.json`, and the previous tag again on a failed smoke. `-Status` is a
+  read-only inventory, `-WhatIf` the plan, `-Target local` the same against WSL's Docker. The SSH alias, the
+  directory and the address come from the git-ignored `deploy/promote.local.psd1`.
 - **proxy-config** (CI, M3, PLAN §20.1, X26): `deploy/proxy-config-test.sh` runs `caddy validate` on
   `deploy/Caddyfile` and every Caddyfile snippet in the docs, `nginx -t` on NPM's rendering, and asserts every
   redirect alias bare and deep, the `htmx-odin-starter` 301, the catch-all's 421 and the `8120:80` publish.

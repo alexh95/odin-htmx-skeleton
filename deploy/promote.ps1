@@ -1,0 +1,235 @@
+<#
+.SYNOPSIS
+  Promotes released images to apollo's stack, one service at a time (PLAN §20.5, D42).
+
+.DESCRIPTION
+  Run from the dev PC. GitHub's runners can't reach apollo behind NAT, so the release
+  workflow publishes the images and this script moves the stack to them:
+
+    1. stage compose.yaml, Caddyfile and seccomp-io-uring.json beside the stack's .env (X21);
+    2. docker compose pull the services;
+    3. snapshot any service with a database (--backup, the last 5 kept);
+    4. per service: its tag in .env, `up -d --no-deps`, never a Caddy reload (lb_try_duration
+       holds the gap), healthy within 60 s;
+    5. smoke through the stack Caddy: /readyz, x-version == the tag, an SSE stream's first
+       line and a WebSocket upgrade where the profile has them;
+    6. on a failed smoke, the previous tag again, then the next service is left alone;
+    7. deployed.json beside compose.yaml.
+
+  -Status is a read-only inventory of the host. -WhatIf prints the plan and touches nothing.
+
+  The host's SSH alias, the stack's directory and its LAN address are site values: they live in
+  deploy/promote.local.psd1 (git-ignored), never in this file:
+
+    @{ Ssh = '<APOLLO_SSH_ALIAS>'; Dir = '<APOLLO_DATA_DIR>/odin-htmx-starter'; Address = '<APOLLO_LAN_IP>' }
+
+  `-Target local` runs the same steps against Docker in WSL (~/promote-test, images already
+  built and tagged locally, nothing pulled): the script's own test.
+
+.EXAMPLE
+  ./deploy/promote.ps1 -Target apollo-lan -Tag v2.2.0
+  ./deploy/promote.ps1 -Target apollo-lan -Tag v2.2.1 -Service starter-lab
+  ./deploy/promote.ps1 -Target apollo-lan -Status
+#>
+[CmdletBinding()]
+param(
+	[ValidateSet('apollo-lan', 'apollo', 'local')] [string] $Target = 'apollo-lan',
+	[string] $Tag,
+	[ValidateSet('starter-minimal', 'starter-streams', 'starter-skeleton', 'starter-lab')]
+	[string[]] $Service = @('starter-minimal', 'starter-streams', 'starter-skeleton', 'starter-lab'),
+	[switch] $Status,
+	[switch] $WhatIf,
+	# local only: the prefix of the images built in WSL (local/starter-<profile>:<tag>).
+	[string] $ImagePrefix = 'ghcr.io/alexh95/odin-htmx-starter'
+)
+$ErrorActionPreference = 'Stop'
+$root = Split-Path $PSScriptRoot -Parent
+
+# ---- the services ------------------------------------------------------------------------
+
+# Each service's .env key, its host behind the stack Caddy, and what its smoke opens. Only a
+# service with a database is snapshotted (starter-full, from M4).
+$SERVICES = [ordered]@{
+	'starter-minimal'  = @{ Key = 'TAG_MINIMAL';  Host = 'starter-minimal.alexh95.com';   Sse = $null;           Ws = $null }
+	'starter-streams'  = @{ Key = 'TAG_STREAMS';  Host = 'starter-streams.alexh95.com';   Sse = '/events';       Ws = $null }
+	'starter-skeleton' = @{ Key = 'TAG_SKELETON'; Host = 'starter-skeleton.alexh95.com';  Sse = $null;           Ws = $null }
+	'starter-lab'      = @{ Key = 'TAG_LAB';      Host = 'odin-htmx-starter.alexh95.com'; Sse = '/lab/sse/tick'; Ws = '/lab/ws/echo' }
+}
+$SNAPSHOT = @() # 'starter-full' joins at M4: its DB is /data/data.db
+$PORT = 8120
+
+# ---- where the stack is ------------------------------------------------------------------
+
+if ($Target -eq 'local') {
+	$site = @{ Ssh = $null; Dir = '~/promote-test'; Address = '127.0.0.1' }
+} else {
+	$cfg = Join-Path $PSScriptRoot 'promote.local.psd1'
+	if (-not (Test-Path $cfg)) { throw "no ${cfg}: it names the SSH alias, the stack's directory and its LAN address (see the help)" }
+	$site = Import-PowerShellDataFile $cfg
+	foreach ($k in 'Ssh', 'Dir', 'Address') { if (-not $site[$k]) { throw "$cfg has no $k" } }
+}
+
+# One bash script on the host: over SSH, or in WSL for -Target local. Its bytes go to bash's
+# stdin as they are: Windows PowerShell's pipe to a native program adds a BOM and CRLFs.
+function Invoke-Host([string] $script) {
+	$bytes = [Text.Encoding]::UTF8.GetBytes("set -eu`n" + ($script -replace "`r", ''))
+	$psi = New-Object Diagnostics.ProcessStartInfo
+	if ($Target -eq 'local') { $psi.FileName = 'wsl.exe'; $psi.Arguments = '-e bash -s' }
+	else { $psi.FileName = 'ssh'; $psi.Arguments = "-o BatchMode=yes $($site.Ssh) bash -s" }
+	$psi.UseShellExecute = $false
+	$psi.RedirectStandardInput = $true; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
+	$p = [Diagnostics.Process]::Start($psi)
+	$p.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length); $p.StandardInput.Close()
+	$err = $p.StandardError.ReadToEndAsync()
+	$out = $p.StandardOutput.ReadToEnd(); $p.WaitForExit()
+	if ($p.ExitCode -ne 0) { throw "the host script failed ($($p.ExitCode)): $out$($err.Result)" }
+	return ($out -replace "`r", '') -split "`n" | Where-Object { $_ -ne '' }
+}
+
+function Quote([string] $s) { "'" + ($s -replace "'", "'\''") + "'" }
+
+$dir = $site.Dir
+$dc = "docker compose --project-directory $dir -f $dir/compose.yaml --env-file $dir/.env"
+
+# ---- -Status: read only ------------------------------------------------------------------
+
+if ($Status) {
+	Invoke-Host @"
+echo "== host";      uname -srm; nproc; free -h | sed -n 1,2p
+echo "== disk";      df -h $dir 2>/dev/null || df -h "`$(dirname $dir)"
+echo "== docker";    docker version --format '{{.Server.Version}}'; systemctl show docker -p LimitNOFILE 2>/dev/null || true
+echo "== npm";       docker ps --format '{{.Image}}' | grep -i 'nginx-proxy-manager' || echo "(no NPM container seen)"
+echo "== games api"; curl -s -o /dev/null -m 3 -w '%{http_code} (000: unreachable)\n' http://$($site.Address):8111/ || true
+echo "== stack";     if [ -f $dir/compose.yaml ]; then $dc ps --format '{{.Service}} {{.Image}} {{.Status}}'; cat $dir/deployed.json 2>/dev/null; else echo "(not deployed)"; fi
+"@
+	return
+}
+
+if (-not $Tag -or $Tag -notmatch '^v\d+\.\d+\.\d+$|^[a-z0-9][a-z0-9._-]*$') { throw "-Tag: a release's vX.Y.Z" }
+
+# ---- 1. stage ---------------------------------------------------------------------------
+
+# The current .env (the previous tags), then the new one with this promote's services moved.
+$prev = @{}
+foreach ($line in @(Invoke-Host "cat $dir/.env 2>/dev/null || true")) {
+	if ($line -match '^([A-Z_]+)=(.*)$') { $prev[$Matches[1]] = $Matches[2] }
+}
+$prefix = if ($Target -eq 'local') { $ImagePrefix } elseif ($prev['IMAGE_PREFIX']) { $prev['IMAGE_PREFIX'] } else { 'ghcr.io/alexh95/odin-htmx-starter' }
+
+function EnvText([hashtable] $tags) {
+	$lines = @("IMAGE_PREFIX=$prefix")
+	foreach ($s in $SERVICES.Keys) { $k = $SERVICES[$s].Key; $lines += "$k=$($tags[$k])" }
+	($lines -join "`n") + "`n"
+}
+$next = @{}
+foreach ($s in $SERVICES.Keys) {
+	$k = $SERVICES[$s].Key
+	$next[$k] = if ($Service -contains $s) { $Tag } elseif ($prev[$k]) { $prev[$k] } else { $Tag }
+}
+
+Write-Host "promote $Tag -> $Target ($($Service -join ', ')) in $dir"
+foreach ($s in $Service) { $k = $SERVICES[$s].Key; Write-Host ("  {0,-17} {1} -> {2}" -f $s, ($(if ($prev[$k]) { $prev[$k] } else { '(new)' })), $Tag) }
+if ($WhatIf) { Write-Host "(-WhatIf: nothing staged)"; return }
+
+$files = @{
+	'compose.yaml'          = Join-Path $root 'deploy/compose.yaml'
+	'Caddyfile'             = Join-Path $root 'deploy/Caddyfile'
+	'seccomp-io-uring.json' = Join-Path $root 'docker/seccomp-io-uring.json'
+}
+$stage = "mkdir -p $dir`n"
+foreach ($name in $files.Keys) {
+	$b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($files[$name]))
+	$stage += "printf '%s' '$b64' | base64 -d > $dir/$name`n"
+}
+# A first deploy has no .env yet: every service starts at this tag.
+$stage += "[ -f $dir/.env ] || printf '%s' $(Quote (EnvText $next)) > $dir/.env`n"
+Invoke-Host $stage | Out-Null
+
+# ---- 2. pull ----------------------------------------------------------------------------
+
+if ($Target -ne 'local') {
+	$keys = ($Service | ForEach-Object { "$($SERVICES[$_].Key)=$Tag" }) -join ' '
+	Invoke-Host "env $keys $dc pull --quiet $($Service -join ' ')" | Out-Null
+}
+
+# ---- 3. snapshot --------------------------------------------------------------------------
+
+foreach ($s in $Service | Where-Object { $SNAPSHOT -contains $_ }) {
+	Invoke-Host @"
+id=`$($dc ps -q $s)
+[ -z "`$id" ] || docker exec "`$id" /app/bin --backup /data/backups/pre-$Tag.db
+docker run --rm --volumes-from "`$id" --entrypoint /bin/sh busybox -c 'ls -1t /data/backups/pre-*.db | tail -n +6 | xargs -r rm -f' 2>/dev/null || true
+"@ | Out-Null
+}
+
+# ---- 4-6. one service at a time, smoke, roll back ------------------------------------------
+
+function Smoke([string] $s, [string] $want) {
+	$svc = $SERVICES[$s]
+	$base = "http://$($svc.Host):$PORT"
+	$to = @('--connect-to', "$($svc.Host):${PORT}:$($site.Address):$PORT")
+	$code = & curl.exe -s -o NUL -m 5 -w '%{http_code}' @to "$base/readyz"
+	if ($code -ne '200') { return "/readyz answered $code" }
+	$ver = (& curl.exe -s -I -m 5 @to "$base/" | Where-Object { $_ -match '^x-version:' }) -replace '^x-version:\s*', ''
+	if ($ver.Trim() -ne $want) { return "x-version is '$($ver.Trim())', not $want" }
+	if ($svc.Sse) {
+		$first = & curl.exe -s -N -m 3 @to "$base$($svc.Sse)" 2>$null | Select-Object -First 1
+		if ($first -notmatch '^(: open|data:|event:|id:)') { return "$($svc.Sse) sent no SSE line ('$first')" }
+	}
+	if ($svc.Ws) {
+		$up = & curl.exe -s -i -m 3 @to "ws://$($svc.Host):$PORT$($svc.Ws)" 2>$null | Select-Object -First 1
+		if ($up -notmatch '^HTTP/1\.1 101') { return "$($svc.Ws) didn't upgrade ('$up')" }
+	}
+	return $null
+}
+
+function Up([string] $s, [string] $tag) {
+	$k = $SERVICES[$s].Key
+	Invoke-Host @"
+sed -i 's|^$k=.*|$k=$tag|' $dir/.env
+grep -q '^$k=' $dir/.env || echo '$k=$tag' >> $dir/.env
+$dc up -d --no-deps $s 2>&1
+for i in `$(seq 1 60); do
+	st=`$(docker inspect -f '{{.State.Health.Status}}' "`$($dc ps -q $s)" 2>/dev/null || echo none)
+	[ "`$st" = healthy ] && exit 0
+	sleep 1
+done
+echo "$s isn't healthy after 60 s (`$st)"; exit 1
+"@ | Out-Null
+}
+
+# The Caddy comes up with the first deploy and is never recreated by a promote.
+Invoke-Host "$dc up -d --no-recreate caddy 2>&1" | Out-Null
+
+$done = @(); $failed = $null
+foreach ($s in $Service) {
+	$k = $SERVICES[$s].Key
+	$was = $prev[$k]
+	Write-Host "-> $s $Tag"
+	$why = $null
+	try { Up $s $Tag; $why = Smoke $s $Tag } catch { $why = $_.Exception.Message }
+	if (-not $why) { $done += $s; Write-Host "   ok"; continue }
+	Write-Host "   FAILED: $why"
+	if ($was -and $was -ne $Tag) {
+		Write-Host "   rolling $s back to $was"
+		Up $s $was
+		$again = Smoke $s $was
+		if ($again) { Write-Host "   the rollback's smoke failed too: $again" } else { Write-Host "   back on $was" }
+	}
+	$failed = "$s at ${Tag}: $why"
+	break
+}
+
+# ---- 7. deployed.json ---------------------------------------------------------------------
+
+$state = [ordered]@{ at = (Get-Date).ToUniversalTime().ToString('o'); target = $Target; services = [ordered]@{} }
+foreach ($line in @(Invoke-Host "cat $dir/.env")) {
+	foreach ($s in $SERVICES.Keys) { if ($line -match "^$($SERVICES[$s].Key)=(.*)$") { $state.services[$s] = $Matches[1] } }
+}
+$json = $state | ConvertTo-Json -Depth 4
+Invoke-Host "printf '%s\n' $(Quote $json) > $dir/deployed.json" | Out-Null
+
+if ($done) { Write-Host "promoted $($done -join ', ') to $Tag" }
+# The streams' smoke leaves curl's timeout (28) in $LASTEXITCODE: the result is ours.
+if ($failed) { Write-Host "promote stopped: $failed"; exit 1 }
+exit 0

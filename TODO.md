@@ -64,7 +64,7 @@ off until Alex sets it before the v2.2.0 tag.
       Progress: `deploy/proxy-config-test.sh` and the `proxy-config` job; in WSL it validates the Caddyfile and the
       docs' 3 snippets, `nginx -t` passes, the 8 aliases, the 301 and the 421 answer as written, and a broken alias
       fails it. Left: the job green on CI.
-- [ ] **5. `deploy/promote.ps1`** (§20.5, D42): `-Target apollo-lan|apollo -Tag vX.Y.Z [-Service …]`: stage
+- [x] **5. `deploy/promote.ps1`** (§20.5, D42): `-Target apollo-lan|apollo -Tag vX.Y.Z [-Service …]`: stage
       `compose.yaml`, the Caddyfile, `.env` and the seccomp file over the SSH alias; `docker compose pull`; the
       pre-deploy snapshot (`--backup`, keep 5) where a service has a volume; `up -d --no-deps` one service at a time,
       no Caddy reload; smoke (`/readyz`, `x-version == tag`, an SSE first event, a WS echo); `deployed.json`; on a
@@ -72,6 +72,10 @@ off until Alex sets it before the v2.2.0 tag.
       Docker's fd default, NPM version, `:8111` reachable); `-WhatIf` prints the plan. *Check:* against a local
       Docker target in WSL: a good tag promotes, a deliberately broken one rolls back by itself, and `-Status` reads
       without writing.
+      Done locally (`-Target local`, WSL's Docker): all four promoted and smoked; a `broken` tag on starter-lab
+      (another profile's image, so its `x-version` is wrong) failed its smoke and went back to the previous tag by
+      itself, exit 1; `-Status` printed the inventory. The site values are in the git-ignored
+      `deploy/promote.local.psd1`. Its first run against apollo is slice 9's, with Alex's go.
 - [ ] **6. `landing`** (§15.5): the lab's `/`, the catalog explorer from `docs/catalog.json` (features,
       implementations, dependencies, sizes, SQLite needs), the init-command builder (the `odin run tools/init -- …`
       line and its `--explain`; cut-list item 11) and links to every witness. *Check:* e2e (3 engines) and a k6
