@@ -145,7 +145,7 @@ room_page :: proc(req: ^web.Request, res: ^web.Response) {
 		wiring = chat_transport_multipart.wiring(r)
 	}
 	web.render_page(req, res, fmt.tprintf("#%s", r.name), "/chat", "A chat room on the LAN.",
-		chat_views.room_page(r, msgs[:], here[:], v.id, t, wiring), live = live[:])
+		chat_views.room_page(r, msgs[:], ver, here[:], v.id, t, wiring), live = live[:])
 }
 
 // The Connection setting: a cookie for a year, then back to the rooms.

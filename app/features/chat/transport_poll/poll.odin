@@ -5,8 +5,8 @@ package chat_transport_poll
 // The pane asks every 2 s what changed since the room's version it last saw, which
 // hx-ptag carries both ways (HX-PTag): nothing new is a 304 with no body, so an idle
 // room costs a few hundred bytes a poll. Edits and tombstones move the version too, so
-// they arrive the same way. With no tag (the first poll, the SSE transport's resync)
-// the answer is the room's last SNAPSHOT.
+// they arrive the same way. The SSE transport's resync asks here too, its version in
+// `?ver=`. With neither the answer is the room's last SNAPSHOT.
 
 import "core:fmt"
 import "core:strconv"
@@ -40,12 +40,16 @@ since :: proc(req: ^web.Request, res: ^web.Response) {
 	}
 	msgs := make([dynamic]m.Message, 0, 16, context.temp_allocator)
 	ver: i64
-	// A poll whose tag the room can't serve whole gets the snapshot, which replaces the log:
-	// upserted, it kept what the page had with a silent gap before the newest (M2-35). SSE's
-	// resync (no tag) still upserts: after a restart the room is new and empty, and a
-	// replace would cost the page everything it had (D37).
+	// A tag the room can't serve whole gets the snapshot, which replaces the log: upserted,
+	// it kept what the page had with a silent gap before the newest (M2-35). A tag from
+	// before a restart is reached (the new process's versions start above it and its rooms
+	// have let nothing go), so the page keeps what it had (D37).
 	whole := false
-	tag, has := web.header(req, "hx-ptag")
+	// SSE's ?ver= first: the page keeps it current, while hx-ptag stores the HX-PTag of
+	// any answer on the element that asked, so a resync pane's tag is its last resync's.
+	tag := web.query_get(req, "ver")
+	has := tag != ""
+	if !has { tag, has = web.header(req, "hx-ptag") }
 	from, ok := web.parse_digits(tag)
 	if has && ok {
 		reached: bool

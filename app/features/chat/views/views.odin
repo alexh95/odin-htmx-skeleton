@@ -28,10 +28,12 @@ Room_Row :: struct {
 }
 
 // What a transport adds to a room page (chat_web's switch asks the chosen one): the
-// attributes of the pane that holds the log, and of the composer's form.
+// attributes of the pane that holds the log, of the composer's form, and of the form
+// that holds the page's version (#ver-<room>), which a socket sends as it opens.
 Wiring :: struct {
 	pane:     string,
 	composer: string,
+	version:  string,
 }
 
 // ---- the rooms ---------------------------------------------------------------------------
@@ -98,7 +100,7 @@ post_composer :: proc(r: m.Room) -> string {
 	return strings.to_string(b)
 }
 
-room_page :: proc(r: m.Room, msgs: []m.Message, here: []chat.Presence_Change, me: u64, t: chat.Transport, wiring: Wiring) -> string {
+room_page :: proc(r: m.Room, msgs: []m.Message, ver: i64, here: []chat.Presence_Change, me: u64, t: chat.Transport, wiring: Wiring) -> string {
 	b := strings.builder_make(context.temp_allocator)
 	w(&b, `<section class="chat-room" data-room="`)
 	esc(&b, r.slug)
@@ -118,6 +120,9 @@ room_page :: proc(r: m.Room, msgs: []m.Message, here: []chat.Presence_Change, me
 	fmt.sbprintf(&b, `</div><div id="typing-%d" class="chat-typing" aria-live="polite" data-me="%d"`, r.id, me)
 	html.behave(&b, .Auto_Scroll) // marks the reader's own "is typing", which CSS hides
 	w(&b, `></div>`)
+	fmt.sbprintf(&b, `<form class="chat-ver" hidden%s>`, wiring.version)
+	version(&b, r.id, ver)
+	w(&b, `</form>`)
 
 	fmt.sbprintf(&b, `<form class="chat-composer" id="say-%d"%s`, r.id, wiring.composer)
 	html.behave(&b, .Composer)
@@ -173,12 +178,26 @@ message :: proc(b: ^strings.Builder, msg: m.Message, slug: string, newest: bool)
 	w(b, `></div></article>`)
 }
 
-// Messages as one fragment for the room's log (every transport sends this).
+// Messages as one fragment for the room's log (every transport sends this), and the
+// newest version among them for the page's #ver-<room>.
 partial :: proc(b: ^strings.Builder, room: i64, slug: string, msgs: []m.Message, newest_last := true, swap := "upsert sort") {
 	if len(msgs) == 0 { return }
 	fmt.sbprintf(b, `<hx-partial hx-target="#log-%d" hx-swap="%s">`, room, swap)
-	for msg, i in msgs { message(b, msg, slug, newest_last && i == len(msgs) - 1) }
+	ver: i64
+	for msg, i in msgs {
+		message(b, msg, slug, newest_last && i == len(msgs) - 1)
+		ver = max(ver, msg.ver)
+	}
+	fmt.sbprintf(b, `</hx-partial><hx-partial hx-target="#ver-%d" hx-swap="outerHTML">`, room)
+	version(b, room, ver)
 	w(b, `</hx-partial>`)
+}
+
+// The room's version the page has seen, which a reconnect sends back (a socket's first
+// frame, SSE's resync): with it the server tells a gap the room let go, where the page's
+// log is replaced, from a restart, where it keeps what it had (M2-31, M2-35, D37).
+version :: proc(b: ^strings.Builder, room, ver: i64) {
+	fmt.sbprintf(b, `<input type="hidden" id="ver-%d" name="ver" value="%d">`, room, ver)
 }
 
 // A snapshot within `budget` bytes, as a stream writes it at once: the newest messages that

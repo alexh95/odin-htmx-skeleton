@@ -916,7 +916,9 @@ request arena (02 §2.7).
   Duplicates from an overlap are harmless because every live element has a stable id and is swapped by upsert or by
   id. (NEW design; UNVERIFIED until the M2 resume specs, including one across a server restart.)
 - **Per-room transports**: WS sends a snapshot of the last 50 on (re)connect and upsert dedups; multipart resumes by
-  `HX-Last-Part-ID` (rowid or hub sequence); polling uses the ptag as the cursor (last rowid).
+  `HX-Last-Part-ID` (rowid or hub sequence); polling uses the ptag as the cursor (last rowid). *As built (M3, M2-31 and
+  M2-35):* a WS page sends the room's version it has seen as its first frame and gets what changed since, or the last
+  50 replacing its log when the room let some of that go; SSE's resync asks `/since?ver=` the same way.
 - **Authors**: the hub skips nobody. The author's POST or WS reply and the hub's copy carry the same id and dedupe by
   upsert, so the author's other tabs and devices get the message too.
 - **Limits**: 256 KiB queued per stream, then the consumer is closed as `Too_Slow` (SSE ends; WS closes with 1013
@@ -1666,7 +1668,7 @@ and opens a console after step-up while a family member watches read-only.
 
 | | Client | Server | Resume |
 |---|---|---|---|
-| A WS (default) | `hx-ws:connect="/chat/r/<slug>/ws"` on the room pane; `<form hx-ws:send>` composer | JSON in (the 04 §4.4 frame shape); escaped `<hx-partial hx-swap="upsert sort">` out | snapshot of the last 50 on (re)connect; upsert dedups |
+| A WS (default) | `hx-ws:connect="/chat/r/<slug>/ws"` on the room pane; `<form hx-ws:send>` composer | JSON in (the 04 §4.4 frame shape); escaped `<hx-partial hx-swap="upsert sort">` out | snapshot of the last 50 on (re)connect; upsert dedups (as built in M3: the page's version as the first frame, what changed since it) |
 | B SSE + POST | the room topic on `#live`; `hx-post` composer with `hx-pending` | POST → writer task → commit → the bubble in the response and on the hub | `Last-Event-ID`, `after`, then `@rowid` keyset replay (D13) |
 | C poll + ptag | `hx-get="/chat/r/<slug>/since" hx-trigger="every 2s" hx-ptag` | 304 when nothing is new | the ptag (last rowid) |
 | D multipart | `hx-multipart:connect="/chat/r/<slug>/parts"` | one part per event with `HX-Target`, `HX-Swap`, `HX-Part-ID` | `HX-Last-Part-ID` |

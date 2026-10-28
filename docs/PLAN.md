@@ -2340,8 +2340,10 @@ On connect, after every topic row's `subscribe` perm check passes (one failure a
    `event: resync` for that topic, which the page answers by refetching its fragment (`hx-trigger="resync from:body"`).
 
 Duplicates from an overlap are harmless: every live element has a stable id and is swapped by upsert or by id, and
-resync is the always-correct fallback (R19). Per-room transports resume their own way: WS sends a snapshot of the last
-50 on every (re)connect and upsert dedups; multipart resumes by `HX-Last-Part-ID` (a rowid or a hub sequence); polling
+resync is the always-correct fallback (R19). Per-room transports resume their own way: on every (re)connect a WS page
+sends the room's version it has seen (`#ver-<room>`, which every message fragment keeps current) and gets what changed
+since, or the last 50 replacing its log when the room let some of that go (M2-31, as built in M3); SSE's resync asks
+`/since?ver=` the same way (M2-35); multipart resumes by `HX-Last-Part-ID` (a rowid or a hub sequence); polling
 uses the ptag as the cursor (the last rowid, 304 when nothing is new). The cursor design is **NEW, UNVERIFIED until the
 M2 resume specs**, including one across a server restart (§19).
 

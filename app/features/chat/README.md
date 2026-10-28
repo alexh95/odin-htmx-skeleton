@@ -16,10 +16,17 @@ keeps the menu or the half-typed edit open in it; a saved edit closes its form w
 (`swapEmpty`). What differs per viewer is asked for (the menu, `GET /chat/m/<id>/menu`) or marked on the client
 (`AutoScroll` sets `.mine` where `data-author` is the log's `data-me`).
 
+**The page's version.** Every fragment also sets `#ver-<room>`, a hidden field holding the newest room version the page
+has seen. A reconnect sends it back (a socket's first frame, from the field's form on hx-ws's `after:connection`; SSE's
+resync, by `hx-include`), and the answer is what changed since it, or, when the room has let go of something that
+changed after it, the last 50 swapped in with `innerHTML`, so the log never runs on across a gap (M2-31, M2-35). After a
+restart the version is reached (the new process's versions start above it, and its rooms have let nothing go), so the
+page keeps what it had (D37).
+
 | Transport | The pane | The composer | A reconnect |
 |---|---|---|---|
-| `ws` (default) | `hx-ws:connect` `/chat/r/<slug>/ws` | `hx-ws:send` (JSON `{body}`) | the last 50 again |
-| `sse` | the room's topic on the layout's `#live` | `hx-post`, `hx-pending` | the hub's ring, else `resync` → `/since` |
+| `ws` (default) | `hx-ws:connect` `/chat/r/<slug>/ws` | `hx-ws:send` (JSON `{body}`) | the page sends `{ver}`: what changed since |
+| `sse` | the room's topic on the layout's `#live` | `hx-post`, `hx-pending` | the hub's ring, else `resync` → `/since?ver=` |
 | `poll` | `hx-get` `/chat/r/<slug>/since` every 2 s, `hx-ptag` | `hx-post`, `hx-pending` | the tag: what changed since it |
 | `multipart` | `hx-multipart:connect` `/chat/r/<slug>/parts` | `hx-post`, `hx-pending` | what came after `HX-Last-Part-ID` |
 

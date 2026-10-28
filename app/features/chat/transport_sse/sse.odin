@@ -4,8 +4,9 @@ package chat_transport_sse
 //
 // No connection of its own: the room's topic rides the layout's #live beside the
 // member's and the room's presence (D14), and the composer POSTs. A reconnect replays
-// from the hub's ring; a cursor from another process gets `resync`, and the log
-// refetches the room's last messages (the poll transport's route, with no tag).
+// from the hub's ring; a cursor the ring no longer reaches, or one from another process,
+// gets `resync`, and the pane asks the poll transport's route what changed since the
+// page's version (#ver-<room>): the whole log again when the room let some of it go.
 
 import "core:fmt"
 import "core:strings"
@@ -23,7 +24,7 @@ wiring :: proc(r: m.Room) -> chat_views.Wiring {
 	b := strings.builder_make(context.temp_allocator)
 	strings.write_string(&b, ` hx-get="/chat/r/`)
 	chat_views.esc(&b, r.slug)
-	strings.write_string(&b, `/since" hx-trigger="resync from:body" hx-swap="none"`)
+	fmt.sbprintf(&b, `/since" hx-trigger="resync from:body" hx-include="#ver-%d" hx-swap="none"`, r.id)
 	return {pane = strings.to_string(b), composer = chat_views.post_composer(r)}
 }
 

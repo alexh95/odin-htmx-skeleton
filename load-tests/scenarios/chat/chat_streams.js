@@ -8,8 +8,9 @@ import { options as build, summarize } from '../../lib/options.js';
 
 // tags: @chat @accounts-nick
 //
-// A room's live transports, per iteration: the socket (its snapshot, then one message
-// sent and back through the hub, or the slow-down toast past the post rate), a poll
+// A room's live transports, per iteration: the socket (the page's version first, as its
+// page sends it, 0 so it gets the snapshot; then one message sent and back through the
+// hub, or the slow-down toast past the post rate), a poll
 // and its 304 for a version it already has, and two streams held a moment and cut
 // by the client: multipart's (its snapshot part) and the page's #live on the room's
 // topics, whose open and close are presence's join and leave. Stock k6 can't read a
@@ -30,7 +31,10 @@ function socket() {
   return new Promise((resolve) => {
     const ws = new WebSocket(`${WS}/chat/r/lobby/ws`, null, { headers: { Cookie: cookieHeader() }, tags: { name: 'GET /chat/r/:slug/ws' } });
     let frames = 0;
-    ws.onopen = () => ws.send(JSON.stringify({ body: `ws ${__VU}-${__ITER}` }));
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ ver: '0' }));
+      ws.send(JSON.stringify({ body: `ws ${__VU}-${__ITER}` }));
+    };
     // The snapshot (once the lobby has messages), then ours or the toast: two is enough.
     ws.onmessage = () => { if (++frames >= 2) ws.close(); };
     ws.onclose = () => resolve(frames);

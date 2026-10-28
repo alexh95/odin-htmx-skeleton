@@ -3,12 +3,15 @@ package chat_transport_ws
 // ---- chat over a WebSocket: transport A, the default (PLAN §14.1) --------------------------
 //
 // The room pane is the socket (hx-ws:connect) and the composer sends on it (hx-ws:send,
-// JSON in). Each (re)connect first gets the room's last SNAPSHOT, then everything the
-// room's topic carries; upsert drops what it already has, so a reconnect needs no
-// cursor. A frame is posted the way a form's POST is, by chat_web (`post`), which this
-// package can't import.
+// JSON in). As each (re)connect opens, the page sends the room's version it has seen
+// (#ver-<room>'s form, on hx-ws's after:connection; hx-ws keeps the URL it first read),
+// and gets what changed since, or the room's last SNAPSHOT replacing its log when the
+// room let some of that go (M2-31); then everything the room's topic carries, upserted.
+// A frame is posted the way a form's POST is, by chat_web (`post`), which this package
+// can't import.
 
 import "base:runtime"
+import "core:fmt"
 import "core:strings"
 
 import "../../../platform/authz"
@@ -40,7 +43,8 @@ post: proc(s: ^Socket, body: string)
 wiring :: proc(r: m.Room) -> chat_views.Wiring {
 	b := strings.builder_make(context.temp_allocator)
 	html_esc(&b, ` hx-ws:connect="/chat/r/`, r.slug, `/ws"`)
-	return {pane = strings.to_string(b), composer = ` hx-ws:send`}
+	hello := fmt.tprintf(` hx-ws:send hx-trigger="htmx:ws:after:connection from:#pane-%d"`, r.id)
+	return {pane = strings.to_string(b), composer = ` hx-ws:send`, version = hello}
 }
 
 // GET /chat/r/<slug>/ws.
@@ -58,14 +62,33 @@ socket :: proc(req: ^web.Request, res: ^web.Response) {
 	s.room = {id = r.id, slug = strings.clone(r.slug, heap()), name = strings.clone(r.name, heap()), at = r.at}
 	s.who = {id = v.id, role = v.role, name = strings.clone(v.name, heap())}
 	c.user = s
-	// Subscribed before the snapshot is read: a message between the two arrives
+	// Subscribed before the page's version arrives: a message between the two arrives
 	// twice rather than never, and upsert keeps one.
 	s.sub = hub.subscribe(c, {chat.room_topic(r.id)})
+}
+
+// The page's first frame, its version: what changed since, or the snapshot replacing
+// the log when the room let some of it go. A version that doesn't parse gets the
+// snapshot upserted, as every connect once did.
+@(private)
+catch_up :: proc(s: ^Socket, ver: string) {
 	msgs := make([dynamic]m.Message, 0, chat.SNAPSHOT, context.temp_allocator)
-	if chat.recent(r.id, &msgs) == .None && len(msgs) > 0 {
-		html, _ := chat_views.snapshot(r.id, r.slug, msgs[:], stream.backlog_budget())
-		stream.ws_send_text(c, html)
+	whole := false
+	err: m.Error
+	if since, ok := web.parse_digits(ver); ok {
+		reached: bool
+		_, reached, err = chat.changed(s.room.id, i64(since), &msgs)
+		if err == .None && !reached {
+			clear(&msgs)
+			err = chat.recent(s.room.id, &msgs)
+			whole = true
+		}
+	} else {
+		err = chat.recent(s.room.id, &msgs)
 	}
+	if err != .None || len(msgs) == 0 { return }
+	html, _ := chat_views.snapshot(s.room.id, s.room.slug, msgs[:], stream.backlog_budget(), whole)
+	stream.ws_send_text(s.conn, html)
 }
 
 // Writes `html` (a refusal, a toast) to this socket alone.
@@ -76,6 +99,10 @@ send :: proc(s: ^Socket, html: string) {
 @(private)
 on_message :: proc(c: ^stream.Conn, text: bool, data: []byte) {
 	if !text { return }
+	if ver, _ := stream.ws_field(data, "ver"); ver != "" {
+		catch_up((^Socket)(c.user), ver)
+		return
+	}
 	body, ok := stream.ws_field(data, "body")
 	if !ok {
 		// Not hx-ws's JSON (or nested past stream.WS_JSON_DEPTH), so the member hears why it went nowhere.
