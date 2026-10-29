@@ -109,13 +109,20 @@ off until Alex sets it before the v2.2.0 tag.
       M2-36 (`stream_test`, `chat.spec`'s brackets): each test fails with its fix taken out and passes with it, and
       `docs/audit/M2.md` closes every finding. `mixed@file`: no cost (below). `scale`'s budget, `new_project`'s M3
       files and the Firefox stalls: done earlier in M3.
-- [ ] **9. Stage 1a, apollo LAN direct** (§20.3). First, **Alex's steps** (§20.7): create
+- [x] **9. Stage 1a, apollo LAN direct** (§20.3). First, **Alex's steps** (§20.7): create
       `<APOLLO_DATA_DIR>/odin-htmx-starter` with sudo; the seven DNS-only `A` records pointing at `<APOLLO_LAN_IP>`
       (`houston`, `houston-lab`, `odin-htmx-starter`, `htmx-odin-starter`, `starter-minimal`, `starter-streams`,
       `starter-skeleton`); the permission rule for `deploy/promote.ps1`. Then, each promote with Alex's go: minimal,
       streams, skeleton and lab by `promote -Target apollo-lan -Tag v2.2.x` with smoke; the inventory (`-Status`)
       recorded in `docs/private/APOLLO.md`; the seccomp path, the publish and the 421 confirmed on apollo; a broken tag
       rolls back by itself; 0 5xx through Caddy during a promote under 50 VUs; two-host k6 (dev PC → apollo).
+      Done 2026-10-29 at `v2.2.0-rc.1` (pre-release run 40968275138; the four GHCR packages pull anonymously): each
+      promote's smoke green; seccomp on every app container, only Caddy publishes `8120:80`, a bare IP gets 421; the
+      seven names answer through `:8120` (Houston's two 503 until `starter-full`, M4). The broken tag was `sha-70c427f`
+      (the rc's image, so `x-version` is wrong): its smoke failed and the rc came back by itself. Under 50 VUs on
+      minimal through that promote's two swaps: 838,878 requests, 0 5xx, max 5.8 s. Two-host k6, skeleton at 50 VUs
+      over ten scenarios: 0.00 % failed, 0.9k (pages) to 10.2k (seo) rps, static at the 1 GbE wire. Numbers in
+      `docs/private/APOLLO.md`.
 - [ ] **10. Stage 1b, apollo LAN via NPM**. First, **Alex's steps**: the four NPM proxy hosts (houston, houston-lab,
       starter, skeleton-lan) with §20.4's details and Advanced snippet, and the Access List "LAN only";
       `worker_connections 4096` in NPM's `events.conf`. Then: e2e smoke through NPM; 1000 SSE held 1 h through NPM
