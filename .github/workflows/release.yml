@@ -6,6 +6,8 @@ name: release
 # deploy pins its tag in .env), a provenance attestation per list, a GitHub Release whose
 # notes are the tag's CHANGELOG section, and, when FLY_DEPLOY is on, Fly's skeleton
 # witness redeployed from the tag. Tag a commit CI has passed on the default branch.
+# A pre-release tag (vX.Y.Z-rc.N: semver's `-`) publishes its images the same way, and
+# its Release is marked pre-release, never latest, with the notes of [Unreleased].
 #
 # Run by hand (workflow_dispatch) it is a dry run: both arches of every profile build
 # and turn healthy, and nothing is pushed or published.
@@ -136,6 +138,8 @@ jobs:
           push-to-registry: true
 
   # The GitHub Release: the tag's section of CHANGELOG.md, between its heading and the next.
+  # A pre-release reads [Unreleased] instead, so an rc needs no section of its own and
+  # the final tag's section still holds everything since the last release.
   github-release:
     name: GitHub Release
     if: github.event_name == 'push'
@@ -149,14 +153,17 @@ jobs:
       - name: Notes from CHANGELOG.md
         run: |
           v=${GITHUB_REF_NAME#v}
+          case "$v" in *-*) v=Unreleased; echo "PRE=1" >> "$GITHUB_ENV" ;; esac
           awk -v h="## [$v]" 'index($0, h) == 1 { on = 1; next } on && /^## \[/ { exit } on' CHANGELOG.md > notes.md
-          test -s notes.md || { echo "CHANGELOG.md has no ## [$v] section" >&2; exit 1; }
+          grep -q '[^[:space:]]' notes.md || { echo "CHANGELOG.md has no ## [$v] section, or it is empty" >&2; exit 1; }
           {
             echo; echo "**Images** (linux/amd64 and linux/arm64):"; echo
             for p in minimal skeleton lab streams; do echo "- \`$IMAGE-$p:$GITHUB_REF_NAME\`"; done
           } >> notes.md
       - name: Create it
-        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag
+        run: |
+          pre=(); [ -n "${PRE:-}" ] && pre=(--prerelease --latest=false)
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag "${pre[@]}"
         env:
           GH_TOKEN: ${{ github.token }}
 

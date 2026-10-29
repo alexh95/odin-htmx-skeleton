@@ -81,6 +81,9 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   CI's runner measures (198/300 ms; 70/97 ms on the dev PC), down from 3 s / 6 s set when every request queued on one lock.
 - **Fly deploys on a tag**: the dormant Fly job moved from `ci.yml` to `release.yml` as `deploy-fly`, so with
   `FLY_DEPLOY` on a release redeploys the skeleton witness, never a push to `master` (PLAN §20.3, X2).
+- **A pre-release tag makes a pre-release**: a `vX.Y.Z-rc.N` tag publishes its images as a release does, and its
+  GitHub Release is marked pre-release and never latest, its notes taken from `[Unreleased]`, so an rc needs no
+  CHANGELOG section of its own and the final tag's section still holds everything since the last release.
 - **The image is the release image** (M3, PLAN §20.2): the binary at `/app/bin` on distroless
   `base-nossl-debian13` (both bases pinned by digest), stopped by SIGTERM, health-checked by its own
   `--healthcheck`, with `/app/SOURCES.md` naming the base's Debian source packages; Odin's arm64 asset is picked

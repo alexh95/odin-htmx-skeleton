@@ -47,7 +47,9 @@ off until Alex sets it before the v2.2.0 tag.
       ("Exec format error" in `prepare`); every other leg was cancelled with it. Fixed: the ARG is declared bare and
       the RUN falls back to amd64 only when it's empty. The dry run again (run 40790281475, on `a2488d5`): all eight
       images, four profiles on both arches, built and turned healthy; nothing pushed, the publish, release and Fly
-      jobs skipped. Left for v2.2.0 (Alex's go): the real run, and the GHCR packages public. At v2.2.0, check the four GHCR packages are public: a
+      jobs skipped. Left for v2.2.0 (Alex's go): the real run, and the GHCR packages public. A pre-release tag (`v2.2.0-rc.1`,
+      Alex's pick for slice 9's first images) makes a pre-release, not latest, with `[Unreleased]`'s notes; the cut
+      checked by hand for the rc (88 lines, flagged), for 2.1.0, and refused for 2.2.0 until its section exists. At v2.2.0, check the four GHCR packages are public: a
       new package can start private, and apollo pulls without credentials (Q18), so Alex may have to flip each once.
 - [x] **3. The apollo stack** (§20.4): `deploy/compose.yaml` (the stack Caddy on `8120:80` with a fixed
       `ipv4_address`, the four witnesses as witnesses, `starter-full` from M4; the pinned `172.31.120.0/24` subnet,
