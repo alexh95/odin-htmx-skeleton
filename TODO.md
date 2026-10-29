@@ -34,7 +34,7 @@ off until Alex sets it before the v2.2.0 tag.
       working on the new image.
       Progress: the Dockerfile and the per-profile `docker` job, replayed in WSL: all four pass (6.5–7.4 MB
       compressed; glibc only; stop 0.6–1.2 s). Green on CI run 40772472633 on `681c283`, all four profiles.
-- [ ] **2. The release workflow** (§20.1's `release`, §20.2): on a `v*` tag, each hosted profile built natively on
+- [x] **2. The release workflow** (§20.1's `release`, §20.2): on a `v*` tag, each hosted profile built natively on
       `ubuntu-latest` (amd64) and `ubuntu-24.04-arm` (arm64), pushed by digest and merged into one manifest list,
       `ghcr.io/alexh95/odin-htmx-starter-<profile>:vX.Y.Z` and `:sha-<7>` (never `latest`), a provenance attestation,
       and a GitHub Release whose notes are the tag's CHANGELOG section. `deploy-fly` moves onto the tag
@@ -45,8 +45,9 @@ off until Alex sets it before the v2.2.0 tag.
       on GitHub (run 40785174422, on `681c283`) failed on arm64: the build stage's `ARG TARGETARCH=amd64` won over
       BuildKit's value, so the arm64 runner fetched (and checksummed) amd64's Odin, which couldn't run there
       ("Exec format error" in `prepare`); every other leg was cancelled with it. Fixed: the ARG is declared bare and
-      the RUN falls back to amd64 only when it's empty. Left: the dry run again, green on both arches (needs the fix
-      pushed). At v2.2.0, check the four GHCR packages are public: a
+      the RUN falls back to amd64 only when it's empty. The dry run again (run 40790281475, on `a2488d5`): all eight
+      images, four profiles on both arches, built and turned healthy; nothing pushed, the publish, release and Fly
+      jobs skipped. Left for v2.2.0 (Alex's go): the real run, and the GHCR packages public. At v2.2.0, check the four GHCR packages are public: a
       new package can start private, and apollo pulls without credentials (Q18), so Alex may have to flip each once.
 - [x] **3. The apollo stack** (§20.4): `deploy/compose.yaml` (the stack Caddy on `8120:80` with a fixed
       `ipv4_address`, the four witnesses as witnesses, `starter-full` from M4; the pinned `172.31.120.0/24` subnet,
