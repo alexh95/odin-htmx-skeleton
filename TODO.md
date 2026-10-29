@@ -16,6 +16,73 @@ copy-and-start ergonomics and good defaults matter more than feature depth.
 > items (**bulk actions**, a **named console identity**) are **out of scope as goals** — they'd just
 > be cruft a copier deletes — and survive only as "example extensions you might add."
 
+## M4 — identity and the Houston shell (v2.3.0)
+
+The starter's fourth milestone ([`docs/PLAN.md`](docs/PLAN.md) §22.3, M4's row; §17 the security model, §13 Houston,
+§7.3 the two hosts, §15.4 `modules`, §15.5 the lab host). Slices in order, each done only when its check passes; from
+here every exit also passes the slice gate (§22.1 (a)–(f)). The slices need nothing from Alex until the last: Q10
+(invite-only), Q11 (TOTP for admins and terminal writers, no QR) and Q31 (the grants as tabled) stand as answered, and
+Q34 sized the argon pool. Pushes are on the standing go; apollo, tags, Fly, DNS and anything on Alex's hands wait for
+Alex, asked in one batch.
+
+- [ ] **1. Enforcement completeness** (§17.2): `front`'s perm check over every row is M1's; add `.Step_Up` (a stale
+      session goes to the step-up page; the identity says how recent), `ROLE_PERMS` as §17.1's table (Q31's three
+      grants as tabled), and `bin --routes --json` printing each row's perm, flags and host. *Check:* unit tests of
+      the table and of each flag's answer (401 + `HX-Redirect`, 302, 403, 404 off the LAN, the step-up redirect).
+- [ ] **2. `audit`** (§17.7): `features/audit`, `store:audit`'s `append` in both families (SQLite: `audit_log`,
+      append-only by triggers, deletes only past 400 days; memory: one `mod=audit` line), `/admin/audit`
+      (`Admin_Audit`, SQLite profiles only) with filters, keyset infinite scroll and CSV through hx-download.
+      *Check:* the triggers refuse an update and an early delete; e2e of the filters and the scroll; load.
+- [ ] **3. `accounts`' store and passwords** (§17.1): the SQLite store (accounts, sessions, invites, recovery codes,
+      `accounts_prefs`), argon2id on its own pool (`ACCOUNTS_ARGON_THREADS`, 1 with ≤ 2 CPUs, a queue of 32 then 503,
+      one buffer per worker, 19 MiB, t = 2, p = 1), constant-time compares, the dummy hash for unknown names,
+      passwords 10–256 bytes, `--hash-password` printing its derive time, the bootstrap admin from
+      `ACCOUNTS_ADMIN_HASH`. *Check:* unit tests (vectors, the dummy path's time, the queue's 503); the pool's memory
+      cap measured (threads × 19 MiB, nothing per login).
+- [ ] **4. Sessions and login** (§17.1, §17.5): the `sid` cookie (32 bytes, SHA-256 stored, `HttpOnly`,
+      `SameSite=Lax`, host-only, `Secure` by `COOKIE_SECURE=auto`; `0` warns at boot and shows a banner), rotation on
+      login and privilege change, 14 d idle / 30 d absolute, `/login` `/logout`, the sessions page with revoke; login
+      limits (5 per 15 min per client id, 40 overall) and per-account exponential backoff, never a lockout.
+      *Check:* e2e of login, logout, revoke and expiry; the login-storm budget (Q34: other routes' p99 ≤ base +
+      0.5 ms under `cpus: 2.0`).
+- [ ] **5. TOTP, step-up and recovery** (§17.1, Q11): RFC 6238 with its vectors, manual secret entry and the
+      `otpauth://` text, required for Admin (and `Term_Write` later); the step-up page (password or code within
+      10 min) on `.Step_Up` rows (role changes, invites); 10 recovery codes and admin-issued one-time reset codes,
+      hashed. *Check:* unit vectors; e2e of enrolment, step-up and a recovery.
+- [ ] **6. Registration, invites, profile and `/admin/accounts`** (§17.1, Q10): `ACCOUNTS_REGISTRATION` (`invite` by
+      default; `open`, `closed`), `/invite` redemption (limits), `/register`, display names through `clean_name`,
+      `accounts_prefs` (theme, chat transport, mutes), `/admin/accounts` (roles, disable, invites, reset codes; the
+      last admin can't be demoted or disabled), every action audited with its `HX-Prompt` reason. *Check:* e2e per
+      mode; the last-admin rule; `escaping.spec` over the new fields.
+- [ ] **7. `envadmin`** (§17.1): the stateless signed-cookie identity, one admin from `ACCOUNTS_ADMIN_HASH`, for the
+      SQLite-free profiles. *Check:* unit tests (sign, tamper, rotate signs everyone out); e2e of its login.
+- [ ] **8. Revocation on streams** (§17.2.3, X19): a kick or role change publishes a revoke that closes the viewer's
+      streams with 1008; SSE gets the named `kicked` event, which goes to `/login`. *Check:* `revoke.spec` (at most 3
+      reconnects in 30 s), and whether hx-sse stops retrying after a 403 settled (UNVERIFIED (M4)).
+- [ ] **9. `modules`** (§15.4, Q28: no runtime disabling): `/admin/modules` (`Admin_Modules`): the profile, its
+      family members, the switched implementations, the routes per host with perms and flags, bundle extensions, env
+      (secrets masked), limits, health, migrations. *Check:* e2e; it imports no feature (`tools/check imports`).
+- [ ] **10. `cmd/full` and its two hosts** (§7.3, §15.5, F2): Houston on `SITE_URL` (`home`'s Today with cards, nav
+      from `brand.odin`, the `houston` theme) and the lab host on `SITE_URL_LAB` (`landing` at `/`, `notes`,
+      `dashboard` at `/dashboard`, `gallery`, `contacts`, `about`, `lab`, `scripting`, `compat`; `LAB_NAV`), the
+      boot's lab rules (§6.1 check 4), no identity and no cookie on the lab host, `NOTES_CAP` 500 and
+      `CONTACTS_CAP` 2000 with their 04:00 resets; `starter-full` in `deploy/compose.yaml` (512 MiB) and the release
+      matrix. *Check:* every route × both hosts (a row answers on its host, 404 on the other; a `sid` on the lab host
+      is a Guest); the demo resets run.
+- [ ] **11. Behaviours and `full-vanilla`** (§12.4, D22): the hyperscript behaviours `full` needs and their vanilla
+      twins; the `full-vanilla` build in both build scripts. *Check:* behaviour duality (the same specs on `full` and
+      `full-vanilla`); injected `_` inert.
+- [ ] **12. The M4 specs** (§17.2, §17.3, §19.1): `rbac.spec` generated from `bin --routes` (100 % of routes × roles ×
+      both hosts, freezing Q31's grants), the CSRF and CSWSH specs (a cross-site POST and a foreign-Origin upgrade get
+      403), `headers.spec` and `csp-clean.spec` on both hosts, `csp-enforced` and `streams-hxcsp` on the lab host,
+      `e2e-proxy` for `full` × chromium. *Check:* all green in three engines.
+- [ ] **13. Nightly fuzzing** (§19.1, D44): pairwise and selection fuzzing of the generator's selections. *Check:*
+      one nightly run green.
+- [ ] **14. Exit**: the slice gate (a)–(f) for every new feature; the parity gate on both legs; `docs/audit/M4.md`
+      by an agent that didn't write the code, 0 open CRITICAL/HIGH; `Audited:` stamps; CHANGELOG's 2.3.0 entry.
+      Then, with Alex: `--hash-password` for the bootstrap admin (Alex alone; it measures apollo's derive time), the
+      v2.3.0 tag, `starter-full` promoted, and Houston and its lab host through NPM at stage 1b (no invites yet).
+
 ## M3 — pipeline, apollo LAN, the landing page (v2.2.0)
 
 The starter's third milestone ([`docs/PLAN.md`](docs/PLAN.md) §22.3, M3's row; §20 pipeline, hosting and deploys,
