@@ -120,6 +120,7 @@ open_db :: proc(path: string, m: Mode, profile: string, legacy := "", adopt_prof
 		return
 	}
 	db.is_open = true
+	report_memory(&db.writer, 0) // before the writer runs: ops's Store card is there from its first render
 	writer_start()
 	pool_start()
 	@(static) hooked: bool

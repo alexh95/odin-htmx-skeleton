@@ -148,6 +148,7 @@ writer_run :: proc() {
 		if stop { return }
 		if head == nil {
 			ping()
+			report_memory(&db.writer, 0)
 			continue
 		}
 		// A trap mid-batch is dirty (the process drains and exits 70), and the batch
@@ -156,6 +157,7 @@ writer_run :: proc() {
 		obs.inc(wq.batches)
 		obs.inc(wq.writes, u64(n))
 		post_replies(head)
+		report_memory(&db.writer, 0)
 		free_all(context.temp_allocator)
 	}
 }

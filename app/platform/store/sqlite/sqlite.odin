@@ -303,11 +303,22 @@ on_reader_tick :: proc(_: ^nbio.Operation, r: ^Conn) {
 	defer free_all(context.temp_allocator)
 	if !db.is_open || tl_reader != r { return } // its store closed: r is gone
 	guard.call(proc(data: rawptr) { pull_reset((^Conn)(data)) }, r)
+	report_memory(r, 1 + obs.current_loop())
 	if obs.is_draining() || !db.is_open {
 		r.armed = false
 		return
 	}
 	nbio.timeout_poly(time.Second, r, on_reader_tick)
+}
+
+// What this connection holds, to obs for ops (MEMSTATUS=0: the per-connection numbers are
+// the only ones). Slot 0 is the writer, 1 + n loop n's reader.
+@(private)
+report_memory :: proc(c: ^Conn, slot: int) {
+	cache, _, _ := sqlite.db_status(c.db, sqlite.DBSTATUS_CACHE_USED)
+	schema, _, _ := sqlite.db_status(c.db, sqlite.DBSTATUS_SCHEMA_USED)
+	stmt, _, _ := sqlite.db_status(c.db, sqlite.DBSTATUS_STMT_USED)
+	obs.store_report(slot, {i64(cache), i64(schema), i64(stmt)})
 }
 
 // ---- helpers for a feature's store ---------------------------------------------

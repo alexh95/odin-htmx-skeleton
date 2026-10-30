@@ -8,6 +8,14 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Added
+
+- **ops and status in Houston** (M5 slice 1, PLAN §15.4): `full` mounts `/admin/ops` (Admin_Ops, LAN only) and
+  `/status` (in its nav) on its main host, and the ops panel gains a Store card: the SQLite connections' page cache,
+  schema and statement memory from `sqlite3_db_status` (MEMSTATUS is off), which `platform/store/sqlite` pushes to
+  `platform/obs` (the writer after each batch, each loop's reader on its 1 s timer), so ops never imports the store.
+  `houston.spec` and `ops/houston.js` cover the admin's side; `status.js` reads the main host.
+
 ## [2.3.0] - 2026-10-30
 
 The starter's fourth milestone, M4: identity and the Houston shell. `full`, Houston's profile, signs members in with

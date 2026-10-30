@@ -22,7 +22,9 @@ import home_web "../../features/home/web"
 import lab_web "../../features/lab/web"
 import landing_web "../../features/landing/web"
 import modules_web "../../features/modules/web"
+import ops_web "../../features/ops/web"
 import scripting_web "../../features/scripting/web"
+import status_web "../../features/status/web"
 import identity "identity:."
 
 ROUTES := [?]app.Mount {
@@ -34,12 +36,15 @@ ROUTES := [?]app.Mount {
 	{"accounts", identity.ROUTES[:]},   // /login /logout /accounts/sessions
 	{"audit", audit_web.ROUTES[:]},     // /admin/audit: the log, LAN only
 	{"modules", modules_web.ROUTES[:]}, // /admin/modules: what this build is
+	{"ops", ops_web.ROUTES[:]},         // /admin/ops: the 1 Hz panel
+	{"status", status_web.ROUTES[:]},   // /status: is everything up
 	{"about", about_web.ROUTES[:]},     // /about
 }
 
 // Mounted by main with hub.mount("main", ..TOPICS[:]).
 TOPICS := [?][]hub.Topic {
 	identity.TOPICS[:], // the identity's member topics: what a revoke ends
+	ops_web.TOPICS[:],  // ops.panel
 }
 
 // houston-lab: no identity runs here, every row is .Public; every starter demo and lab page.
@@ -70,7 +75,9 @@ HOSTS := [?]app.Host {
 	{"lab", "SITE_URL_LAB", false, LAB_ROUTES[:], LAB_NAV[:]},
 }
 
-LAB_JOBS := [?][]workers.Job {
+// Both hosts' jobs: one scheduler runs them.
+JOBS := [?][]workers.Job {
+	ops_web.JOBS[:],           // ops.sample: the panel, once a second
 	lab_web.JOBS[:],           // lab.bus: the producer's beat
 	contacts_web.DEMO_JOBS[:], // contacts.reset: the demo's rows start over each night
 }

@@ -17,7 +17,9 @@ import home_web "../../features/home/web"
 import lab_web "../../features/lab/web"
 import landing_web "../../features/landing/web"
 import modules_web "../../features/modules/web"
+import ops_web "../../features/ops/web"
 import scripting_web "../../features/scripting/web"
+import status_web "../../features/status/web"
 import accounts_store "store:accounts"
 import audit_store "store:audit"
 import contacts_store "store:contacts"
@@ -28,7 +30,7 @@ HOME_CARDS := [?]html.Home_Card{}
 
 // Every extension the main bundle needs (D19), both hosts' pages. Boot refuses a bundle whose
 // header says otherwise.
-BUNDLE_EXTS :: home_web.EXTS + about_web.EXTS + audit_web.EXTS + modules_web.EXTS + identity.EXTS +
+BUNDLE_EXTS :: home_web.EXTS + about_web.EXTS + audit_web.EXTS + modules_web.EXTS + ops_web.EXTS + status_web.EXTS + identity.EXTS +
 	landing_web.EXTS + dashboard_web.EXTS + gallery_web.EXTS + contacts_web.EXTS + lab_web.EXTS +
 	scripting_web.EXTS + compat_web.EXTS
 
@@ -42,13 +44,15 @@ main :: proc() {
 	home_web.init(HOME_CARDS[:], HOME)
 	about_web.init(ABOUT)
 	landing_web.init()
+	ops_web.init()
+	status_web.init()
 	lab_web.init()
 	contacts_web.demo_init() // CONTACTS_CAP and its nightly reset: the lab host's demo
 	store_sqlite.init() // DB_PATH, SEED, MEMMODE: recorded here so --limits prints them
 	hub.init()
 	hub.mount("main", ..TOPICS[:])
 	hub.mount("lab", ..LAB_TOPICS[:])
-	app.check(HOSTS[:], LAB_JOBS[:], BUNDLE_EXTS, PAGE_BUNDLES)
+	app.check(HOSTS[:], JOBS[:], BUNDLE_EXTS, PAGE_BUNDLES)
 
 	store_sqlite.open("full")
 	store_sqlite.migrate("accounts", accounts_store.MIGRATIONS[:])
@@ -59,7 +63,7 @@ main :: proc() {
 
 	// The standard set, and browsers' CSP violation reports to /csp-report (§12.2). Each host
 	// has its own brand: the lab host's says what it is.
-	app.serve(HOSTS[:], LAB_JOBS[:], &BRAND, web.Header_Set.Reporting, {&BRAND, &LAB_BRAND})
+	app.serve(HOSTS[:], JOBS[:], &BRAND, web.Header_Set.Reporting, {&BRAND, &LAB_BRAND})
 	app.wait()
 	app.shutdown()
 	store_sqlite.close() // the writer's last batch, then the checkpoint

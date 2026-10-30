@@ -30,6 +30,7 @@ BRAND := html.Brand {
 NAV := [?]html.Nav_Item {
 	{"/", "Home", "grid"},
 	{"/login", "Account", "users"},
+	{"/status", "Status", "check"},
 	{"/about", "About", "info"},
 }
 

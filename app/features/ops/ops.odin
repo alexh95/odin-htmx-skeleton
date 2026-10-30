@@ -33,6 +33,8 @@ Sample :: struct {
 	rss:            int, // bytes; 0 where the OS gives none
 	loops:          int,
 	oldest_tick_ms: int,
+	store:          obs.Store_Memory, // the SQLite connections' caches, schemas and statements
+	has_store:      bool,
 }
 
 // A module's health, as it pushed it to obs (§10.4).

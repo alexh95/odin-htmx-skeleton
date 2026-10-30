@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures';
-import { startServer, stopServer } from '../../helpers/server';
+import { startServer, stopServer, mainOrigin } from '../../helpers/server';
 
 // /status (PLAN §15.4): a card per probe, filled by one multipart/parallel response or, with
 // ?mode=poll, every 30 s (304 while no state changed). What a probe says beyond its state is
@@ -38,7 +38,7 @@ test.describe('status', T, () => {
   test('external probes: a live witness is ok with its version, a gone one down', async ({ browser }) => {
     const live = await startServer(test.info().config);
     const s = await startServer(test.info().config, { STATUS_PROBES: `alive=127.0.0.1:${live.port},gone=127.0.0.1:9` });
-    const context = await browser.newContext({ baseURL: `http://127.0.0.1:${s.port}` });
+    const context = await browser.newContext({ baseURL: mainOrigin(s.port) });
     const page = await context.newPage();
     try {
       // Both answer within a round (a refused connect takes about 2 s on Windows).

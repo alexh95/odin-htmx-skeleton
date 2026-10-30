@@ -50,6 +50,7 @@ init :: proc() {
 sample :: proc() {
 	n := hub.numbers()
 	_, age := obs.oldest_tick()
+	mem, has_store := obs.store_memory()
 	_, seq := ops.record({
 		at_ns          = sys.now_unix_ns(),
 		requests       = obs.requests_total(),
@@ -61,6 +62,8 @@ sample :: proc() {
 		rss            = sys.rss_bytes(),
 		loops          = int(obs.loops),
 		oldest_tick_ms = int(age / 1e6),
+		store          = mem,
+		has_store      = has_store,
 	})
 	samples := make([dynamic]ops.Sample, 0, ops.HISTORY, context.temp_allocator)
 	_ = ops.history(&samples)

@@ -16,6 +16,46 @@ copy-and-start ergonomics and good defaults matter more than feature depth.
 > items (**bulk actions**, a **named console identity**) are **out of scope as goals** — they'd just
 > be cruft a copier deletes — and survive only as "example extensions you might add."
 
+## M5 — Operate (v2.4.0)
+
+The starter's fifth milestone ([`docs/PLAN.md`](docs/PLAN.md) §22.3, M5's row; §15.4 ops, status, jobs and dbview; §11.6
+retention; §11.8 backups; §10 obs). Its exit gate: the slice gate; one ops render per second whatever the number of
+viewers (CPU flat from 1 to 100 viewers); status parts swap independently (the parallel order asserted); a backup and
+restore drill; dbview never takes the writer lock. Every page is `/admin/*` on Houston's main host: its `Admin_*`
+perm (Admin only), LAN only, audited where it acts. The slices need nothing from Alex until the last (Q25: in-app
+metrics only). Pushes are on the standing go; apollo, tags and anything on Alex's hands are asked in one batch.
+
+- [x] **1. ops and status in `full`** (§15.4): mount M2's `ops` and `status` on Houston's main host under
+      `Admin_Ops` (status's summary public, its details behind `Admin_Ops`), with the store's `sqlite3_db_status`
+      numbers pushed to obs and shown (the store is never imported by ops). *Check:* the ops and status specs on `full`
+      (each refresh mode, 403 for a member, 404 off the LAN, a guest sent to sign in); `rbac.spec` covers the rows.
+      Done: `houston.spec` (each mode, the Store card, a guest to sign in), `status.spec` on the main host, rbac's
+      rows; `ops/houston.js` and `status.js` reach every route on `full`.
+- [ ] **2. One ops render whatever the viewers** (§15.4): *Check:* a measurement of the server's CPU with 1, 10 and 100
+      SSE viewers of `/admin/ops` (`tools/streamload` or a k6 scenario), flat within noise, recorded in `docs/perf/`;
+      a unit or drill assertion that the publisher renders once a second.
+- [ ] **3. status, full** (§15.4): `STATUS_PROBES` externals with 2 s timeouts (connect and resolve included), disk
+      free and backup age as parts, one `multipart/parallel` response whose parts arrive as each answers. *Check:* a
+      spec with a slow and a fast external asserting the fast part swaps first (the parallel order); the ptag variant.
+- [ ] **4. Runs as data in `platform/workers`** (§15.4, LC §9): each run of a `JOBS` row has an id, a state
+      (queued, running, done, failed, cancelled), progress and a bounded log; `run_now(id)` returns the run, and
+      `cancel(run)` asks a running job to stop at its next check. workers never calls a feature. *Check:* unit tests
+      of the states, cancel and the log bound.
+- [ ] **5. `jobs`** (`/admin/jobs`, §15.4): `jobs_runs` in SQLite with leases, so a run a restart interrupted resumes
+      or fails on boot; the page lists every job, its schedule and last runs, progress upserting over `jobs.runs`
+      (key = run id); run now and cancel with an hx-prompt reason, audited; a run's log as a download. Perm
+      `Admin_Jobs`. *Check:* e2e (run now, live progress, cancel, the log, a run interrupted by a restart); k6.
+- [ ] **6. Backups as jobs** (§11.6, §11.8): `store.backup`, a nightly `VACUUM INTO /data/backups/nightly-<date>.db`
+      keeping 7, on the query pool; its age is a status part. *Check:* a backup and restore drill (write rows, back
+      up, write more, restore the backup into a fresh server, read the first rows and not the later ones).
+- [ ] **7. `dbview`** (`/admin/dbview`, §15.4): read-only SQL on a query-pool reader (`OPEN_READONLY`,
+      `stmt_readonly`, `LIMIT_ATTACHED 0`), a 2 s `progress_handler` budget, results capped, step-up, audited. Perm
+      `Admin_Db`; SQLite only. *Check:* e2e (a select, a write refused, an `ATTACH` refused, the 2 s budget); a drill
+      that dbview never takes the writer lock (a long query beside writes leaves the writes' p99 alone).
+- [ ] **8. Exit**: the slice gate for every new feature; the parity gate on both legs; `docs/audit/M5.md` by an agent
+      that didn't write the code, 0 open CRITICAL/HIGH, and a re-read of the fixes; `Audited:` stamps; CHANGELOG's
+      2.4.0 lead. Then, with Alex: the v2.4.0 tag and `starter-full` promoted.
+
 ## M4 — identity and the Houston shell (v2.3.0)
 
 The starter's fourth milestone ([`docs/PLAN.md`](docs/PLAN.md) §22.3, M4's row; §17 the security model, §13 Houston,

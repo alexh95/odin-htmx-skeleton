@@ -96,6 +96,13 @@ cards :: proc(b: ^strings.Builder, samples: []ops.Sample, modules: []ops.Module,
 	sparkline(b, series(samples, proc(s: ops.Sample) -> f64 { return f64(s.rss) }))
 	fmt.sbprintf(b, `<p class="muted">%d loops, the slowest ticked %d ms ago</p></article>`, now.loops, now.oldest_tick_ms)
 
+	if now.has_store {
+		open(b, "ops-store", "Store", oob)
+		fmt.sbprintf(b, `<p class="ops-big">%s<small> page cache</small></p>`, bytes(int(now.store.cache)))
+		sparkline(b, series(samples, proc(s: ops.Sample) -> f64 { return f64(s.store.cache) }))
+		fmt.sbprintf(b, `<p class="muted">%s schema, %s statements</p></article>`, bytes(int(now.store.schema)), bytes(int(now.store.stmt)))
+	}
+
 	open(b, "ops-modules", "Modules", oob)
 	w(b, `<table class="ops-table"><tbody>`)
 	for m in modules {
