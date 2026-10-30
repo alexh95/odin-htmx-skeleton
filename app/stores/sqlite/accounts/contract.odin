@@ -17,3 +17,14 @@ _ : m.Store_Close_Session : close_session
 _ : m.Store_Set_Totp : set_totp
 _ : m.Store_Step_Up : step_up
 _ : m.Store_Recovery_Left : recovery_left
+_ : m.Store_Users : users
+_ : m.Store_Invites : invites
+_ : m.Store_Invite : invite
+_ : m.Store_Register : register
+_ : m.Store_Set_Role : set_role
+_ : m.Store_Set_Disabled : set_disabled
+_ : m.Store_Create_Invite : create_invite
+_ : m.Store_Delete_Invite : delete_invite
+_ : m.Store_Issue_Reset : issue_reset
+_ : m.Store_Redeem_Reset : redeem_reset
+_ : m.Store_Set_Display : set_display

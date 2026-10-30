@@ -37,6 +37,9 @@ ENV := [?]env.Row {
 	{name = "ACCOUNTS_LOGIN_OVERALL", kind = .Int, def = "40", doc = "sign-in attempts from everyone per 15 min"},
 	{name = "ACCOUNTS_ADMIN_TOTP", kind = .Enum, def = "required", choices = "required|optional", doc = "required: an Admin without TOTP is a Member until they turn it on (§17.1)"},
 	{name = "ACCOUNTS_STEP_UP_WINDOW", kind = .Duration, def = "10m", doc = "how recent a password or code a .Step_Up route asks for"},
+	{name = "ACCOUNTS_REGISTRATION", kind = .Enum, def = "invite", choices = "invite|open|closed", doc = "who may register at /register: with an invite (Q10), anyone, or no one"},
+	{name = "ACCOUNTS_REGISTER_PER_HOUR", kind = .Int, def = "3", doc = "registrations tried per client per hour"},
+	{name = "ACCOUNTS_CODES_PER_HOUR", kind = .Int, def = "10", doc = "invite and reset codes tried per client per hour"},
 }
 
 COOKIE_ENV := [?]env.Row {
@@ -75,6 +78,13 @@ init :: proc() {
 		max_ms = i64(env.duration("ACCOUNTS_SESSION_MAX") / time.Millisecond),
 	}
 	st.admin_totp = env.str("ACCOUNTS_ADMIN_TOTP") == "required"
+	switch env.str("ACCOUNTS_REGISTRATION") {
+	case "open":   accounts.registration = .Open
+	case "closed": accounts.registration = .Closed
+	case:          accounts.registration = .Invite
+	}
+	registers.n = env.int_("ACCOUNTS_REGISTER_PER_HOUR")
+	codes_tried.n = env.int_("ACCOUNTS_CODES_PER_HOUR")
 	authz.step_up_window = i64(env.duration("ACCOUNTS_STEP_UP_WINDOW") / time.Second)
 	crypto.rand_bytes(st.pending_key[:])
 	logins_client.n = env.int_("ACCOUNTS_LOGIN_PER_CLIENT")

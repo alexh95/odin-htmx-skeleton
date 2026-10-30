@@ -25,6 +25,85 @@ User :: struct {
 // How many recovery codes an enrolment hands out (§17.1).
 RECOVERY_CODES :: 10
 
+// An invite: a link with a code (stored hashed) that registers up to `max_uses` members with
+// `role`, until `expires_at`.
+Invite :: struct {
+	code_hash:  string,
+	role:       Role,
+	max_uses:   int,
+	uses:       int,
+	created_by: i64,
+	created_at: i64,
+	expires_at: i64,
+}
+
+// A registration, and the session it signs the new member in with, in one write. With a code,
+// the invite is spent and gives the role (no live invite: .Not_Found); without one, a Member.
+// A taken username is .Constraint.
+Register :: struct {
+	using op:    store.Op,
+	username:    string,
+	display:     string,
+	pw_hash:     string,
+	invite_hash: string, // "" in open mode
+	token_hash:  string,
+	now:         i64,
+	expires_at:  i64,
+	result:      i64,  // the new id
+	role:        Role, // what the invite gave
+}
+
+// An admin's change to a member: the role, or disabled (now) or enabled (0). The last enabled
+// admin can't be demoted or disabled (.Constraint). Either way the member's sessions end, so the
+// change is in force at their next request and a new role needs a new sign-in.
+Set_Role :: struct {
+	using op: store.Op,
+	user_id:  i64,
+	role:     Role,
+}
+
+Set_Disabled :: struct {
+	using op:    store.Op,
+	user_id:     i64,
+	disabled_at: i64,
+}
+
+Create_Invite :: struct {
+	using op: store.Op,
+	invite:   Invite,
+}
+
+Delete_Invite :: struct {
+	using op:  store.Op,
+	code_hash: string,
+}
+
+// A one-time reset code for a member, replacing any they had.
+Issue_Reset :: struct {
+	using op:   store.Op,
+	user_id:    i64,
+	code_hash:  string,
+	created_by: i64,
+	now:        i64,
+	expires_at: i64,
+}
+
+// A reset code spent on a new password: the failures cleared and every session ended. No live
+// code for that member: .Constraint.
+Redeem_Reset :: struct {
+	using op:  store.Op,
+	user_id:   i64,
+	code_hash: string,
+	pw_hash:   string,
+	now:       i64,
+}
+
+Set_Display :: struct {
+	using op: store.Op,
+	user_id:  i64,
+	display:  string,
+}
+
 Session :: struct {
 	token_hash: string,
 	user_id:    i64,
@@ -38,6 +117,9 @@ Error :: store.Error
 
 // The store reads a role through this: it imports no authz.
 Role :: authz.Role
+
+// Member, Moderator…: for the views, which import no authz either.
+role_label :: proc(r: Role) -> string { return authz.ROLE_LABELS[r] }
 
 // Writes go through the writer task (store.Op): the caller's `done` runs once stored.
 Create_User :: struct {
@@ -111,6 +193,9 @@ Store_Session :: proc(token_hash: string) -> (Session, Error)
 Store_Sessions_Of :: proc(user_id: i64, into: ^[dynamic]Session) -> Error // newest first
 Store_Count_Admins :: proc() -> (int, Error)
 Store_Recovery_Left :: proc(user_id: i64) -> (int, Error)
+Store_Users :: proc(into: ^[dynamic]User) -> Error   // by id, at most 500
+Store_Invites :: proc(now: i64, into: ^[dynamic]Invite) -> Error // the live ones, newest first
+Store_Invite :: proc(code_hash: string, now: i64) -> (Invite, Error) // a live one
 // At boot, before the loops: the first admin, when no enabled one exists.
 Store_Bootstrap_Admin :: proc(username, pw_hash: string) -> (created: bool, err: Error)
 Store_Create_User :: proc(op: ^Create_User) -> bool // false: the store is busy; `done` won't run
@@ -120,3 +205,11 @@ Store_Touch_Session :: proc(op: ^Touch_Session) -> bool
 Store_Close_Session :: proc(op: ^Close_Session) -> bool
 Store_Set_Totp :: proc(op: ^Set_Totp) -> bool
 Store_Step_Up :: proc(op: ^Step_Up) -> bool
+Store_Register :: proc(op: ^Register) -> bool
+Store_Set_Role :: proc(op: ^Set_Role) -> bool
+Store_Set_Disabled :: proc(op: ^Set_Disabled) -> bool
+Store_Create_Invite :: proc(op: ^Create_Invite) -> bool
+Store_Delete_Invite :: proc(op: ^Delete_Invite) -> bool
+Store_Issue_Reset :: proc(op: ^Issue_Reset) -> bool
+Store_Redeem_Reset :: proc(op: ^Redeem_Reset) -> bool
+Store_Set_Display :: proc(op: ^Set_Display) -> bool

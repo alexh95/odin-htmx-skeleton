@@ -172,6 +172,113 @@ the_store_keeps_users_and_sessions :: proc(t: ^testing.T) {
 	_, serr = sql.session(HASH)
 	testing.expect_value(t, serr, store.Error.Not_Found)
 
+	members(t)
+}
+
+// Registration, invites, roles, disabling, reset codes and display names (slice 6).
+@(private = "file")
+members :: proc(t: ^testing.T) {
+	PHC :: "$argon2id$v=19$m=19456,t=2,p=1$x$y"
+	reg :: proc(t: ^testing.T, name, invite, token: string, now: i64) -> (^m.Register, store.Error) {
+		op := store.new_op(m.Register, 3 * len(name) + len(PHC) + len(invite) + len(token))
+		a := store.op_allocator(op)
+		op.username, op.display, op.pw_hash = strings.clone(name, a), strings.clone(name, a), strings.clone(PHC, a)
+		op.invite_hash, op.token_hash, op.now, op.expires_at = strings.clone(invite, a), strings.clone(token, a), now, now + 1000
+		op.done = proc(o: ^store.Op) { answered += 1; last_err = o.err } // kept: the test reads its result
+		before := answered
+		testing.expect(t, sql.register(op))
+		settle(t, before + 1)
+		return op, last_err
+	}
+	write :: proc(t: ^testing.T, op: ^store.Op, queued: bool) -> store.Error {
+		before := answered
+		testing.expect(t, queued)
+		settle(t, before + 1)
+		return last_err
+	}
+
+	open, err := reg(t, "Robin", "", "a1", 100)
+	testing.expect(t, err == .None && open.role == .User && open.result > 0)
+	s, serr := sql.session("a1")
+	testing.expect(t, serr == .None && s.user_id == open.result) // signed in by the same write
+	_, err = reg(t, "robin", "", "a2", 100)
+	testing.expect_value(t, err, store.Error.Constraint) // the name is taken, any case
+
+	inv := store.new_op(m.Create_Invite, 8)
+	inv.invite = {code_hash = strings.clone("inv1", store.op_allocator(inv)), role = .Mod, max_uses = 1, created_by = 1, created_at = 100, expires_at = 5000}
+	inv.done = DONE
+	testing.expect_value(t, write(t, inv, sql.create_invite(inv)), store.Error.None)
+	live := make([dynamic]m.Invite, context.temp_allocator)
+	sql.invites(200, &live)
+	testing.expect(t, len(live) == 1 && live[0].role == .Mod)
+	_, ierr := sql.invite("inv1", 6000)
+	testing.expect_value(t, ierr, store.Error.Not_Found) // expired by then
+	mod, merr := reg(t, "Kim", "inv1", "a3", 200)
+	testing.expect(t, merr == .None && mod.role == .Mod)
+	_, err = reg(t, "Lee", "inv1", "a4", 200)
+	testing.expect_value(t, err, store.Error.Not_Found) // its one use is spent
+	_, err = sql.user_by_name("Lee")
+	testing.expect_value(t, err, store.Error.Not_Found) // and nothing was written
+
+	all := make([dynamic]m.User, context.temp_allocator)
+	testing.expect_value(t, sql.users(&all), store.Error.None)
+	testing.expect(t, len(all) >= 4)
+
+	// root and Alex are the admins: Alex can go, then root is the last and can't.
+	alex, _ := sql.user_by_name("alex")
+	root, _ := sql.user_by_name("root")
+	demote := store.new_op(m.Set_Role, 0)
+	demote.user_id, demote.role, demote.done = alex.id, .User, DONE
+	testing.expect_value(t, write(t, demote, sql.set_role(demote)), store.Error.None)
+	last := store.new_op(m.Set_Role, 0)
+	last.user_id, last.role, last.done = root.id, .Mod, DONE
+	testing.expect_value(t, write(t, last, sql.set_role(last)), store.Error.Constraint)
+	off := store.new_op(m.Set_Disabled, 0)
+	off.user_id, off.disabled_at, off.done = root.id, 999, DONE
+	testing.expect_value(t, write(t, off, sql.set_disabled(off)), store.Error.Constraint)
+	robin_off := store.new_op(m.Set_Disabled, 0)
+	robin_off.user_id, robin_off.disabled_at, robin_off.done = open.result, 999, DONE
+	testing.expect_value(t, write(t, robin_off, sql.set_disabled(robin_off)), store.Error.None)
+	_, serr = sql.session("a1")
+	testing.expect_value(t, serr, store.Error.Not_Found) // a disabled member's sessions end
+	n, _ := sql.count_admins()
+	testing.expect_value(t, n, 1)
+
+	issue := store.new_op(m.Issue_Reset, 8)
+	issue.code_hash = strings.clone("r1", store.op_allocator(issue))
+	issue.user_id, issue.created_by, issue.now, issue.expires_at, issue.done = mod.result, root.id, 300, 9000, DONE
+	testing.expect_value(t, write(t, issue, sql.issue_reset(issue)), store.Error.None)
+	redeem :: proc(t: ^testing.T, user: i64, code: string) -> store.Error {
+		op := store.new_op(m.Redeem_Reset, len(code) + 16)
+		a := store.op_allocator(op)
+		op.code_hash, op.pw_hash, op.user_id, op.now, op.done = strings.clone(code, a), strings.clone("$new", a), user, 400, DONE
+		before := answered
+		testing.expect(t, sql.redeem_reset(op))
+		settle(t, before + 1)
+		return last_err
+	}
+	testing.expect_value(t, redeem(t, open.result, "r1"), store.Error.Constraint) // another member's code
+	testing.expect_value(t, redeem(t, mod.result, "r1"), store.Error.None)
+	testing.expect_value(t, redeem(t, mod.result, "r1"), store.Error.Constraint) // once
+	kim, _ := sql.user_by_id(mod.result)
+	testing.expect_value(t, kim.pw_hash, "$new")
+	_, serr = sql.session("a3")
+	testing.expect_value(t, serr, store.Error.Not_Found) // a reset ends every session
+
+	disp := store.new_op(m.Set_Display, 16)
+	disp.display = strings.clone("Kim L.", store.op_allocator(disp))
+	disp.user_id, disp.done = mod.result, DONE
+	testing.expect_value(t, write(t, disp, sql.set_display(disp)), store.Error.None)
+	kim, _ = sql.user_by_id(mod.result)
+	testing.expect_value(t, kim.display, "Kim L.")
+
+	drop := store.new_op(m.Delete_Invite, 8)
+	drop.code_hash = strings.clone("inv1", store.op_allocator(drop))
+	drop.done = DONE
+	testing.expect_value(t, write(t, drop, sql.delete_invite(drop)), store.Error.None)
+
+	store.free_op(open)
+	store.free_op(mod)
 }
 
 @(private = "file")

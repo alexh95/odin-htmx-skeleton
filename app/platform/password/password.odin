@@ -116,6 +116,33 @@ submit :: proc(v: ^Verify, pw, phc: string, done: proc(t: ^workers.Task)) -> boo
 	return workers.submit(&pool, &v.task)
 }
 
+// A new password's PHC string, made on the pool (a registration, a reset).
+Hash :: struct {
+	using task: workers.Task,
+	pw:         [MAX_LEN]byte,
+	pw_len:     int,
+	phc:        [160]byte, // the answer, set by run
+	phc_len:    int,
+}
+
+// As `submit`, for a hash: false, answer 503.
+submit_hash :: proc(h: ^Hash, pw: string, done: proc(t: ^workers.Task)) -> bool {
+	h.pw_len = copy(h.pw[:], pw)
+	h.phc_len = 0
+	h.run = run_hash
+	h.done = done
+	return workers.submit(&pool, &h.task)
+}
+
+@(private)
+run_hash :: proc(t: ^workers.Task) {
+	h := (^Hash)(t)
+	phc := hash(string(h.pw[:h.pw_len]), runtime.heap_allocator())
+	h.phc_len = copy(h.phc[:], phc)
+	delete(phc, runtime.heap_allocator())
+	mem.zero_slice(h.pw[:])
+}
+
 @(private)
 run_verify :: proc(t: ^workers.Task) {
 	v := (^Verify)(t)

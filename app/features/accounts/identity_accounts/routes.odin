@@ -22,7 +22,7 @@ import m "../models"
 import views "../views"
 import audit_store "store:audit"
 
-EXTS :: web.Exts{}
+EXTS :: web.Exts{.Prompt} // an admin's reason for each change (HX-Prompt)
 
 ROUTES := [?]web.Route {
 	{.Get, "/login", page, .Public, {.Private}, 0},
@@ -37,6 +37,19 @@ ROUTES := [?]web.Route {
 	{.Post, "/accounts/totp", totp_on, .Account_Self, {.Fragment}, 512},
 	{.Post, "/accounts/totp/codes", totp_codes, .Account_Self, {.Fragment, .Step_Up}, 0},
 	{.Post, "/accounts/totp/off", totp_off, .Account_Self, {.Fragment, .Step_Up}, 0},
+	{.Get, "/register", register_page, .Public, {.Private}, 0},
+	{.Post, "/register", register, .Public, {.Fragment}, 2048},
+	{.Get, "/reset", reset_page, .Public, {.Private}, 0},
+	{.Post, "/reset", reset, .Public, {.Fragment}, 2048},
+	{.Get, "/accounts/profile", profile_page, .Account_Self, {.Private}, 0},
+	{.Post, "/accounts/profile", profile, .Account_Self, {.Fragment}, 512},
+	{.Get, "/admin/accounts", admin_page, .Admin_Accounts, {.Private, .Lan_Only}, 0},
+	{.Post, "/admin/accounts/(%d+)/role", admin_role, .Admin_Accounts, {.Fragment, .Lan_Only, .Step_Up}, 256},
+	{.Post, "/admin/accounts/(%d+)/disable", admin_disable, .Admin_Accounts, {.Fragment, .Lan_Only, .Step_Up}, 0},
+	{.Post, "/admin/accounts/(%d+)/enable", admin_enable, .Admin_Accounts, {.Fragment, .Lan_Only, .Step_Up}, 0},
+	{.Post, "/admin/accounts/(%d+)/reset", admin_reset, .Admin_Accounts, {.Fragment, .Lan_Only, .Step_Up}, 0},
+	{.Post, "/admin/accounts/invites", admin_invite, .Admin_Accounts, {.Fragment, .Lan_Only, .Step_Up}, 256},
+	{.Post, "/admin/accounts/invites/delete", admin_uninvite, .Admin_Accounts, {.Fragment, .Lan_Only, .Step_Up}, 256},
 }
 
 // §17.5: attempts, right or wrong, per client and from everyone (n set at init).

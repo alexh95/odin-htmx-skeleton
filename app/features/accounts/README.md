@@ -21,6 +21,12 @@ domain (`features/accounts`, package `accounts`) and its views:
 | `GET`, `POST /step-up` | `Account_Self` | the password, or a code: `step_up_at` is now; back to `next` (a write's page, from `HX-Current-URL`) |
 | `GET`, `POST /accounts/totp` | `Account_Self` | two-step sign-in: the key (base32 and `otpauth://` text) and on by a code; the answer is ten recovery codes, shown once |
 | `POST /accounts/totp/codes`, `/accounts/totp/off` | `Account_Self`, step-up | new recovery codes (the old ones gone); off |
+| `GET`, `POST /register` | public | per `ACCOUNTS_REGISTRATION` (`invite`, the default; `open`; `closed`): username, name to show, password twice, the invite code (`/register?code=…`); one write creates the member, spends the invite (its role) and signs them in |
+| `GET`, `POST /reset` | public | username, an admin's one-time reset code, a new password twice; every session of the account ends |
+| `GET`, `POST /accounts/profile` | `Account_Self` | the name to show (`clean_name`) |
+| `GET /admin/accounts` | `Admin_Accounts`, LAN only | members (role, status, two-step), live invites |
+| `POST /admin/accounts/<id>/role`, `/disable`, `/enable`, `/reset` | `Admin_Accounts`, LAN only, step-up | with an `HX-Prompt` reason, audited; a role change or a disable ends the member's sessions; the last enabled admin stays; a reset code is shown once |
+| `POST /admin/accounts/invites`, `/invites/delete` | `Admin_Accounts`, LAN only, step-up | an invite (role, 1-50 uses, 1-30 days), its link shown once; withdrawn |
 
 - **The cookie**: `sid=<32 random bytes, base64url>; Path=/; Max-Age=<the absolute life>; HttpOnly; SameSite=Lax`,
   no `Domain` (host-only), `Secure` per `COOKIE_SECURE` (`auto`: when the request came as https through a trusted
@@ -39,6 +45,10 @@ domain (`features/accounts`, package `accounts`) and its views:
   taken once (`totp_last_step`), a recovery code once (`used_at`), each in the write that opens the session. An Admin
   without it loads as a Member (`ACCOUNTS_ADMIN_TOTP=required`, the default; `optional` for the suites). Step-up asks
   for a check within `ACCOUNTS_STEP_UP_WINDOW` (10 min); a sign-in counts as one.
+- **Members**: usernames are 3-32 of letters, digits, `_`, `-` and `.`; display names pass `clean_name` (no control,
+  invisible or direction-changing characters, 40 at most). 3 registrations and 10 invite or reset codes an hour per
+  client (`ACCOUNTS_REGISTER_PER_HOUR`, `ACCOUNTS_CODES_PER_HOUR`). New passwords are hashed on the pool
+  (`password.submit_hash`).
 - **Argon**: `ACCOUNTS_ARGON_THREADS` workers (0, the default: 1 with two cores or fewer, else 2), each holding
   19 MiB, declared to `--limits` as the pool's memory; a queue of 32, past it 503.
 - **The first admin**: `ACCOUNTS_ADMIN_HASH` (a PHC string from `bin --hash-password`, which reads the password from
@@ -93,5 +103,7 @@ also fixes the key, so a nickname outlives the restarts its specs make.
 | `/login` | front sends a Guest who lacks a route's perm here (§17.2): the identity's own page, whichever identity runs |
 | `/logout` | its pair |
 | `/step-up` | front sends a stale session on a `.Step_Up` row here (§17.2), as it sends a Guest to `/login` |
+| `/register` | where an invite link lands (`/register?code=…`), so the link is short and says what it is |
+| `/reset` | where a member takes an admin's reset code; signed out, they have no `/accounts` page to reach |
 
 Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md (`identity_nick`)

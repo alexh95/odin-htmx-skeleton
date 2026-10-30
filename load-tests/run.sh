@@ -153,7 +153,8 @@ start_server() { # $1 = port
   # which a nick build counts as the LAN, so its VUs can pick nicknames, and as its admins,
   # so they can load /admin/ops. The bot's mock answers at once, and its hourly limits are
   # lifted: a run measures the work, not the cap. An accounts build boots the suites' test
-  # admin with the sign-in limits lifted and its TOTP optional, for the same reason.
+  # admin with the sign-in and registration limits lifted, its TOTP optional and registration open,
+  # for the same reason.
   PORT="$1" LOG_LEVEL="${LOG_LEVEL:-warn}" METRICS_TOKEN_FILE="$ROUTES/.token" \
     STREAM_CONNECTS="${STREAM_CONNECTS:-1000000}" STREAMS_PER_CLIENT="${STREAMS_PER_CLIENT:-4096}" \
     LAB_PUBLISH_PER_MINUTE="${LAB_PUBLISH_PER_MINUTE:-100000000}" \
@@ -162,7 +163,8 @@ start_server() { # $1 = port
     BOT_MEMBER_PER_HOUR="${BOT_MEMBER_PER_HOUR:-100000000}" BOT_GUEST_PER_HOUR="${BOT_GUEST_PER_HOUR:-100000000}" \
     ACCOUNTS_ADMIN_HASH="${ACCOUNTS_ADMIN_HASH:-$TEST_ADMIN_HASH}" \
     ACCOUNTS_LOGIN_PER_CLIENT="${ACCOUNTS_LOGIN_PER_CLIENT:-100000000}" ACCOUNTS_LOGIN_OVERALL="${ACCOUNTS_LOGIN_OVERALL:-100000000}" \
-    ACCOUNTS_ADMIN_TOTP="${ACCOUNTS_ADMIN_TOTP:-optional}" \
+    ACCOUNTS_ADMIN_TOTP="${ACCOUNTS_ADMIN_TOTP:-optional}" ACCOUNTS_REGISTRATION="${ACCOUNTS_REGISTRATION:-open}" \
+    ACCOUNTS_REGISTER_PER_HOUR="${ACCOUNTS_REGISTER_PER_HOUR:-100000000}" ACCOUNTS_CODES_PER_HOUR="${ACCOUNTS_CODES_PER_HOUR:-100000000}" \
     "$BIN" "$1" >"$RAW/server_$1.log" 2>&1 &
   SRV_PID=$!
   # wait for /healthz (up to ~10s)

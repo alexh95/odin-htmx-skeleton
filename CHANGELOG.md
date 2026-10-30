@@ -46,6 +46,12 @@ Alex's NPM steps.
   `/step-up` takes the password or a code on `.Step_Up` rows (new codes, off), back to the page the write came
   from. An Admin without TOTP is a Member until it is on (`ACCOUNTS_ADMIN_TOTP`). e2e `totp.spec`, k6
   `accounts/totp.js`.
+- **Registration, invites, reset codes and `/admin/accounts`** (M4 slice 6, PLAN §17.1, Q10): `/register` follows
+  `ACCOUNTS_REGISTRATION` (an invite link by default, `open`, `closed`); one write creates the member, spends the
+  invite (which gives the role) and signs them in. Display names pass `clean_name` and the profile edits them.
+  `/admin/accounts` (LAN only) changes roles, disables and enables (the member's sessions end; the last admin
+  stays), and issues one-time reset codes and invites, shown once; each write asks for a step-up and a reason,
+  which the audit log keeps. `/reset` takes an admin's code. e2e `members.spec`, k6 `accounts/members.js`.
 - **The generator knows identities that need SQLite**: a feature with no web package gives its domain's store need to
   the identity that reaches it, so `--identity accounts` asks for `--store sqlite` while `nick` still builds on
   memory; an identity's routes own their nav entries.

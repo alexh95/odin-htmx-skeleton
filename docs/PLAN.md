@@ -4010,6 +4010,14 @@ replayed code is refused. `/step-up` takes the password or a code and returns a 
 from. An Admin without TOTP loads as a Member (`ACCOUNTS_ADMIN_TOTP=required`, the default). The admin-issued reset
 codes come with `/admin/accounts` (slice 6).
 
+**As built (M4, slice 6):** `/register` follows `ACCOUNTS_REGISTRATION`; an invite is `/register?code=<five groups of
+four>` (100 bits, stored hashed), and one write spends it (its role, its uses), creates the member and opens their
+session. A reset code is three groups (60 bits) for 24 hours, one live per member; `/reset` spends it with a new
+password and ends every session. `/admin/accounts` is LAN only; each write is a `.Step_Up` row whose `HX-Prompt` reason
+is required and audited, and a role change or a disable ends the member's sessions (a new sign-in picks up the role:
+the rotation on a privilege change). The last enabled admin can't be demoted or disabled, in the store's own write.
+`accounts_prefs` waits for its first reader (the theme, chat's transport and mutes).
+
 **TOTP and step-up** (Q11). TOTP follows RFC 6238 (vectors verified, 07 §0.6) with manual secret entry and the
 `otpauth://` text, no QR encoder. It is required for Admin and `Term_Write`. **Step-up** asks for the password or a
 TOTP code within the last 10 minutes on `.Step_Up` routes: `Term_Write`, role changes, invites and dbview. Recovery

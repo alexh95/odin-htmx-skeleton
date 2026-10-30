@@ -84,11 +84,21 @@ Alex, asked in one batch.
       once, the cookie kept, a warn line); `audit/audit.js` had measured `/login` (k6 empties the cookie jar each
       iteration: `noCookiesReset`, and a checks threshold on both new scenarios). The admin-issued reset codes go
       with `/admin/accounts` (slice 6).
-- [ ] **6. Registration, invites, profile and `/admin/accounts`** (§17.1, Q10): `ACCOUNTS_REGISTRATION` (`invite` by
+- [x] **6. Registration, invites, profile and `/admin/accounts`** (§17.1, Q10): `ACCOUNTS_REGISTRATION` (`invite` by
       default; `open`, `closed`), `/invite` redemption (limits), `/register`, display names through `clean_name`,
       `accounts_prefs` (theme, chat transport, mutes), `/admin/accounts` (roles, disable, invites, reset codes; the
       last admin can't be demoted or disabled), every action audited with its `HX-Prompt` reason. *Check:* e2e per
       mode; the last-admin rule; `escaping.spec` over the new fields.
+      Done: `/register` in the three modes (an invite link is `/register?code=…`, 100 bits, its role and its uses
+      spent in the one write that creates the member and signs them in); usernames 3-32 of `[A-Za-z0-9_.-]`, display
+      names through `clean_name` (the profile edits it); `/reset` with an admin's one-time code (60 bits, 24 h,
+      migration `0003_reset_codes.sql`; every session ends); `/admin/accounts` (LAN only, every write a step-up and an
+      `HX-Prompt` reason, audited): roles and disable (the member's sessions end; the last enabled admin stays),
+      reset codes and invites shown once; `password.submit_hash` for the pool. Limits: 3 registrations and 10 codes
+      an hour per client. `members.spec` (4 cases, the hostile-name case standing in for `escaping.spec`, which runs
+      on the profiles with UGC fields) and `accounts/members.js`. Moved: `accounts_prefs` goes with its first reader
+      (the theme with the `houston` theme, slice 10; the chat transport and mutes with chat on `full`), rather than a store
+      nothing reads.
 - [ ] **7. `envadmin`** (§17.1): the stateless signed-cookie identity, one admin from `ACCOUNTS_ADMIN_HASH`, for the
       SQLite-free profiles. *Check:* unit tests (sign, tamper, rotate signs everyone out); e2e of its login.
 - [ ] **8. Revocation on streams** (§17.2.3, X19): a kick or role change publishes a revoke that closes the viewer's
@@ -98,7 +108,7 @@ Alex, asked in one batch.
       family members, the switched implementations, the routes per host with perms and flags, bundle extensions, env
       (secrets masked), limits, health, migrations. *Check:* e2e; it imports no feature (`tools/check imports`).
 - [ ] **10. `cmd/full` and its two hosts** (§7.3, §15.5, F2): Houston on `SITE_URL` (`home`'s Today with cards, nav
-      from `brand.odin`, the `houston` theme) and the lab host on `SITE_URL_LAB` (`landing` at `/`, `notes`,
+      from `brand.odin`, the `houston` theme, which a member keeps in `accounts_prefs`) and the lab host on `SITE_URL_LAB` (`landing` at `/`, `notes`,
       `dashboard` at `/dashboard`, `gallery`, `contacts`, `about`, `lab`, `scripting`, `compat`; `LAB_NAV`), the
       boot's lab rules (§6.1 check 4), no identity and no cookie on the lab host, `NOTES_CAP` 500 and
       `CONTACTS_CAP` 2000 with their 04:00 resets; `starter-full` in `deploy/compose.yaml` (512 MiB) and the release

@@ -17,6 +17,7 @@ IMPL :: "sqlite"
 MIGRATIONS := [?]store.Migration {
 	{1, "0001_accounts.sql", #load("migrations/0001_accounts.sql", string)},
 	{2, "0002_totp.sql", #load("migrations/0002_totp.sql", string)},
+	{3, "0003_reset_codes.sql", #load("migrations/0003_reset_codes.sql", string)},
 }
 
 @(private) USER_COLS :: "id, username, display, role, pw_hash, disabled_at, failed_logins, backoff_until, totp_secret, totp_last_step"
@@ -37,6 +38,24 @@ MIGRATIONS := [?]store.Migration {
 @(private) SQL_DROP_CODES :: "DELETE FROM accounts_recovery_codes WHERE user_id = ?"
 @(private) SQL_ADD_CODE :: "INSERT INTO accounts_recovery_codes(user_id, code_hash) VALUES(?, ?)"
 @(private) SQL_STEP_UP :: "UPDATE sessions SET step_up_at = ? WHERE token_hash = ? AND user_id = ?"
+@(private) SQL_USERS :: "SELECT " + USER_COLS + " FROM users ORDER BY id LIMIT 500"
+@(private) INVITE_COLS :: "code_hash, role, max_uses, uses, created_by, created_at, expires_at"
+@(private) SQL_INVITES :: "SELECT " + INVITE_COLS + " FROM accounts_invites WHERE uses < max_uses AND expires_at > ? ORDER BY created_at DESC LIMIT 200"
+@(private) SQL_INVITE :: "SELECT " + INVITE_COLS + " FROM accounts_invites WHERE code_hash = ? AND uses < max_uses AND expires_at > ?"
+@(private) SQL_SPEND_INVITE :: "UPDATE accounts_invites SET uses = uses + 1 WHERE code_hash = ? AND uses < max_uses AND expires_at > ? RETURNING role"
+@(private) SQL_REGISTER :: "INSERT INTO users(username, display, pw_hash, role, created_at) VALUES(?, ?, ?, ?, ?)"
+@(private) SQL_ROLE_OF :: "SELECT role, disabled_at FROM users WHERE id = ?"
+@(private) SQL_OTHER_ADMINS :: "SELECT count(*) FROM users WHERE role = 3 AND disabled_at = 0 AND id != ?"
+@(private) SQL_SET_ROLE :: "UPDATE users SET role = ? WHERE id = ?"
+@(private) SQL_SET_DISABLED :: "UPDATE users SET disabled_at = ? WHERE id = ?"
+@(private) SQL_END_SESSIONS :: "DELETE FROM sessions WHERE user_id = ?"
+@(private) SQL_ADD_INVITE :: "INSERT INTO accounts_invites(" + INVITE_COLS + ") VALUES(?, ?, ?, 0, ?, ?, ?)"
+@(private) SQL_DROP_INVITE :: "DELETE FROM accounts_invites WHERE code_hash = ?"
+@(private) SQL_DROP_RESETS :: "DELETE FROM accounts_reset_codes WHERE user_id = ? AND used_at = 0"
+@(private) SQL_ADD_RESET :: "INSERT INTO accounts_reset_codes(code_hash, user_id, created_by, created_at, expires_at) VALUES(?, ?, ?, ?, ?)"
+@(private) SQL_SPEND_RESET :: "UPDATE accounts_reset_codes SET used_at = ?1 WHERE code_hash = ?2 AND user_id = ?3 AND used_at = 0 AND expires_at > ?1"
+@(private) SQL_SET_PASSWORD :: "UPDATE users SET pw_hash = ?, failed_logins = 0, backoff_until = 0 WHERE id = ?"
+@(private) SQL_SET_DISPLAY :: "UPDATE users SET display = ? WHERE id = ?"
 @(private) SQL_SWEEP :: "DELETE FROM sessions WHERE user_id = ? AND (expires_at <= ? OR last_seen < ?)"
 @(private) SQL_TOUCH :: "UPDATE sessions SET last_seen = ? WHERE token_hash = ?"
 @(private) SQL_CLOSE :: "DELETE FROM sessions WHERE token_hash = ? AND user_id = ?"
@@ -58,6 +77,12 @@ user_by_id :: proc(id: i64) -> (m.User, m.Error) {
 
 @(private)
 one_user :: proc(q: db.Stmt) -> (u: m.User, err: m.Error) {
+	return next_user(q)
+}
+
+// The next row as a user; .Not_Found past the last.
+@(private)
+next_user :: proc(q: db.Stmt) -> (u: m.User, err: m.Error) {
 	if !db.next_row(q, &err) { return {}, err if err != .None else .Not_Found }
 	role, ok := store.enum_from_int(m.Role, db.column_int(q, 3))
 	if !ok { return {}, .Failed }
@@ -116,6 +141,55 @@ recovery_left :: proc(user_id: i64) -> (n: int, err: m.Error) {
 	db.bind_id(q, 1, user_id)
 	if db.next_row(q, &err) { n = db.column_int(q, 0) }
 	return
+}
+
+users :: proc(into: ^[dynamic]m.User) -> (err: m.Error) {
+	q := db.read(SQL_USERS)
+	defer db.reset(q)
+	for {
+		u, e := next_user(q)
+		if e == .Not_Found { break }
+		if e != .None { return e }
+		append(into, u)
+	}
+	return .None
+}
+
+invites :: proc(now: i64, into: ^[dynamic]m.Invite) -> (err: m.Error) {
+	q := db.read(SQL_INVITES)
+	defer db.reset(q)
+	db.bind_id(q, 1, now)
+	for db.next_row(q, &err) {
+		inv, ok := one_invite(q)
+		if ok { append(into, inv) }
+	}
+	return
+}
+
+invite :: proc(code_hash: string, now: i64) -> (inv: m.Invite, err: m.Error) {
+	q := db.read(SQL_INVITE)
+	defer db.reset(q)
+	db.bind_text(q, 1, code_hash)
+	db.bind_id(q, 2, now)
+	if !db.next_row(q, &err) { return {}, err if err != .None else .Not_Found }
+	ok: bool
+	if inv, ok = one_invite(q); !ok { return {}, .Failed }
+	return
+}
+
+@(private)
+one_invite :: proc(q: db.Stmt) -> (inv: m.Invite, ok: bool) {
+	role: m.Role
+	if role, ok = store.enum_from_int(m.Role, db.column_int(q, 1)); !ok { return }
+	return m.Invite {
+		code_hash = db.clone_col(q, 0),
+		role = role,
+		max_uses = db.column_int(q, 2),
+		uses = db.column_int(q, 3),
+		created_by = db.column_id(q, 4),
+		created_at = db.column_id(q, 5),
+		expires_at = db.column_id(q, 6),
+	}, true
 }
 
 // write_now takes no data, so the boot's one write reads it from here.
@@ -270,6 +344,188 @@ step_up :: proc(op: ^m.Step_Up) -> bool {
 		db.bind_id(st, 3, op.user_id)
 		o.err = db.step_done(st)
 		if o.err == .None && db.changes() == 0 { o.err = .Not_Found }
+	}
+	return db.write(op)
+}
+
+register :: proc(op: ^m.Register) -> bool {
+	op.run = proc(o: ^store.Op) {
+		op := (^m.Register)(o)
+		op.role = .User
+		if op.invite_hash != "" {
+			sp := db.writer_stmt(SQL_SPEND_INVITE)
+			db.bind_text(sp, 1, op.invite_hash)
+			db.bind_id(sp, 2, op.now)
+			found := db.next_row(sp, &o.err)
+			if found {
+				role, ok := store.enum_from_int(m.Role, db.column_int(sp, 0))
+				if ok { op.role = role } else { o.err = .Failed }
+			}
+			db.reset(sp)
+			if o.err != .None { return }
+			if !found {
+				o.err = .Not_Found
+				return
+			}
+		}
+		st := db.writer_stmt(SQL_REGISTER)
+		db.bind_text(st, 1, op.username)
+		db.bind_text(st, 2, op.display)
+		db.bind_text(st, 3, op.pw_hash)
+		db.bind_int(st, 4, int(op.role))
+		db.bind_id(st, 5, op.now)
+		o.err = db.step_done(st)
+		db.reset(st)
+		if o.err != .None { return }
+		op.result = db.last_insert_id()
+		se := db.writer_stmt(SQL_OPEN)
+		defer db.reset(se)
+		db.bind_text(se, 1, op.token_hash)
+		db.bind_id(se, 2, op.result)
+		db.bind_id(se, 3, op.now)
+		db.bind_id(se, 4, op.now)
+		db.bind_id(se, 5, op.expires_at)
+		db.bind_id(se, 6, op.now)
+		o.err = db.step_done(se)
+	}
+	return db.write(op)
+}
+
+set_role :: proc(op: ^m.Set_Role) -> bool {
+	op.run = proc(o: ^store.Op) {
+		op := (^m.Set_Role)(o)
+		if op.role != .Admin { if o.err = keep_an_admin(op.user_id); o.err != .None { return } }
+		o.err = by_id(SQL_SET_ROLE, i64(op.role), op.user_id)
+		if o.err == .None { o.err = end_sessions(op.user_id) }
+	}
+	return db.write(op)
+}
+
+set_disabled :: proc(op: ^m.Set_Disabled) -> bool {
+	op.run = proc(o: ^store.Op) {
+		op := (^m.Set_Disabled)(o)
+		if op.disabled_at != 0 { if o.err = keep_an_admin(op.user_id); o.err != .None { return } }
+		o.err = by_id(SQL_SET_DISABLED, op.disabled_at, op.user_id)
+		if o.err == .None { o.err = end_sessions(op.user_id) }
+	}
+	return db.write(op)
+}
+
+// .Constraint when the user is the last enabled admin; .Not_Found when there is no such user.
+@(private)
+keep_an_admin :: proc(user_id: i64) -> (err: m.Error) {
+	q := db.writer_stmt(SQL_ROLE_OF)
+	db.bind_id(q, 1, user_id)
+	if !db.next_row(q, &err) {
+		db.reset(q)
+		return err if err != .None else .Not_Found
+	}
+	admin := db.column_int(q, 0) == int(m.Role.Admin) && db.column_id(q, 1) == 0
+	db.reset(q)
+	if !admin { return .None }
+	c := db.writer_stmt(SQL_OTHER_ADMINS)
+	defer db.reset(c)
+	db.bind_id(c, 1, user_id)
+	if db.next_row(c, &err) && db.column_int(c, 0) == 0 { return .Constraint }
+	return
+}
+
+// An UPDATE … SET x = ?1 WHERE id = ?2 that must find its row.
+@(private)
+by_id :: proc(sql: string, value, id: i64) -> m.Error {
+	st := db.writer_stmt(sql)
+	defer db.reset(st)
+	db.bind_id(st, 1, value)
+	db.bind_id(st, 2, id)
+	err := db.step_done(st)
+	if err == .None && db.changes() == 0 { return .Not_Found }
+	return err
+}
+
+@(private)
+end_sessions :: proc(user_id: i64) -> m.Error {
+	st := db.writer_stmt(SQL_END_SESSIONS)
+	defer db.reset(st)
+	db.bind_id(st, 1, user_id)
+	return db.step_done(st)
+}
+
+create_invite :: proc(op: ^m.Create_Invite) -> bool {
+	op.run = proc(o: ^store.Op) {
+		inv := (^m.Create_Invite)(o).invite
+		st := db.writer_stmt(SQL_ADD_INVITE)
+		defer db.reset(st)
+		db.bind_text(st, 1, inv.code_hash)
+		db.bind_int(st, 2, int(inv.role))
+		db.bind_int(st, 3, inv.max_uses)
+		db.bind_id(st, 4, inv.created_by)
+		db.bind_id(st, 5, inv.created_at)
+		db.bind_id(st, 6, inv.expires_at)
+		o.err = db.step_done(st)
+	}
+	return db.write(op)
+}
+
+delete_invite :: proc(op: ^m.Delete_Invite) -> bool {
+	op.run = proc(o: ^store.Op) {
+		st := db.writer_stmt(SQL_DROP_INVITE)
+		defer db.reset(st)
+		db.bind_text(st, 1, (^m.Delete_Invite)(o).code_hash)
+		o.err = db.step_done(st)
+		if o.err == .None && db.changes() == 0 { o.err = .Not_Found }
+	}
+	return db.write(op)
+}
+
+issue_reset :: proc(op: ^m.Issue_Reset) -> bool {
+	op.run = proc(o: ^store.Op) {
+		op := (^m.Issue_Reset)(o)
+		dr := db.writer_stmt(SQL_DROP_RESETS)
+		db.bind_id(dr, 1, op.user_id)
+		o.err = db.step_done(dr)
+		db.reset(dr)
+		if o.err != .None { return }
+		st := db.writer_stmt(SQL_ADD_RESET)
+		defer db.reset(st)
+		db.bind_text(st, 1, op.code_hash)
+		db.bind_id(st, 2, op.user_id)
+		db.bind_id(st, 3, op.created_by)
+		db.bind_id(st, 4, op.now)
+		db.bind_id(st, 5, op.expires_at)
+		o.err = db.step_done(st)
+	}
+	return db.write(op)
+}
+
+redeem_reset :: proc(op: ^m.Redeem_Reset) -> bool {
+	op.run = proc(o: ^store.Op) {
+		op := (^m.Redeem_Reset)(o)
+		sp := db.writer_stmt(SQL_SPEND_RESET)
+		db.bind_id(sp, 1, op.now)
+		db.bind_text(sp, 2, op.code_hash)
+		db.bind_id(sp, 3, op.user_id)
+		o.err = db.step_done(sp)
+		db.reset(sp)
+		if o.err == .None && db.changes() == 0 { o.err = .Constraint }
+		if o.err != .None { return }
+		pw := db.writer_stmt(SQL_SET_PASSWORD)
+		db.bind_text(pw, 1, op.pw_hash)
+		db.bind_id(pw, 2, op.user_id)
+		o.err = db.step_done(pw)
+		db.reset(pw)
+		if o.err == .None { o.err = end_sessions(op.user_id) }
+	}
+	return db.write(op)
+}
+
+set_display :: proc(op: ^m.Set_Display) -> bool {
+	op.run = proc(o: ^store.Op) {
+		op := (^m.Set_Display)(o)
+		st := db.writer_stmt(SQL_SET_DISPLAY)
+		defer db.reset(st)
+		db.bind_text(st, 1, op.display)
+		db.bind_id(st, 2, op.user_id)
+		o.err = db.step_done(st)
 	}
 	return db.write(op)
 }
