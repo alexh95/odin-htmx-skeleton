@@ -35,6 +35,7 @@ MIGRATIONS := [?]store.Migration {
 @(private) SQL_SPEND_STEP :: "UPDATE users SET totp_last_step = ?1 WHERE id = ?2 AND totp_last_step < ?1"
 @(private) SQL_SPEND_CODE :: "UPDATE accounts_recovery_codes SET used_at = ? WHERE user_id = ? AND code_hash = ? AND used_at = 0"
 @(private) SQL_SET_TOTP :: "UPDATE users SET totp_secret = ?, totp_last_step = ? WHERE id = ?"
+@(private) SQL_ENROL_TOTP :: "UPDATE users SET totp_secret = ?, totp_last_step = ? WHERE id = ? AND totp_secret = ''"
 @(private) SQL_DROP_CODES :: "DELETE FROM accounts_recovery_codes WHERE user_id = ?"
 @(private) SQL_ADD_CODE :: "INSERT INTO accounts_recovery_codes(user_id, code_hash) VALUES(?, ?)"
 @(private) SQL_STEP_UP :: "UPDATE sessions SET step_up_at = ? WHERE token_hash = ? AND user_id = ?"
@@ -325,13 +326,18 @@ close_session :: proc(op: ^m.Close_Session) -> bool {
 set_totp :: proc(op: ^m.Set_Totp) -> bool {
 	op.run = proc(o: ^store.Op) {
 		op := (^m.Set_Totp)(o)
-		st := db.writer_stmt(SQL_SET_TOTP)
+		st := db.writer_stmt(SQL_ENROL_TOTP if op.enrol else SQL_SET_TOTP)
 		db.bind_text(st, 1, op.secret)
 		db.bind_id(st, 2, op.last_step)
 		db.bind_id(st, 3, op.user_id)
 		o.err = db.step_done(st)
 		db.reset(st)
 		if o.err != .None { return }
+		// A second factor already set is replaced only by turning it off first, behind a step-up.
+		if op.enrol && db.changes() == 0 {
+			o.err = .Constraint
+			return
+		}
 		dr := db.writer_stmt(SQL_DROP_CODES)
 		db.bind_id(dr, 1, op.user_id)
 		o.err = db.step_done(dr)

@@ -20,6 +20,7 @@ import "core:strconv"
 import "core:strings"
 import "core:time"
 
+import "../../../platform/escape"
 import "../../../platform/html"
 import "../../../platform/password"
 import "../../../platform/store"
@@ -51,8 +52,8 @@ read_pending :: proc(token: string) -> (user_id: i64, ok: bool) {
 	body := token[:dot]
 	mac: [32]byte
 	hmac.sum(hash.Algorithm.SHA256, mac[:], transmute([]byte)body, st.pending_key[:])
-	sent, err := base64.decode(token[dot + 1:], base64.DEC_URL_TABLE, nil, context.temp_allocator)
-	if err != nil || len(sent) != len(mac) || crypto.compare_constant_time(sent, mac[:]) != 1 { return }
+	sent, sok := escape.b64_decode(token[dot + 1:], url = true)
+	if !sok || len(sent) != len(mac) || crypto.compare_constant_time(sent, mac[:]) != 1 { return }
 	id_text, _, until_text := strings.partition(body, ".")
 	id, iok := strconv.parse_i64_of_base(id_text, 10)
 	until, uok := strconv.parse_i64_of_base(until_text, 10)
@@ -129,11 +130,19 @@ step_up_page :: proc(req: ^web.Request, res: ^web.Response) {
 	web.render_page(req, res, "Confirm it's you", "/step-up", "Confirm it's you.", strings.to_string(b))
 }
 
+// A member's own step-ups, by their id: never the sign-in's buckets, which a stranger can fill from
+// outside and so lock every admin out of their writes (M4-03).
+@(private)
+step_ups := web.Limit{n = 10, window = WINDOW}
+
 // POST /step-up, `secret` (the password, or six digits from the app) and `next`.
 @(private)
 step_up :: proc(req: ^web.Request, res: ^web.Response) {
 	c := web.ctx()
-	if !admit_attempt(res, c) { return }
+	if ok, retry := web.limit_hit(&step_ups, c.viewer.id); !ok {
+		web.respond_limited(res, retry, html.field_msg(false, "Too many tries: wait a little, then try again."))
+		return
+	}
 	u, err := accounts.user_by_id(i64(c.viewer.id))
 	if err != .None {
 		web.respond_store_error(req, res, err)
@@ -183,12 +192,14 @@ step_up_write :: proc(l: ^Login, step: i64) {
 			store.free_op(op)
 			free(l, runtime.heap_allocator())
 		}
+		if op.err == .None {
+			audit_store.append({l.user_id, string(l.name[:l.name_len]), client_id(l.client)}, "accounts.step_up", {"session", 0}, "", "factor=totp" if op.totp_step > 0 else "factor=password")
+		}
 		res := web.resume(&l.deferred)
 		if res == nil { return }
 		req := web.request(&l.deferred)
 		#partial switch op.err {
 		case .None:
-			audit_store.append({l.user_id, string(l.name[:l.name_len]), client_id(l.client)}, "accounts.step_up", {"session", 0}, "", "factor=totp" if op.totp_step > 0 else "factor=password")
 			go(req, res, string(l.next[:l.next_len]))
 		case .Constraint:
 			web.respond_html(res, html.field_msg(false, "Wrong code, or one used already."), .Unprocessable_Content)
@@ -226,10 +237,16 @@ totp_page :: proc(req: ^web.Request, res: ^web.Response) {
 	web.render_page(req, res, "Two-step sign-in", "/accounts/totp", "Two-step sign-in.", strings.to_string(b))
 }
 
-// POST /accounts/totp, `secret` (as the page showed it) and `code`: on, if the code is the
-// secret's; the answer is the recovery codes, shown this once.
+// POST /accounts/totp (a step-up), `secret` (as the page showed it) and `code`: on, if the code is
+// the secret's and none is set yet; the answer is the recovery codes, shown this once. Replacing a
+// second factor would let whoever holds a session step up with their own (M4-01): it goes off
+// first, which is a step-up of the factor in force.
 @(private)
 totp_on :: proc(req: ^web.Request, res: ^web.Response) {
+	if u, err := accounts.user_by_id(i64(web.ctx().viewer.id)); err != .None || u.totp_secret != "" {
+		refuse(res, "Two-step sign-in is already on: turn it off first.")
+		return
+	}
 	f := web.form(req)
 	secret, ok := totp.decode(f["secret"])
 	step: i64
@@ -238,7 +255,7 @@ totp_on :: proc(req: ^web.Request, res: ^web.Response) {
 		web.respond_html(res, html.field_msg(false, "That code doesn't match: check the app's clock, and try the next one."), .Unprocessable_Content)
 		return
 	}
-	set_totp(req, res, totp.encode(secret[:]), step, "accounts.totp_on")
+	set_totp(req, res, totp.encode(secret[:]), step, "accounts.totp_on", enrol = true)
 }
 
 // POST /accounts/totp/codes (a step-up): ten new recovery codes, the old ones gone.
@@ -269,12 +286,12 @@ Setting :: struct {
 }
 
 @(private)
-set_totp :: proc(req: ^web.Request, res: ^web.Response, secret: string, last_step: i64, action: string) {
+set_totp :: proc(req: ^web.Request, res: ^web.Response, secret: string, last_step: i64, action: string, enrol := false) {
 	c := web.ctx()
 	codes := accounts.new_recovery_codes() if secret != "" else {}
 	op := store.new_op(Setting, len(secret) + len(action) + len(c.viewer.name) + 2 * m.RECOVERY_CODES * 80)
 	a := store.op_allocator(op)
-	op.user_id, op.secret, op.last_step = i64(c.viewer.id), strings.clone(secret, a), last_step
+	op.user_id, op.secret, op.last_step, op.enrol = i64(c.viewer.id), strings.clone(secret, a), last_step, enrol
 	op.action, op.name, op.client = strings.clone(action, a), strings.clone(c.viewer.name, a), web.client_key(c.client)
 	for code, i in codes {
 		if code == "" { continue }
@@ -284,17 +301,20 @@ set_totp :: proc(req: ^web.Request, res: ^web.Response, secret: string, last_ste
 	op.done = proc(o: ^store.Op) {
 		op := (^Setting)(o)
 		defer store.free_op(op)
+		if op.err == .None {
+			audit_store.append({op.user_id, op.name, client_id(op.client)}, op.action, {"user", op.user_id}, "", "")
+		}
 		res := web.resume(&op.deferred)
 		if res == nil { return }
 		req := web.request(&op.deferred)
 		switch {
+		case op.enrol && op.err == .Constraint:
+			refuse(res, "Two-step sign-in is already on: turn it off first.")
 		case op.err != .None:
 			web.respond_store_error(req, res, op.err)
 		case op.secret == "":
-			audit_store.append({op.user_id, op.name, client_id(op.client)}, op.action, {"user", op.user_id}, "", "")
 			go(req, res, "/accounts/totp")
 		case:
-			audit_store.append({op.user_id, op.name, client_id(op.client)}, op.action, {"user", op.user_id}, "", "")
 			b := strings.builder_make(context.temp_allocator)
 			views.recovery_codes(&b, op.shown[:])
 			web.respond_html(res, strings.to_string(b))

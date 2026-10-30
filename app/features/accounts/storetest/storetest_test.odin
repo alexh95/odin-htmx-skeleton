@@ -124,7 +124,7 @@ the_store_keeps_users_and_sessions :: proc(t: ^testing.T) {
 	// TOTP on with its recovery codes; a step and a code each spent once, in the sign-in's own write.
 	totp := store.new_op(m.Set_Totp, 64 + 64 * m.RECOVERY_CODES)
 	ta := store.op_allocator(totp)
-	totp.user_id, totp.secret, totp.done = u.id, strings.clone("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", ta), DONE
+	totp.user_id, totp.secret, totp.enrol, totp.done = u.id, strings.clone("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", ta), true, DONE
 	for &c, i in totp.codes { c = fmt.aprintf("c%d", i, allocator = ta) }
 	testing.expect(t, sql.set_totp(totp))
 	settle(t, answered + 1)
@@ -132,6 +132,17 @@ the_store_keeps_users_and_sessions :: proc(t: ^testing.T) {
 	u, _ = sql.user_by_id(u.id)
 	testing.expect(t, u.totp_secret == "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" && u.totp_last_step == 0)
 	left, _ := sql.recovery_left(u.id)
+	testing.expect_value(t, left, m.RECOVERY_CODES)
+
+	// An enrolment over a second factor in force changes nothing (M4-01).
+	again := store.new_op(m.Set_Totp, 64)
+	again.user_id, again.secret, again.enrol, again.done = u.id, strings.clone("JBSWY3DPEHPK3PXP", store.op_allocator(again)), true, DONE
+	testing.expect(t, sql.set_totp(again))
+	settle(t, answered + 1)
+	testing.expect_value(t, last_err, store.Error.Constraint)
+	u, _ = sql.user_by_id(u.id)
+	testing.expect_value(t, u.totp_secret, "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ")
+	left, _ = sql.recovery_left(u.id)
 	testing.expect_value(t, left, m.RECOVERY_CODES)
 
 	S2 :: "2222222222222222222222222222222222222222222222222222222222222222"

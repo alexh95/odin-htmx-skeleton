@@ -8,6 +8,7 @@ package escape
 // for views, and platform/markdown, which domains call at write time (L2), uses
 // them directly. A leaf: core only.
 
+import "core:encoding/base64"
 import "core:fmt"
 import "core:net"
 import "core:strings"
@@ -66,4 +67,26 @@ json_esc :: proc(b: ^strings.Builder, s: string) {
 			strings.write_rune(b, r) // an invalid byte arrives as U+FFFD, re-encoded validly
 		}
 	}
+}
+
+// ---- base64 from a request ---------------------------------------------------
+//
+// core:encoding/base64 traps on some input a client can send (a lone `=` or `==` asks it for a
+// buffer of length -1: M4-02), so a value from a cookie, a form or a header is held to the
+// alphabet and the padding rules first. `url`: the URL-safe alphabet, padding optional.
+b64_decode :: proc(s: string, url := false) -> (out: []byte, ok: bool) {
+	data := strings.trim_right(s, "=")
+	if len(data) == 0 || len(s) - len(data) > 2 || len(data) % 4 == 1 { return nil, false }
+	if !url && len(s) % 4 != 0 { return nil, false }
+	for c in transmute([]byte)data {
+		switch c {
+		case 'A' ..= 'Z', 'a' ..= 'z', '0' ..= '9':
+		case '-', '_': if !url { return nil, false }
+		case '+', '/': if url { return nil, false }
+		case: return nil, false
+		}
+	}
+	err: base64.Error
+	out, err = base64.decode(s, base64.DEC_URL_TABLE if url else base64.DEC_TABLE, allocator = context.temp_allocator)
+	return out, err == nil
 }

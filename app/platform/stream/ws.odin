@@ -12,6 +12,7 @@ import "core:strings"
 import "core:time"
 import "core:unicode/utf8"
 
+import "../escape"
 import "../sys"
 import "../web"
 
@@ -290,7 +291,7 @@ ws_upgrade :: proc(
 		web.respond_status(res, .Upgrade_Required)
 		return nil, .Bad_Version
 	}
-	if raw, derr := base64.decode(key, allocator = context.temp_allocator); derr != nil || len(raw) != 16 {
+	if raw, kok := escape.b64_decode(key); !kok || len(raw) != 16 {
 		web.respond_status(res, .Bad_Request)
 		return nil, .Bad_Key
 	}

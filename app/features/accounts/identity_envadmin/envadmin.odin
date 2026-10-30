@@ -22,6 +22,7 @@ import "core:time"
 
 import "../../../platform/authz"
 import "../../../platform/env"
+import "../../../platform/escape"
 import "../../../platform/obs"
 import "../../../platform/password"
 
@@ -125,8 +126,8 @@ read :: proc(value: string, key: []byte, now: i64) -> (issued: i64, ok: bool) {
 	body := value[:dot]
 	mac: [32]byte
 	hmac.sum(.SHA256, mac[:], transmute([]byte)body, key)
-	sent, err := base64.decode(value[dot + 1:], base64.DEC_URL_TABLE, nil, context.temp_allocator)
-	if err != nil || len(sent) != len(mac) || crypto.compare_constant_time(sent, mac[:]) != 1 { return }
+	sent, sok := escape.b64_decode(value[dot + 1:], url = true)
+	if !sok || len(sent) != len(mac) || crypto.compare_constant_time(sent, mac[:]) != 1 { return }
 	i_text, _, e_text := strings.partition(body, ".")
 	i, iok := strconv.parse_i64_of_base(i_text, 10)
 	e, eok := strconv.parse_i64_of_base(e_text, 10)

@@ -25,6 +25,7 @@ import "core:unicode/utf8"
 
 import "../../../platform/authz"
 import "../../../platform/env"
+import "../../../platform/escape"
 import "../../../platform/obs"
 
 NAME :: "nick"
@@ -174,8 +175,8 @@ read :: proc(value: string) -> (id: u64, name: string, expires: i64, ok: bool) {
 	body, given := value[:dot], value[dot + 1:]
 	mac: [32]byte
 	hmac.sum(.SHA256, mac[:], transmute([]byte)body, st.key[:])
-	sent, err := base64.decode(given, base64.DEC_URL_TABLE, nil, context.temp_allocator)
-	if err != nil || len(sent) != len(mac) || crypto.compare_constant_time(sent, mac[:]) != 1 { return }
+	sent, sok := escape.b64_decode(given, url = true)
+	if !sok || len(sent) != len(mac) || crypto.compare_constant_time(sent, mac[:]) != 1 { return }
 	parts := strings.split(body, ".", context.temp_allocator)
 	if len(parts) != 3 { return }
 	n, nok := strconv.parse_u64_of_base(parts[0], 10)

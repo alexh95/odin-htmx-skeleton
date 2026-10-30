@@ -32,7 +32,8 @@ async function sitemapPaths(request: any): Promise<string[]> {
 // one can't quietly turn its test into a skip; a profile with no such line
 // (minimal) sets none.
 function brandConst(name: string): string {
-  const file = path.join(appDirFrom(test.info().config), 'cmd', PROFILE, 'brand.odin');
+  // full-vanilla is full's files on the other client (build.sh's `src=full`): it has no directory.
+  const file = path.join(appDirFrom(test.info().config), 'cmd', PROFILE.replace(/-vanilla$/, ''), 'brand.odin');
   const src = readFileSync(file, 'utf8');
   const m = src.match(new RegExp(`^\\s*${name}\\s*=\\s*"([^"]*)"`, 'm'));
   if (!m && PROFILE !== 'skeleton') return '';

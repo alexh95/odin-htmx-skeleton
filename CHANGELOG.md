@@ -110,6 +110,16 @@ Alex's NPM steps.
 
 ### Fixed
 
+- **A session could replace the second factor in force, and step up with its own** (M4-01, HIGH, `docs/audit/M4.md`):
+  `POST /accounts/totp` now asks for a step-up and enrols only while two-step sign-in is off, in the handler and in
+  the store's write, so a factor is replaced only by turning it off first, behind a step-up of the one in force.
+- **A base64 value of `=` or `==` trapped the decoder** (M4-02): `escape.b64_decode` holds a value from a cookie, a
+  form or a header to the alphabet and the padding first; the sign-in's pending token, nick's and envadmin's
+  cookies and the WebSocket key go through it.
+- **A stranger could fill the sign-in buckets and lock every admin out of step-ups** (M4-03): a step-up counts
+  against the member's own limit, and resets, which hash on the argon pool, have an overall one.
+- **A change whose client left was written without its audit entry** (M4-04): every audited continuation appends
+  its entry (and an admin change its revoke) before it looks for the client.
 - **tools/init accepted selections that couldn't boot** (M4 slice 13): `scripting` or `compat` give a selection the
   anonymous identity, and a feature with member-only rows (`ops`, `audit`, …) then fails the boot's identity check;
   `select` now refuses it and says why. And after `full-vanilla` joined `build.sh`, every generation stopped on the

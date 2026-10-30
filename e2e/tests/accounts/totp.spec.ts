@@ -48,6 +48,12 @@ test.describe('two-step sign-in', T, () => {
       for (const c of codes) expect(c).toMatch(/^[a-z0-9]{4}-[a-z0-9]{4}$/);
       await one.page.goto('/accounts/totp');
       await expect(one.page.locator('.totp-state')).toContainText('10 of 10 recovery codes left');
+      // A second enrolment, even with a good code for its own secret, can't replace the factor in force:
+      // whoever held the session could otherwise step up with theirs (M4-01).
+      const other = 'JBSWY3DPEHPK3PXP';
+      const replaced = await one.page.request.post('/accounts/totp', { form: { secret: other, code: totp(other) } });
+      expect(replaced.status()).toBe(422);
+      expect(await replaced.text()).toContain('already on');
 
       const two = await browser.newContext({ baseURL: base });
       const page = await two.newPage();

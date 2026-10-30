@@ -104,14 +104,17 @@ ACT_BYTES :: 4 * MAX_REASON + 256
 @(private)
 acted :: proc(o: ^store.Op, act: ^Act, refused: string) {
 	defer store.free_op(o)
+	// The change is written: its entry and the revoke don't wait on the admin's client (M4-04).
+	if o.err == .None {
+		audit_store.append({act.actor_id, act.actor, client_id(act.client)}, act.action, {"user" if act.target.id != 0 else "invite", act.target.id}, act.reason, act.meta)
+		// Their sessions ended in the write; their open pages go now (X19).
+		if act.revoke { hub.revoke(u64(act.target.id)) }
+	}
 	res := web.resume(&act.deferred)
 	if res == nil { return }
 	req := web.request(&act.deferred)
 	#partial switch o.err {
 	case .None:
-		audit_store.append({act.actor_id, act.actor, client_id(act.client)}, act.action, {"user" if act.target.id != 0 else "invite", act.target.id}, act.reason, act.meta)
-		// Their sessions ended in the write; their open pages go now (X19).
-		if act.revoke { hub.revoke(u64(act.target.id)) }
 		if act.show != "" {
 			web.respond_html(res, act.show)
 		} else {

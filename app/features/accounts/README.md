@@ -30,7 +30,7 @@ domain (`features/accounts`, package `accounts`) and its views:
 | `POST /accounts/sessions/revoke` | `Account_Self` | `session` (its hash): one of the member's own (the store refuses another's); this one is signing out |
 | `POST /login/code` | public | the sign-in's second step: `pending` (signed, five minutes), `code` from the app or a recovery code, spent in the session's own write |
 | `GET`, `POST /step-up` | `Account_Self` | the password, or a code: `step_up_at` is now; back to `next` (a write's page, from `HX-Current-URL`) |
-| `GET`, `POST /accounts/totp` | `Account_Self` | two-step sign-in: the key (base32 and `otpauth://` text) and on by a code; the answer is ten recovery codes, shown once |
+| `GET`, `POST /accounts/totp` | `Account_Self`; the POST a step-up | two-step sign-in: the key (base32 and `otpauth://` text) and on by a code, only while it is off (a factor in force is replaced by turning it off first, M4-01); the answer is ten recovery codes, shown once |
 | `POST /accounts/totp/codes`, `/accounts/totp/off` | `Account_Self`, step-up | new recovery codes (the old ones gone); off |
 | `GET`, `POST /register` | public | per `ACCOUNTS_REGISTRATION` (`invite`, the default; `open`; `closed`): username, name to show, password twice, the invite code (`/register?code=…`); one write creates the member, spends the invite (its role) and signs them in |
 | `GET`, `POST /reset` | public | username, an admin's one-time reset code, a new password twice; every session of the account ends |

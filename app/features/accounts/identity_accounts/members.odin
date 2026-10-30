@@ -28,6 +28,9 @@ import audit_store "store:audit"
 registers := web.Limit{n = 3, window = time.Hour}
 @(private)
 codes_tried := web.Limit{n = 10, window = time.Hour}
+// Every reset's new password is hashed on the argon pool: from everyone, at most these (M4-03).
+@(private)
+resets_all := web.Limit{n = 60, window = time.Hour}
 
 // A new password on its way through the pool to the write that uses it.
 @(private)
@@ -192,13 +195,16 @@ registered :: proc(o: ^store.Op) {
 		store.free_op(op)
 		free(h, runtime.heap_allocator())
 	}
+	if op.err == .None { // audited before the client is known to be there (M4-04)
+		meta: [48]byte
+		audit_store.append({op.result, op.display, client_id(h.client)}, "accounts.register", {"user", op.result}, "",
+			fmt.bprintf(meta[:], "role=%s invite=%s", authz.ROLE_LABELS[op.role], "yes" if op.invite_hash != "" else "no"))
+	}
 	res := web.resume(&h.deferred)
 	if res == nil { return }
 	req := web.request(&h.deferred)
 	#partial switch op.err {
 	case .None:
-		audit_store.append({op.result, op.display, client_id(h.client)}, "accounts.register", {"user", op.result}, "",
-			fmt.tprintf("role=%s invite=%s", authz.ROLE_LABELS[op.role], "yes" if op.invite_hash != "" else "no"))
 		web.set_header(res, "set-cookie", issue(op.token, h.https))
 		go(req, res, "/")
 	case .Constraint:
@@ -230,6 +236,10 @@ reset :: proc(req: ^web.Request, res: ^web.Response) {
 		web.respond_limited(res, retry, html.field_msg(false, "Too many codes from here: try again later."))
 		return
 	}
+	if ok, retry := web.limit_hit(&resets_all, 0); !ok {
+		web.respond_limited(res, retry, html.field_msg(false, "Too many resets right now: try again later."))
+		return
+	}
 	f := web.form(req)
 	if p := accounts.check_new_password(f["password"], f["again"]); p != "" { refuse(res, p); return }
 	u, err := accounts.user_by_name(strings.trim_space(f["username"]))
@@ -255,12 +265,14 @@ reset_done :: proc(o: ^store.Op) {
 		store.free_op(op)
 		free(h, runtime.heap_allocator())
 	}
+	if op.err == .None {
+		audit_store.append({op.user_id, string(h.display[:h.display_n]), client_id(h.client)}, "accounts.reset", {"user", op.user_id}, "", "")
+	}
 	res := web.resume(&h.deferred)
 	if res == nil { return }
 	req := web.request(&h.deferred)
 	#partial switch op.err {
 	case .None:
-		audit_store.append({op.user_id, string(h.display[:h.display_n]), client_id(h.client)}, "accounts.reset", {"user", op.user_id}, "", "")
 		go(req, res, "/login")
 	case .Constraint:
 		web.respond_html(res, html.field_msg(false, "That code doesn't match, or was used."), .Unprocessable_Content)

@@ -41,7 +41,7 @@ ROUTES := [?]web.Route {
 	{.Get, "/step%-up", step_up_page, .Account_Self, {.Private}, 0},
 	{.Post, "/step%-up", step_up, .Account_Self, {.Fragment}, 2048},
 	{.Get, "/accounts/totp", totp_page, .Account_Self, {.Private}, 0},
-	{.Post, "/accounts/totp", totp_on, .Account_Self, {.Fragment}, 512},
+	{.Post, "/accounts/totp", totp_on, .Account_Self, {.Fragment, .Step_Up}, 512},
 	{.Post, "/accounts/totp/codes", totp_codes, .Account_Self, {.Fragment, .Step_Up}, 0},
 	{.Post, "/accounts/totp/off", totp_off, .Account_Self, {.Fragment, .Step_Up}, 0},
 	{.Get, "/register", register_page, .Public, {.Private}, 0},
@@ -235,20 +235,25 @@ opened :: proc(o: ^store.Op) {
 		store.free_op(op)
 		free(l, runtime.heap_allocator())
 	}
-	// A client that left has a session row it never got: it dies idle, or at its next sign-in's sweep.
-	res := web.resume(&l.deferred)
-	if res == nil { return }
-	req := web.request(&l.deferred)
+	// Audited whether or not the client is still there: the write is done either way (M4-04).
 	factor := "factor=totp" if op.totp_step > 0 else "factor=recovery" if op.recovery_hash != "" else ""
 	#partial switch op.err {
 	case .None:
 		audit_store.append({l.user_id, string(l.name[:l.name_len]), client_id(l.client)}, "accounts.sign_in", {"session", 0}, "", factor)
-		web.set_header(res, "set-cookie", issue(op.token, l.https))
-		go(req, res, string(l.next[:l.next_len]))
 	case .Constraint:
 		// A code taken already, or a recovery code that is none of the account's unused ones.
 		count_failure(l.user_id, l.failed + 1)
 		audit_store.append({client = client_id(l.client)}, "accounts.sign_in_failed", {"user", l.user_id}, "", factor)
+	}
+	// A client that left has a session row it never got: it dies idle, or at its next sign-in's sweep.
+	res := web.resume(&l.deferred)
+	if res == nil { return }
+	req := web.request(&l.deferred)
+	#partial switch op.err {
+	case .None:
+		web.set_header(res, "set-cookie", issue(op.token, l.https))
+		go(req, res, string(l.next[:l.next_len]))
+	case .Constraint:
 		web.respond_html(res, html.field_msg(false, "Wrong code, or one used already."), .Unprocessable_Content)
 	case:
 		web.respond_store_error(req, res, op.err)
@@ -350,6 +355,9 @@ closing :: proc(req: ^web.Request, res: ^web.Response, token_hash, to: string) {
 closed :: proc(o: ^store.Op) {
 	op := (^Closing)(o)
 	defer store.free_op(op)
+	if op.err == .None && op.to == "" {
+		audit_store.append({op.user_id, op.name, client_id(op.client)}, "accounts.revoke", {"session", 0}, "", "")
+	}
 	res := web.resume(&op.deferred)
 	if res == nil { return }
 	req := web.request(&op.deferred)
@@ -360,7 +368,6 @@ closed :: proc(o: ^store.Op) {
 		web.set_header(res, "set-cookie", forget(op.https))
 		go(req, res, op.to)
 	case:
-		audit_store.append({op.user_id, op.name, client_id(op.client)}, "accounts.revoke", {"session", 0}, "", "")
 		list := make([dynamic]m.Session, context.temp_allocator)
 		if err := accounts.sessions_of(op.user_id, &list); err != .None {
 			web.respond_store_error(req, res, err)
@@ -375,10 +382,15 @@ closed :: proc(o: ^store.Op) {
 
 // ---- helpers ------------------------------------------------------------------------------
 
-// The audit's client id: the hashed address (web.client_key), never the address.
+// The audit's client id: the hashed address (web.client_key), never the address. In a per-thread
+// buffer, not the request's arena, so a continuation can audit before it knows the client is still
+// there (M4-04); audit's append copies it at once.
+@(private, thread_local)
+client_buf: [16]byte
+
 @(private)
 client_id :: proc(key: u64) -> string {
-	return fmt.tprintf("%016x", key)
+	return fmt.bprintf(client_buf[:], "%016x", key)
 }
 
 // The hash of the session this request carries, or "".

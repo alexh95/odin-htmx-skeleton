@@ -116,9 +116,9 @@ verified :: proc(t: ^workers.Task) {
 		answer(l, "That isn't the password.", .Unprocessable_Content)
 	case:
 		defer free(l, runtime.heap_allocator())
+		audit_store.append({1, st.name, client}, "accounts.sign_in", {"session", 0}, "", "") // client there or not (M4-04)
 		res := web.resume(&l.deferred)
 		if res == nil { return }
-		audit_store.append({1, st.name, client}, "accounts.sign_in", {"session", 0}, "", "")
 		web.set_header(res, "set-cookie", issue(l.https))
 		go(web.request(&l.deferred), res, string(l.next[:l.next_len]))
 		web.finish(&l.deferred, res)

@@ -4,6 +4,22 @@ import "core:strings"
 import "core:testing"
 
 @(test)
+b64_decode_refuses_what_would_trap_the_decoder :: proc(t: ^testing.T) {
+	for bad in ([]string{"", "=", "==", "===", "a", "a===", "ab=c", "ab+c", "ab/c"}) {
+		_, ok := b64_decode(bad, url = true)
+		testing.expectf(t, !ok, "url %q", bad)
+	}
+	for bad in ([]string{"", "=", "==", "abc", "ab-c", "ab_c"}) {
+		_, ok := b64_decode(bad)
+		testing.expectf(t, !ok, "std %q", bad)
+	}
+	out, ok := b64_decode("aGk", url = true)
+	testing.expect(t, ok && string(out) == "hi")
+	out, ok = b64_decode("dGhlIHNhbXBsZSBub25jZQ==")
+	testing.expect(t, ok && len(out) == 16)
+}
+
+@(test)
 esc_closes_every_way_out_of_text_and_attributes :: proc(t: ^testing.T) {
 	b := strings.builder_make(context.temp_allocator)
 	esc(&b, `<script>alert('x')</script> & "q"`)
