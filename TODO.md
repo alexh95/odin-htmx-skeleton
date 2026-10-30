@@ -201,7 +201,8 @@ off until Alex sets it before the v2.2.0 tag.
 - [ ] **M3's open findings, later**: M3-04 (the status watcher's `guard.Mutex`, `guard.call` and a bounded dial: with
       M5's `jobs`); M3-09 (a fuzz target for `ws_field`: with M4 slice 13); M3-11 (a socket version above the room's
       read as a restart's: with M6's SQLite chat); M3-06's smoke of the pushed digest; M3-08's busybox pin (M4's
-      first snapshot).
+      first snapshot); M3-13 (promote never recreates the Caddy, so its new capabilities and memory limit reach
+      apollo only when it is recreated: do it with slice 10's Caddy change, by hand with Alex's go).
 - [ ] **11. Exit**: the parity gate on both legs (X25), with `starter-skeleton` passing it and the 01 (A) 40-item
       checklist on apollo's LAN; `docs/audit/M3.md` by an agent that didn't write the code, 0 open CRITICAL/HIGH;
       `Audited:` stamps; CHANGELOG's 2.2.0 entry. Then Alex sets `FLY_DEPLOY=true`, the v2.2.0 tag (Alex's go) runs
