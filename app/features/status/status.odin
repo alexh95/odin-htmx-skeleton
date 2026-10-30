@@ -94,6 +94,9 @@ watch :: proc() {
 			e.state, e.message = state, message
 			sync.mutex_unlock(&externals.mu)
 		}
+		// This thread is no request: nothing frees its temp allocator but this, and every probe's
+		// request line and resolver lookups land there (M3-01).
+		free_all(context.temp_allocator)
 		time.sleep(WATCH_EVERY)
 	}
 }
