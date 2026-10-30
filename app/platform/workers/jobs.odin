@@ -251,7 +251,7 @@ scheduler :: proc() {
 			if due {
 				if st.wanted_run != 0 {
 					r = find_run(st.wanted_run)
-				} else if job.every >= time.Minute {
+				} else if job.every > time.Minute {
 					r = new_run(job.id, false)
 					if r != nil { r.queued_ns = sys.now_unix_ns() }
 				}
@@ -270,7 +270,7 @@ scheduler :: proc() {
 			tl_run = nil
 			// A job that runs every minute or more often (the lab's beat) logs its runs
 			// at debug; its counts are in the job's state either way.
-			if l, lok := obs.begin((.Debug if job.every < time.Minute else .Info) if ok else .Error, "jobs", "run"); lok {
+			if l, lok := obs.begin((.Debug if job.every <= time.Minute else .Info) if ok else .Error, "jobs", "run"); lok {
 				obs.str(&l, "job", job.id)
 				obs.num(&l, "ms", (sys.mono_ns() - now) / 1e6)
 				if !ok { obs.str(&l, "result", "crashed") }

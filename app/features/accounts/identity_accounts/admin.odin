@@ -10,10 +10,8 @@ package accounts_identity_accounts
 
 import "base:runtime"
 import "core:fmt"
-import "core:net"
 import "core:strconv"
 import "core:strings"
-import "core:unicode/utf8"
 
 import "../../../platform/authz"
 import "../../../platform/html"
@@ -24,9 +22,6 @@ import accounts ".."
 import m "../models"
 import views "../views"
 import audit_store "store:audit"
-
-@(private)
-MAX_REASON :: 200
 
 // How long a reset code and an invite live.
 @(private)
@@ -69,24 +64,6 @@ Act :: struct {
 	revoke:    bool,   // the member's streams end too: a role change, a disable
 }
 
-// The admin's reason from HX-Prompt: required, decoded, capped.
-@(private)
-reason_of :: proc(req: ^web.Request, res: ^web.Response) -> (reason: string, ok: bool) {
-	raw, _ := web.header(req, "hx-prompt")
-	text, dok := net.percent_decode(raw, context.temp_allocator)
-	if !dok { text = raw }
-	text = strings.trim_space(text)
-	if text == "" {
-		web.respond_html(res, html.toast("error", "Give a reason: it goes to the audit log.", true), .Unprocessable_Content)
-		return "", false
-	}
-	if utf8.rune_count_in_string(text) > MAX_REASON {
-		web.respond_html(res, html.toast("error", "A reason is at most 200 characters.", true), .Unprocessable_Content)
-		return "", false
-	}
-	return text, true
-}
-
 // Fills the act's own strings into the op's arena.
 @(private)
 act_init :: proc(act: ^Act, a: runtime.Allocator, reason, action, meta: string, target: i64) {
@@ -98,7 +75,7 @@ act_init :: proc(act: ^Act, a: runtime.Allocator, reason, action, meta: string, 
 }
 
 @(private)
-ACT_BYTES :: 4 * MAX_REASON + 256
+ACT_BYTES :: 4 * web.MAX_REASON + 256
 
 // After the write: the audit entry, then the answer.
 @(private)
@@ -169,7 +146,7 @@ admin_role :: proc(req: ^web.Request, res: ^web.Response) {
 		web.respond_html(res, html.toast("error", "No such role.", true), .Unprocessable_Content)
 		return
 	}
-	reason, reason_ok := reason_of(req, res)
+	reason, reason_ok := web.prompt_reason(req, res)
 	if !reason_ok { return }
 	op := store.new_op(Roling, ACT_BYTES)
 	act_init(&op.act, store.op_allocator(op), reason, "accounts.role", fmt.tprintf("role=%s", authz.ROLE_LABELS[role]), id)
@@ -193,7 +170,7 @@ admin_enable :: proc(req: ^web.Request, res: ^web.Response) { disable(req, res, 
 disable :: proc(req: ^web.Request, res: ^web.Response, off: bool) {
 	id, id_ok := member_of(req, res)
 	if !id_ok { return }
-	reason, reason_ok := reason_of(req, res)
+	reason, reason_ok := web.prompt_reason(req, res)
 	if !reason_ok { return }
 	op := store.new_op(Disabling, ACT_BYTES)
 	act_init(&op.act, store.op_allocator(op), reason, "accounts.disable" if off else "accounts.enable", "", id)
@@ -223,7 +200,7 @@ admin_totp_off :: proc(req: ^web.Request, res: ^web.Response) {
 		web.respond_html(res, html.toast("error", "They have no two-step sign-in to turn off.", true), .Unprocessable_Content)
 		return
 	}
-	reason, reason_ok := reason_of(req, res)
+	reason, reason_ok := web.prompt_reason(req, res)
 	if !reason_ok { return }
 	op := store.new_op(Unpairing, ACT_BYTES)
 	act_init(&op.act, store.op_allocator(op), reason, "accounts.totp_off", "", id)
@@ -249,7 +226,7 @@ admin_reset :: proc(req: ^web.Request, res: ^web.Response) {
 		web.respond_store_error(req, res, err)
 		return
 	}
-	reason, reason_ok := reason_of(req, res)
+	reason, reason_ok := web.prompt_reason(req, res)
 	if !reason_ok { return }
 	code := accounts.new_code(accounts.RESET_GROUPS)
 	b := strings.builder_make(context.temp_allocator)
@@ -287,7 +264,7 @@ admin_invite :: proc(req: ^web.Request, res: ^web.Response) {
 		web.respond_html(res, html.toast("error", "An invite is a role, 1 to 50 uses and 1 to 30 days.", true), .Unprocessable_Content)
 		return
 	}
-	reason, reason_ok := reason_of(req, res)
+	reason, reason_ok := web.prompt_reason(req, res)
 	if !reason_ok { return }
 	code := accounts.new_code(accounts.INVITE_GROUPS)
 	b := strings.builder_make(context.temp_allocator)
@@ -337,7 +314,7 @@ admin_uninvite :: proc(req: ^web.Request, res: ^web.Response) {
 		web.respond_html(res, html.toast("error", "No such invite.", true), .Unprocessable_Content)
 		return
 	}
-	reason, reason_ok := reason_of(req, res)
+	reason, reason_ok := web.prompt_reason(req, res)
 	if !reason_ok { return }
 	op := store.new_op(Uninviting, ACT_BYTES + len(h))
 	a := store.op_allocator(op)

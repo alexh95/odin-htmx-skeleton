@@ -1,0 +1,87 @@
+import { test, expect } from '../../fixtures';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { startServer, stopServer, mainOrigin } from '../../helpers/server';
+import { signIn } from '../../helpers/accounts';
+import type { Page } from '@playwright/test';
+
+// /admin/jobs (PLAN §15.4, M5): every mounted job, Run now with a reason (audited), the run's row
+// upserted live as it goes, its log as a download, and the runs kept past a restart. Perms over
+// every role and host are rbac.spec's; a cancelled run is held by the backup drill's job (slice 6)
+// and workers' own unit test.
+const T = { tag: ['@jobs', '@accounts-accounts'] };
+
+// Every hx-prompt on the page is answered with `reason`.
+function answering(page: Page, reason: string) {
+  page.on('dialog', (d) => d.accept(reason));
+}
+
+const job = (page: Page, id: string) => page.locator('tr.job').filter({ has: page.locator('code', { hasText: new RegExp(`^${id.replace('.', '\.')}$`) }) });
+
+test.describe('jobs', T, () => {
+  test('an admin runs a job by hand: its row arrives live, its log downloads, the reason is audited', async ({ browser, baseURL }) => {
+    const admin = await signIn(browser, baseURL!, '/admin/jobs');
+    try {
+      answering(admin.page, 'checking the panel by hand');
+      await expect(job(admin.page, 'ops.sample')).toBeVisible();
+      await expect(job(admin.page, 'jobs.sync')).toContainText('1 s');
+      const before = await admin.page.locator('#jobs-runs tr.run').count();
+      await job(admin.page, 'ops.sample').getByRole('button', { name: 'Run now' }).click();
+      await expect(admin.page.locator('.toast')).toContainText('Queued');
+      const row = admin.page.locator('#jobs-runs tr.run').first();
+      await expect(admin.page.locator('#jobs-runs tr.run')).toHaveCount(before + 1, { timeout: 5000 });
+      await expect(row).toContainText('ops.sample');
+      await expect(row).toContainText('by hand');
+      await expect(row.locator('.run-state')).toHaveText('done', { timeout: 5000 });
+
+      const [download] = await Promise.all([admin.page.waitForEvent('download'), row.getByRole('link', { name: 'Log' }).click()]);
+      const text = fs.readFileSync((await download.path())!, 'utf8');
+      expect(text).toMatch(/^ops\.sample, run \d+-\d+: done\nqueued /);
+
+      await admin.page.goto('/admin/audit?action=jobs.');
+      await expect(admin.page.locator('.audit-row').first()).toContainText('jobs.run_now');
+      await expect(admin.page.locator('.audit-row').first()).toContainText('checking the panel by hand');
+    } finally {
+      await admin.context.close();
+    }
+  });
+
+  test('a run needs a reason and a job that exists; an ended run can\'t be stopped', async ({ browser, baseURL }) => {
+    const admin = await signIn(browser, baseURL!, '/admin/jobs');
+    try {
+      const h = { 'HX-Request': 'true' };
+      expect((await admin.page.request.post('/admin/jobs/run', { form: { job: 'ops.sample' }, headers: h })).status()).toBe(422);
+      expect((await admin.page.request.post('/admin/jobs/run', { form: { job: 'no.such' }, headers: { ...h, 'HX-Prompt': 'x' } })).status()).toBe(422);
+      expect((await admin.page.request.post('/admin/jobs/cancel', { form: { run: 'nope' }, headers: { ...h, 'HX-Prompt': 'x' } })).status()).toBe(404);
+      expect((await admin.page.request.post('/admin/jobs/cancel', { form: { run: '1-999999' }, headers: { ...h, 'HX-Prompt': 'x' } })).status()).toBe(409);
+      expect((await admin.page.request.get('/admin/jobs/runs/1/999999/log')).status()).toBe(404);
+    } finally {
+      await admin.context.close();
+    }
+  });
+
+  test('the runs outlive the process', async ({ browser }) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jobs-'));
+    const env = { DB_PATH: path.join(dir, 'data.db') };
+    let s = await startServer(test.info().config, env);
+    try {
+      const admin = await signIn(browser, mainOrigin(s.port), '/admin/jobs');
+      answering(admin.page, 'before a restart');
+      await job(admin.page, 'ops.sample').getByRole('button', { name: 'Run now' }).click();
+      await expect(admin.page.locator('#jobs-runs tr.run .run-state').first()).toHaveText('done', { timeout: 5000 });
+      await admin.page.waitForTimeout(1500); // the sync's next second has the ended row in the file
+      await admin.context.close();
+      await stopServer(s);
+      s = await startServer(test.info().config, env);
+      const again = await signIn(browser, mainOrigin(s.port), '/admin/jobs');
+      await expect(again.page.locator('#jobs-runs tr.run').first()).toContainText('ops.sample');
+      await expect(again.page.locator('#jobs-runs tr.run .run-state').first()).toHaveText('done');
+      await expect(again.page.locator('#jobs-runs tr.run').first().getByRole('button', { name: 'Cancel' })).toHaveCount(0);
+      await again.context.close();
+    } finally {
+      await stopServer(s);
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

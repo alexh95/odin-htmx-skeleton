@@ -49,10 +49,14 @@ metrics only). Pushes are on the standing go; apollo, tags and anything on Alex'
       Done: `Run` in a ring of 64 (`runs_since`, `run_of`), `cancel_run` (`cancel` is the pool's), `current`,
       `progress`, `log` (4 KiB, cut and said), `cancelled`; frequent jobs kept only by hand; a slot still queued or
       running is never overwritten. `workers_test` holds each state, both cancels and the ring's order.
-- [ ] **5. `jobs`** (`/admin/jobs`, §15.4): `jobs_runs` in SQLite with leases, so a run a restart interrupted resumes
+- [x] **5. `jobs`** (`/admin/jobs`, §15.4): `jobs_runs` in SQLite with leases, so a run a restart interrupted resumes
       or fails on boot; the page lists every job, its schedule and last runs, progress upserting over `jobs.runs`
       (key = run id); run now and cancel with an hx-prompt reason, audited; a run's log as a download. Perm
       `Admin_Jobs`. *Check:* e2e (run now, live progress, cancel, the log, a run interrupted by a restart); k6.
+      Done: the feature in both store families, mounted in `full`; `jobs.spec` (run now live, the log, the audit row,
+      refusals, runs kept past a restart) in chromium, webkit and full-vanilla; the storetest holds the upsert, the
+      lapsed lease (only another boot's) and the prune; `jobs.js` reaches every route. Left for slice 6: a cancel and
+      live progress e2e on the backup job, which reports both (no job in `full` is long enough before it).
 - [ ] **6. Backups as jobs** (§11.6, §11.8): `store.backup`, a nightly `VACUUM INTO /data/backups/nightly-<date>.db`
       keeping 7, on the query pool; its age is a status part. *Check:* a backup and restore drill (write rows, back
       up, write more, restore the backup into a fresh server, read the first rows and not the later ones).

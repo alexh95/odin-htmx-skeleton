@@ -14,6 +14,7 @@ import contacts_web "../../features/contacts/web"
 import dashboard_web "../../features/dashboard/web"
 import gallery_web "../../features/gallery/web"
 import home_web "../../features/home/web"
+import jobs_web "../../features/jobs/web"
 import lab_web "../../features/lab/web"
 import landing_web "../../features/landing/web"
 import modules_web "../../features/modules/web"
@@ -23,6 +24,7 @@ import status_web "../../features/status/web"
 import accounts_store "store:accounts"
 import audit_store "store:audit"
 import contacts_store "store:contacts"
+import jobs_store "store:jobs"
 import identity "identity:."
 
 // The home page's cards, in order: a dispatch table, like ROUTES.
@@ -30,7 +32,7 @@ HOME_CARDS := [?]html.Home_Card{}
 
 // Every extension the main bundle needs (D19), both hosts' pages. Boot refuses a bundle whose
 // header says otherwise.
-BUNDLE_EXTS :: home_web.EXTS + about_web.EXTS + audit_web.EXTS + modules_web.EXTS + ops_web.EXTS + status_web.EXTS + identity.EXTS +
+BUNDLE_EXTS :: home_web.EXTS + about_web.EXTS + audit_web.EXTS + modules_web.EXTS + ops_web.EXTS + jobs_web.EXTS + status_web.EXTS + identity.EXTS +
 	landing_web.EXTS + dashboard_web.EXTS + gallery_web.EXTS + contacts_web.EXTS + lab_web.EXTS +
 	scripting_web.EXTS + compat_web.EXTS
 
@@ -58,7 +60,9 @@ main :: proc() {
 	store_sqlite.migrate("accounts", accounts_store.MIGRATIONS[:])
 	store_sqlite.migrate("audit", audit_store.MIGRATIONS[:])
 	store_sqlite.migrate("contacts", contacts_store.MIGRATIONS[:])
+	store_sqlite.migrate("jobs", jobs_store.MIGRATIONS[:])
 	identity.bootstrap() // the first admin, from ACCOUNTS_ADMIN_HASH
+	jobs_web.init()      // this boot's id; the runs an earlier boot left queued or running
 	if store_sqlite.unowned() { contacts_web.seed() } // :memory:, or SEED=1: the lab host's demo rows
 
 	// The standard set, and browsers' CSP violation reports to /csp-report (§12.2). Each host

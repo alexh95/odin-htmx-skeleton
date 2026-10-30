@@ -9,6 +9,7 @@ package web
 import "core:net"
 import "core:strconv"
 import "core:strings"
+import "core:unicode/utf8"
 
 import http "../../vendor/odin-http"
 import "../authz"
@@ -241,4 +242,26 @@ parse_digits :: proc(s: string) -> (n: int, ok: bool) {
 to_int :: proc(s: string) -> int {
 	n, _ := strconv.parse_int(s, 10)
 	return n
+}
+
+// ---- an admin's reason ---------------------------------------------------------------
+
+// What an admin write asks for in its prompt (hx-prompt), for the audit log; in characters.
+MAX_REASON :: 200
+
+// The admin's reason from HX-Prompt: required, decoded, capped; a refusal is answered here (422).
+prompt_reason :: proc(req: ^Request, res: ^Response) -> (reason: string, ok: bool) {
+	raw, _ := header(req, "hx-prompt")
+	text, dok := net.percent_decode(raw, context.temp_allocator)
+	if !dok { text = raw }
+	text = strings.trim_space(text)
+	if text == "" {
+		respond_html(res, html.toast("error", "Give a reason: it goes to the audit log.", true), .Unprocessable_Content)
+		return "", false
+	}
+	if utf8.rune_count_in_string(text) > MAX_REASON {
+		respond_html(res, html.toast("error", "A reason is at most 200 characters.", true), .Unprocessable_Content)
+		return "", false
+	}
+	return text, true
 }

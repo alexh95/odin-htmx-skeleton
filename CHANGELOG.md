@@ -15,11 +15,19 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   schema and statement memory from `sqlite3_db_status` (MEMSTATUS is off), which `platform/store/sqlite` pushes to
   `platform/obs` (the writer after each batch, each loop's reader on its 1 s timer), so ops never imports the store.
   `houston.spec` and `ops/houston.js` cover the admin's side; `status.js` reads the main host.
+- **`jobs`, `/admin/jobs`** (M5 slice 5, PLAN §15.4): every mounted job and its runs, live. `jobs.sync` reads the
+  runs that changed each second from `platform/workers` into `jobs_runs` (SQLite; this process's in memory) and
+  publishes each one's row on `jobs.runs` (`.Latest`, upserted by its id, newest first). Run now and cancel with a
+  reason (`HX-Prompt`, step-up, audited as `jobs.run_now` / `jobs.cancel`); a run's log as a download. A queued or
+  running row holds a 30 s lease its boot renews; a lapsed one of another boot is failed as "interrupted by a restart",
+  at boot and every minute; rows that ended 30 days ago go. Mounted in `full`; spec, storetest and `jobs/jobs.js`.
+- **`web.prompt_reason`**: the admin's `HX-Prompt` reason (required, decoded, at most 200 characters, a 422 toast
+  otherwise), shared by accounts' admin writes and jobs.
 - **Runs as data in `platform/workers`** (M5 slice 4): each run of a job has an id, a state (queued, running, done,
   failed, cancelled), progress and a 4 KiB log, kept in a ring of the last 64 for features/jobs to read
   (`runs_since`); `run_now` answers the queued run, `cancel_run` stops a queued run at once and a running one when its
   job next reads `cancelled()`. A job reports through `current()`, `progress` and `log`. Jobs due every minute or more
-  often aren't kept as runs unless asked for by hand.
+  often (the demo reset's once-a-minute check among them) aren't kept as runs unless asked for by hand.
 - **status, full** (M5 slice 3): each `STATUS_PROBES` external has a prober thread of its own, and `/status/parts`
   sends the process's own parts at once and each external's as it answers (one probe in flight per external however
   many pages ask; "no answer" at 2.5 s), so the parts swap in the order their probes answer; a disk part (free space

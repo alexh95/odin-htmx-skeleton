@@ -19,6 +19,7 @@ import contacts_web "../../features/contacts/web"
 import dashboard_web "../../features/dashboard/web"
 import gallery_web "../../features/gallery/web"
 import home_web "../../features/home/web"
+import jobs_web "../../features/jobs/web"
 import lab_web "../../features/lab/web"
 import landing_web "../../features/landing/web"
 import modules_web "../../features/modules/web"
@@ -37,6 +38,7 @@ ROUTES := [?]app.Mount {
 	{"audit", audit_web.ROUTES[:]},     // /admin/audit: the log, LAN only
 	{"modules", modules_web.ROUTES[:]}, // /admin/modules: what this build is
 	{"ops", ops_web.ROUTES[:]},         // /admin/ops: the 1 Hz panel
+	{"jobs", jobs_web.ROUTES[:]},       // /admin/jobs: the jobs and their runs
 	{"status", status_web.ROUTES[:]},   // /status: is everything up
 	{"about", about_web.ROUTES[:]},     // /about
 }
@@ -45,6 +47,7 @@ ROUTES := [?]app.Mount {
 TOPICS := [?][]hub.Topic {
 	identity.TOPICS[:], // the identity's member topics: what a revoke ends
 	ops_web.TOPICS[:],  // ops.panel
+	jobs_web.TOPICS[:], // jobs.runs
 }
 
 // houston-lab: no identity runs here, every row is .Public; every starter demo and lab page.
@@ -78,6 +81,7 @@ HOSTS := [?]app.Host {
 // Both hosts' jobs: one scheduler runs them.
 JOBS := [?][]workers.Job {
 	ops_web.JOBS[:],           // ops.sample: the panel, once a second
+	jobs_web.JOBS[:],          // jobs.sync: the runs into the store and the live page
 	lab_web.JOBS[:],           // lab.bus: the producer's beat
 	contacts_web.DEMO_JOBS[:], // contacts.reset: the demo's rows start over each night
 }
