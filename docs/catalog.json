@@ -15,9 +15,9 @@
     {"name": "modules", "lines": 100, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["full"]},
     {"name": "notes", "lines": 400, "stores": ["memory", "sqlite"], "sqlite": "any", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "home_card"], "profiles": ["minimal", "streams"]},
     {"name": "notify", "lines": 500, "stores": ["memory"], "sqlite": "never", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "TOPICS", "JOBS", "home_card"], "profiles": ["streams"]},
-    {"name": "ops", "lines": 400, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "TOPICS", "JOBS", "init"], "profiles": ["streams"]},
+    {"name": "ops", "lines": 400, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "TOPICS", "JOBS", "init"], "profiles": ["streams", "full"]},
     {"name": "scripting", "lines": 300, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "BUNDLES"], "profiles": ["lab"]},
-    {"name": "status", "lines": 300, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "init"], "profiles": ["lab", "streams"]}
+    {"name": "status", "lines": 300, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "init"], "profiles": ["lab", "streams", "full"]}
   ],
   "families": {
     "store": ["memory", "sqlite"],
@@ -30,6 +30,6 @@
     {"name": "skeleton", "store": "sqlite", "identity": "anonymous", "client": "vanilla", "theme": "full", "features": ["dashboard", "gallery", "contacts", "about"]},
     {"name": "lab", "store": "memory", "identity": "anonymous", "client": "hyperscript", "theme": "full", "features": ["landing", "lab", "scripting", "compat", "status", "about"]},
     {"name": "streams", "store": "memory", "identity": "nick", "client": "vanilla", "theme": "lite", "features": ["home", "notes", "chat", "notify", "bot", "ops", "status", "accounts", "about"]},
-    {"name": "full", "store": "sqlite", "identity": "accounts", "client": "hyperscript", "theme": "full", "features": ["home", "accounts", "audit", "modules", "about"]}
+    {"name": "full", "store": "sqlite", "identity": "accounts", "client": "hyperscript", "theme": "full", "features": ["home", "accounts", "audit", "modules", "ops", "status", "about"]}
   ]
 }
