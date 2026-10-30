@@ -228,9 +228,12 @@ off until Alex sets it before the v2.2.0 tag.
       Progress (2026-10-30): the parity gate passes on both legs, 20 of 20 each (`docs/perf/PARITY.md`; Windows at
       `c490e2a` with its busy blocks re-run in place and `static` at n = 5, Linux at `48666d6`); `docs/audit/M3.md`
       by an agent that didn't write the code, then a re-read of the fixes by another: 0 open CRITICAL or HIGH (M3-01
-      fixed and read; M3-03, MEDIUM, waits on slice 10); the `Audited:` stamps at `c490e2a` (status at `6bad255`, the
-      fork's F-17 amendment and F-24 in `UPSTREAM.md`); CHANGELOG's 2.2.0 lead drafted under `[Unreleased]`. Left:
-      `starter-skeleton`'s 40-item checklist on apollo's LAN, slice 10, and Alex's part (`FLY_DEPLOY`, the tag).
+      fixed and read; M3-03, MEDIUM, deferred to before stage 2); the `Audited:` stamps at `c490e2a` (status at
+      `6bad255`, the fork's F-17 amendment and F-24 in `UPSTREAM.md`); CHANGELOG's 2.2.0 lead drafted under
+      `[Unreleased]`. v2.2.0-rc.2 (on `65c399d`, tagged by Alex) released and promoted to apollo's four witnesses; the
+      40-item checklist at rc.2, read-only over HTTP from the LAN: every item observable from outside green, the rest
+      held by CI at `65c399d`. Left: slice 10 (with the stack Caddy's recreate, M3-13) and Alex's part
+      (`FLY_DEPLOY`, the v2.2.0 tag on `65c399d`).
 - [x] **A Firefox flake to watch** (found and fixed in M3): v2.1.0's release commit lost lab's Firefox e2e on CI's first try (run 40736711557):
       `page.goto` hit the 30 s timeout in `escaping.spec`'s hyperscript gate (both tries), `scripting.spec`'s password
       rules and `streams-hxcsp.spec`'s unnonced `hx-sse` (each passing its retry); the re-run passed with 3 flaky. The
