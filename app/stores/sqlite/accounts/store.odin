@@ -45,6 +45,9 @@ MIGRATIONS := [?]store.Migration {
 @(private) SQL_INVITES :: "SELECT " + INVITE_COLS + " FROM accounts_invites WHERE uses < max_uses AND expires_at > ? ORDER BY created_at DESC LIMIT 200"
 @(private) SQL_INVITE :: "SELECT " + INVITE_COLS + " FROM accounts_invites WHERE code_hash = ? AND uses < max_uses AND expires_at > ?"
 @(private) SQL_SPEND_INVITE :: "UPDATE accounts_invites SET uses = uses + 1 WHERE code_hash = ? AND uses < max_uses AND expires_at > ? RETURNING role"
+@(private) SQL_SAVE :: "SAVEPOINT op"
+@(private) SQL_UNDO :: "ROLLBACK TO op"
+@(private) SQL_RELEASE :: "RELEASE op"
 @(private) SQL_REGISTER :: "INSERT INTO users(username, display, pw_hash, role, created_at) VALUES(?, ?, ?, ?, ?)"
 @(private) SQL_ROLE_OF :: "SELECT role, disabled_at FROM users WHERE id = ?"
 @(private) SQL_OTHER_ADMINS :: "SELECT count(*) FROM users WHERE role = 3 AND disabled_at = 0 AND id != ?"
@@ -330,37 +333,40 @@ close_session :: proc(op: ^m.Close_Session) -> bool {
 }
 
 set_totp :: proc(op: ^m.Set_Totp) -> bool {
-	op.run = proc(o: ^store.Op) {
-		op := (^m.Set_Totp)(o)
-		conditional := op.enrol || op.was != ""
-		st := db.writer_stmt(SQL_ENROL_TOTP if op.enrol else SQL_KEEP_TOTP if op.was != "" else SQL_SET_TOTP)
-		db.bind_text(st, 1, op.secret)
-		db.bind_id(st, 2, op.last_step)
-		db.bind_id(st, 3, op.user_id)
-		if op.was != "" && !op.enrol { db.bind_text(st, 4, op.was) }
-		o.err = db.step_done(st)
-		db.reset(st)
-		if o.err != .None { return }
-		// A second factor already set is replaced only by turning it off first, behind a step-up; new
-		// codes go only with the factor they were asked for.
-		if conditional && db.changes() == 0 {
-			o.err = .Constraint
-			return
-		}
-		dr := db.writer_stmt(SQL_DROP_CODES)
-		db.bind_id(dr, 1, op.user_id)
-		o.err = db.step_done(dr)
-		db.reset(dr)
-		for code in op.codes {
-			if o.err != .None || code == "" { continue }
-			add := db.writer_stmt(SQL_ADD_CODE)
-			db.bind_id(add, 1, op.user_id)
-			db.bind_text(add, 2, code)
-			o.err = db.step_done(add)
-			db.reset(add)
-		}
-	}
+	op.run = proc(o: ^store.Op) { unit(o, set_totp_run) }
 	return db.write(op)
+}
+
+@(private = "file")
+set_totp_run :: proc(o: ^store.Op) {
+	op := (^m.Set_Totp)(o)
+	conditional := op.enrol || op.was != ""
+	st := db.writer_stmt(SQL_ENROL_TOTP if op.enrol else SQL_KEEP_TOTP if op.was != "" else SQL_SET_TOTP)
+	db.bind_text(st, 1, op.secret)
+	db.bind_id(st, 2, op.last_step)
+	db.bind_id(st, 3, op.user_id)
+	if op.was != "" && !op.enrol { db.bind_text(st, 4, op.was) }
+	o.err = db.step_done(st)
+	db.reset(st)
+	if o.err != .None { return }
+	// A second factor already set is replaced only by turning it off first, behind a step-up; new
+	// codes go only with the factor they were asked for.
+	if conditional && db.changes() == 0 {
+		o.err = .Constraint
+		return
+	}
+	dr := db.writer_stmt(SQL_DROP_CODES)
+	db.bind_id(dr, 1, op.user_id)
+	o.err = db.step_done(dr)
+	db.reset(dr)
+	for code in op.codes {
+		if o.err != .None || code == "" { continue }
+		add := db.writer_stmt(SQL_ADD_CODE)
+		db.bind_id(add, 1, op.user_id)
+		db.bind_text(add, 2, code)
+		o.err = db.step_done(add)
+		db.reset(add)
+	}
 }
 
 step_up :: proc(op: ^m.Step_Up) -> bool {
@@ -378,47 +384,67 @@ step_up :: proc(op: ^m.Step_Up) -> bool {
 	return db.write(op)
 }
 
+// An op of several statements fails as one (M4-06): SQLite undoes only the failing statement, and
+// the batch's transaction commits the rest, so a register that lost its name kept its spent invite.
+@(private = "file")
+unit :: proc(o: ^store.Op, run: proc(o: ^store.Op)) {
+	exec(SQL_SAVE)
+	run(o)
+	if o.err != .None { exec(SQL_UNDO) }
+	exec(SQL_RELEASE)
+}
+
+@(private = "file")
+exec :: proc(sql: string) {
+	st := db.writer_stmt(sql)
+	_ = db.step_done(st)
+	db.reset(st)
+}
+
 register :: proc(op: ^m.Register) -> bool {
-	op.run = proc(o: ^store.Op) {
-		op := (^m.Register)(o)
-		op.role = .User
-		if op.invite_hash != "" {
-			sp := db.writer_stmt(SQL_SPEND_INVITE)
-			db.bind_text(sp, 1, op.invite_hash)
-			db.bind_id(sp, 2, op.now)
-			found := db.next_row(sp, &o.err)
-			if found {
-				role, ok := store.enum_from_int(m.Role, db.column_int(sp, 0))
-				if ok { op.role = role } else { o.err = .Failed }
-			}
-			db.reset(sp)
-			if o.err != .None { return }
-			if !found {
-				o.err = .Not_Found
-				return
-			}
-		}
-		st := db.writer_stmt(SQL_REGISTER)
-		db.bind_text(st, 1, op.username)
-		db.bind_text(st, 2, op.display)
-		db.bind_text(st, 3, op.pw_hash)
-		db.bind_int(st, 4, int(op.role))
-		db.bind_id(st, 5, op.now)
-		o.err = db.step_done(st)
-		db.reset(st)
-		if o.err != .None { return }
-		op.result = db.last_insert_id()
-		se := db.writer_stmt(SQL_OPEN)
-		defer db.reset(se)
-		db.bind_text(se, 1, op.token_hash)
-		db.bind_id(se, 2, op.result)
-		db.bind_id(se, 3, op.now)
-		db.bind_id(se, 4, op.now)
-		db.bind_id(se, 5, op.expires_at)
-		db.bind_id(se, 6, op.now)
-		o.err = db.step_done(se)
-	}
+	op.run = proc(o: ^store.Op) { unit(o, register_run) }
 	return db.write(op)
+}
+
+@(private = "file")
+register_run :: proc(o: ^store.Op) {
+	op := (^m.Register)(o)
+	op.role = .User
+	if op.invite_hash != "" {
+		sp := db.writer_stmt(SQL_SPEND_INVITE)
+		db.bind_text(sp, 1, op.invite_hash)
+		db.bind_id(sp, 2, op.now)
+		found := db.next_row(sp, &o.err)
+		if found {
+			role, ok := store.enum_from_int(m.Role, db.column_int(sp, 0))
+			if ok { op.role = role } else { o.err = .Failed }
+		}
+		db.reset(sp)
+		if o.err != .None { return }
+		if !found {
+			o.err = .Not_Found
+			return
+		}
+	}
+	st := db.writer_stmt(SQL_REGISTER)
+	db.bind_text(st, 1, op.username)
+	db.bind_text(st, 2, op.display)
+	db.bind_text(st, 3, op.pw_hash)
+	db.bind_int(st, 4, int(op.role))
+	db.bind_id(st, 5, op.now)
+	o.err = db.step_done(st)
+	db.reset(st)
+	if o.err != .None { return }
+	op.result = db.last_insert_id()
+	se := db.writer_stmt(SQL_OPEN)
+	defer db.reset(se)
+	db.bind_text(se, 1, op.token_hash)
+	db.bind_id(se, 2, op.result)
+	db.bind_id(se, 3, op.now)
+	db.bind_id(se, 4, op.now)
+	db.bind_id(se, 5, op.expires_at)
+	db.bind_id(se, 6, op.now)
+	o.err = db.step_done(se)
 }
 
 set_role :: proc(op: ^m.Set_Role) -> bool {
@@ -528,24 +554,27 @@ issue_reset :: proc(op: ^m.Issue_Reset) -> bool {
 }
 
 redeem_reset :: proc(op: ^m.Redeem_Reset) -> bool {
-	op.run = proc(o: ^store.Op) {
-		op := (^m.Redeem_Reset)(o)
-		sp := db.writer_stmt(SQL_SPEND_RESET)
-		db.bind_id(sp, 1, op.now)
-		db.bind_text(sp, 2, op.code_hash)
-		db.bind_id(sp, 3, op.user_id)
-		o.err = db.step_done(sp)
-		db.reset(sp)
-		if o.err == .None && db.changes() == 0 { o.err = .Constraint }
-		if o.err != .None { return }
-		pw := db.writer_stmt(SQL_SET_PASSWORD)
-		db.bind_text(pw, 1, op.pw_hash)
-		db.bind_id(pw, 2, op.user_id)
-		o.err = db.step_done(pw)
-		db.reset(pw)
-		if o.err == .None { o.err = end_sessions(op.user_id) }
-	}
+	op.run = proc(o: ^store.Op) { unit(o, redeem_reset_run) }
 	return db.write(op)
+}
+
+@(private = "file")
+redeem_reset_run :: proc(o: ^store.Op) {
+	op := (^m.Redeem_Reset)(o)
+	sp := db.writer_stmt(SQL_SPEND_RESET)
+	db.bind_id(sp, 1, op.now)
+	db.bind_text(sp, 2, op.code_hash)
+	db.bind_id(sp, 3, op.user_id)
+	o.err = db.step_done(sp)
+	db.reset(sp)
+	if o.err == .None && db.changes() == 0 { o.err = .Constraint }
+	if o.err != .None { return }
+	pw := db.writer_stmt(SQL_SET_PASSWORD)
+	db.bind_text(pw, 1, op.pw_hash)
+	db.bind_id(pw, 2, op.user_id)
+	o.err = db.step_done(pw)
+	db.reset(pw)
+	if o.err == .None { o.err = end_sessions(op.user_id) }
 }
 
 set_display :: proc(op: ^m.Set_Display) -> bool {

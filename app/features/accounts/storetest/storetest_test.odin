@@ -228,6 +228,9 @@ members :: proc(t: ^testing.T) {
 	testing.expect(t, len(live) == 1 && live[0].role == .Mod)
 	_, ierr := sql.invite("inv1", 6000)
 	testing.expect_value(t, ierr, store.Error.Not_Found) // expired by then
+	// A name someone holds fails the whole op: the invite's one use isn't spent by it (M4-06).
+	_, err = reg(t, "ROBIN", "inv1", "a5", 200)
+	testing.expect_value(t, err, store.Error.Constraint)
 	mod, merr := reg(t, "Kim", "inv1", "a3", 200)
 	testing.expect(t, merr == .None && mod.role == .Mod)
 	_, err = reg(t, "Lee", "inv1", "a4", 200)
