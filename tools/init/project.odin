@@ -14,6 +14,9 @@ import "core:os"
 import "core:slice"
 import "core:strings"
 
+// The Dockerfile's copy of the catalog, which only `landing` reads.
+DOCKER_CATALOG :: "# The lab's landing page embeds the generator's catalog.\nCOPY docs/catalog.json /src/docs/catalog.json\n"
+
 new_project :: proc(s: Selection, opt: Options) -> Profile_Text {
 	text := compose(s)
 	dir := join("app/cmd", s.name)
@@ -47,9 +50,15 @@ new_project :: proc(s: Selection, opt: Options) -> Profile_Text {
 	// (the stack Caddyfile, compose file and promote script, and the jobs that test them).
 	for job in ([]string{"generator", "e2e-proxy", "stack", "proxy-config"}) { drop_job(".github/workflows/ci.yml", job) }
 	for f in ([]string{
-		"docs/catalog.json", "deploy/Caddyfile", "tests/proxy/npm.conf", "deploy/compose.yaml", "deploy/.env.example",
+		"deploy/Caddyfile", "tests/proxy/npm.conf", "deploy/compose.yaml", "deploy/.env.example",
 		"deploy/promote.ps1", "deploy/stack-test.sh", "deploy/proxy-config-test.sh",
 	}) { remove(f) }
+	// `landing` embeds the catalog (#load), so a project that keeps it keeps the file, frozen at the
+	// template's; one without it drops the file and the Dockerfile's copy of it.
+	if !slice.contains(s.features, "landing") {
+		remove("docs/catalog.json")
+		edit("Dockerfile", {{DOCKER_CATALOG, ""}})
+	}
 	put("UPSTREAM.md", upstream_md(s, opt))
 	put("CHANGELOG.md", fmt.aprintf(
 		"# Changelog\n\nThis project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and\n[Semantic Versioning](https://semver.org/).\n\n## [Unreleased]\n\n### Added\n- **The project**, from %s (UPSTREAM.md): %s, on store=%s identity=%s client=%s theme=%s.\n",
