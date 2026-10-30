@@ -70,14 +70,23 @@ test.describe('jobs', T, () => {
       answering(admin.page, 'before a restart');
       await job(admin.page, 'ops.sample').getByRole('button', { name: 'Run now' }).click();
       await expect(admin.page.locator('#jobs-runs tr.run .run-state').first()).toHaveText('done', { timeout: 5000 });
-      await admin.page.waitForTimeout(1500); // the sync's next second has the ended row in the file
+      // The nightly backup, by hand: its progress in three steps, and its age on /status.
+      await job(admin.page, 'store.backup').getByRole('button', { name: 'Run now' }).click();
+      const backup = admin.page.locator('#jobs-runs tr.run').filter({ hasText: 'store.backup' }).first();
+      await expect(backup.locator('.run-state')).toHaveText('done', { timeout: 10_000 });
+      await expect(backup.locator('.run-progress')).toContainText('3 of 3');
+      await admin.page.goto('/status');
+      await expect(admin.page.locator('#st-backups .status-state')).toHaveText('ok');
+      await expect(admin.page.locator('#st-backups')).toContainText(/the newest is \d+ s old/);
+      await admin.page.waitForTimeout(1500); // the sync's next second has the ended rows in the file
       await admin.context.close();
       await stopServer(s);
       s = await startServer(test.info().config, env);
       const again = await signIn(browser, mainOrigin(s.port), '/admin/jobs');
-      await expect(again.page.locator('#jobs-runs tr.run').first()).toContainText('ops.sample');
-      await expect(again.page.locator('#jobs-runs tr.run .run-state').first()).toHaveText('done');
-      await expect(again.page.locator('#jobs-runs tr.run').first().getByRole('button', { name: 'Cancel' })).toHaveCount(0);
+      const kept = again.page.locator('#jobs-runs tr.run');
+      await expect(kept.filter({ hasText: 'ops.sample' }).locator('.run-state')).toHaveText('done');
+      await expect(kept.filter({ hasText: 'store.backup' }).locator('.run-progress')).toContainText('3 of 3');
+      await expect(kept.getByRole('button', { name: 'Cancel' })).toHaveCount(0);
       await again.context.close();
     } finally {
       await stopServer(s);

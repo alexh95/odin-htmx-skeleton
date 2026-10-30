@@ -29,6 +29,10 @@ Job :: struct {
 	id:    string, // "notify.prune": the feature's prefix, then the job
 	every: time.Duration,
 	run:   proc(), // on the scheduler's thread, guarded
+	// Optional: when its `every` comes, whether there is work (the nightly backup wakes every
+	// 10 min and runs at its hour): false skips to the next `every` with no run kept. A run asked
+	// for by hand doesn't ask it.
+	due:   proc() -> bool,
 }
 
 Job_State :: struct {
@@ -73,6 +77,7 @@ Run :: struct {
 	log_len:    int,
 	cut:        bool, // the log ran out of room
 	cancel:     bool, // asked to stop: the job reads it through `cancelled`
+	failed:     bool, // the job said so (`fail`): it ends failed, though it returned
 	version:    u64, // the ring's version when this run last changed
 }
 
@@ -220,6 +225,17 @@ log :: proc(format: string, args: ..any) {
 	touch(r)
 }
 
+// The run ends failed, with this line in its log, when the job returns.
+fail :: proc(format: string, args: ..any) {
+	log(format, ..args)
+	r := tl_run
+	if r == nil { return }
+	sync.mutex_lock(&sched.mu)
+	r.failed = true
+	touch(r)
+	sync.mutex_unlock(&sched.mu)
+}
+
 cancelled :: proc() -> bool {
 	r := tl_run
 	if r == nil { return false }
@@ -247,6 +263,18 @@ scheduler :: proc() {
 			sync.mutex_lock(&sched.mu)
 			st := &sched.state[i]
 			due := st.wanted || now >= st.next_ns
+			if due && !st.wanted && job.due != nil {
+				sync.mutex_unlock(&sched.mu)
+				@(static) wants: bool
+				wants = false
+				guard.call(proc(data: rawptr) { wants = (proc() -> bool)(data)() }, rawptr(job.due))
+				sync.mutex_lock(&sched.mu)
+				if !wants && !st.wanted {
+					st.next_ns = now + i64(job.every)
+					sync.mutex_unlock(&sched.mu)
+					continue
+				}
+			}
 			r: ^Run
 			if due {
 				if st.wanted_run != 0 {
@@ -283,7 +311,7 @@ scheduler :: proc() {
 			st.last_ms = (sys.mono_ns() - now) / 1e6
 			st.next_ns = sys.mono_ns() + i64(job.every)
 			if r != nil {
-				r.state = .Failed if !ok else .Cancelled if r.cancel else .Done
+				r.state = .Failed if !ok || r.failed else .Cancelled if r.cancel else .Done
 				r.ended_ns = sys.now_unix_ns()
 				touch(r)
 			}

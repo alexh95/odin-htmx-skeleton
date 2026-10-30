@@ -41,7 +41,7 @@ test.describe('landing', T, () => {
     expect(html).toContain('the name is lower-case letters');
   });
 
-  test('the lab index moved to /lab, and the nav names both', async ({ page }) => {
+  test('the lab index moved to /lab, and the nav names both', { tag: '@lab' }, async ({ page }) => {
     await page.goto('/');
     const nav = page.getByRole('navigation', { name: 'Primary' });
     await expect(nav.getByRole('link', { name: 'Starter' })).toHaveAttribute('aria-current', 'page');

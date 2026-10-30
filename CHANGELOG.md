@@ -8,6 +8,11 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Fixed
+
+- **`landing.spec`'s nav case needs `lab`** and says so: a selection with landing and no lab (the new covering array
+  has one) failed it.
+
 ### Added
 
 - **ops and status in Houston** (M5 slice 1, PLAN §15.4): `full` mounts `/admin/ops` (Admin_Ops, LAN only) and
@@ -15,6 +20,15 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   schema and statement memory from `sqlite3_db_status` (MEMSTATUS is off), which `platform/store/sqlite` pushes to
   `platform/obs` (the writer after each batch, each loop's reader on its 1 s timer), so ops never imports the store.
   `houston.spec` and `ops/houston.js` cover the admin's side; `status.js` reads the main host.
+- **Backups as a job** (M5 slice 6, PLAN §11.8): `store.backup` in `platform/store/sqlite` writes
+  `backup-<date>-<time>.db` into `BACKUP_DIR` (`backups/` beside `DB_PATH`) with `VACUUM INTO` on a connection of its
+  own, quick-checks the copy and keeps the newest `BACKUP_KEEP` (7); nightly at `BACKUP_HOUR_UTC` (3), or by hand on
+  `/admin/jobs`, its progress in three steps; a cancel stops the copy mid-way. The newest backup's age (promote's
+  pre-deploy snapshots count) is a status part, `backups`, degraded past 26 h. Mounted in `full`. The `backup` drill
+  writes a contact, runs the job as an admin would, writes another, and boots a server on the copy: the first is
+  there and the second isn't.
+- **`workers.Job.due` and `workers.fail`**: a job may say whether its `every` found work (no run kept when it didn't;
+  a run by hand doesn't ask), and end its run failed without a crash.
 - **`jobs`, `/admin/jobs`** (M5 slice 5, PLAN §15.4): every mounted job and its runs, live. `jobs.sync` reads the
   runs that changed each second from `platform/workers` into `jobs_runs` (SQLite; this process's in memory) and
   publishes each one's row on `jobs.runs` (`.Latest`, upserted by its id, newest first). Run now and cancel with a

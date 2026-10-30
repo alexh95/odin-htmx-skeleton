@@ -69,7 +69,7 @@ TOPICS := [?]hub.Topic {
 
 // A publisher that is no event loop, as a worker or a poller would be.
 JOBS := [?]workers.Job {
-	{"lab.bus", 500 * time.Millisecond, beat},
+	{"lab.bus", 500 * time.Millisecond, beat, nil},
 }
 
 @(private)

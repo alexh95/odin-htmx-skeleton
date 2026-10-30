@@ -38,3 +38,25 @@ store_memory :: proc() -> (m: Store_Memory, ok: bool) {
 	}
 	return m, true
 }
+
+// ---- the newest backup ----------------------------------------------------------------
+//
+// platform/store/sqlite says when its newest backup was written (at open, from the files it
+// finds, and after each one), and status shows its age, without either importing the other.
+
+@(private)
+backups: struct {
+	ms: i64, // atomic: unix ms; 0: none yet
+	on: bool, // atomic: a store here keeps backups (a file database)
+}
+
+backup_report :: proc "contextless" (unix_ms: i64) {
+	sync.atomic_store_explicit(&backups.ms, unix_ms, .Relaxed)
+	sync.atomic_store_explicit(&backups.on, true, .Relaxed)
+}
+
+// ok false: nothing here keeps backups. ms 0: none yet.
+last_backup :: proc() -> (unix_ms: i64, ok: bool) {
+	if !sync.atomic_load_explicit(&backups.on, .Relaxed) { return 0, false }
+	return sync.atomic_load_explicit(&backups.ms, .Relaxed), true
+}

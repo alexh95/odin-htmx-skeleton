@@ -33,6 +33,7 @@ APP_NAME :: "odin-htmx-starter"
 init :: proc() {
 	if env_recorded { return }
 	env.record("", ENV[:])
+	env.record("", BACKUP_ENV[:])
 	env_recorded = true
 }
 
@@ -120,6 +121,7 @@ open_db :: proc(path: string, m: Mode, profile: string, legacy := "", adopt_prof
 		return
 	}
 	db.is_open = true
+	backup_init()
 	report_memory(&db.writer, 0) // before the writer runs: ops's Store card is there from its first render
 	writer_start()
 	pool_start()

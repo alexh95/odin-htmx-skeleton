@@ -37,7 +37,7 @@ TOPICS := [?]hub.Topic {
 }
 
 JOBS := [?]workers.Job {
-	{"ops.sample", time.Second, sample},
+	{"ops.sample", time.Second, sample, nil},
 }
 
 init :: proc() {

@@ -12,6 +12,7 @@ import "../../platform/app"
 import "../../platform/hub"
 import "../../platform/web"
 import "../../platform/workers"
+import store_sqlite "../../platform/store/sqlite"
 import about_web "../../features/about/web"
 import audit_web "../../features/audit/web"
 import compat_web "../../features/compat/web"
@@ -82,6 +83,7 @@ HOSTS := [?]app.Host {
 JOBS := [?][]workers.Job {
 	ops_web.JOBS[:],           // ops.sample: the panel, once a second
 	jobs_web.JOBS[:],          // jobs.sync: the runs into the store and the live page
+	store_sqlite.JOBS[:],      // store.backup: nightly, the newest 7 kept
 	lab_web.JOBS[:],           // lab.bus: the producer's beat
 	contacts_web.DEMO_JOBS[:], // contacts.reset: the demo's rows start over each night
 }

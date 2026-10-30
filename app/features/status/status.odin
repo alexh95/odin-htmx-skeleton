@@ -37,6 +37,9 @@ MAX_WAITERS :: 64 // per external: a page past these gets the last answer at onc
 // Free space under this share of the disk is degraded.
 DISK_LOW :: 0.10
 
+// A newest backup older than this is degraded: the nightly one was missed.
+BACKUP_STALE :: 26 * time.Hour
+
 // A loop that hasn't ticked for this long is stuck (/livez says the same at 30 s, and the
 // watchdog exits at 10 s: past 2 s the page already says something is wrong).
 STUCK :: 2 * time.Second
@@ -213,6 +216,7 @@ local :: proc(version: string, out: ^[dynamic]Probe) {
 	up := time.Duration(sys.mono_ns() - st.started_ns)
 	append(out, Probe{"process", "ok", fmt.tprintf("up %s, version %s", uptime(up), version), false})
 	append(out, disk())
+	if p, ok := backups(); ok { append(out, p) }
 }
 
 board :: proc(version: string, out: ^[dynamic]Probe) {
@@ -230,6 +234,16 @@ disk :: proc() -> Probe {
 	if !ok || total <= 0 { return Probe{"disk", "down", fmt.tprintf("%s can't be read", st.disk), false} }
 	state := "ok" if f64(free) >= DISK_LOW * f64(total) else "degraded"
 	return Probe{"disk", state, fmt.tprintf("%s free of %s", size(free), size(total)), false}
+}
+
+// The newest backup's age, where the store keeps backups (a file database).
+backups :: proc() -> (p: Probe, ok: bool) {
+	ms, kept := obs.last_backup()
+	if !kept { return }
+	if ms == 0 { return Probe{"backups", "degraded", "none yet", false}, true }
+	age := time.Duration(sys.now_unix_ns() - ms * 1e6)
+	state := "ok" if age < BACKUP_STALE else "degraded"
+	return Probe{"backups", state, fmt.tprintf("the newest is %s old", uptime(age)), false}, true
 }
 
 @(private)

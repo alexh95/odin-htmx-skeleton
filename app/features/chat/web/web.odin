@@ -64,7 +64,7 @@ TOPICS := [?]hub.Topic {
 }
 
 JOBS := [?]workers.Job {
-	{"chat.presence", 5 * time.Second, sweep_presence},
+	{"chat.presence", 5 * time.Second, sweep_presence, nil},
 }
 
 // §17.5: posts 5 per 10 s per member (a fixed window: up to 10 across a boundary),

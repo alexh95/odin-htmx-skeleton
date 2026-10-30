@@ -37,7 +37,7 @@ TOPICS := [?]hub.Topic {
 }
 
 JOBS := [?]workers.Job {
-	{"jobs.sync", time.Second, sync},
+	{"jobs.sync", time.Second, sync, nil},
 }
 
 // After the store's migration: this boot's id, and the runs an earlier one left behind.

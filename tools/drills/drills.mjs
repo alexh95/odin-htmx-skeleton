@@ -3,7 +3,7 @@
 //   node tools/drills/drills.mjs <profile> [phase …] [--wsl DIR]
 //
 // Phases (default: all): release pure dirty burst hang logstall malformed slowread wsdata streamcrash
-// shutdown streamdrain latewrite restart fdceiling streamfd opsviewers budgets.
+// shutdown streamdrain latewrite restart fdceiling streamfd opsviewers backup budgets.
 // It builds the profile twice through build.{sh,bat}: a TEST_ROUTES build, which mounts
 // /__test/crash/<kind> and /__test/shutdown (platform/web/drills.odin), and the release build at
 // -o:speed, which must answer 404 there and is the one the budgets measure. Every server is fresh,
@@ -17,7 +17,7 @@
 // Prints PASS/FAIL per check; exits 1 on any FAIL.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { readFileSync, existsSync, statSync, unlinkSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, unlinkSync, readdirSync, copyFileSync, mkdirSync, rmSync } from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
@@ -35,7 +35,7 @@ if (!PROFILE) {
 const WIN = process.platform === 'win32' && !WSL;
 const LINUX = !WIN;
 const EXE = WIN ? '.exe' : '';
-const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'logstall', 'malformed', 'slowread', 'wsdata', 'streamcrash', 'shutdown', 'streamdrain', 'latewrite', 'restart', 'fdceiling', 'streamfd', 'opsviewers', 'budgets'];
+const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'logstall', 'malformed', 'slowread', 'wsdata', 'streamcrash', 'shutdown', 'streamdrain', 'latewrite', 'restart', 'fdceiling', 'streamfd', 'opsviewers', 'backup', 'budgets'];
 const phases = PHASES.length ? PHASES : ALL;
 
 // PLAN §18.4 (ANSWERS round 7): binaries in MiB, Windows -o:speed, as CI reads them; idle memory
@@ -805,6 +805,80 @@ async function phaseOpsViewers(f) {
   await stop(s);
 }
 
+// Files beside the server: under the checkout, in WSL's when the servers run there.
+function onDisk(cmd, ...args) {
+  return WSL ? spawnSync('wsl', ['--cd', WSL, '-e', cmd, ...args], { encoding: 'utf8' }).stdout ?? ''
+    : spawnSync(cmd, args, { cwd: ROOT, encoding: 'utf8', shell: WIN }).stdout ?? '';
+}
+const listDir = (rel) => (WSL ? onDisk('ls', '-1', rel) : (existsSync(path.join(ROOT, rel)) ? readdirSync(path.join(ROOT, rel)).join('\n') : '')).split('\n').filter(Boolean);
+const copyIn = (from, to) => (WSL ? onDisk('cp', from, to) : copyFileSync(path.join(ROOT, from), path.join(ROOT, to)));
+const makeDir = (rel) => (WSL ? onDisk('mkdir', '-p', rel) : mkdirSync(path.join(ROOT, rel), { recursive: true }));
+const removeDir = (rel) => (WSL ? onDisk('rm', '-rf', rel) : rmSync(path.join(ROOT, rel), { recursive: true, force: true }));
+
+// One request with a method, a Host, headers and a form body.
+function send(port, method, p, { host = '', headers = {}, form = null } = {}) {
+  return new Promise((res) => {
+    const body = form ? new URLSearchParams(form).toString() : '';
+    const h = { ...headers, ...(host ? { host: `${host}:${port}` } : {}), ...(form ? { 'content-type': 'application/x-www-form-urlencoded', 'content-length': Buffer.byteLength(body) } : {}) };
+    const req = http.request({ host: '127.0.0.1', port, path: p, method, agent: false, headers: h, timeout: 5000 }, (r) => {
+      let b = '';
+      r.setEncoding('utf8');
+      r.on('data', (c) => (b += c));
+      r.on('end', () => res({ status: r.statusCode, headers: r.headers, body: b }));
+    });
+    req.on('timeout', () => { req.destroy(); res({ status: -1, headers: {}, body: '' }); });
+    req.on('error', () => res({ status: 0, headers: {}, body: '' }));
+    req.end(body);
+  });
+}
+
+// e2e's test admin (e2e/helpers/accounts.ts): its hash, made with --hash-password.
+const DRILL_ADMIN = { username: 'admin', password: 'e2e-and-load-only-password', hash: '$argon2id$v=19$m=19456,t=2,p=1$usNdKTDf754mp5KZr0QZOg$UmN+6Cr4ai7YMbp4f0SsrCtA/kmVO/w4cSHz7Fs8F8I' };
+
+// M5's backup and restore drill (PLAN §11.8, §22.3): a contact before the backup and one after;
+// the backup by the store.backup job, asked for on /admin/jobs as an admin would; a new server
+// on the backup's copy has the first and not the second.
+async function phaseBackup(f) {
+  if (f.store !== 'sqlite' || !f.features.includes('jobs') || f.identity !== 'accounts') return console.log('skip  backup: no jobs on SQLite with accounts here');
+  const dir = `app/build/backup-drill-${nextPort}`;
+  removeDir(dir);
+  makeDir(dir);
+  const env = {
+    DB_PATH: `${dir}/data.db`, LOG_LEVEL: 'warn', LAN_CIDRS: '0.0.0.0/0',
+    ACCOUNTS_ADMIN_HASH: DRILL_ADMIN.hash, ACCOUNTS_ADMIN_TOTP: 'optional',
+  };
+  const s = start(RELEASE_BIN, env);
+  if (!(await ready(s))) return record('backup: server starts on a file', false);
+  const add = (port, name) => send(port, 'POST', '/contacts', { form: { name, email: `${name.replace(/\W/g, '').toLowerCase()}@example.com`, role: 'Member' } });
+  const before = await add(s.port, 'Before Backup');
+  const login = await send(s.port, 'POST', '/login', { host: 'localhost', form: { username: DRILL_ADMIN.username, password: DRILL_ADMIN.password } });
+  const cookie = (login.headers['set-cookie'] ?? []).map((c) => c.split(';')[0]).join('; ');
+  const asked = await send(s.port, 'POST', '/admin/jobs/run', { host: 'localhost', headers: { cookie, 'hx-request': 'true', 'hx-prompt': 'the drill' }, form: { job: 'store.backup' } });
+  let copies = [];
+  for (let i = 0; i < 100 && copies.length === 0; i++) {
+    await sleep(100);
+    copies = listDir(`${dir}/backups`).filter((n) => /^backup-\d{8}-\d{6}\.db$/.test(n));
+  }
+  await sleep(300); // the copy is checked after it is written
+  const after = await add(s.port, 'After Backup');
+  await stop(s);
+  if (copies.length === 0) {
+    removeDir(dir);
+    return record('backup: the job writes a backup', false, `contact ${before.status}, sign-in ${login.status}, run ${asked.status}`);
+  }
+  copyIn(`${dir}/backups/${copies[0]}`, `${dir}/restored.db`);
+  const r = start(RELEASE_BIN, { ...env, DB_PATH: `${dir}/restored.db` });
+  const up = await ready(r);
+  const found = up ? await send(r.port, 'GET', '/api/search?q=Backup') : { status: 0, body: '[]' };
+  let names = [];
+  try { names = JSON.parse(found.body).map((c) => c.name); } catch { /* not JSON: the record says */ }
+  record('backup: the job\'s backup restores into a server with what came before it and nothing after',
+    before.status === 200 && asked.status === 200 && after.status === 200 && up && names.includes('Before Backup') && !names.includes('After Backup'),
+    `writes ${before.status}/${after.status}, run ${asked.status}, ${copies[0]}; restored: ${JSON.stringify(names)}`);
+  await stop(r);
+  removeDir(dir);
+}
+
 async function phaseStreamFd(f) {
   if (WIN) return record('streamfd: Linux only (a ulimit)', true, 'skipped on Windows');
   if (!f.features.includes('lab')) return console.log('skip  streamfd: no streams in this profile');
@@ -879,7 +953,7 @@ if (!WIN && f.features.includes('lab') && phases.includes('streamfd')) {
 console.log(`${PROFILE} on ${WSL ? 'Linux (WSL)' : process.platform}: store ${f.store}; phases: ${phases.join(' ')}`);
 const PH = {
   release: phaseRelease, pure: phasePure, dirty: () => phaseDirty(f), burst: phaseBurst, hang: phaseHang, logstall: phaseLogStall,
-  malformed: phaseMalformed, slowread: phaseSlowRead, wsdata: () => phaseWsData(f), streamcrash: () => phaseStreamCrash(f), shutdown: phaseShutdown, streamdrain: () => phaseStreamDrain(f), latewrite: () => phaseLateWrite(f), restart: phaseRestart, fdceiling: phaseFdCeiling, streamfd: () => phaseStreamFd(f), opsviewers: () => phaseOpsViewers(f), budgets: phaseBudgets,
+  malformed: phaseMalformed, slowread: phaseSlowRead, wsdata: () => phaseWsData(f), streamcrash: () => phaseStreamCrash(f), shutdown: phaseShutdown, streamdrain: () => phaseStreamDrain(f), latewrite: () => phaseLateWrite(f), restart: phaseRestart, fdceiling: phaseFdCeiling, streamfd: () => phaseStreamFd(f), opsviewers: () => phaseOpsViewers(f), backup: () => phaseBackup(f), budgets: phaseBudgets,
 };
 for (const p of phases) {
   if (!PH[p]) { console.error(`unknown phase ${p}`); process.exit(2); }

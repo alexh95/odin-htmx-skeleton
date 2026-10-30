@@ -57,9 +57,13 @@ metrics only). Pushes are on the standing go; apollo, tags and anything on Alex'
       refusals, runs kept past a restart) in chromium, webkit and full-vanilla; the storetest holds the upsert, the
       lapsed lease (only another boot's) and the prune; `jobs.js` reaches every route. Left for slice 6: a cancel and
       live progress e2e on the backup job, which reports both (no job in `full` is long enough before it).
-- [ ] **6. Backups as jobs** (§11.6, §11.8): `store.backup`, a nightly `VACUUM INTO /data/backups/nightly-<date>.db`
+- [x] **6. Backups as jobs** (§11.6, §11.8): `store.backup`, a nightly `VACUUM INTO /data/backups/nightly-<date>.db`
       keeping 7, on the query pool; its age is a status part. *Check:* a backup and restore drill (write rows, back
       up, write more, restore the backup into a fresh server, read the first rows and not the later ones).
+      Done: `store.backup` (VACUUM INTO on its own connection, cancellable through the progress handler, a
+      quick_check, keep 7), `Job.due` for the nightly hour, `workers.fail`, the `backups` status part through obs; the
+      `backup` drill passes on Windows (Linux in CI's full drills); `jobs.spec` runs it by hand (3 of 3, then /status).
+      A running cancel is held by workers' unit test: no job here runs long enough for a browser to catch it.
 - [ ] **7. `dbview`** (`/admin/dbview`, §15.4): read-only SQL on a query-pool reader (`OPEN_READONLY`,
       `stmt_readonly`, `LIMIT_ATTACHED 0`), a 2 s `progress_handler` budget, results capped, step-up, audited. Perm
       `Admin_Db`; SQLite only. *Check:* e2e (a select, a write refused, an `ATTACH` refused, the 2 s budget); a drill

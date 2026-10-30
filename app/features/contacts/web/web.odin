@@ -52,7 +52,7 @@ DEMO_ENV := [?]env.Row {
 }
 
 DEMO_JOBS := [?]workers.Job {
-	{"contacts.reset", time.Minute, reset_when_due},
+	{"contacts.reset", time.Minute, reset_when_due, nil},
 }
 
 @(private)

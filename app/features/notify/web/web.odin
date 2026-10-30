@@ -37,7 +37,7 @@ TOPICS := [?]hub.Topic {
 }
 
 JOBS := [?]workers.Job {
-	{"notify.prune", time.Hour, prune},
+	{"notify.prune", time.Hour, prune, nil},
 }
 
 // ---- send ------------------------------------------------------------------------------------

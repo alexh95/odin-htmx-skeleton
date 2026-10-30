@@ -98,8 +98,10 @@ pool_and_scheduler :: proc(t: ^testing.T) {
 
 	// The scheduler: a job runs every wake, and run_now is honoured. A frequent job's runs are
 	// kept only when asked for by hand; a long one reports progress and a log, and stops when
-	// cancelled; a queued run cancelled never runs.
+	// cancelled; a queued run cancelled never runs. A job whose `due` says no is skipped until
+	// asked for by hand; one that calls `fail` ends failed.
 	@(static) ran: int
+	@(static) later: int
 	@(static) JOBS := [?]Job{
 		{id = "test.tick", every = 0, run = proc() { sync.atomic_add(&ran, 1) }},
 		{id = "test.slow", every = time.Hour, run = proc() {
@@ -110,6 +112,8 @@ pool_and_scheduler :: proc(t: ^testing.T) {
 				time.sleep(10 * time.Millisecond)
 			}
 		}},
+		{id = "test.later", every = 0, run = proc() { sync.atomic_add(&later, 1) }, due = proc() -> bool { return false }},
+		{id = "test.bad", every = time.Hour, run = proc() { fail("it went wrong") }},
 	}
 	schedule({JOBS[:]})
 	tick, tick_ok := run_now("test.tick")
@@ -142,10 +146,19 @@ pool_and_scheduler :: proc(t: ^testing.T) {
 	testing.expect(t, done.log_len > 0 && string(done.log[:7]) == "step 0\n")
 	testing.expect(t, !cancel_run(slow)) // ended
 
+	testing.expect_value(t, sync.atomic_load(&later), 0) // due said no at every wake
+	by_hand, _ := run_now("test.later")
+	testing.expect_value(t, settle(by_hand, .Done).state, Run_State.Done)
+	testing.expect_value(t, sync.atomic_load(&later), 1)
+	broke, _ := run_now("test.bad")
+	failed := settle(broke, .Failed)
+	testing.expect_value(t, failed.state, Run_State.Failed)
+	testing.expect_value(t, string(failed.log[:failed.log_len]), "it went wrong\n")
+
 	got := make([dynamic]Run, context.temp_allocator)
 	v := runs_since(0, &got)
-	testing.expect(t, v > 0 && len(got) == 3) // the frequent job's own runs were never kept
-	testing.expect(t, got[0].id == tick && got[1].id == slow && got[2].id == qd)
+	testing.expect(t, v > 0 && len(got) == 5) // the frequent job's own runs were never kept
+	testing.expect(t, got[0].id == tick && got[1].id == slow && got[2].id == qd && got[3].id == by_hand && got[4].id == broke)
 	testing.expect(t, got[0].by_hand && got[1].by_hand)
 	clear(&got)
 	testing.expect_value(t, runs_since(v, &got), v)
