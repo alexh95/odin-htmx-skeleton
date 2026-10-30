@@ -10,6 +10,10 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ### Fixed
 
+- **The drills' Linux servers get their env single-quoted**: the backup and dbview drills' admin hash (all `$`) was
+  expanded by `sh`, so their file-DB servers exited at boot and master's Linux drills were red from 6c66e62.
+- **A frequent job asked for by hand runs at once** (M5-13, the re-read): it no longer waits for the long-run thread,
+  where a click on `jobs.sync` during the backup froze the backup's own live progress.
 - **M5's audit** (`docs/audit/M5.md`: 0 CRITICAL or HIGH, 4 MEDIUM): dbview allows only reads by an authorizer at
   prepare (a `BEGIN` or `SAVEPOINT` left its reader in a transaction that pinned the WAL; a PRAGMA changed the shared
   reader while preparing), caps a value at 1 MB and audits the whole query; the writer's memory report runs under the

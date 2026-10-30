@@ -11,7 +11,9 @@ package store_sqlite
 // `LIMIT_ATTACHED` 0 and a 1 MB `LIMIT_LENGTH` (a 1 GB randomblob is one VM step the progress
 // handler can't stop, M5-08) as second lines; a progress handler interrupts it past `budget`
 // (12 §3.3), and a transaction left open anyway is rolled back. Rows and cells are capped;
-// values are text as SQLite gives them, a blob as its size.
+// values are text as SQLite gives them, a blob as its size. The length limit holds for stored
+// values too: a row with one over 1 MB answers "string or blob too big" (no table here keeps one;
+// select `length(x)` for such a column, M5-15).
 
 import "base:runtime"
 import "core:c"

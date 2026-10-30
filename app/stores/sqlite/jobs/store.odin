@@ -6,7 +6,7 @@ package jobs_store_sqlite
 // (the writer's lock orders them with the writer task's batches); the page's reads are the
 // loop's reader. write_now's `run` takes no data, so each write hands its own through a global
 // (`pending`, `lapsed`, `pruning`), set before the lock it is read under: right only while one
-// thread at a time writes here, which is so (boot, then the scheduler's one thread; M5-11).
+// thread at a time writes here, which is so: boot, then jobs.sync, a frequent job, on the scheduler's thread (M5-11).
 
 import "base:builtin"
 

@@ -101,7 +101,8 @@ function start(bin, env = {}, port = freePort(), { ulimit = 0 } = {}) {
   }).filter(([, v]) => v !== ''));
   let child;
   if (WSL || LINUX) {
-    const vars = Object.entries({ ...all, ...(WSL ? { BIND_ALL: '1' } : {}) }).map(([k, v]) => `${k}=${v}`);
+    // Single-quoted: a value is never the shell's to expand (an argon2id hash is all `$`).
+    const vars = Object.entries({ ...all, ...(WSL ? { BIND_ALL: '1' } : {}) }).map(([k, v]) => `${k}='${String(v).replaceAll("'", "'\\''")}'`);
     // `echo $$` then exec: the first line is the server's own pid, for kill.
     const script = `${ulimit ? `ulimit -n ${ulimit}; ` : ''}echo pid $$; exec env ${vars.join(' ')} ${bin}`;
     child = WSL
@@ -848,7 +849,10 @@ async function phaseBackup(f) {
     ACCOUNTS_ADMIN_HASH: DRILL_ADMIN.hash, ACCOUNTS_ADMIN_TOTP: 'optional',
   };
   const s = start(RELEASE_BIN, env);
-  if (!(await ready(s))) return record('backup: server starts on a file', false);
+  if (!(await ready(s))) {
+    await stop(s);
+    return record('backup: server starts on a file', false, s.out.trim().split('\n').slice(-3).join(' | '));
+  }
   const add = (port, name) => send(port, 'POST', '/contacts', { form: { name, email: `${name.replace(/\W/g, '').toLowerCase()}@example.com`, role: 'Member' } });
   const before = await add(s.port, 'Before Backup');
   const login = await send(s.port, 'POST', '/login', { host: 'localhost', form: { username: DRILL_ADMIN.username, password: DRILL_ADMIN.password } });
@@ -891,7 +895,10 @@ async function phaseDbview(f) {
     DB_PATH: `${dir}/data.db`, LOG_LEVEL: 'warn', LAN_CIDRS: '0.0.0.0/0', CONTACTS_CAP: '0',
     ACCOUNTS_ADMIN_HASH: DRILL_ADMIN.hash, ACCOUNTS_ADMIN_TOTP: 'optional',
   });
-  if (!(await ready(s))) return record('dbview: server starts on a file', false);
+  if (!(await ready(s))) {
+    await stop(s);
+    return record('dbview: server starts on a file', false, s.out.trim().split('\n').slice(-3).join(' | '));
+  }
   const login = await send(s.port, 'POST', '/login', { host: 'localhost', form: { username: DRILL_ADMIN.username, password: DRILL_ADMIN.password } });
   const cookie = (login.headers['set-cookie'] ?? []).map((c) => c.split(';')[0]).join('; ');
   let n = 0;

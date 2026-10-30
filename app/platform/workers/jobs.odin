@@ -3,10 +3,12 @@ package workers
 // ---- the scheduler over the mounted JOBS rows ------------------------------
 //
 // A profile mounts each feature's `JOBS` table (PLAN §7.2) and app.serve hands
-// them here. One thread wakes every second and runs what is due, guarded, one
-// job at a time; `run_now` asks for a run at the next wake (the jobs page's
-// button) and `cancel_run` asks a run to stop. Daily runs at a local time (the nightly
-// demo resets) are still to come: today a job runs every `every`.
+// them here. One thread wakes every second and runs what is due, guarded: the
+// frequent jobs (due every minute or more often) itself, one at a time, and the
+// others on a long-run thread, one at a time, so a long one (the backup) never
+// holds the frequent ones (M5-03). `run_now` asks for a run at the next wake (the
+// jobs page's button) and `cancel_run` asks a run to stop. A job with `due` decides
+// at its `every` whether there is work (the nightly backup's hour).
 //
 // Each run is data (PLAN §15.4, LC §9): an id, a state, progress and a bounded
 // log, kept in a ring of the last RUNS_KEPT, which features/jobs reads (by
@@ -28,7 +30,7 @@ import "../sys"
 Job :: struct {
 	id:    string, // "notify.prune": the feature's prefix, then the job
 	every: time.Duration,
-	run:   proc(), // on the scheduler's thread, guarded
+	run:   proc(), // guarded, on the scheduler's thread (a frequent job) or the long-run thread
 	// Optional: when its `every` comes, whether there is work (the nightly backup wakes every
 	// 10 min and runs at its hour): false skips to the next `every` with no run kept. A run asked
 	// for by hand doesn't ask it.
@@ -284,11 +286,14 @@ scheduler :: proc() {
 					continue
 				}
 			}
-			// A kept run goes to the long-run thread, one at a time, so a backup never stops the
-			// 1 s jobs (the runs' sync among them, which shows its progress: M5-03); while that
-			// thread is busy it stays due, and goes at a later wake.
-			kept := st.wanted_run != 0 || job.every > time.Minute
-			if !due || kept && sched.long_busy {
+			// A job due less often than every minute runs on the long-run thread, one at a time, so a
+			// backup never stops the 1 s jobs (the runs' sync among them, which shows its progress:
+			// M5-03); while that thread is busy it stays due, and goes at a later wake. A frequent
+			// job stays here even when asked for by hand, so a click never parks it behind a
+			// backup (M5-13).
+			long := job.every > time.Minute
+			kept := st.wanted_run != 0 || long
+			if !due || long && sched.long_busy {
 				guard.unlock(&sched.mu)
 				continue
 			}
@@ -305,7 +310,7 @@ scheduler :: proc() {
 				r.state, r.started_ns = .Running, st.last_start_ns
 				touch(r)
 			}
-			if kept {
+			if long {
 				sched.long_busy, sched.long_job, sched.long_run, sched.long_at = true, i, r, now
 				guard.unlock(&sched.mu)
 				sync.sema_post(&sched.long_wake)

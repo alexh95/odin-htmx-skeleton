@@ -390,7 +390,7 @@ off until Alex sets it before the v2.2.0 tag.
       with no idle cuts.
 - [ ] **M3's open findings, later**: M3-04 (the status watcher's `guard.Mutex`, `guard.call` and a bounded dial: with
       M5's `jobs`); M3-11 (a socket version above the room's
-      read as a restart's: with M6's SQLite chat); M3-06's smoke of the pushed digest; M3-13 (promote never recreates the Caddy, so its new capabilities and memory limit reach
+      read as a restart's: with M6's SQLite chat); M3-06's smoke of the pushed digest; M3-13's Caddy recreate (done by Alex 2026-10-31: promote never recreates the Caddy, so its new capabilities and memory limit reach
       apollo only when it is recreated: do it with slice 10's Caddy change, by hand with Alex's go).
 - [ ] **11. Exit**: the parity gate on both legs (X25), with `starter-skeleton` passing it and the 01 (A) 40-item
       checklist on apollo's LAN; `docs/audit/M3.md` by an agent that didn't write the code, 0 open CRITICAL/HIGH;
@@ -403,7 +403,7 @@ off until Alex sets it before the v2.2.0 tag.
       `6bad255`, the fork's F-17 amendment and F-24 in `UPSTREAM.md`); CHANGELOG's 2.2.0 lead drafted under
       `[Unreleased]`. v2.2.0-rc.2 (on `65c399d`, tagged by Alex) released and promoted to apollo's four witnesses; the
       40-item checklist at rc.2, read-only over HTTP from the LAN: every item observable from outside green, the rest
-      held by CI at `65c399d`. Left: slice 10 (with the stack Caddy's recreate, M3-13) and Alex's part
+      held by CI at `65c399d`. Left: slice 10 (the stack Caddy's recreate, M3-13, done by Alex 2026-10-31; the NPM steps next) and Alex's part
       (`FLY_DEPLOY`, the v2.2.0 tag on `65c399d`).
 - [x] **A Firefox flake to watch** (found and fixed in M3): v2.1.0's release commit lost lab's Firefox e2e on CI's first try (run 40736711557):
       `page.goto` hit the 30 s timeout in `escaping.spec`'s hyperscript gate (both tries), `scripting.spec`'s password

@@ -139,7 +139,11 @@ pool_and_scheduler :: proc(t: ^testing.T) {
 	before := sync.atomic_load(&ran)
 	time.sleep(1200 * time.Millisecond)
 	testing.expect(t, sync.atomic_load(&ran) > before)
-	qd, _ := run_now("test.tick") // a kept run, behind the slow one: one long run at a time
+	// A frequent job asked for by hand runs at once, not behind the slow one (M5-13); a long one
+	// asked for waits for the long-run thread, and cancelled there it never runs.
+	by_tick, _ := run_now("test.tick")
+	testing.expect_value(t, settle(by_tick, .Done).state, Run_State.Done)
+	qd, _ := run_now("test.bad")
 	testing.expect(t, cancel_run(qd))
 	testing.expect_value(t, settle(qd, .Cancelled).state, Run_State.Cancelled)
 	time.sleep(100 * time.Millisecond)
@@ -161,8 +165,8 @@ pool_and_scheduler :: proc(t: ^testing.T) {
 
 	got := make([dynamic]Run, context.temp_allocator)
 	v := runs_since(0, &got)
-	testing.expect(t, v > 0 && len(got) == 5) // the frequent job's own runs were never kept
-	testing.expect(t, got[0].id == tick && got[1].id == slow && got[2].id == qd && got[3].id == by_hand && got[4].id == broke)
+	testing.expect(t, v > 0 && len(got) == 6) // the frequent job's own runs were never kept
+	testing.expect(t, got[0].id == tick && got[1].id == slow && got[2].id == by_tick && got[3].id == qd && got[4].id == by_hand && got[5].id == broke)
 	testing.expect(t, got[0].by_hand && got[1].by_hand)
 	clear(&got)
 	testing.expect_value(t, runs_since(v, &got), v)
