@@ -10,6 +10,8 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ### Fixed
 
+- **`csp-clean.spec` clicks a swatch the build's theme has**: a lite-themed selection with gallery (the covering
+  array's pairwise-7) has no `arcade` style to click.
 - **`landing.spec`'s nav case needs `lab`** and says so: a selection with landing and no lab (the new covering array
   has one) failed it.
 

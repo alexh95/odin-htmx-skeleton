@@ -50,8 +50,10 @@ test.describe('csp-clean', { tag: '@platform' }, () => {
 
     if (has('gallery')) {
       await page.goto('/components');
-      await page.locator('[data-sw-style="arcade"][data-sw-scheme="pop"]').click();
-      await expect(page.locator('html')).toHaveAttribute('data-scheme', 'pop');
+      // The showroom holds the build's own theme: the lite one has modern's two schemes alone.
+      const [style, scheme] = has('platform-full') ? ['arcade', 'pop'] : ['modern', 'daylight'];
+      await page.locator(`[data-sw-style="${style}"][data-sw-scheme="${scheme}"]`).click();
+      await expect(page.locator('html')).toHaveAttribute('data-scheme', scheme);
       await page.getByRole('tab', { name: 'Security' }).click();
       await expect(page.getByRole('tab', { name: 'Security' })).toHaveAttribute('aria-selected', 'true');
       await page.getByRole('button', { name: 'Success toast' }).click();
