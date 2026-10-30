@@ -22,6 +22,8 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 - **A sibling host can't plant a session** (M4-08): a `Secure` session cookie is named `__Host-sid`, which a browser
   refuses to take with a `Domain` or from another host, and a request that may carry it reads no plain `sid`. Plain
   http (the LAN, `COOKIE_SECURE=0`) keeps `sid`.
+- **Promote's snapshot pruner is pinned** (M3-08, M4-12): the busybox that prunes old backups beside the accounts
+  database runs by digest (1.37.0), as the app's user and with no network, not `busybox:latest` as root.
 - **The ops panel's sse spec no longer races its first push** in WebKit: the poll makes a request of its own, since
   the sse mode makes none.
 

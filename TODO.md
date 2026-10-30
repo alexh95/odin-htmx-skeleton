@@ -208,8 +208,9 @@ Alex, asked in one batch.
       (an entry a full writer queue drops is not logged; entries are their own op, not the change's transaction);
       M4-05 username oracles, M4-06 ops not one unit, M4-07 the reversible client id, M4-09's
       rest (a sign-out's and a member's revoke's streams: a per-session hub key; the subscribe-after-kick race),
-      M4-10 no admin way to clear a lost authenticator, M4-12 the snapshot's busybox pin (with M3-08's), M4-13 fuzz
-      cases for the new parsers (with M3-09's). M4-08, M4-11, M4-14, M4-15 and M4-16 are fixed.
+      M4-10 no admin way to clear a lost authenticator, M4-12's rest (`totp_secret` encrypted at rest with a `_FILE`
+      key; backups outside the app's volume), M4-13 fuzz
+      cases for the new parsers (with M3-09's). M4-08, M4-11, M4-14, M4-15 and M4-16 are fixed; M4-12's busybox pin too (and M3-08's).
 
 ## M3 — pipeline, apollo LAN, the landing page (v2.2.0)
 
@@ -329,8 +330,7 @@ off until Alex sets it before the v2.2.0 tag.
       with no idle cuts.
 - [ ] **M3's open findings, later**: M3-04 (the status watcher's `guard.Mutex`, `guard.call` and a bounded dial: with
       M5's `jobs`); M3-09 (a fuzz target for `ws_field`: with M4 slice 13); M3-11 (a socket version above the room's
-      read as a restart's: with M6's SQLite chat); M3-06's smoke of the pushed digest; M3-08's busybox pin (M4's
-      first snapshot); M3-13 (promote never recreates the Caddy, so its new capabilities and memory limit reach
+      read as a restart's: with M6's SQLite chat); M3-06's smoke of the pushed digest; M3-13 (promote never recreates the Caddy, so its new capabilities and memory limit reach
       apollo only when it is recreated: do it with slice 10's Caddy change, by hand with Alex's go).
 - [ ] **11. Exit**: the parity gate on both legs (X25), with `starter-skeleton` passing it and the 01 (A) 40-item
       checklist on apollo's LAN; `docs/audit/M3.md` by an agent that didn't write the code, 0 open CRITICAL/HIGH;

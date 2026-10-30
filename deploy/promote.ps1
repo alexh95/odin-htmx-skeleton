@@ -169,11 +169,14 @@ if ($Target -ne 'local') {
 
 # ---- 3. snapshot --------------------------------------------------------------------------
 
+# The pruner runs beside the accounts database: pinned by digest (1.37.0), as the app's user, with no
+# network (M3-08, M4-12).
+$BUSYBOX = 'busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec'
 foreach ($s in $Service | Where-Object { $SNAPSHOT -contains $_ }) {
 	Invoke-Host @"
 id=`$($dc ps -q $s)
 [ -z "`$id" ] || docker exec "`$id" /app/bin --backup /data/backups/pre-$Tag.db
-docker run --rm --volumes-from "`$id" --entrypoint /bin/sh busybox -c 'ls -1t /data/backups/pre-*.db | tail -n +6 | xargs -r rm -f' 2>/dev/null || true
+docker run --rm --volumes-from "`$id" --user 10001:10001 --network none --entrypoint /bin/sh $BUSYBOX -c 'ls -1t /data/backups/pre-*.db | tail -n +6 | xargs -r rm -f' 2>/dev/null || true
 "@ | Out-Null
 }
 
