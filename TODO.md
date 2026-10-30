@@ -132,6 +132,18 @@ Alex, asked in one batch.
       `CONTACTS_CAP` 2000 with their 04:00 resets; `starter-full` in `deploy/compose.yaml` (512 MiB) and the release
       matrix. *Check:* every route × both hosts (a row answers on its host, 404 on the other; a `sid` on the lab host
       is a Guest); the demo resets run.
+      Progress (part a): the two hosts. `full`'s lab host (`SITE_URL_LAB`, `LAB_BRAND`, `LAB_NAV`, `LAB_ROUTES`,
+      `LAB_TOPICS`, `LAB_JOBS`) carries `landing` at `/`, `dashboard` at `/dashboard`, `gallery`, `contacts`, `lab`,
+      `scripting`, `compat` and `about`, with no identity (`notes` waits: its card is `home`'s, Houston's, so it has
+      no page on the lab host yet, and `NOTES_CAP` with it); boot refuses two hosts on one name; `app.serve`
+      takes a brand per host. The suites: the lab host is `127.0.0.1` and the main host `localhost` on one port
+      (`--features --json` now lists each host's features; a spec goes to its own feature's host, and one whose
+      features sit on different hosts is skipped); `hosts.spec` walks every literal GET row on both hosts and checks
+      a `sid` means nothing on the lab host. Fixed on the way: the dashboard's canonical and title follow the path
+      it is served at; the layout's search box carries `hx-nonce` on a `.Nonce_Csp` page; a loopback origin counts
+      as a placeholder. tools/init writes and edits one-host profiles only, and says so for `full`. Left: part b
+      (`CONTACTS_CAP` and its 04:00 reset), part c (`starter-full` in `deploy/compose.yaml`, 512 MiB),
+      part d (the `houston` theme kept in `accounts_prefs`).
 - [ ] **11. Behaviours and `full-vanilla`** (§12.4, D22): the hyperscript behaviours `full` needs and their vanilla
       twins; the `full-vanilla` build in both build scripts. *Check:* behaviour duality (the same specs on `full` and
       `full-vanilla`); injected `_` inert.

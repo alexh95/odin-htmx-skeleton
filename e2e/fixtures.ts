@@ -1,12 +1,15 @@
 import { test as base, expect } from '@playwright/test';
 import path from 'node:path';
-import { portFree, startServer, stopServer, type Server } from './helpers/server';
+import { hostOf, mainOrigin, portFree, startServer, stopServer, type Server } from './helpers/server';
 
 // The profile under test as its binary describes itself (`--features --json`,
 // read once by global-setup.ts): the features it mounts and the member of each
 // family it was built with.
-type Build = { profile: string; store: string; identity: string; client: string; theme: string; features: string[] };
+type Build = { profile: string; store: string; identity: string; client: string; theme: string; features: string[]; hosts?: Record<string, string[]> };
 export const BUILD: Build = JSON.parse(process.env.E2E_FEATURES || '{"features":[]}');
+
+// Where the dashboard is: the root, except where `landing` owns it (full's lab host: /dashboard).
+export const DASHBOARD = BUILD.features.includes('landing') ? '/dashboard' : '/';
 
 // Whether the build has a feature ("contacts"), or a feature built with one
 // family member ("notes-sqlite", "platform-full"). A leading @ is ignored, so a
@@ -46,6 +49,12 @@ export const test = base.extend<{ selection: void }, { server: Server }>({
       if (!own) throw new Error(`a spec in tests/${dir}/ is tagged @${dir}: ${testInfo.titlePath.join(' › ')}`);
       const missing = testInfo.tags.filter((t) => !has(t));
       testInfo.skip(missing.length > 0, `${BUILD.profile} lacks ${missing.join(', ')}`);
+      // A two-host build may hold a spec's features on different hosts (home on Houston's, notes on
+      // the lab's): no page has them together, so the spec doesn't apply.
+      const hosts = Object.values(BUILD.hosts || {});
+      const features = testInfo.tags.map((t) => t.replace(/^@/, '').split('-')[0]).filter((f) => f !== 'platform');
+      testInfo.skip(hosts.length > 1 && !hosts.some((h) => features.every((f) => h.includes(f))),
+        `${BUILD.profile} serves ${features.join(', ')} on different hosts`);
       await use();
     },
     { auto: true },
@@ -74,8 +83,11 @@ export const test = base.extend<{ selection: void }, { server: Server }>({
   ],
 
   // Point page + request at this worker's server, or at the proxy in front of it.
-  baseURL: async ({ server }, use) => {
-    await use(PROXY || `http://127.0.0.1:${server.port}`);
+  // A spec whose own feature lives only on a two-host build's main host (accounts, audit …) is
+  // pointed there; every other at the lab host (helpers/server.ts).
+  baseURL: async ({ server }, use, testInfo) => {
+    const dir = path.relative(TESTS, testInfo.file).split(path.sep)[0];
+    await use(PROXY || (hostOf(dir) === 'main' ? mainOrigin(server.port) : `http://127.0.0.1:${server.port}`));
   },
 });
 

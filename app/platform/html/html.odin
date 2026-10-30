@@ -389,7 +389,10 @@ layout :: proc(p: Page, content: string) -> string {
 		w(&b, `"
        hx-get="`)
 		w(&b, s.href)
-		w(&b, `" hx-trigger="keyup changed delay:250ms, search, focus" hx-target="#search-results" hx-swap="innerHTML">
+		w(&b, `" hx-trigger="keyup changed delay:250ms, search, focus" hx-target="#search-results" hx-swap="innerHTML"`)
+		// On a .Nonce_Csp page hx-csp strips an htmx element without the response's nonce.
+		if p.nonce != "" { w(&b, ` hx-nonce="` + NONCE_MARK + `"`) }
+		w(&b, `>
     <div id="search-results" class="search-results" tabindex="-1"`)
 		behave(&b, .Dismiss)
 		w(&b, `></div>

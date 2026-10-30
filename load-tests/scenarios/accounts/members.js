@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE } from '../../lib/config.js';
+import { MAIN } from '../../lib/config.js';
 import { options as build, summarize } from '../../lib/options.js';
 
 // tags: @accounts-accounts
@@ -22,7 +22,7 @@ export const handleSummary = summarize('members');
 
 const admin = new http.CookieJar();
 const post = (path, body, headers, jar, name, ...codes) =>
-  http.post(`${BASE}${path}`, body, { headers, jar, redirects: 0, tags: { name }, responseCallback: ok(...codes) });
+  http.post(`${MAIN}${path}`, body, { headers, jar, redirects: 0, tags: { name }, responseCallback: ok(...codes) });
 
 export default function () {
   if (__ITER === 0) {
@@ -31,18 +31,18 @@ export default function () {
   }
 
   const me = new http.CookieJar();
-  check(http.get(`${BASE}/register`, { jar: me, tags: { name: 'GET /register' } }), { 'join page': (r) => r.status === 200 });
+  check(http.get(`${MAIN}/register`, { jar: me, tags: { name: 'GET /register' } }), { 'join page': (r) => r.status === 200 });
   const name = `m${__VU}x${__ITER}`;
   const joined = post('/register', { username: name, password: PASSWORD, again: PASSWORD }, FORM, me, 'POST /register', 303, 503);
   check(joined, { 'joined: 303 or busy': (r) => r.status === 303 || r.status === 503 });
   if (joined.status === 303) {
-    check(http.get(`${BASE}/accounts/profile`, { jar: me, tags: { name: 'GET /accounts/profile' } }), { 'profile': (r) => r.status === 200 });
+    check(http.get(`${MAIN}/accounts/profile`, { jar: me, tags: { name: 'GET /accounts/profile' } }), { 'profile': (r) => r.status === 200 });
     check(post('/accounts/profile', { display: `Member ${name}` }, FORM, me, 'POST /accounts/profile', 200), { 'saved': (r) => r.status === 200 });
   }
-  check(http.get(`${BASE}/reset`, { jar: me, tags: { name: 'GET /reset' } }), { 'reset page': (r) => r.status === 200 });
+  check(http.get(`${MAIN}/reset`, { jar: me, tags: { name: 'GET /reset' } }), { 'reset page': (r) => r.status === 200 });
   check(post('/reset', { username: name, code: 'aaaa-bbbb-cccc', password: PASSWORD, again: PASSWORD }, FORM, me, 'POST /reset', 422), { 'wrong code 422': (r) => r.status === 422 });
 
-  const page = http.get(`${BASE}/admin/accounts`, { jar: admin, tags: { name: 'GET /admin/accounts' } });
+  const page = http.get(`${MAIN}/admin/accounts`, { jar: admin, tags: { name: 'GET /admin/accounts' } });
   const ids = [...(page.body || '').matchAll(/id="user-(\d+)"/g)].map((x) => x[1]);
   check(page, { 'accounts page': (r) => r.status === 200 && ids.length > 1 });
   const id = ids[ids.length - 1]; // the newest member, never the admin (id 1)
@@ -53,7 +53,7 @@ export default function () {
   check(post(`/admin/accounts/${id}/reset`, null, PROMPT, admin, 'POST /admin/accounts/:id/reset', 200), { 'reset code': (r) => r.status === 200 && r.body.includes('reset-code') });
   const made = post('/admin/accounts/invites', { role: 'Member', uses: '1', days: '1' }, PROMPT, admin, 'POST /admin/accounts/invites', 200);
   check(made, { 'invite made': (r) => r.status === 200 && r.body.includes('invite-link') });
-  const listed = http.get(`${BASE}/admin/accounts`, { jar: admin, tags: { name: 'GET /admin/accounts' } });
+  const listed = http.get(`${MAIN}/admin/accounts`, { jar: admin, tags: { name: 'GET /admin/accounts' } });
   const hash = /name="invite" value="([0-9a-f]{64})"/.exec(listed.body || '');
   if (hash) {
     check(post('/admin/accounts/invites/delete', { invite: hash[1] }, PROMPT, admin, 'POST /admin/accounts/invites/delete', 303, 404), { 'withdrawn': (r) => r.status === 303 || r.status === 404 });

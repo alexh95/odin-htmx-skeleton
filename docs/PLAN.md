@@ -4038,6 +4038,13 @@ perm and flags), and `store/sqlite`'s `migrate` appends to `store.in_force`, so 
 store (`tools/check imports` refuses one). The env table shows a secret only as set or unset. The switched
 implementations aren't listed (they are per request, `x-impl`; the catalog names them).
 
+**As built (M4, slice 10, part a):** `full`'s `HOSTS` has its second row, `{"lab", "SITE_URL_LAB", false, LAB_ROUTES,
+LAB_NAV}`, and `app.serve` takes `{&BRAND, &LAB_BRAND}`. The main host's tables keep the names tools/init reads
+(`ROUTES`, `TOPICS`, `JOBS`, `NAV`) and the lab host's are `LAB_*`; tools/init writes and edits one-host profiles only.
+Boot refuses two hosts whose origins name one host; a loopback origin counts as a placeholder (no `*.fly.dev`
+redirect, and WS upgrades match by host). In the suites one server answers both: the lab host is `127.0.0.1` (its
+origin `https://127.0.0.1`) and the main host `localhost`, any other name, and a spec goes to its own feature's host.
+
 **TOTP and step-up** (Q11). TOTP follows RFC 6238 (vectors verified, 07 §0.6) with manual secret entry and the
 `otpauth://` text, no QR encoder. It is required for Admin and `Term_Write`. **Step-up** asks for the password or a
 TOTP code within the last 10 minutes on `.Step_Up` routes: `Term_Write`, role changes, invites and dbview. Recovery

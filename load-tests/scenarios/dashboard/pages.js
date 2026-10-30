@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE } from '../../lib/config.js';
+import { BASE, DASHBOARD } from '../../lib/config.js';
 import { options as build, summarize } from '../../lib/options.js';
 
 // tags: @dashboard @contacts
@@ -13,7 +13,7 @@ export const options = build();
 export const handleSummary = summarize('pages');
 
 export default function () {
-  const home = http.get(`${BASE}/`);
+  const home = http.get(`${BASE}${DASHBOARD}`);
   check(home, {
     'home 200': (r) => r.status === 200,
     'home is html': (r) => (r.headers['Content-Type'] || '').includes('html'),

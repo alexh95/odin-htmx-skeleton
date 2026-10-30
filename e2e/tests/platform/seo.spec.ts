@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { test, expect, has } from '../../fixtures';
+import { test, expect, has, DASHBOARD } from '../../fixtures';
+import { TWO_HOSTS } from '../../helpers/server';
 import { appDirFrom, PROFILE } from '../../global-setup';
 
 // The crawler-facing contract. None of this is visible in the UI, so it can rot
@@ -273,7 +274,7 @@ test.describe('SEO contract', { tag: '@platform' }, () => {
     // Stat cards and link tiles are captions; alone they leave the page thin for
     // anyone — reader or crawler — who arrives without knowing what the project
     // is. The dashboard's copy, so it runs where the dashboard is the home page.
-    const html = await (await request.get('/')).text();
+    const html = await (await request.get(DASHBOARD)).text();
     const prose = attr(html, /<article class="card about">([\s\S]*?)<\/article>/)
       .replace(/<[^>]+>/g, ' ')
       .replace(/\s+/g, ' ')
@@ -288,6 +289,8 @@ test.describe('SEO contract', { tag: '@platform' }, () => {
       // this contract only holds once SITE_URL names a real origin.
       const origin = new URL((await (await request.get('/sitemap.xml')).text()).match(/<loc>([^<]+)</)![1]);
       test.skip(/(^|\.)example\.(com|net|org)$/.test(origin.hostname), 'SITE_URL is a placeholder');
+      // A *.fly.dev name is no host of a two-host build, so it is the main host's, a placeholder here.
+      test.skip(TWO_HOSTS, "a *.fly.dev name is the main host's, whose origin the suite leaves a placeholder");
 
       const res = await request.get('/?q=ada&sort=name', {
         headers: { Host: 'example-app.fly.dev' },

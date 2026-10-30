@@ -5,6 +5,14 @@
 
 export const BASE = __ENV.BASE_URL || 'http://127.0.0.1:8080';
 
+// A two-host build (full: PLAN §7.3) answers both on one port, told apart by name: BASE is the
+// lab host (127.0.0.1, nearly every catalog feature), MAIN the main host (localhost: accounts,
+// audit, modules, home). A one-host build answers both the same. run.sh sets them.
+export const MAIN = __ENV.MAIN_URL || BASE;
+
+// Where the dashboard is: the root, except where landing owns it (full's lab host).
+export const DASHBOARD = `/${__ENV.DASHBOARD || ''}`;
+
 // One steady load level per run. The run scripts sweep this across the curve
 // (1, 10, 50, 100, 200, 500) and collect each point; a lone run uses 50.
 export const VUS = parseInt(__ENV.VUS || '50', 10);

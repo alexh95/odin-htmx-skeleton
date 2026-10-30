@@ -4,7 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
 // worker's), so a browser engine changes nothing. They run once, as the `api`
 // project, instead of once per engine.
 const API_ONLY =
-  /[\\/](backup|canonical|dashboard|events|ids|limits|headers|ops|persistence|protocol|routing|seo|writes)\.spec\.ts$/;
+  /[\\/](backup|canonical|dashboard|events|hosts|ids|limits|headers|ops|persistence|protocol|routing|seo|writes)\.spec\.ts$/;
 
 // skeleton and lab run in the three engines (Firefox in CI only: it can't start
 // on the dev PC), streams in chromium and webkit, every other profile in chromium

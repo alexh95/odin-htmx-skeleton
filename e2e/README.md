@@ -17,6 +17,8 @@ npm test                            # skeleton: three engines + the api project;
 
 `E2E_PROFILE` picks the profile under test: `skeleton` by default, in the three engines (Firefox
 only in CI: it can't start on the dev PC) plus the `api` project; `lab` in the three engines too, and
+`full` answers two hosts on one port (its lab host on `127.0.0.1`, Houston's on `localhost`), and a spec runs on
+its own feature's host (`fixtures.ts`), skipped where its features sit on different hosts.
 `streams` in chromium and webkit; any other profile in chromium plus `api` (`E2E_PROFILE=minimal
 npm test`). The servers run with the per-client stream caps lifted (`STREAM_CONNECTS`,
 `STREAMS_PER_CLIENT`): the suite is one client opening far more streams than a person would. The lab's

@@ -167,16 +167,24 @@ print_features :: proc(b: ^strings.Builder, hosts: []Host, as_json: bool) {
 	Features :: struct {
 		profile, store, identity, client, theme: string,
 		features:                         []string,
+		hosts:                            map[string][]string, // each host's features: the e2e suite picks a spec's host by them
 	}
 	names := make([dynamic]string)
+	per_host := make(map[string][]string)
 	for h in hosts {
+		mine := make([dynamic]string)
 		outer: for m in h.routes {
-			for n in names { if n == m.feature { continue outer } }
-			append(&names, m.feature)
+			for n in mine { if n == m.feature { continue outer } }
+			append(&mine, m.feature)
+		}
+		per_host[h.name] = mine[:]
+		next: for n in mine {
+			for have in names { if have == n { continue next } }
+			append(&names, n)
 		}
 	}
 	if as_json {
-		data, _ := json.marshal(Features{st.profile, stores.NAME, identity.NAME, html.CLIENT, html.THEME, names[:]}, {pretty = true})
+		data, _ := json.marshal(Features{st.profile, stores.NAME, identity.NAME, html.CLIENT, html.THEME, names[:], per_host}, {pretty = true})
 		strings.write_string(b, string(data))
 		strings.write_byte(b, '\n')
 		return

@@ -54,6 +54,19 @@ export function portFree(port: number): Promise<boolean> {
 // limits, which the suite's many sign-ins from one client would hit, and lets that admin be one
 // without TOTP; a spec that tests them starts its own server.
 // `env` overrides (a spec's own DB_PATH); `port` reuses one (a restart).
+// A build with a lab host (full, PLAN §7.3) answers two hosts on one port, told apart by name: the
+// lab host is 127.0.0.1, where nearly every catalog feature lives and the raw helpers below
+// already go, and the main host is any other name, `localhost`. A one-host build answers both.
+const HOSTS: Record<string, string[]> = JSON.parse(process.env.E2E_FEATURES || '{}').hosts || {};
+export const TWO_HOSTS = 'lab' in HOSTS;
+export const mainHost = (port: number) => `${TWO_HOSTS ? 'localhost' : '127.0.0.1'}:${port}`;
+export const mainOrigin = (port: number) => `http://${mainHost(port)}`;
+
+// Which host serves `feature`: the main one when only the main host mounts it.
+export function hostOf(feature: string): 'main' | 'lab' {
+  return TWO_HOSTS && (HOSTS.main || []).includes(feature) && !(HOSTS.lab || []).includes(feature) ? 'main' : 'lab';
+}
+
 export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {}, port?: number): Promise<Server> {
   const appDir = appDirFrom(config);
   const coverage = coverageDir(appDir);
@@ -67,6 +80,8 @@ export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {
       BOT_SEED: '7', BOT_DELAY_MS: '25',
       ACCOUNTS_ADMIN_HASH: ADMIN_HASH, ACCOUNTS_LOGIN_PER_CLIENT: '1000000', ACCOUNTS_LOGIN_OVERALL: '1000000',
       ACCOUNTS_ADMIN_TOTP: 'optional', ACCOUNTS_REGISTER_PER_HOUR: '1000000', ACCOUNTS_CODES_PER_HOUR: '1000000',
+      // https and no port, like a real origin (hosts match by name): the SEO specs check its shape.
+      ...(TWO_HOSTS ? { SITE_URL_LAB: 'https://127.0.0.1' } : {}),
       METRICS_TOKEN_FILE: path.join(coverage, '.token'), ...env,
     },
   });
@@ -148,12 +163,14 @@ export function raw(port: number, bytes: string): Promise<number> {
 }
 
 export const get = (port: number, p: string, headers: http.OutgoingHttpHeaders = {}) => request({ port, path: p, method: 'GET', headers });
+// The main host, where a two-host build's sessions are (helpers default to the lab host's 127.0.0.1).
+export const onMain = (port: number): http.OutgoingHttpHeaders => ({ host: mainHost(port) });
 export const del = (port: number, p: string) => request({ port, path: p, method: 'DELETE' });
-export const post = (port: number, p: string, form: string) =>
+export const post = (port: number, p: string, form: string, headers: http.OutgoingHttpHeaders = {}) =>
   request(
     {
       port, path: p, method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded', 'content-length': Buffer.byteLength(form) },
+      headers: { 'content-type': 'application/x-www-form-urlencoded', 'content-length': Buffer.byteLength(form), ...headers },
     },
     form,
   );

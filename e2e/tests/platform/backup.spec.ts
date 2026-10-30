@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { startServer, stopServer, get, post, type Server } from '../../helpers/server';
+import { startServer, stopServer, get, post, onMain, type Server } from '../../helpers/server';
 import { ADMIN } from '../../helpers/accounts';
 
 // The backup runbook in docs/DATA.md, end to end: write a row to a file DB,
@@ -23,7 +23,7 @@ test('a backup taken under a live server restores with the data in it', { tag: '
     let marker = `Backup ${Date.now()}`;
     let cookie = '';
     if (accounts) {
-      const made = await post(srv.port, '/login', `username=${ADMIN.username}&password=${ADMIN.password}`);
+      const made = await post(srv.port, '/login', `username=${ADMIN.username}&password=${ADMIN.password}`, onMain(srv.port));
       expect(made.status).toBe(303);
       cookie = String(made.headers['set-cookie']).split(';')[0];
       marker = `Signed in as ${ADMIN.username}`;
@@ -45,7 +45,7 @@ test('a backup taken under a live server restores with the data in it', { tag: '
     await stopServer(srv);
     srv = await startServer(test.info().config, { DB_PATH: copy });
     const page = demo ? `/api/search?q=${encodeURIComponent(marker)}` : accounts ? '/login' : '/';
-    expect((await get(srv.port, page, cookie ? { cookie } : {})).body).toContain(marker);
+    expect((await get(srv.port, page, cookie ? { cookie, ...onMain(srv.port) } : {})).body).toContain(marker);
   } finally {
     if (srv) await stopServer(srv);
     try { rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }

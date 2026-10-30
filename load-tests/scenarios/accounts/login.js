@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE, P95, P99 } from '../../lib/config.js';
+import { MAIN, P95, P99 } from '../../lib/config.js';
 import { options as build, summarize } from '../../lib/options.js';
 
 // tags: @accounts-accounts
@@ -22,29 +22,29 @@ export const handleSummary = summarize('login');
 
 const page = (name) => ({ tags: { name, kind: 'page' } });
 // Houston's pages send report-to: a violation report, once per VU, so the route is measured.
-const REPORT = JSON.stringify([{ type: 'csp-violation', url: `${BASE}/login`, body: { blockedURL: 'inline', effectiveDirective: 'script-src-elem' } }]);
+const REPORT = JSON.stringify([{ type: 'csp-violation', url: `${MAIN}/login`, body: { blockedURL: 'inline', effectiveDirective: 'script-src-elem' } }]);
 
 export default function () {
   if (__ITER === 0) {
-    const report = http.post(`${BASE}/csp-report`, REPORT, { headers: { 'Content-Type': 'application/reports+json' }, tags: { name: 'POST /csp-report', kind: 'page' } });
+    const report = http.post(`${MAIN}/csp-report`, REPORT, { headers: { 'Content-Type': 'application/reports+json' }, tags: { name: 'POST /csp-report', kind: 'page' } });
     check(report, { 'report 204': (r) => r.status === 204 });
   }
-  const form = http.get(`${BASE}/login`, page('GET /login'));
+  const form = http.get(`${MAIN}/login`, page('GET /login'));
   check(form, { 'login page 200': (r) => r.status === 200 && r.body.includes('id="password"') });
 
-  const signIn = http.post(`${BASE}/login`, { username: USER, password: PASSWORD, next: '/accounts/sessions' }, {
+  const signIn = http.post(`${MAIN}/login`, { username: USER, password: PASSWORD, next: '/accounts/sessions' }, {
     headers: FORM, redirects: 0, tags: { name: 'POST /login', kind: 'login' },
     responseCallback: http.expectedStatuses(303, 503),
   });
   check(signIn, { 'sign-in: 303, or 503 busy': (r) => r.status === 303 || r.status === 503 });
   if (signIn.status !== 303) return;
 
-  const list = http.get(`${BASE}/accounts/sessions`, page('GET /accounts/sessions'));
+  const list = http.get(`${MAIN}/accounts/sessions`, page('GET /accounts/sessions'));
   const mine = /value="([0-9a-f]{64})"><button class="btn btn-outline" type="submit">Sign out here/.exec(list.body || '');
   check(list, { 'sessions 200, this one marked': (r) => r.status === 200 && mine !== null });
 
   const end = __ITER % 2 === 0 || mine === null
-    ? http.post(`${BASE}/logout`, null, { headers: FORM, redirects: 0, ...page('POST /logout') })
-    : http.post(`${BASE}/accounts/sessions/revoke`, { session: mine[1] }, { headers: FORM, redirects: 0, ...page('POST /accounts/sessions/revoke') });
+    ? http.post(`${MAIN}/logout`, null, { headers: FORM, redirects: 0, ...page('POST /logout') })
+    : http.post(`${MAIN}/accounts/sessions/revoke`, { session: mine[1] }, { headers: FORM, redirects: 0, ...page('POST /accounts/sessions/revoke') });
   check(end, { 'session ended: 303': (r) => r.status === 303 });
 }

@@ -180,18 +180,26 @@ mounted :: proc(h: Host) -> (s: web.Site) {
 
 // §8.6 steps 6-10: everything that serves, then the banner. Returns once every
 // loop runs.
-serve :: proc(hosts: []Host, jobs: [][]workers.Job, brand: ^html.Brand, headers := web.Header_Set.Standard) {
+// `brands` names each host's brand in HOSTS' order where a second host has its own (full's lab
+// host); without it every host is `brand`'s.
+serve :: proc(hosts: []Host, jobs: [][]workers.Job, brand: ^html.Brand, headers := web.Header_Set.Standard, brands: []^html.Brand = nil) {
 	// odin-http logs through core:log, whose default discards every line (F-8's
 	// accept errors, F-12's io_uring hint). The threads started from here inherit it.
 	context.logger = obs.logger()
 	for &s, i in st.sites {
-		s.brand = brand
+		s.brand = brands[i] if i < len(brands) && brands[i] != nil else brand
 		origin := env.str(hosts[i].site_env) if hosts[i].site_env == "SITE_URL" else os.get_env(hosts[i].site_env, context.allocator)
-		if origin == "" { origin = brand.site_url }
+		if origin == "" { origin = s.brand.site_url }
 		s.origin = origin
 		s.hostname = hostname_of(origin)
 		s.redirect = !web.placeholder_origin(origin)
 		s.robots = web.robots_for(&s)
+	}
+	// A request finds its host by name, so two hosts on one name would leave one unreachable.
+	for s, i in st.sites {
+		for t in st.sites[:i] {
+			if s.hostname == t.hostname { fatal("%s and %s both name the host %q: give each its own (SITE_URL, %s)", t.name, s.name, s.hostname, hosts[i].site_env) }
+		}
 	}
 	web.assets_init()
 	web.security_init(headers, env.cidrs("TRUST_PROXY"))

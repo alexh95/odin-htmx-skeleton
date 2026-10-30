@@ -1,8 +1,11 @@
-import { test, expect } from '../../fixtures';
+import { test, expect, has } from '../../fixtures';
 
 // The layout's nav, boosting and theme picker, exercised through the pages the
 // build has: each test names the features it walks through.
 test.describe('navigation', { tag: '@platform' }, () => {
+  // These walk the skeleton's shell from its root, the dashboard: not where landing owns the root.
+  test.skip(has('landing') && has('dashboard'), 'the root is the landing page here; the dashboard is at /dashboard');
+
   test('dashboard renders with stat cards', { tag: '@dashboard' }, async ({ page }) => {
     await page.goto('/');
     // By level, not by name: what this asserts is that the page rendered its

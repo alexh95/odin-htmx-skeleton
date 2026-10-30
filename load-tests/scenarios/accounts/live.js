@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE, P95, P99 } from '../../lib/config.js';
+import { MAIN, P95, P99 } from '../../lib/config.js';
 import { options as build, summarize } from '../../lib/options.js';
 
 // tags: @accounts-accounts
@@ -22,12 +22,12 @@ export const handleSummary = summarize('live');
 
 export default async function () {
   if (__ITER === 0) {
-    const r = http.post(`${BASE}/login`, { username: 'admin', password: 'e2e-and-load-only-password' }, {
+    const r = http.post(`${MAIN}/login`, { username: 'admin', password: 'e2e-and-load-only-password' }, {
       headers: FORM, redirects: 0, tags: { name: 'POST /login', held: 'no' }, responseCallback: http.expectedStatuses(303, 503),
     });
     check(r, { 'signed in': (x) => x.status === 303 });
   }
-  const page = http.get(`${BASE}/accounts/profile`, { tags: { name: 'GET /accounts/profile', held: 'no' } });
+  const page = http.get(`${MAIN}/accounts/profile`, { tags: { name: 'GET /accounts/profile', held: 'no' } });
   check(page, { 'a member page with its #live': (r) => r.status === 200 && r.body.includes('data-revoke="/login"') });
-  await http.asyncRequest('GET', `${BASE}/events?t=accounts.user:1`, null, { timeout: '300ms', tags: { name: 'GET /events', held: 'yes' } });
+  await http.asyncRequest('GET', `${MAIN}/events?t=accounts.user:1`, null, { timeout: '300ms', tags: { name: 'GET /events', held: 'yes' } });
 }

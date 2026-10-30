@@ -192,7 +192,8 @@ placeholder_origin :: proc(origin: string) -> bool {
 	for tld in ([]string{".example", ".test", ".invalid", ".localhost"}) {
 		if strings.has_suffix(host, tld) || host == tld[1:] { return true }
 	}
-	return false
+	// A loopback address is never a deployed origin either (a test server's lab host).
+	return strings.has_prefix(host, "127.") || strings.has_prefix(host, "[")
 }
 
 // ---- who is asking -------------------------------------------------------------------

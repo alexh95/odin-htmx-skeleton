@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures';
-import { startServer, stopServer, type Server } from '../../helpers/server';
+import { startServer, stopServer, type Server, mainOrigin } from '../../helpers/server';
 import { ADMIN, signIn } from '../../helpers/accounts';
 import type { Browser, Page } from '@playwright/test';
 
@@ -12,7 +12,7 @@ const T = { tag: ['@accounts-accounts', '@audit'] };
 async function own(env: NodeJS.ProcessEnv, run: (s: Server, base: string) => Promise<void>) {
   const s = await startServer(test.info().config, env);
   try {
-    await run(s, `http://127.0.0.1:${s.port}`);
+    await run(s, mainOrigin(s.port));
   } finally {
     await stopServer(s);
   }

@@ -87,7 +87,7 @@ test.describe('csp-clean', { tag: '@platform' }, () => {
       await expect(page.locator('#pw-hs-card .scripting-pw-score')).toHaveText('4 of 4');
       await clean(page);
     }
-    if (has('notes')) {
+    if (has('notes') && has('home') && !(BUILD.hosts && Object.keys(BUILD.hosts).length > 1)) { // the notes card is home's
       await page.goto('/');
       await page.locator('.add-note input[name="body"]').fill('a clean note');
       await page.getByRole('button', { name: 'Add' }).click();

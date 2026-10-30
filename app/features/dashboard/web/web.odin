@@ -24,7 +24,8 @@ page :: proc(req: ^web.Request, res: ^web.Response) {
 		web.respond_store_error(req, res, err)
 		return
 	}
-	web.render_page(req, res, "Dashboard", "/",
+	// The root in skeleton, /dashboard on full's lab host: the page is wherever it is mounted.
+	web.render_page(req, res, "Dashboard", req.url.path,
 		"A server-rendered web stack in one binary: an Odin backend renders the HTML, HTMX handles the interaction, SQLite holds the data. Click through the worked example.",
 		dashboard_views.page(st))
 }

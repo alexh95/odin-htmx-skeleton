@@ -97,7 +97,13 @@ if [ -x "$BIN" ]; then
   for k in store identity client theme; do
     MEMBERS="$MEMBERS $(echo "$info" | sed "s/.*\"$k\":\"\([^\"]*\)\".*/\1/")"
   done
+  # A lab host (full, PLAN §7.3): its origin is 127.0.0.1, the main host's any other name.
+  case "$info" in *'"hosts":{'*'"lab":['*) TWO_HOSTS=1 ;; esac
 fi
+TWO_HOSTS="${TWO_HOSTS:-}"
+# Where the dashboard is: /dashboard where landing owns the root. Passed without its slash: Git
+# Bash rewrites an argument like DASHBOARD=/dashboard into a Windows path on its way to k6.exe.
+case " $FEATURES " in *" landing "*) DASHBOARD=dashboard ;; *) DASHBOARD= ;; esac
 # Whether the build has every feature (and member) a scenario's tags name. With
 # no binary to ask (--base, nothing built here), every scenario counts.
 wanted() { # $1 = script; sh has no locals, hence the w_ names
@@ -161,7 +167,7 @@ start_server() { # $1 = port
     LAN_CIDRS="${LAN_CIDRS:-127.0.0.0/8}" ACCOUNTS_NICK_ADMIN_CIDRS="${ACCOUNTS_NICK_ADMIN_CIDRS:-127.0.0.1/32}" \
     BOT_DELAY_MS="${BOT_DELAY_MS:-0}" \
     BOT_MEMBER_PER_HOUR="${BOT_MEMBER_PER_HOUR:-100000000}" BOT_GUEST_PER_HOUR="${BOT_GUEST_PER_HOUR:-100000000}" \
-    ACCOUNTS_ADMIN_HASH="${ACCOUNTS_ADMIN_HASH:-$TEST_ADMIN_HASH}" \
+    ACCOUNTS_ADMIN_HASH="${ACCOUNTS_ADMIN_HASH:-$TEST_ADMIN_HASH}" SITE_URL_LAB="${TWO_HOSTS:+https://127.0.0.1}" \
     ACCOUNTS_LOGIN_PER_CLIENT="${ACCOUNTS_LOGIN_PER_CLIENT:-100000000}" ACCOUNTS_LOGIN_OVERALL="${ACCOUNTS_LOGIN_OVERALL:-100000000}" \
     ACCOUNTS_ADMIN_TOTP="${ACCOUNTS_ADMIN_TOTP:-optional}" ACCOUNTS_REGISTRATION="${ACCOUNTS_REGISTRATION:-open}" \
     ACCOUNTS_REGISTER_PER_HOUR="${ACCOUNTS_REGISTER_PER_HOUR:-100000000}" ACCOUNTS_CODES_PER_HOUR="${ACCOUNTS_CODES_PER_HOUR:-100000000}" \
@@ -203,6 +209,7 @@ for s in $SCENARIOS; do
     "$K6" run \
       --quiet \
       --env "BASE_URL=$target" \
+      --env "MAIN_URL=${TWO_HOSTS:+http://localhost:$port}" --env "DASHBOARD=$DASHBOARD" \
       --env "VUS=$vus" \
       --env "DURATION=$DURATION" \
       --env "WARMUP=$WARMUP" \

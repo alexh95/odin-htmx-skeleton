@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures';
-import { startServer, stopServer } from '../../helpers/server';
+import { startServer, stopServer, mainOrigin } from '../../helpers/server';
 import { ADMIN, ADMIN_HASH, signIn } from '../../helpers/accounts';
 
 // /admin/modules (PLAN §15.4): what the build is, read-only, for an admin on the LAN; a secret
@@ -28,7 +28,7 @@ test.describe('modules', T, () => {
     expect(guest.status()).toBe(302);
     const s = await startServer(test.info().config, { LAN_CIDRS: '10.0.0.0/8' });
     try {
-      const base = `http://127.0.0.1:${s.port}`;
+      const base = mainOrigin(s.port);
       expect((await request.post(`${base}/login`, { form: { username: ADMIN.username, password: ADMIN.password }, maxRedirects: 0 })).status()).toBe(303);
       expect((await request.get(`${base}/admin/modules`, { maxRedirects: 0 })).status()).toBe(404);
     } finally {

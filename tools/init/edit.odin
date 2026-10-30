@@ -90,6 +90,9 @@ target_profile :: proc(opt: Options) -> ^Profile {
 	if p == nil {
 		fatal(fmt.tprintf("no profile %q to edit: name one with --profile (odin run tools/init -- --list)", name))
 	}
+	if p.hosts > 1 {
+		fatal(fmt.tprintf("%s serves %d hosts, and tools/init edits one-host profiles: edit its files by hand (PLAN §7.3)", name, p.hosts))
+	}
 	return p
 }
 

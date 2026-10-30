@@ -278,7 +278,7 @@ test.describe('WebSocket protocol edges', T, () => {
     const frame = Buffer.concat([Buffer.from([0x81, 0x80 | 5]), m, p]);
     const reply = await new Promise((res) => {
       let data = Buffer.alloc(0);
-      s.on('connect', () => s.write(Buffer.concat([Buffer.from(`GET /lab/ws/echo HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${key}\r\nSec-WebSocket-Version: 13\r\n\r\n`), frame])));
+      s.on('connect', () => s.write(Buffer.concat([Buffer.from(`GET /lab/ws/echo HTTP/1.1\r\nHost: ${HOST}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${key}\r\nSec-WebSocket-Version: 13\r\n\r\n`), frame])));
       s.on('data', (d) => { data = Buffer.concat([data, d]); if (data.includes('early')) res(true); });
       setTimeout(() => res(false), 3000);
     });
@@ -311,7 +311,7 @@ test.describe('fan-out, limits and slow consumers', T, () => {
     const before = (await stats(server.port)).ended.Too_Slow;
     const slow = net.connect(server.port, HOST);
     await new Promise((r) => slow.on('connect', r));
-    slow.write(`GET /events?t=lab.feed:${key} HTTP/1.1\r\nHost: x\r\n\r\n`);
+    slow.write(`GET /events?t=lab.feed:${key} HTTP/1.1\r\nHost: ${HOST}\r\n\r\n`);
     slow.pause();
     await sleep(300);
     const chunk = 'x'.repeat(60000);
@@ -346,7 +346,7 @@ test.describe('fan-out, limits and slow consumers', T, () => {
     const key = crypto.randomBytes(16).toString('base64');
     const s = net.connect(port, HOST);
     await new Promise((r) => s.on('connect', r));
-    s.write(`GET /lab/ws/chat?room=${room} HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${key}\r\nSec-WebSocket-Version: 13\r\n\r\n`);
+    s.write(`GET /lab/ws/chat?room=${room} HTTP/1.1\r\nHost: ${HOST}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${key}\r\nSec-WebSocket-Version: 13\r\n\r\n`);
     await sleep(300);
     s.pause();
     const chunk = 'x'.repeat(60000);

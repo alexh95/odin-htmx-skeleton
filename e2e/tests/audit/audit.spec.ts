@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { test, expect } from '../../fixtures';
-import { startServer, stopServer, type Server } from '../../helpers/server';
+import { startServer, stopServer, type Server, mainOrigin } from '../../helpers/server';
 import { ADMIN, signIn } from '../../helpers/accounts';
 
 // The audit log (PLAN §17.7): accounts' sign-ins land in it, /admin/audit filters it by actor
@@ -11,7 +11,7 @@ const T = { tag: ['@audit', '@accounts-accounts'] };
 async function own(env: NodeJS.ProcessEnv, run: (s: Server, base: string) => Promise<void>) {
   const s = await startServer(test.info().config, env);
   try {
-    await run(s, `http://127.0.0.1:${s.port}`);
+    await run(s, mainOrigin(s.port));
   } finally {
     await stopServer(s);
   }

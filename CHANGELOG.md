@@ -65,6 +65,11 @@ Alex's NPM steps.
   rows (a secret only as set), the limits, each module's health and the migrations in force. `features/modules`
   imports no feature (`tools/check imports` holds it): `platform/app` records the build in `web.build`, and the
   SQLite store its migrations in `store.in_force`. Mounted in `full`. e2e `modules.spec`, k6 `modules/modules.js`.
+- **`full`'s lab host** (M4 slice 10, PLAN §7.3, ANSWERS F2): a second, session-free host from the same binary
+  (`SITE_URL_LAB`) with every starter demo and lab page: `landing` at its root, the skeleton's `dashboard` at
+  `/dashboard`, `gallery`, `contacts`, `lab`, `scripting`, `compat`, `about`. No identity runs there and
+  nothing sets a cookie; a row answers only on its own host. `app.serve` takes a brand per host, boot refuses two
+  hosts on one name, and `--features --json` lists each host's features. e2e `hosts.spec`.
 - **The generator knows identities that need SQLite**: a feature with no web package gives its domain's store need to
   the identity that reaches it, so `--identity accounts` asks for `--store sqlite` while `nick` still builds on
   memory; an identity's routes own their nav entries.
@@ -79,6 +84,10 @@ Alex's NPM steps.
   `/step-up?next=<path>`; unit tests hold each answer and `ROLE_PERMS` as §17.1 tables it.
 
 ### Fixed
+
+- **The dashboard's canonical URL and title** follow the path it is served at (`/dashboard` on `full`'s lab host),
+  not `/` always.
+- **The topbar search on a nonce-CSP page** carries `hx-nonce`, so hx-csp no longer strips it.
 
 - **A stream the server refuses is no longer retried forever**: hx-sse reconnects after a 401, 403 or 404 with a
   backoff and no end (5 times in 30 s, measured for M4 slice 8); core.js now cancels the next connection of a

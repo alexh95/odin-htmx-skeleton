@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE } from '../../lib/config.js';
+import { MAIN } from '../../lib/config.js';
 import { options as build, summarize } from '../../lib/options.js';
 
 // tags: @modules @accounts-accounts
@@ -16,11 +16,11 @@ export const handleSummary = summarize('modules');
 
 export default function () {
   if (__ITER === 0) {
-    const r = http.post(`${BASE}/login`, { username: 'admin', password: 'e2e-and-load-only-password' }, {
+    const r = http.post(`${MAIN}/login`, { username: 'admin', password: 'e2e-and-load-only-password' }, {
       headers: FORM, redirects: 0, tags: { name: 'POST /login' }, responseCallback: http.expectedStatuses(303, 503),
     });
     check(r, { 'signed in': (x) => x.status === 303 });
   }
-  const page = http.get(`${BASE}/admin/modules`, { tags: { name: 'GET /admin/modules' } });
+  const page = http.get(`${MAIN}/admin/modules`, { tags: { name: 'GET /admin/modules' } });
   check(page, { 'modules page': (r) => r.status === 200 && r.body.includes('modules-migrations') });
 }

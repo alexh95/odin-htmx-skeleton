@@ -1,6 +1,13 @@
 # cmd/full
 
-Houston (PLAN §7.1, §7.3), growing through M4. At slice 3 it is the main host alone: `home` (the root), `about`, `audit`
-(`/admin/audit`, M4 slice 4) and `accounts` with its `identity_accounts` (usernames, argon2id passwords, server-side sessions in the `sid` cookie), on
-SQLite, the hyperscript client and the full theme. The lab host (`houston-lab`, every starter demo and lab page) and
-the rest of the catalog arrive with slice 10. A profile (PLAN §7).
+Houston (PLAN §7.1, §7.3), growing through M4, on SQLite, the hyperscript client and the full theme, two hosts from
+one binary:
+
+- **the main host** (`SITE_URL`): `home` (the root), `accounts` with its `identity_accounts` (sign-in, two-step,
+  registration, `/admin/accounts`), `audit` (`/admin/audit`), `modules` (`/admin/modules`) and `about`;
+- **the lab host** (`SITE_URL_LAB`, `LAB_BRAND`, `LAB_NAV`): every starter demo and lab page, with no identity and no
+  cookie: `landing` at `/`, the skeleton's `dashboard` at `/dashboard`, `gallery`, `contacts`, `lab`, `scripting`,
+  `compat` and `about`.
+
+The main host's tables keep the names tools/init reads (`ROUTES`, `TOPICS`, `JOBS`, `NAV`); the lab host's are
+`LAB_*`. tools/init doesn't edit a two-host profile: change these files by hand. A profile (PLAN §7).

@@ -16,6 +16,6 @@ boot_checks_pass :: proc(t: ^testing.T) {
 	defer virtual.arena_destroy(&arena)
 	context.allocator = virtual.arena_allocator(&arena)
 	context.temp_allocator = context.allocator
-	problems := app.dry_check(HOSTS[:], nil, BUNDLE_EXTS)
+	problems := app.dry_check(HOSTS[:], LAB_JOBS[:], BUNDLE_EXTS, PAGE_BUNDLES)
 	for p in problems { testing.expectf(t, false, "%s", p) }
 }

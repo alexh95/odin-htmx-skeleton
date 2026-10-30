@@ -32,6 +32,7 @@ Profile :: struct {
 	stmts:         [dynamic]Stmt,
 	serve_extra:   string,          // what app.serve takes after &BRAND, as written ("" for none)
 	host_identity: string,          // HOSTS' third field, as written
+	hosts:         int,             // HOSTS' rows: tools/init writes and edits one-host profiles only
 }
 
 Src :: struct {
@@ -143,6 +144,7 @@ read_routes :: proc(p: ^Profile, src: Src) {
 		if !ok || len(vd.values) != 1 { continue }
 		cl, is := comp_lit(vd.values[0])
 		if !is || comp_elem_type(cl) != "app.Host" { continue }
+		p.hosts = len(cl.elems)
 		for e in cl.elems {
 			h, hc := comp_lit(e)
 			if !hc || len(h.elems) < 4 { continue }

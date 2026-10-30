@@ -16,6 +16,8 @@ committed_profiles_compose_again :: proc(t: ^testing.T) {
 	testing.expect(t, len(problems) == 0, strings.join(problems[:], "; "))
 	testing.expect(t, len(catalog.profiles) > 0)
 	for &p in catalog.profiles {
+		// A second host (full's lab host, PLAN §7.3) is written by hand: the generator composes one.
+		if p.hosts > 1 { continue }
 		s := select("app", p.name, nil, {})
 		testing.expectf(t, len(problems) == 0, "%s: %v", p.name, problems[:])
 		text := compose(s)

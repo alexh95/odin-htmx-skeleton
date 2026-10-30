@@ -2,9 +2,9 @@ package main
 
 // ---- full's brand: Houston's names, its nav, its copy ------------------------------------
 //
-// Houston, the home server's own site (PLAN §7.1, §7.3): at M4 slice 3 its main host alone,
-// with accounts, on SQLite and the hyperscript client. Its lab host and the rest of the
-// catalog arrive with slice 10. Rename here, not across the features.
+// Houston, the home server's own site (PLAN §7.1, §7.3), on SQLite and the hyperscript client:
+// its main host with accounts, and its session-free lab host with every starter demo and lab
+// page, each with its own brand and nav. Rename here, not across the features.
 
 import "../../platform/html"
 import about_web "../../features/about/web"
@@ -28,6 +28,32 @@ BRAND := html.Brand {
 NAV := [?]html.Nav_Item {
 	{"/", "Home", "grid"},
 	{"/login", "Account", "users"},
+	{"/about", "About", "info"},
+}
+
+// houston-lab: the starter's demos and labs, on an origin with no sessions (§7.3).
+LAB_BRAND := html.Brand {
+	wordmark    = "houston<b>·</b>lab",
+	suffix      = "Houston lab",
+	home_title  = "Houston lab: the starter's demos and stream labs",
+	source_name = "odin-htmx-starter",
+	repo        = "https://github.com/alexh95/odin-htmx-starter",
+	// SITE_URL_LAB overrides it; a placeholder keeps the *.fly.dev redirect off.
+	site_url    = "https://houston-lab.example.com",
+	og_image    = "/static/og.png",
+	search      = {href = "/search", placeholder = "Search contacts…", label = "Search contacts"}, // the demo console's
+	overlays    = true, // the gallery's modal, drawer and toasts
+}
+
+LAB_NAV := [?]html.Nav_Item {
+	{"/", "Starter", "grid"},
+	{"/dashboard", "Dashboard", "grid"},
+	{"/components", "Components", "layers"},
+	{"/forms", "Forms", "edit"},
+	{"/data", "Data", "table"},
+	{"/lab", "Lab", "layers"},
+	{"/scripting", "Scripting", "code"},
+	{"/compat", "Compat", "layers"},
 	{"/about", "About", "info"},
 }
 

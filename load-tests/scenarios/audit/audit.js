@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE } from '../../lib/config.js';
+import { MAIN } from '../../lib/config.js';
 import { options as build, summarize } from '../../lib/options.js';
 
 // tags: @audit @accounts-accounts
@@ -17,16 +17,16 @@ export const handleSummary = summarize('audit');
 
 export default function () {
   if (__ITER === 0) {
-    const r = http.post(`${BASE}/login`, { username: 'admin', password: 'e2e-and-load-only-password' }, {
+    const r = http.post(`${MAIN}/login`, { username: 'admin', password: 'e2e-and-load-only-password' }, {
       headers: FORM, redirects: 0, tags: { name: 'POST /login' }, responseCallback: http.expectedStatuses(303, 503),
     });
     check(r, { 'signed in': (x) => x.status === 303 });
   }
-  const page = http.get(`${BASE}/admin/audit?action=accounts.`, { tags: { name: 'GET /admin/audit' } });
+  const page = http.get(`${MAIN}/admin/audit?action=accounts.`, { tags: { name: 'GET /admin/audit' } });
   const first = /id="audit-(\d+)"/.exec(page.body || '');
   check(page, { 'audit page 200 with entries': (r) => r.status === 200 && first !== null });
-  const rows = http.get(`${BASE}/admin/audit/rows?action=accounts.&before=${first ? first[1] : 0}`, { tags: { name: 'GET /admin/audit/rows' } });
+  const rows = http.get(`${MAIN}/admin/audit/rows?action=accounts.&before=${first ? first[1] : 0}`, { tags: { name: 'GET /admin/audit/rows' } });
   check(rows, { 'rows 200': (r) => r.status === 200 });
-  const csv = http.get(`${BASE}/admin/audit/export?actor=admin`, { tags: { name: 'GET /admin/audit/export' } });
+  const csv = http.get(`${MAIN}/admin/audit/export?actor=admin`, { tags: { name: 'GET /admin/audit/export' } });
   check(csv, { 'csv 200, an attachment': (r) => r.status === 200 && (r.headers['Content-Disposition'] || '').startsWith('attachment') });
 }
