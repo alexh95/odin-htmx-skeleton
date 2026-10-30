@@ -6,7 +6,7 @@
     {"name": "bot", "lines": 1100, "stores": ["memory"], "sqlite": "never", "deps": [], "switched": ["backend_mock"], "declares": ["ROUTES", "EXTS", "TOPICS", "init"], "profiles": ["streams"]},
     {"name": "chat", "lines": 1900, "stores": ["memory"], "sqlite": "never", "deps": ["notify"], "switched": ["transport_multipart", "transport_poll", "transport_sse", "transport_ws"], "declares": ["ROUTES", "EXTS", "TOPICS", "JOBS", "init"], "profiles": ["streams"]},
     {"name": "compat", "lines": 100, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "BUNDLES"], "profiles": ["lab"]},
-    {"name": "contacts", "lines": 1500, "stores": ["sqlite"], "sqlite": "required", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["skeleton"]},
+    {"name": "contacts", "lines": 1600, "stores": ["sqlite"], "sqlite": "required", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["skeleton"]},
     {"name": "dashboard", "lines": 200, "stores": [], "sqlite": "none", "deps": ["contacts"], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["skeleton"]},
     {"name": "gallery", "lines": 400, "stores": [], "sqlite": "none", "deps": ["contacts"], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["skeleton"]},
     {"name": "home", "lines": 100, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["EXTS", "init"], "profiles": ["minimal", "streams", "full"]},

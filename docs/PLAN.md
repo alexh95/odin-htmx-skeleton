@@ -4045,6 +4045,19 @@ Boot refuses two hosts whose origins name one host; a loopback origin counts as 
 redirect, and WS upgrades match by host). In the suites one server answers both: the lab host is `127.0.0.1` (its
 origin `https://127.0.0.1`) and the main host `localhost`, any other name, and a spec goes to its own feature's host.
 
+**As built (M4, slice 10, part b):** the contacts demo's cap and reset are switched on by the profile, not by the
+feature: `full` calls `contacts_web.demo_init()` (`CONTACTS_CAP`, 2000; `CONTACTS_RESET_HOUR_UTC`, 2) and mounts
+`contacts_web.DEMO_JOBS` (a once-a-minute check that resets once a day at that hour; tools/init reads `JOBS`, not
+`DEMO_JOBS`). The hour is UTC: the distroless image has no tz database, so "04:00 local" is 2 in winter and 05:00 in
+summer. `notes` isn't on the lab host yet (its card is `home`'s, Houston's), so `NOTES_CAP` waits with it.
+
+**As built (M4, slice 10, part c):** `starter-full` sits in `deploy/compose.yaml` behind the `houston` compose profile:
+`up -d --no-deps starter-full` (promote's) starts it, a plain `up` (the stack test's, or a stack before Houston's first
+release) doesn't. `ACCOUNTS_ADMIN_HASH` arrives as `ACCOUNTS_ADMIN_HASH_FILE` from the compose secret `admin_hash`
+(`./admin-hash` beside `compose.yaml`), since compose would read a PHC string's `$` as variables in `.env`. Its tag
+is `${TAG_FULL:-unreleased}`, not `:?`, so a stack whose `.env` doesn't name it yet still promotes the rest. promote
+lists it with `Sse`/`Ws` off (its streams need a member) and snapshots its database before each promote.
+
 **TOTP and step-up** (Q11). TOTP follows RFC 6238 (vectors verified, 07 §0.6) with manual secret entry and the
 `otpauth://` text, no QR encoder. It is required for Admin and `Term_Write`. **Step-up** asks for the password or a
 TOTP code within the last 10 minutes on `.Step_Up` routes: `Term_Write`, role changes, invites and dbview. Recovery

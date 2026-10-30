@@ -10,10 +10,14 @@ package contacts_web
 
 import "core:fmt"
 import "core:strings"
+import "core:time"
 
+import "../../../platform/env"
 import "../../../platform/html"
+import "../../../platform/obs"
 import "../../../platform/store"
 import "../../../platform/web"
+import "../../../platform/workers"
 import contacts ".."
 import m "../models"
 import contacts_views "../views"
@@ -34,6 +38,49 @@ ROUTES := [?]web.Route {
 // The demo rows, into empty tables only.
 seed :: proc() {
 	contacts.seed()
+}
+
+// ---- the demo: a cap and a nightly reset (PLAN §11.6, X38) ---------------------------------
+//
+// Only for a profile that mounts contacts as a public demo (full's lab host): it calls
+// `demo_init` and mounts DEMO_JOBS. The skeleton does neither, so its rows are never capped or
+// reset. tools/init reads a feature's JOBS, never DEMO_JOBS.
+
+DEMO_ENV := [?]env.Row {
+	{name = "CONTACTS_CAP", kind = .Int, def = "2000", doc = "the demo's contacts at most; 0 = no cap"},
+	{name = "CONTACTS_RESET_HOUR_UTC", kind = .Int, def = "2", doc = "the hour (UTC) the demo's rows start over each day: 2 is 04:00 in Romania's winter; -1 = never"},
+}
+
+DEMO_JOBS := [?]workers.Job {
+	{"contacts.reset", time.Minute, reset_when_due},
+}
+
+@(private)
+demo: struct {
+	hour:     int,
+	last_day: i64, // the UTC day it last reset; touched only on the scheduler's thread
+}
+
+demo_init :: proc() {
+	env.record("CONTACTS_", DEMO_ENV[:])
+	contacts.demo_cap = max(env.int_("CONTACTS_CAP"), 0)
+	demo.hour = env.int_("CONTACTS_RESET_HOUR_UTC")
+	demo.last_day = time.time_to_unix(time.now()) / 86_400 // a boot doesn't count as missing today's
+}
+
+// Once a minute: the reset, when this UTC day has reached the hour and hasn't had one.
+@(private)
+reset_when_due :: proc() {
+	if demo.hour < 0 || demo.hour > 23 { return }
+	now := time.time_to_unix(time.now())
+	day, hour := now / 86_400, int(now % 86_400 / 3_600)
+	if day == demo.last_day || hour < demo.hour { return }
+	demo.last_day = day
+	ok := contacts.reset()
+	if l, lok := obs.begin(.Info if ok else .Error, "contacts", "reset"); lok {
+		obs.str(&l, "result", "ok" if ok else "failed")
+		obs.end(&l)
+	}
 }
 
 // ---- reads --------------------------------------------------------------------------------------

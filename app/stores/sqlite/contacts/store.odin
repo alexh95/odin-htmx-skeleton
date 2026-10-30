@@ -273,6 +273,18 @@ seed :: proc() {
 	})
 }
 
+reset :: proc() -> bool {
+	return db.write_now(proc() -> bool {
+		for sql in ([]string{"DELETE FROM events", "DELETE FROM contacts"}) {
+			st := db.writer_stmt(sql)
+			ok := db.step_done(st) == .None
+			db.reset(st)
+			if !ok { return false }
+		}
+		return seed_contacts() && seed_events()
+	})
+}
+
 @(private)
 seed_contacts :: proc() -> bool {
 	firsts := []string {

@@ -173,9 +173,21 @@ time_ago :: proc(at: i64) -> string {
 // done runs on the caller's loop once the write is committed. Validation runs
 // first, synchronously: a refused contact never reaches the store.
 
+// The demo's cap (PLAN §11.6, X38): 0, none; set by a profile that mounts contacts as a public
+// demo (full's lab host, CONTACTS_CAP), so a stranger can't grow the table without end. The
+// skeleton never sets it.
+demo_cap: int
+
 // The trimmed, validated contact for a create, or why not (the user's to fix).
 check_create :: proc(name, email: string, role: m.Role, status: m.Status, score: int, notes := "", notify := false) -> (c: m.Contact, errs: []Field_Error) {
 	if errs = validate(name, email, notes); len(errs) > 0 { return }
+	if demo_cap > 0 {
+		if n, err := contacts_store.filter_count({status = -1}); err == .None && n >= demo_cap {
+			full := make([]Field_Error, 1, context.temp_allocator)
+			full[0] = {"name", fmt.tprintf("This demo holds %d contacts at most: it starts over every night.", demo_cap)}
+			return {}, full
+		}
+	}
 	return m.Contact{
 		name = strings.trim_space(name), email = strings.trim_space(email), role = role, status = status,
 		score = clamp(score, 0, 100), notes = strings.trim_space(notes), notify = notify,
@@ -196,6 +208,11 @@ write :: proc(w: ^m.Write) -> bool {
 // The demo rows, into empty tables only.
 seed :: proc() {
 	contacts_store.seed()
+}
+
+// Every row gone and the demo rows back: a demo's nightly reset. false: the store refused.
+reset :: proc() -> bool {
+	return contacts_store.reset()
 }
 
 // ---- validation -----------------------------------------------------------------------------

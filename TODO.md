@@ -141,8 +141,15 @@ Alex, asked in one batch.
       features sit on different hosts is skipped); `hosts.spec` walks every literal GET row on both hosts and checks
       a `sid` means nothing on the lab host. Fixed on the way: the dashboard's canonical and title follow the path
       it is served at; the layout's search box carries `hx-nonce` on a `.Nonce_Csp` page; a loopback origin counts
-      as a placeholder. tools/init writes and edits one-host profiles only, and says so for `full`. Left: part b
-      (`CONTACTS_CAP` and its 04:00 reset), part c (`starter-full` in `deploy/compose.yaml`, 512 MiB),
+      as a placeholder. tools/init writes and edits one-host profiles only, and says so for `full`. Part b: `CONTACTS_CAP` (2000)
+      refuses a create past it as a validation error, and `contacts.reset` (`DEMO_JOBS`, which `full` mounts and the
+      skeleton doesn't) starts the rows over once a day at `CONTACTS_RESET_HOUR_UTC` (2: 04:00 in Romania's winter,
+      05:00 in summer; a UTC hour because the image has no tz database). `contacts/storetest` holds the reset,
+      `contacts/demo.spec` the cap; the suites lift the cap. Part c: `starter-full` in `deploy/compose.yaml` (512 MiB,
+      two cores, two loops, one argon thread, `DB_PATH` on its own volume, the admin hash as a compose secret file
+      because a PHC string is all `$`), behind a `houston` profile so a plain `up` and the stack test run without it;
+      promote knows it (snapshotted, promoted only when named) and the release matrix lists it. Its first deploy is
+      Alex's: a release with its image, the `admin-hash` file on apollo, and the NPM hosts. Left: part c (`starter-full` in `deploy/compose.yaml`, 512 MiB),
       part d (the `houston` theme kept in `accounts_prefs`).
 - [ ] **11. Behaviours and `full-vanilla`** (§12.4, D22): the hyperscript behaviours `full` needs and their vanilla
       twins; the `full-vanilla` build in both build scripts. *Check:* behaviour duality (the same specs on `full` and

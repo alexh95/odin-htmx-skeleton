@@ -143,6 +143,8 @@ Store_Stats :: proc() -> (Contact_Stats, Error)
 Store_Timeline :: proc(id: i64, out: ^[dynamic]Interaction) -> Error
 Store_Write :: proc(w: ^Write) -> bool // false: the writer is busy; `done` won't run
 Store_Seed :: proc()
+// Every contact and event gone and the demo rows back, in one transaction: a demo's nightly reset.
+Store_Reset :: proc() -> bool
 
 // A label back to its value (forms send labels); false for anything else.
 role_from :: proc(s: string) -> (Role, bool) {

@@ -12,3 +12,4 @@ _ : m.Store_Stats : stats
 _ : m.Store_Timeline : timeline
 _ : m.Store_Write : write
 _ : m.Store_Seed : seed
+_ : m.Store_Reset : reset

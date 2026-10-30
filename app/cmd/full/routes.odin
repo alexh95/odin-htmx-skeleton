@@ -71,5 +71,6 @@ HOSTS := [?]app.Host {
 }
 
 LAB_JOBS := [?][]workers.Job {
-	lab_web.JOBS[:], // lab.bus: the producer's beat
+	lab_web.JOBS[:],           // lab.bus: the producer's beat
+	contacts_web.DEMO_JOBS[:], // contacts.reset: the demo's rows start over each night
 }

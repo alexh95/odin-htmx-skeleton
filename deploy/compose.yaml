@@ -1,8 +1,9 @@
 # apollo's stack (PLAN §20.4, D25, D41): one container per hosted profile behind one stack
 # Caddy, which alone publishes a port. deploy/promote.ps1 stages this file, Caddyfile, .env
 # (the image tags) and seccomp-io-uring.json (docker/'s, X21) side by side on the host, then
-# updates one service at a time, never reloading the Caddy. `starter-full` (Houston) joins at
-# M4; until then the Caddyfile's Houston hosts answer 502.
+# updates one service at a time, never reloading the Caddy. `starter-full` (Houston, M4) runs
+# once promote names it (`-Service starter-full`) at a tag whose release has its image; until
+# then the Caddyfile's Houston hosts answer 502.
 #
 #   docker compose --env-file .env up -d          (what promote runs, per service)
 
@@ -116,6 +117,32 @@ services:
       # The witness board (/status): the other witnesses' /healthz, by their names on the stack network.
       STATUS_PROBES: minimal=starter-minimal:8080,streams=starter-streams:8080,skeleton=starter-skeleton:8080
 
+  # Houston (§7.3, ANSWERS F2): two hosts from one container, its accounts and the lab host's
+  # demo on SQLite in a volume of its own. Q34: two cores, one argon thread (each holds 19 MiB),
+  # two loops; the 512 MiB holds the argon buffer, the page cache and the streams.
+  starter-full:
+    <<: *app
+    # Out of a plain `up` (the stack test's, a stack before Houston's first release): promote
+    # names it, which starts it.
+    profiles: [houston]
+    cpus: 2.0
+    mem_limit: 512m
+    # Not :? as the witnesses' are: a stack whose .env has no TAG_FULL yet still runs the rest.
+    image: ${IMAGE_PREFIX:-ghcr.io/alexh95/odin-htmx-starter}-full:${TAG_FULL:-unreleased}
+    environment:
+      <<: *env
+      THREADS: "2"
+      SITE_URL: https://houston.alexh95.com
+      SITE_URL_LAB: https://houston-lab.alexh95.com
+      DB_PATH: /data/data.db
+      ACCOUNTS_ARGON_THREADS: "1"
+      # A PHC string is all `$`, which compose would read as variables in .env: it comes as a
+      # file (env reads NAME_FILE), the admin-hash secret beside compose.yaml.
+      ACCOUNTS_ADMIN_HASH_FILE: /run/secrets/admin_hash
+    secrets: [admin_hash]
+    volumes:
+      - full-data:/data
+
 networks:
   stack:
     ipam:
@@ -127,3 +154,9 @@ networks:
 
 volumes:
   caddy-data:
+  full-data:
+
+secrets:
+  # One line, from `bin --hash-password` (Alex's step: the password never leaves them).
+  admin_hash:
+    file: ./admin-hash

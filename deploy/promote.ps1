@@ -54,8 +54,10 @@ $SERVICES = [ordered]@{
 	'starter-streams'  = @{ Key = 'TAG_STREAMS';  Host = 'starter-streams.alexh95.com';   Sse = '/events';       Ws = $null }
 	'starter-skeleton' = @{ Key = 'TAG_SKELETON'; Host = 'starter-skeleton.alexh95.com';  Sse = $null;           Ws = $null }
 	'starter-lab'      = @{ Key = 'TAG_LAB';      Host = 'odin-htmx-starter.alexh95.com'; Sse = '/lab/sse/tick'; Ws = '/lab/ws/echo' }
+	# Houston: promoted only when named (-Service starter-full), from the first release with its image.
+	'starter-full'     = @{ Key = 'TAG_FULL';     Host = 'houston.alexh95.com';           Sse = $null;           Ws = $null }
 }
-$SNAPSHOT = @() # 'starter-full' joins at M4: its DB is /data/data.db
+$SNAPSHOT = @('starter-full') # its DB is /data/data.db
 $PORT = 8120
 
 # ---- where the stack is ------------------------------------------------------------------

@@ -70,6 +70,14 @@ Alex's NPM steps.
   `/dashboard`, `gallery`, `contacts`, `lab`, `scripting`, `compat`, `about`. No identity runs there and
   nothing sets a cookie; a row answers only on its own host. `app.serve` takes a brand per host, boot refuses two
   hosts on one name, and `--features --json` lists each host's features. e2e `hosts.spec`.
+- **The lab host's contacts demo is capped and starts over nightly** (M4 slice 10, PLAN §11.6, X38): `CONTACTS_CAP`
+  (2000) refuses a create past it, and `contacts.reset` puts the demo rows back once a day at
+  `CONTACTS_RESET_HOUR_UTC` (2). Only `full` turns them on (`contacts_web.demo_init`, `DEMO_JOBS`): the skeleton's rows
+  are never capped. `contacts/storetest` (new) holds the reset, `contacts/demo.spec` the cap.
+- **`starter-full` in the apollo stack** (M4 slice 10, PLAN §20.4): `deploy/compose.yaml` runs Houston with both its
+  hosts (512 MiB, two cores, one argon thread, its database on its own volume, the admin hash as a compose secret
+  file), behind a `houston` profile so the rest of the stack runs without it; `promote.ps1` snapshots its database
+  and promotes it only when named.
 - **The generator knows identities that need SQLite**: a feature with no web package gives its domain's store need to
   the identity that reaches it, so `--identity accounts` asks for `--store sqlite` while `nick` still builds on
   memory; an identity's routes own their nav entries.

@@ -43,6 +43,7 @@ main :: proc() {
 	about_web.init(ABOUT)
 	landing_web.init()
 	lab_web.init()
+	contacts_web.demo_init() // CONTACTS_CAP and its nightly reset: the lab host's demo
 	store_sqlite.init() // DB_PATH, SEED, MEMMODE: recorded here so --limits prints them
 	hub.init()
 	hub.mount("main", ..TOPICS[:])
