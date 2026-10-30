@@ -16,7 +16,7 @@ case "${VERSION:-dev}" in
 esac
 
 p="${1:-}"
-[ -n "$p" ] || { echo "usage: build.sh <minimal|skeleton|lab|streams|full> [odin flags...]" >&2; exit 2; }
+[ -n "$p" ] || { echo "usage: build.sh <minimal|skeleton|lab|streams|full|full-vanilla> [odin flags...]" >&2; exit 2; }
 shift
 src="$p"
 case "$p" in
@@ -25,7 +25,9 @@ case "$p" in
   lab)      store=memory id=platform/authz/anonymous client=hyperscript theme=full ;;
   streams)  store=memory id=features/accounts/identity_nick client=vanilla theme=lite ;;
   full)     store=sqlite id=features/accounts/identity_accounts client=hyperscript theme=full ;;
-  *) echo "build.sh: unknown profile '$p' (minimal, skeleton, lab, streams, full)" >&2; exit 2 ;;
+  # CI only: full's own files on the vanilla client, so the two can't drift apart (PLAN §7.1, D22).
+  full-vanilla) store=sqlite id=features/accounts/identity_accounts client=vanilla theme=full src=full ;;
+  *) echo "build.sh: unknown profile '$p' (minimal, skeleton, lab, streams, full, full-vanilla)" >&2; exit 2 ;;
 esac
 
 case "$(uname -s)" in

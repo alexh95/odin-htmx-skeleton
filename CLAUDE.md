@@ -13,7 +13,9 @@ at its exact URLs (the worked example and the performance witness), `minimal`, t
 notes starter, `lab`, the starter's own page (the catalog and the init-command builder at `/`) and the stream
 contract pages (SSE, WebSocket and multipart), `streams`, the
 stream substrate's witness (chat on four transports, the Inbox, the `nick` identity), and `full`,
-Houston (accounts with passwords and server-side sessions on SQLite; growing through M4).
+Houston (accounts with passwords and server-side sessions on SQLite; growing through M4). CI also
+builds `full-vanilla`: `full`'s own files on the vanilla client (`src=full` in `build.sh`, no directory of its
+own), so the two clients run the same specs and can't drift apart.
 **Read [`PHILOSOPHY.md`](PHILOSOPHY.md) first**, then [`docs/PLAN.md`](docs/PLAN.md) (the plan:
 layers, features, milestones) and [`docs/design/DECISIONS.md`](docs/design/DECISIONS.md);
 [`docs/DATA.md`](docs/DATA.md) covers backups.

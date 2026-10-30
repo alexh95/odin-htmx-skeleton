@@ -33,7 +33,9 @@ env:
 # theme, no SQLite), skeleton (the 1.2.x console on SQLite), lab (the stream
 # contract pages on the hyperscript client, memory store), streams (chat on four
 # transports, the Inbox and the nick identity; memory store, lite theme, no SQLite) and
-# full (Houston, growing through M4: accounts on SQLite, the hyperscript client).
+# full (Houston, growing through M4: accounts on SQLite, the hyperscript client), and
+# full-vanilla, full's own files on the vanilla client (CI only: built, tested and run
+# through the chromium specs, so the two clients can't drift apart; D22).
 jobs:
   # A bump that misses one of the places a pin lives fails here, first.
   pins:
@@ -59,7 +61,7 @@ jobs:
       - name: tools/check (imports, profile, routes, contracts)
         run: odin run tools/check -- all
       - name: Every profile on its own families
-        run: for p in minimal skeleton lab streams full; do CMD=check sh build.sh "$p" || exit 1; done
+        run: for p in minimal skeleton lab streams full full-vanilla; do CMD=check sh build.sh "$p" || exit 1; done
       - name: Every store alone, in each family
         run: |
           for d in app/stores/*/*/; do
@@ -132,6 +134,7 @@ jobs:
           - profile: streams
             write: /notes body=CI+smoke  # nor has streams: its size is recorded (§12.1)
           # full has no write a smoke can make without a password: its e2e and load runs sign in.
+          - { profile: full-vanilla, os: ubuntu-latest, sqlite: linked }
           - { profile: minimal, os: ubuntu-latest, sqlite: none, write: /notes body=CI+smoke }
           - { profile: minimal, os: windows-latest, sqlite: none, write: /notes body=CI+smoke }
           - { profile: lab, os: ubuntu-latest, sqlite: none, write: /compat/htmx2/save name=CI+smoke }
@@ -237,6 +240,7 @@ jobs:
           - { profile: streams, browser: chromium, also: --project=api }
           - { profile: streams, browser: webkit }
           - { profile: full, browser: chromium, also: --project=api }
+          - { profile: full-vanilla, browser: chromium } # the core and twinned-behaviour specs on the other client
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-odin

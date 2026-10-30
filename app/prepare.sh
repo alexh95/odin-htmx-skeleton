@@ -122,6 +122,10 @@ echo "[bndl] building the profiles' assets ..."
   for d in app/cmd/*/; do # every profile this checkout has
     [ -f "$d/main.odin" ] || continue
     ./app/bin/bundle "$(basename "$d")" >/dev/null || exit 1
+  done &&
+  # and every build of another profile's files (build.sh's rows with a src=: full-vanilla)
+  for v in $(sed -n 's/^ *\([a-z-]*\)).* src=.*/\1/p' build.sh); do
+    ./app/bin/bundle "$v" >/dev/null || exit 1
   done
 ) || { echo "error: tools/bundle failed (on Linux it needs brotli and gzip: apt-get install -y brotli)" >&2; exit 1; }
 

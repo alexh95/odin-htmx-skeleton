@@ -40,6 +40,7 @@ Host :: struct {
 
 Profile :: struct {
 	name:                          string,
+	src:                           string, // the app/cmd/<src> it builds: its own name, or another's (full-vanilla)
 	store, identity, client, theme: string, // build.sh's families
 	pkg:                           ^Pkg,
 	hosts:                         [dynamic]Host,
@@ -82,6 +83,7 @@ profiles :: proc(t: ^Tree) -> []Profile {
 		paren := strings.index_byte(l, ')')
 		if paren <= 0 || !strings.contains(l, "store=") { continue }
 		p := Profile{name = l[:paren]}
+		p.src = p.name // `src=full`: another profile's files on other members (full-vanilla)
 		for kv in strings.fields(l[paren + 1:]) {
 			k, _, v := strings.partition(kv, "=")
 			switch k {
@@ -89,11 +91,12 @@ profiles :: proc(t: ^Tree) -> []Profile {
 			case "id":     p.identity = v
 			case "client": p.client = v
 			case "theme":  p.theme = v
+			case "src":    p.src = v
 			}
 		}
-		pkg, ok := t.by_path[strings.concatenate({"cmd/", p.name})]
+		pkg, ok := t.by_path[strings.concatenate({"cmd/", p.src})]
 		if !ok {
-			problem("profile", "build.sh names %s, but there's no app/cmd/%s", p.name, p.name)
+			problem("profile", "build.sh names %s, but there's no app/cmd/%s", p.name, p.src)
 			continue
 		}
 		p.pkg = pkg

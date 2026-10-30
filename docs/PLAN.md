@@ -4066,6 +4066,14 @@ core.js's picker posts there as well as to localStorage, and `data-kept` with th
 pre-paint script skips localStorage on such a page, so the server's choice wins on every device. The route accepts
 only a style with one of its own schemes (`html.theme_known`), 422 otherwise.
 
+**As built (M4, slice 11):** `full-vanilla` is the `build.sh` row `full-vanilla) … client=vanilla theme=full src=full`
+(and its `build.bat` block): `BUILD_DIR` stays `build/full-vanilla`, so prepare bundles its own assets (it bundles every
+row with a `src=` after the `app/cmd/*` profiles), and the binary is `app/bin/full-vanilla`. tools/check reads the
+row's `src` (its checks run on it like any profile's; parity skips it, since `full`'s runs reach the same routes) and
+tools/init skips it, since it composes nothing of its own. `full` needed no new behaviour or twin: its flows are
+forms and htmx, and what it renders on the hyperscript client is twinned or an enhancement. CI checks it, builds it
+on ubuntu and runs the chromium specs on it; `escaping.spec` adds the vanilla side of "injected `_` inert".
+
 **TOTP and step-up** (Q11). TOTP follows RFC 6238 (vectors verified, 07 §0.6) with manual secret entry and the
 `otpauth://` text, no QR encoder. It is required for Admin and `Term_Write`. **Step-up** asks for the password or a
 TOTP code within the last 10 minutes on `.Step_Up` routes: `Term_Write`, role changes, invites and dbview. Recovery

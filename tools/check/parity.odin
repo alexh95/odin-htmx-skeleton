@@ -28,6 +28,7 @@ Waiver :: struct {
 check_parity :: proc(t: ^Tree) {
 	waivers := read_waivers(t)
 	for p in profiles(t) {
+		if p.src != p.name { continue } // full-vanilla: full's routes, which full's runs hold
 		routes, ok := built_routes(t, p.name)
 		if !ok { continue }
 		for suite in SUITES {

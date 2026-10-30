@@ -78,6 +78,9 @@ Alex's NPM steps.
   hosts (512 MiB, two cores, one argon thread, its database on its own volume, the admin hash as a compose secret
   file), behind a `houston` profile so the rest of the stack runs without it; `promote.ps1` snapshots its database
   and promotes it only when named.
+- **`full-vanilla`** (M4 slice 11, PLAN §7.1, D22): `full`'s own files on the vanilla client, a `build.sh` and
+  `build.bat` row with `src=full`. CI checks it, builds it and runs the chromium specs on it, so the two clients run
+  the same flows; `escaping.spec` checks the vanilla build loads no hyperscript at all.
 - **Houston's `houston` scheme, and a member's theme kept on the server** (M4 slice 10, PLAN §12): the full theme
   gains `modern`/`houston` (6 styles × 24 schemes), Houston's server-rendered default through the brand's new
   `style`/`scheme`. On the accounts identity a member's pick is posted to `POST /accounts/theme` and kept in

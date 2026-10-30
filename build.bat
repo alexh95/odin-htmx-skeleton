@@ -12,7 +12,7 @@ cd /d "%~dp0"
 
 set "P=%~1"
 if "%P%"=="" (
-  echo usage: build.bat ^<minimal^|skeleton^|lab^|streams^|full^> [odin flags...] 1>&2
+  echo usage: build.bat ^<minimal^|skeleton^|lab^|streams^|full^|full-vanilla^> [odin flags...] 1>&2
   exit /b 2
 )
 set "SRC=%P%"
@@ -26,8 +26,11 @@ if "%P%"=="minimal" (
   set "STORE=memory" & set "ID=features/accounts/identity_nick" & set "CLIENT=vanilla" & set "THEME=lite"
 ) else if "%P%"=="full" (
   set "STORE=sqlite" & set "ID=features/accounts/identity_accounts" & set "CLIENT=hyperscript" & set "THEME=full"
+) else if "%P%"=="full-vanilla" (
+  rem CI only: full's own files on the vanilla client (PLAN 7.1, D22).
+  set "STORE=sqlite" & set "ID=features/accounts/identity_accounts" & set "CLIENT=vanilla" & set "THEME=full" & set "SRC=full"
 ) else (
-  echo build.bat: unknown profile '%P%' ^(minimal, skeleton, lab, streams, full^) 1>&2
+  echo build.bat: unknown profile '%P%' ^(minimal, skeleton, lab, streams, full, full-vanilla^) 1>&2
   exit /b 2
 )
 

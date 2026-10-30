@@ -75,6 +75,8 @@ read_profiles :: proc(root: string) {
 		l := strings.trim_space(line)
 		paren := strings.index_byte(l, ')')
 		if paren <= 0 || !strings.contains(l, "store=") { continue }
+		// A build of another profile's files (full-vanilla) composes nothing of its own.
+		if strings.contains(l, " src=") { continue }
 		p := Profile{name = l[:paren]}
 		for kv in strings.fields(l[paren + 1:]) {
 			k, _, v := strings.partition(kv, "=")

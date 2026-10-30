@@ -37,6 +37,13 @@ test.describe('behaviours in markup', { tag: '@platform' }, () => {
     }
   });
 
+  test('the vanilla client loads no hyperscript, so an injected _ is only an attribute', async ({ page }) => {
+    test.skip(BUILD.client !== 'vanilla', 'the hyperscript client has its gate (below)');
+    await page.goto('/');
+    expect(await page.locator('script[type="text/hyperscript"], script[src*="hyperscript"]').count()).toBe(0);
+    expect(await page.evaluate(() => typeof (window as any)._hyperscript)).toBe('undefined');
+  });
+
   test('the hyperscript gate refuses an injected _ and an injected script, and keeps the behaviours', async ({ page }) => {
     test.skip(BUILD.client !== 'hyperscript', 'the vanilla client runs no hyperscript');
     const errors: string[] = [];

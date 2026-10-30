@@ -154,9 +154,15 @@ Alex, asked in one batch.
       a member's pick is kept in `accounts_prefs` (`POST /accounts/theme`, 204; the viewer carries it): the layout
       renders it with `data-kept`, which the pre-paint leaves alone, so every device of theirs shows it.
       `accounts/storetest` and `members.spec` hold it. Left: the first deploy (Alex's, above).
-- [ ] **11. Behaviours and `full-vanilla`** (§12.4, D22): the hyperscript behaviours `full` needs and their vanilla
+- [x] **11. Behaviours and `full-vanilla`** (§12.4, D22): the hyperscript behaviours `full` needs and their vanilla
       twins; the `full-vanilla` build in both build scripts. *Check:* behaviour duality (the same specs on `full` and
-      `full-vanilla`); injected `_` inert.
+      `full-vanilla`); injected `_` inert. *Done:* `full` needed no new behaviour: its core flows are forms and htmx,
+      and every behaviour it renders is twinned or an enhancement. `full-vanilla` is a `build.sh`/`build.bat` row
+      with `src=full` (`app/cmd/full`, no directory of its own); prepare bundles its assets, tools/check checks it
+      (parity skips it: full's runs hold those routes) and tools/init leaves it out. CI checks it, builds it on
+      ubuntu (tests and smoke) and runs the chromium specs on it: 143 passed locally, the hyperscript-only ones
+      skipped. `escaping.spec` holds the injected `_` inert on both: the gate on hyperscript, no runtime at all on
+      vanilla.
 - [ ] **12. The M4 specs** (§17.2, §17.3, §19.1): `rbac.spec` generated from `bin --routes` (100 % of routes × roles ×
       both hosts, freezing Q31's grants), the CSRF and CSWSH specs (a cross-site POST and a foreign-Origin upgrade get
       403), `headers.spec` and `csp-clean.spec` on both hosts, `csp-enforced` and `streams-hxcsp` on the lab host,

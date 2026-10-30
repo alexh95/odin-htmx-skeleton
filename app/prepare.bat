@@ -98,6 +98,10 @@ for /d %%d in (app\cmd\*) do (
     app\bin\bundle.exe %%~nxd >nul || (popd & goto :fail)
   )
 )
+rem And every build of another profile's files (build.sh's rows with a src=: full-vanilla).
+for /f "tokens=1 delims=) " %%v in ('findstr /c:" src=" build.sh') do (
+  app\bin\bundle.exe %%v >nul || (popd & goto :fail)
+)
 popd
 echo.
 echo Ready. Build a profile from the repo root:  build.bat skeleton
