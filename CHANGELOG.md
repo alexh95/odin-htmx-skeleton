@@ -8,44 +8,6 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
-### Added
-
-- **An admin can turn a member's two-step sign-in off** (M4-10): `POST /admin/accounts/<id>/two-step-off`, a button on
-  `/admin/accounts` while the member has one (LAN, step-up, a reason, audited as `accounts.totp_off`; 422 for a member
-  without one, 404 for no member). A member who lost their authenticator and their recovery codes had no way back but
-  a database edit.
-
-- **Random-input tests for the parsers of untrusted text** (M4-13, M3-09): `b64_decode`, `totp.decode` and `verify`,
-  `password.decode` (random text and one byte off a real hash) and `ws_field` each take 100-200k seeded inputs drawn
-  mostly from their own alphabet in the unit-test job; a trap fails it.
-
-### Fixed
-
-- **A bad or taken `ACCOUNTS_ADMIN_NAME` refuses to boot with a reason** (M4-11): while no admin exists, the name is
-  held to a username's rules, and one a member already registered exits 78 naming it; before, any insert failure
-  exited 70 with no reason. An admin made earlier under another name still boots.
-- **A reset ends the account's open pages too** (M4-09, in part): its sessions ended in the write; now its streams
-  go with them, as a role change's do.
-- **Audit entries say which invite and which session** (M4-16): an invite's creation, withdrawal and each use carry
-  the first 8 hex of its hash, and a revoke is logged only when it ended a session, with that session's prefix.
-- **Text cut for the audit is cut by rune** (M4-14, M4-15): a sign-in's display name is kept whole (up to 40 runes),
-  and a long filter is cut before a rune, never inside one.
-- **A sibling host can't plant a session** (M4-08): a `Secure` session cookie is named `__Host-sid`, which a browser
-  refuses to take with a `Domain` or from another host, and a request that may carry it reads no plain `sid`. Plain
-  http (the LAN, `COOKIE_SECURE=0`) keeps `sid`.
-- **The audit's client id can't be hashed back to the address** (M4-07): it was an unkeyed FNV-64a of the address, which
-  the 2^32 IPv4 addresses reverse in seconds from an export or a backup. It is now an HMAC-SHA256 under
-  `ACCOUNTS_AUDIT_KEY` (new, optional, at least 32 bytes; unset, a key per boot). Envadmin's entries are keyed by its
-  cookie key.
-- **A register, a two-step change and a reset each fail as one** (M4-06): their statements run in a savepoint that is
-  rolled back when one fails, so a name taken a moment earlier no longer spends the invite it came with.
-- **Promote's snapshot pruner is pinned** (M3-08, M4-12): the busybox that prunes old backups beside the accounts
-  database runs by digest (1.37.0), as the app's user and with no network, not `busybox:latest` as root.
-- **The hang drill's bound has the watchdog's own second**: a 10 s stall seen by a check once a second is up to 11 s
-  before the exit, and the drill allowed exactly 11 s; it allows 12.
-- **The ops panel's sse spec no longer races its first push** in WebKit: the poll makes a request of its own, since
-  the sse mode makes none.
-
 ## [2.3.0] - 2026-10-30
 
 The starter's fourth milestone, M4: identity and the Houston shell. `full`, Houston's profile, signs members in with
@@ -56,8 +18,8 @@ host. The same container serves a session-free lab host with the starter's demos
 capped and reset nightly. A member's theme follows them to every device (Houston's own `houston` scheme by default).
 `full-vanilla` runs the same specs on the vanilla client, and nightly fuzzes the generator's selections (a covering
 array, random selections and every singleton), which found a selection the generator accepted and couldn't boot. An
-independent audit (`docs/audit/M4.md`) found 1 HIGH, fixed and re-read. Houston's first deploy is Alex's (stage 1b,
-no invites yet).
+independent audit (`docs/audit/M4.md`) found 1 HIGH, fixed and re-read; most of its LOW and NIT findings are fixed
+too. Houston's first deploy is Alex's (stage 1b, no invites yet).
 
 ### Added
 
@@ -145,6 +107,14 @@ no invites yet).
 - **Step-up on `.Step_Up` routes** (M4, PLAN §17.2): the route rules are one pure proc, `authz.refusal`, and a
   session whose last password or TOTP check (`Viewer.step_up_at`) is older than 10 minutes goes to
   `/step-up?next=<path>`; unit tests hold each answer and `ROLE_PERMS` as §17.1 tables it.
+- **An admin can turn a member's two-step sign-in off** (M4-10): `POST /admin/accounts/<id>/two-step-off`, a button on
+  `/admin/accounts` while the member has one (LAN, step-up, a reason, audited as `accounts.totp_off`; 422 for a member
+  without one, 404 for no member). A member who lost their authenticator and their recovery codes had no way back but
+  a database edit.
+
+- **Random-input tests for the parsers of untrusted text** (M4-13, M3-09): `b64_decode`, `totp.decode` and `verify`,
+  `password.decode` (random text and one byte off a real hash) and `ws_field` each take 100-200k seeded inputs drawn
+  mostly from their own alphabet in the unit-test job; a trap fails it.
 
 ### Fixed
 
@@ -183,6 +153,30 @@ no invites yet).
 - **A commit whose short hash is all digits builds**: Odin read `-define:VERSION=6735963` as an integer, and every
   build of that commit failed. CI names a commit `sha-<7>`, as the image tags do, and `build.sh` and `build.bat`
   refuse an all-digit `VERSION` with that advice.
+- **A bad or taken `ACCOUNTS_ADMIN_NAME` refuses to boot with a reason** (M4-11): while no admin exists, the name is
+  held to a username's rules, and one a member already registered exits 78 naming it; before, any insert failure
+  exited 70 with no reason. An admin made earlier under another name still boots.
+- **A reset ends the account's open pages too** (M4-09, in part): its sessions ended in the write; now its streams
+  go with them, as a role change's do.
+- **Audit entries say which invite and which session** (M4-16): an invite's creation, withdrawal and each use carry
+  the first 8 hex of its hash, and a revoke is logged only when it ended a session, with that session's prefix.
+- **Text cut for the audit is cut by rune** (M4-14, M4-15): a sign-in's display name is kept whole (up to 40 runes),
+  and a long filter is cut before a rune, never inside one.
+- **A sibling host can't plant a session** (M4-08): a `Secure` session cookie is named `__Host-sid`, which a browser
+  refuses to take with a `Domain` or from another host, and a request that may carry it reads no plain `sid`. Plain
+  http (the LAN, `COOKIE_SECURE=0`) keeps `sid`.
+- **The audit's client id can't be hashed back to the address** (M4-07): it was an unkeyed FNV-64a of the address, which
+  the 2^32 IPv4 addresses reverse in seconds from an export or a backup. It is now an HMAC-SHA256 under
+  `ACCOUNTS_AUDIT_KEY` (new, optional, at least 32 bytes; unset, a key per boot). Envadmin's entries are keyed by its
+  cookie key.
+- **A register, a two-step change and a reset each fail as one** (M4-06): their statements run in a savepoint that is
+  rolled back when one fails, so a name taken a moment earlier no longer spends the invite it came with.
+- **Promote's snapshot pruner is pinned** (M3-08, M4-12): the busybox that prunes old backups beside the accounts
+  database runs by digest (1.37.0), as the app's user and with no network, not `busybox:latest` as root.
+- **The hang drill's bound has the watchdog's own second**: a 10 s stall seen by a check once a second is up to 11 s
+  before the exit, and the drill allowed exactly 11 s; it allows 12.
+- **The ops panel's sse spec no longer races its first push** in WebKit: the poll makes a request of its own, since
+  the sse mode makes none.
 
 ### Changed
 
