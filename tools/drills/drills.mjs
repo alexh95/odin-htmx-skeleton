@@ -3,7 +3,7 @@
 //   node tools/drills/drills.mjs <profile> [phase …] [--wsl DIR]
 //
 // Phases (default: all): release pure dirty burst hang logstall malformed slowread wsdata streamcrash
-// shutdown streamdrain latewrite restart fdceiling streamfd opsviewers backup budgets.
+// shutdown streamdrain latewrite restart fdceiling streamfd opsviewers backup dbview budgets.
 // It builds the profile twice through build.{sh,bat}: a TEST_ROUTES build, which mounts
 // /__test/crash/<kind> and /__test/shutdown (platform/web/drills.odin), and the release build at
 // -o:speed, which must answer 404 there and is the one the budgets measure. Every server is fresh,
@@ -35,7 +35,7 @@ if (!PROFILE) {
 const WIN = process.platform === 'win32' && !WSL;
 const LINUX = !WIN;
 const EXE = WIN ? '.exe' : '';
-const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'logstall', 'malformed', 'slowread', 'wsdata', 'streamcrash', 'shutdown', 'streamdrain', 'latewrite', 'restart', 'fdceiling', 'streamfd', 'opsviewers', 'backup', 'budgets'];
+const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'logstall', 'malformed', 'slowread', 'wsdata', 'streamcrash', 'shutdown', 'streamdrain', 'latewrite', 'restart', 'fdceiling', 'streamfd', 'opsviewers', 'backup', 'dbview', 'budgets'];
 const phases = PHASES.length ? PHASES : ALL;
 
 // PLAN §18.4 (ANSWERS round 7): binaries in MiB, Windows -o:speed, as CI reads them; idle memory
@@ -879,6 +879,46 @@ async function phaseBackup(f) {
   removeDir(dir);
 }
 
+// dbview never takes the writer's lock (PLAN §22.3, M5): a query that runs to its 2 s budget on
+// the query pool, and beside it a write every 20 ms; the writes' slowest stays near what it was
+// with no query at all.
+async function phaseDbview(f) {
+  if (f.store !== 'sqlite' || !f.features.includes('dbview')) return console.log('skip  dbview: no dbview here');
+  const dir = `app/build/dbview-drill-${nextPort}`;
+  removeDir(dir);
+  makeDir(dir);
+  const s = start(RELEASE_BIN, {
+    DB_PATH: `${dir}/data.db`, LOG_LEVEL: 'warn', LAN_CIDRS: '0.0.0.0/0', CONTACTS_CAP: '0',
+    ACCOUNTS_ADMIN_HASH: DRILL_ADMIN.hash, ACCOUNTS_ADMIN_TOTP: 'optional',
+  });
+  if (!(await ready(s))) return record('dbview: server starts on a file', false);
+  const login = await send(s.port, 'POST', '/login', { host: 'localhost', form: { username: DRILL_ADMIN.username, password: DRILL_ADMIN.password } });
+  const cookie = (login.headers['set-cookie'] ?? []).map((c) => c.split(';')[0]).join('; ');
+  let n = 0;
+  const writes = async (ms) => {
+    const took = [];
+    const until = performance.now() + ms;
+    while (performance.now() < until) {
+      const t0 = performance.now();
+      const r = await send(s.port, 'POST', '/contacts', { form: { name: `Drill ${n}`, email: `drill${n++}@example.com`, role: 'Member' } });
+      if (r.status === 200) took.push(performance.now() - t0);
+      await sleep(20);
+    }
+    return took.sort((a, b) => a - b);
+  };
+  const alone = await writes(1500);
+  const query = send(s.port, 'POST', '/admin/dbview', { host: 'localhost', headers: { cookie, 'hx-request': 'true' },
+    form: { sql: 'WITH RECURSIVE r(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM r) SELECT count(*) FROM r' } });
+  const beside = await writes(1800);
+  const q = await query;
+  const max = (a) => (a.length ? a[a.length - 1] : Infinity);
+  const ok = alone.length > 20 && beside.length > 20 && /stopped past the 2 s budget/.test(q.body) && max(beside) <= Math.max(50, 3 * max(alone));
+  record('dbview: a query running to its 2 s budget leaves the writes\' latency alone (never the writer\'s lock)', ok,
+    `alone: ${alone.length} writes, slowest ${max(alone).toFixed(1)} ms; beside the query: ${beside.length}, slowest ${max(beside).toFixed(1)} ms; query ${q.status} ${/stopped past/.test(q.body) ? 'stopped at its budget' : JSON.stringify(q.body.slice(0, 80))}`);
+  await stop(s);
+  removeDir(dir);
+}
+
 async function phaseStreamFd(f) {
   if (WIN) return record('streamfd: Linux only (a ulimit)', true, 'skipped on Windows');
   if (!f.features.includes('lab')) return console.log('skip  streamfd: no streams in this profile');
@@ -953,7 +993,7 @@ if (!WIN && f.features.includes('lab') && phases.includes('streamfd')) {
 console.log(`${PROFILE} on ${WSL ? 'Linux (WSL)' : process.platform}: store ${f.store}; phases: ${phases.join(' ')}`);
 const PH = {
   release: phaseRelease, pure: phasePure, dirty: () => phaseDirty(f), burst: phaseBurst, hang: phaseHang, logstall: phaseLogStall,
-  malformed: phaseMalformed, slowread: phaseSlowRead, wsdata: () => phaseWsData(f), streamcrash: () => phaseStreamCrash(f), shutdown: phaseShutdown, streamdrain: () => phaseStreamDrain(f), latewrite: () => phaseLateWrite(f), restart: phaseRestart, fdceiling: phaseFdCeiling, streamfd: () => phaseStreamFd(f), opsviewers: () => phaseOpsViewers(f), backup: () => phaseBackup(f), budgets: phaseBudgets,
+  malformed: phaseMalformed, slowread: phaseSlowRead, wsdata: () => phaseWsData(f), streamcrash: () => phaseStreamCrash(f), shutdown: phaseShutdown, streamdrain: () => phaseStreamDrain(f), latewrite: () => phaseLateWrite(f), restart: phaseRestart, fdceiling: phaseFdCeiling, streamfd: () => phaseStreamFd(f), opsviewers: () => phaseOpsViewers(f), backup: () => phaseBackup(f), dbview: () => phaseDbview(f), budgets: phaseBudgets,
 };
 for (const p of phases) {
   if (!PH[p]) { console.error(`unknown phase ${p}`); process.exit(2); }

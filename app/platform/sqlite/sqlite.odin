@@ -61,6 +61,9 @@ DBSTATUS_CACHE_USED :: 1
 DBSTATUS_SCHEMA_USED :: 2
 DBSTATUS_STMT_USED :: 3
 
+// sqlite3_limit categories.
+LIMIT_ATTACHED :: 7
+
 // stmt_status verbs.
 STMTSTATUS_FULLSCAN_STEP :: 1
 STMTSTATUS_SORT :: 2
@@ -83,7 +86,8 @@ foreign lib {
 	sqlite3_open_v2 :: proc(filename: cstring, ppDb: ^DB, flags: c.int, zVfs: cstring) -> c.int ---
 	sqlite3_close_v2 :: proc(db: DB) -> c.int ---
 	sqlite3_exec :: proc(db: DB, sql: cstring, cb: rawptr, arg: rawptr, errmsg: ^cstring) -> c.int ---
-	sqlite3_prepare_v2 :: proc(db: DB, sql: [^]u8, nByte: c.int, ppStmt: ^Stmt, pzTail: ^cstring) -> c.int ---
+	sqlite3_prepare_v2 :: proc(db: DB, sql: [^]u8, nByte: c.int, ppStmt: ^Stmt, pzTail: ^[^]u8) -> c.int ---
+	sqlite3_limit :: proc(db: DB, id: c.int, newVal: c.int) -> c.int ---
 	sqlite3_step :: proc(stmt: Stmt) -> c.int ---
 	sqlite3_reset :: proc(stmt: Stmt) -> c.int ---
 	sqlite3_clear_bindings :: proc(stmt: Stmt) -> c.int ---
@@ -221,6 +225,23 @@ prepare :: proc(db: DB, sql: string) -> (s: Stmt, rc: c.int) {
 	enter(); defer leave()
 	rc = sqlite3_prepare_v2(db, raw_data(sql), c.int(len(sql)), &s, nil)
 	return
+}
+
+// The first statement of `sql`, and the text after it (dbview refuses a second statement).
+prepare_first :: proc(db: DB, sql: string) -> (s: Stmt, rc: c.int, rest: string) {
+	enter(); defer leave()
+	tail: [^]u8
+	rc = sqlite3_prepare_v2(db, raw_data(sql), c.int(len(sql)), &s, &tail)
+	if tail != nil {
+		used := int(uintptr(tail) - uintptr(raw_data(sql)))
+		if used >= 0 && used <= len(sql) { rest = sql[used:] }
+	}
+	return
+}
+
+// Sets a run-time limit on this connection; the old value.
+limit :: proc(db: DB, id: c.int, value: int) -> int {
+	return int(sqlite3_limit(db, id, c.int(value)))
 }
 
 step :: proc(s: Stmt) -> c.int {
@@ -394,3 +415,9 @@ value_int64 :: proc "contextless" (v: Value) -> i64 { return sqlite3_value_int64
 value_is_null :: proc "contextless" (v: Value) -> bool { return sqlite3_value_type(v) == NULL }
 result_int :: proc "contextless" (ctx: Context, v: int) { sqlite3_result_int64(ctx, i64(v)) }
 result_null :: proc "contextless" (ctx: Context) { sqlite3_result_null(ctx) }
+
+// The bytes a BLOB or TEXT value holds.
+column_bytes :: proc(s: Stmt, col: int) -> int {
+	enter(); defer leave()
+	return int(sqlite3_column_bytes(s, c.int(col)))
+}

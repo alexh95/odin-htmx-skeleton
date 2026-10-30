@@ -8,6 +8,7 @@
     {"name": "compat", "lines": 100, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS", "BUNDLES"], "profiles": ["lab"]},
     {"name": "contacts", "lines": 1600, "stores": ["sqlite"], "sqlite": "required", "deps": [], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["skeleton"]},
     {"name": "dashboard", "lines": 200, "stores": [], "sqlite": "none", "deps": ["contacts"], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["skeleton"]},
+    {"name": "dbview", "lines": 200, "stores": ["sqlite"], "sqlite": "required", "deps": ["audit"], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["full"]},
     {"name": "gallery", "lines": 400, "stores": [], "sqlite": "none", "deps": ["contacts"], "switched": [], "declares": ["ROUTES", "EXTS"], "profiles": ["skeleton"]},
     {"name": "home", "lines": 100, "stores": [], "sqlite": "none", "deps": [], "switched": [], "declares": ["EXTS", "init"], "profiles": ["minimal", "streams", "full"]},
     {"name": "jobs", "lines": 700, "stores": ["memory", "sqlite"], "sqlite": "any", "deps": ["audit"], "switched": [], "declares": ["ROUTES", "EXTS", "TOPICS", "JOBS", "init"], "profiles": ["full"]},
@@ -31,6 +32,6 @@
     {"name": "skeleton", "store": "sqlite", "identity": "anonymous", "client": "vanilla", "theme": "full", "features": ["dashboard", "gallery", "contacts", "about"]},
     {"name": "lab", "store": "memory", "identity": "anonymous", "client": "hyperscript", "theme": "full", "features": ["landing", "lab", "scripting", "compat", "status", "about"]},
     {"name": "streams", "store": "memory", "identity": "nick", "client": "vanilla", "theme": "lite", "features": ["home", "notes", "chat", "notify", "bot", "ops", "status", "accounts", "about"]},
-    {"name": "full", "store": "sqlite", "identity": "accounts", "client": "hyperscript", "theme": "full", "features": ["home", "accounts", "audit", "modules", "ops", "jobs", "status", "about"]}
+    {"name": "full", "store": "sqlite", "identity": "accounts", "client": "hyperscript", "theme": "full", "features": ["home", "accounts", "audit", "modules", "ops", "jobs", "dbview", "status", "about"]}
   ]
 }

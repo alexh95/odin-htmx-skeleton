@@ -18,6 +18,7 @@ import audit_web "../../features/audit/web"
 import compat_web "../../features/compat/web"
 import contacts_web "../../features/contacts/web"
 import dashboard_web "../../features/dashboard/web"
+import dbview_web "../../features/dbview/web"
 import gallery_web "../../features/gallery/web"
 import home_web "../../features/home/web"
 import jobs_web "../../features/jobs/web"
@@ -40,6 +41,7 @@ ROUTES := [?]app.Mount {
 	{"modules", modules_web.ROUTES[:]}, // /admin/modules: what this build is
 	{"ops", ops_web.ROUTES[:]},         // /admin/ops: the 1 Hz panel
 	{"jobs", jobs_web.ROUTES[:]},       // /admin/jobs: the jobs and their runs
+	{"dbview", dbview_web.ROUTES[:]},   // /admin/dbview: read-only SQL
 	{"status", status_web.ROUTES[:]},   // /status: is everything up
 	{"about", about_web.ROUTES[:]},     // /about
 }

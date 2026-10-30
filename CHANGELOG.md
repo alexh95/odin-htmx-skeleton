@@ -20,6 +20,12 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   schema and statement memory from `sqlite3_db_status` (MEMSTATUS is off), which `platform/store/sqlite` pushes to
   `platform/obs` (the writer after each batch, each loop's reader on its 1 s timer), so ops never imports the store.
   `houston.spec` and `ops/houston.js` cover the admin's side; `status.js` reads the main host.
+- **`dbview`, `/admin/dbview`** (M5 slice 7, PLAN §15.4): an admin's read-only SQL (Admin_Db, LAN, step-up, audited
+  as `dbview.query`), on the store's query pool, on that thread's own read-only reader: one statement SQLite calls
+  read-only, `ATTACH` refused (`LIMIT_ATTACHED` 0), stopped at 2 s by a progress handler, 200 rows and 200 characters a
+  cell at most. SQLite only. `platform/store/sqlite` gains `adhoc`, `platform/sqlite` `prepare_first`, `limit` and
+  `column_bytes`. The `dbview` drill: writes beside a query running to its budget keep their latency (2.4 ms slowest
+  either way on the dev PC), so it never takes the writer's lock.
 - **Backups as a job** (M5 slice 6, PLAN §11.8): `store.backup` in `platform/store/sqlite` writes
   `backup-<date>-<time>.db` into `BACKUP_DIR` (`backups/` beside `DB_PATH`) with `VACUUM INTO` on a connection of its
   own, quick-checks the copy and keeps the newest `BACKUP_KEEP` (7); nightly at `BACKUP_HOUR_UTC` (3), or by hand on

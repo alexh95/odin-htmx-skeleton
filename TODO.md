@@ -64,10 +64,13 @@ metrics only). Pushes are on the standing go; apollo, tags and anything on Alex'
       quick_check, keep 7), `Job.due` for the nightly hour, `workers.fail`, the `backups` status part through obs; the
       `backup` drill passes on Windows (Linux in CI's full drills); `jobs.spec` runs it by hand (3 of 3, then /status).
       A running cancel is held by workers' unit test: no job here runs long enough for a browser to catch it.
-- [ ] **7. `dbview`** (`/admin/dbview`, §15.4): read-only SQL on a query-pool reader (`OPEN_READONLY`,
+- [x] **7. `dbview`** (`/admin/dbview`, §15.4): read-only SQL on a query-pool reader (`OPEN_READONLY`,
       `stmt_readonly`, `LIMIT_ATTACHED 0`), a 2 s `progress_handler` budget, results capped, step-up, audited. Perm
       `Admin_Db`; SQLite only. *Check:* e2e (a select, a write refused, an `ATTACH` refused, the 2 s budget); a drill
       that dbview never takes the writer lock (a long query beside writes leaves the writes' p99 alone).
+      Done: the feature (SQLite only) in `full`; `dbview.spec` (a table, a write, two statements and an attach
+      refused, the caps, the 2 s stop, the audit row, the 422s) in chromium, webkit and full-vanilla; the `dbview`
+      drill (writes' slowest 2.4 ms alone and beside the query); `dbview/dbview.js` reaches both routes.
 - [ ] **8. Exit**: the slice gate for every new feature; the parity gate on both legs; `docs/audit/M5.md` by an agent
       that didn't write the code, 0 open CRITICAL/HIGH, and a re-read of the fixes; `Audited:` stamps; CHANGELOG's
       2.4.0 lead. Then, with Alex: the v2.4.0 tag and `starter-full` promoted.

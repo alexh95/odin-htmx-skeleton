@@ -12,6 +12,7 @@ import audit_web "../../features/audit/web"
 import compat_web "../../features/compat/web"
 import contacts_web "../../features/contacts/web"
 import dashboard_web "../../features/dashboard/web"
+import dbview_web "../../features/dbview/web"
 import gallery_web "../../features/gallery/web"
 import home_web "../../features/home/web"
 import jobs_web "../../features/jobs/web"
@@ -32,7 +33,7 @@ HOME_CARDS := [?]html.Home_Card{}
 
 // Every extension the main bundle needs (D19), both hosts' pages. Boot refuses a bundle whose
 // header says otherwise.
-BUNDLE_EXTS :: home_web.EXTS + about_web.EXTS + audit_web.EXTS + modules_web.EXTS + ops_web.EXTS + jobs_web.EXTS + status_web.EXTS + identity.EXTS +
+BUNDLE_EXTS :: home_web.EXTS + about_web.EXTS + audit_web.EXTS + modules_web.EXTS + ops_web.EXTS + jobs_web.EXTS + dbview_web.EXTS + status_web.EXTS + identity.EXTS +
 	landing_web.EXTS + dashboard_web.EXTS + gallery_web.EXTS + contacts_web.EXTS + lab_web.EXTS +
 	scripting_web.EXTS + compat_web.EXTS
 
