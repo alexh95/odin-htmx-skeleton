@@ -44,6 +44,8 @@ test.describe('status', T, () => {
       // Both answer within a round (a refused connect takes about 2 s on Windows).
       await expect.poll(async () => {
         await page.goto('/status');
+        // The cards render "checking…" and /status/parts fills them in after load: read them once it has.
+        await expect(page.locator('#st-process .status-state')).toHaveText('ok');
         return [await page.locator('#st-alive .status-state').innerText(), await page.locator('#st-gone .status-state').innerText()];
       }, { timeout: 15000 }).toEqual(['ok', 'down']);
       await expect(page.locator('#st-alive')).toContainText(/version \S+, \d+ ms/);

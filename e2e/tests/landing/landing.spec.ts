@@ -34,8 +34,10 @@ test.describe('landing', T, () => {
     const res = await request.get('/landing/command?name=%3Cb%3Ex&f-notes=1&f-%3Cscript%3E=1&store=%3Ci%3E');
     expect(res.status()).toBe(200);
     const html = await res.text();
-    expect(html).toContain('odin run tools/init -- &lt;b&gt;x --features notes</code>'); // no --store: not a member
+    // A refused name never reaches the command offered for copying (M3-05); no --store: not a member.
+    expect(html).toContain('odin run tools/init -- &lt;name&gt; --features notes</code>');
     expect(html).not.toContain('<b>');
+    expect(html).not.toContain('&lt;b&gt;x');
     expect(html).toContain('the name is lower-case letters');
   });
 
