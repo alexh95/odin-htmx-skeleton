@@ -8,22 +8,7 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
-*The 2.2.0 entry's lead, drafted for the tag (this section becomes `[2.2.0]`):*
-
-The starter's third milestone, M3: the pipeline and apollo's LAN. A `v*` tag builds each hosted profile's image on
-distroless, natively on amd64 and arm64, publishes one multi-arch list per profile to GHCR (`vX.Y.Z` and `sha-<7>`,
-never `latest`) with provenance, and makes the GitHub Release (a pre-release for `-rc.N`); `deploy/promote.ps1` moves
-apollo's stack to it one service at a time behind the stack Caddy, smoke-tested and rolled back by itself on a failed
-smoke. The four witnesses (minimal, streams, skeleton, lab) run at v2.2.0-rc.1 on apollo's LAN (stage 1a), where a
-broken tag rolled back by itself, 50 VUs through a promote saw no 5xx, and two-host k6 failed nothing. `landing`, the
-starter's own page, shows the catalog and builds the init command; the lab's witness board probes the others. Chat's
-reconnects replace the log across a gap on every transport. An independent audit (`docs/audit/M3.md`) found 1 HIGH,
-fixed and re-read; the parity gate passes on both legs (`docs/perf/PARITY.md`). Stage 1b, through NPM, waits on
-Alex's NPM steps.
-
-### Added (M4, toward 2.3.0: not part of 2.2.0)
-
-*The 2.3.0 entry's lead, drafted for its tag (once 2.2.0 is cut, the M4 sections below become `[2.3.0]`):*
+## [2.3.0] - 2026-10-30
 
 The starter's fourth milestone, M4: identity and the Houston shell. `full`, Houston's profile, signs members in with
 argon2id passwords to server-side sessions on SQLite, with TOTP and recovery codes, step-up before sensitive writes,
@@ -35,6 +20,8 @@ capped and reset nightly. A member's theme follows them to every device (Houston
 array, random selections and every singleton), which found a selection the generator accepted and couldn't boot. An
 independent audit (`docs/audit/M4.md`) found 1 HIGH, fixed and re-read. Houston's first deploy is Alex's (stage 1b,
 no invites yet).
+
+### Added
 
 - **`full`, Houston's profile** (M4 slice 3, PLAN §7.3): its main host alone for now (home, about, accounts) on
   SQLite, the hyperscript client and the full theme; in CI's check, build, e2e (chromium + api), coverage, drills
@@ -158,6 +145,28 @@ no invites yet).
 - **A commit whose short hash is all digits builds**: Odin read `-define:VERSION=6735963` as an integer, and every
   build of that commit failed. CI names a commit `sha-<7>`, as the image tags do, and `build.sh` and `build.bat`
   refuse an all-digit `VERSION` with that advice.
+
+### Changed
+
+- **A release can be cut from a maintenance branch**: CI runs on `release/**` pushes, and the release gate takes a
+  green CI run on the tag's `release/X.Y` as well as on the default branch (2.2.0 is tagged on `release/2.2`,
+  cut from rc.2, while master had moved on to M4).
+
+## [2.2.0] - 2026-10-30
+
+The starter's third milestone, M3: the pipeline and apollo's LAN. A `v*` tag builds each hosted profile's image on
+distroless, natively on amd64 and arm64, publishes one multi-arch list per profile to GHCR (`vX.Y.Z` and `sha-<7>`,
+never `latest`) with provenance, and makes the GitHub Release (a pre-release for `-rc.N`); `deploy/promote.ps1` moves
+apollo's stack to it one service at a time behind the stack Caddy, smoke-tested and rolled back by itself on a failed
+smoke. The four witnesses (minimal, streams, skeleton, lab) run at v2.2.0-rc.1 on apollo's LAN (stage 1a), where a
+broken tag rolled back by itself, 50 VUs through a promote saw no 5xx, and two-host k6 failed nothing. `landing`, the
+starter's own page, shows the catalog and builds the init command; the lab's witness board probes the others. Chat's
+reconnects replace the log across a gap on every transport. An independent audit (`docs/audit/M3.md`) found 1 HIGH,
+fixed and re-read; the parity gate passes on both legs (`docs/perf/PARITY.md`). Stage 1b, through NPM, waits on
+Alex's NPM steps.
+
+### Fixed
+
 - **The lab no longer grows until it is OOM-killed**: the witness board's probe thread never freed its temp
   allocator, so every probe's request line and resolver lookups stayed (M3-01).
 - **A chat socket answers the page's version once**: every frame carrying one bought a snapshot render, up to 20 a
