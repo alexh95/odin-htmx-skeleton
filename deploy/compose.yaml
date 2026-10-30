@@ -17,6 +17,9 @@ x-app: &app
   # Docker blocks io_uring by default since 25.0, and the server has no epoll fallback.
   security_opt:
     - seccomp=./seccomp-io-uring.json
+    - no-new-privileges:true
+  # The apps bind 8080 as 10001: no capability is needed (M3-07).
+  cap_drop: [ALL]
   init: true
   # Docker outside Swarm never restarts an unhealthy container (§10): the watchdog's
   # exit 70 is what brings it back.
@@ -59,6 +62,12 @@ services:
     # The digest CI's e2e-proxy and proxy-config jobs run (Caddy 2.11.7).
     image: caddy@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
     restart: unless-stopped
+    # Root in the image, so only the one capability binding :80 needs, and no way to gain more (M3-07).
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
     # The http:// sites bind :80 inside; apollo publishes it on 8120 (X23).
     ports:
       - "8120:80"

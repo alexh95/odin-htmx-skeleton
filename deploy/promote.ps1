@@ -105,14 +105,22 @@ echo "== stack";     if [ -f $dir/compose.yaml ]; then $dc ps --format '{{.Servi
 	return
 }
 
-if (-not $Tag -or $Tag -notmatch '^v\d+\.\d+\.\d+$|^[a-z0-9][a-z0-9._-]*$') { throw "-Tag: a release's vX.Y.Z" }
+# A tag the release publishes, never a mutable one (`latest`): vX.Y.Z, its -rc.N, or the commit's sha-<7>.
+# -Target local takes any lower-case name its images were tagged with. The previous tags read back from
+# the host's .env meet the same rule before a rollback uses them (M3-08).
+$TAG_RULE = if ($Target -eq 'local') { '^[a-z0-9][a-z0-9._-]*$' } else { '^v\d+\.\d+\.\d+(-rc\.\d+)?$|^sha-[0-9a-f]{7}$' }
+if (-not $Tag -or $Tag -cnotmatch $TAG_RULE -or $Tag -ceq 'latest') { throw "-Tag: a release's vX.Y.Z, vX.Y.Z-rc.N or sha-<7>" }
 
 # ---- 1. stage ---------------------------------------------------------------------------
 
 # The current .env (the previous tags), then the new one with this promote's services moved.
 $prev = @{}
 foreach ($line in @(Invoke-Host "cat $dir/.env 2>/dev/null || true")) {
-	if ($line -match '^([A-Z_]+)=(.*)$') { $prev[$Matches[1]] = $Matches[2] }
+	if ($line -match '^([A-Z_]+)=(.*)$') {
+		$k, $v = $Matches[1], $Matches[2]
+		if ($k -ne 'IMAGE_PREFIX' -and ($v -cnotmatch $TAG_RULE -or $v -ceq 'latest')) { throw "the host's .env has $k=$v, not a tag promote would set: fix it by hand first" }
+		$prev[$k] = $v
+	}
 }
 $prefix = if ($Target -eq 'local') { $ImagePrefix } elseif ($prev['IMAGE_PREFIX']) { $prev['IMAGE_PREFIX'] } else { 'ghcr.io/alexh95/odin-htmx-starter' }
 
