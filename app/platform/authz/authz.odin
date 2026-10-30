@@ -78,10 +78,12 @@ can :: proc(v: Viewer, p: Perm) -> bool {
 }
 
 // How recent a password or TOTP check a `.Step_Up` row asks for (§17.1).
-STEP_UP_WINDOW :: 10 * 60
+// An identity may shorten it at boot (ACCOUNTS_STEP_UP_WINDOW, so the suites can make a
+// session stale); seconds.
+step_up_window: i64 = 10 * 60
 
 stepped_up :: proc(v: Viewer, now: i64) -> bool {
-	return v.step_up_at > 0 && now - v.step_up_at <= STEP_UP_WINDOW && v.step_up_at <= now
+	return v.step_up_at > 0 && now - v.step_up_at <= step_up_window && v.step_up_at <= now
 }
 
 // What front answers a route's rules with, decided before a byte of the body is read

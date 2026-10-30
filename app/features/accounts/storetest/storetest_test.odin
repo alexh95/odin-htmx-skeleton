@@ -8,6 +8,7 @@ package accounts_storetest
 // closed by its token's hash and only by its user, and the boot's admin is made only once.
 
 import "base:runtime"
+import "core:fmt"
 import "core:nbio"
 import "core:strings"
 import "core:testing"
@@ -119,6 +120,49 @@ the_store_keeps_users_and_sessions :: proc(t: ^testing.T) {
 	settle(t, answered + 1)
 	s, _ = sql.session(HASH)
 	testing.expect_value(t, s.last_seen, 2000)
+
+	// TOTP on with its recovery codes; a step and a code each spent once, in the sign-in's own write.
+	totp := store.new_op(m.Set_Totp, 64 + 64 * m.RECOVERY_CODES)
+	ta := store.op_allocator(totp)
+	totp.user_id, totp.secret, totp.done = u.id, strings.clone("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", ta), DONE
+	for &c, i in totp.codes { c = fmt.aprintf("c%d", i, allocator = ta) }
+	testing.expect(t, sql.set_totp(totp))
+	settle(t, answered + 1)
+	testing.expect_value(t, last_err, store.Error.None)
+	u, _ = sql.user_by_id(u.id)
+	testing.expect(t, u.totp_secret == "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" && u.totp_last_step == 0)
+	left, _ := sql.recovery_left(u.id)
+	testing.expect_value(t, left, m.RECOVERY_CODES)
+
+	S2 :: "2222222222222222222222222222222222222222222222222222222222222222"
+	second :: proc(t: ^testing.T, hash: string, user, step: i64, code: string) -> store.Error {
+		op := store.new_op(m.Open_Session, len(hash) + len(code))
+		a := store.op_allocator(op)
+		op.token_hash, op.recovery_hash = strings.clone(hash, a), strings.clone(code, a)
+		op.user_id, op.now, op.expires_at, op.idle_before, op.totp_step, op.done = user, 3000, 9000, 0, step, DONE
+		before := answered
+		testing.expect(t, sql.open_session(op))
+		settle(t, before + 1)
+		return last_err
+	}
+	testing.expect_value(t, second(t, S2, u.id, 55, ""), store.Error.None)
+	testing.expect_value(t, second(t, "3" + S2[1:], u.id, 55, ""), store.Error.Constraint) // the same step again
+	testing.expect_value(t, second(t, "4" + S2[1:], u.id, 54, ""), store.Error.Constraint) // an older one
+	testing.expect_value(t, second(t, "5" + S2[1:], u.id, 0, "c1"), store.Error.None)
+	testing.expect_value(t, second(t, "6" + S2[1:], u.id, 0, "c1"), store.Error.Constraint) // a used code
+	left, _ = sql.recovery_left(u.id)
+	testing.expect_value(t, left, m.RECOVERY_CODES - 1)
+	_, serr = sql.session("3" + S2[1:])
+	testing.expect_value(t, serr, store.Error.Not_Found) // a refused second factor opened nothing
+
+	up := store.new_op(m.Step_Up, len(S2))
+	up.token_hash = strings.clone(S2, store.op_allocator(up))
+	up.user_id, up.now, up.totp_step, up.done = u.id, 7000, 56, DONE
+	testing.expect(t, sql.step_up(up))
+	settle(t, answered + 1)
+	testing.expect_value(t, last_err, store.Error.None)
+	s, _ = sql.session(S2)
+	testing.expect_value(t, s.step_up_at, 7000)
 
 	sam, _ := sql.user_by_name("sam")
 	close_as(t, HASH, sam.id) // another user's revoke closes nothing

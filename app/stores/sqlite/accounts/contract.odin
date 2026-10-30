@@ -14,3 +14,6 @@ _ : m.Store_Login_Failed : login_failed
 _ : m.Store_Open_Session : open_session
 _ : m.Store_Touch_Session : touch_session
 _ : m.Store_Close_Session : close_session
+_ : m.Store_Set_Totp : set_totp
+_ : m.Store_Step_Up : step_up
+_ : m.Store_Recovery_Left : recovery_left

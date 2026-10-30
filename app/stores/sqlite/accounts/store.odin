@@ -16,9 +16,10 @@ IMPL :: "sqlite"
 
 MIGRATIONS := [?]store.Migration {
 	{1, "0001_accounts.sql", #load("migrations/0001_accounts.sql", string)},
+	{2, "0002_totp.sql", #load("migrations/0002_totp.sql", string)},
 }
 
-@(private) USER_COLS :: "id, username, display, role, pw_hash, disabled_at, failed_logins, backoff_until"
+@(private) USER_COLS :: "id, username, display, role, pw_hash, disabled_at, failed_logins, backoff_until, totp_secret, totp_last_step"
 @(private) SQL_BY_NAME :: "SELECT " + USER_COLS + " FROM users WHERE username = ?"
 @(private) SQL_BY_ID :: "SELECT " + USER_COLS + " FROM users WHERE id = ?"
 @(private) SESSION_COLS :: "token_hash, user_id, created_at, last_seen, expires_at, step_up_at"
@@ -29,6 +30,13 @@ MIGRATIONS := [?]store.Migration {
 @(private) SQL_FAILED :: "UPDATE users SET failed_logins = failed_logins + 1, backoff_until = ? WHERE id = ?"
 @(private) SQL_CLEAR :: "UPDATE users SET failed_logins = 0, backoff_until = 0 WHERE id = ?"
 @(private) SQL_OPEN :: "INSERT INTO sessions(token_hash, user_id, created_at, last_seen, expires_at, step_up_at) VALUES(?, ?, ?, ?, ?, ?)"
+@(private) SQL_RECOVERY_LEFT :: "SELECT count(*) FROM accounts_recovery_codes WHERE user_id = ? AND used_at = 0"
+@(private) SQL_SPEND_STEP :: "UPDATE users SET totp_last_step = ?1 WHERE id = ?2 AND totp_last_step < ?1"
+@(private) SQL_SPEND_CODE :: "UPDATE accounts_recovery_codes SET used_at = ? WHERE user_id = ? AND code_hash = ? AND used_at = 0"
+@(private) SQL_SET_TOTP :: "UPDATE users SET totp_secret = ?, totp_last_step = ? WHERE id = ?"
+@(private) SQL_DROP_CODES :: "DELETE FROM accounts_recovery_codes WHERE user_id = ?"
+@(private) SQL_ADD_CODE :: "INSERT INTO accounts_recovery_codes(user_id, code_hash) VALUES(?, ?)"
+@(private) SQL_STEP_UP :: "UPDATE sessions SET step_up_at = ? WHERE token_hash = ? AND user_id = ?"
 @(private) SQL_SWEEP :: "DELETE FROM sessions WHERE user_id = ? AND (expires_at <= ? OR last_seen < ?)"
 @(private) SQL_TOUCH :: "UPDATE sessions SET last_seen = ? WHERE token_hash = ?"
 @(private) SQL_CLOSE :: "DELETE FROM sessions WHERE token_hash = ? AND user_id = ?"
@@ -62,6 +70,8 @@ one_user :: proc(q: db.Stmt) -> (u: m.User, err: m.Error) {
 		disabled_at = db.column_id(q, 5),
 		failed_logins = db.column_int(q, 6),
 		backoff_until = db.column_id(q, 7),
+		totp_secret = db.clone_col(q, 8),
+		totp_last_step = db.column_id(q, 9),
 	}, .None
 }
 
@@ -96,6 +106,14 @@ one_session :: proc(q: db.Stmt) -> m.Session {
 count_admins :: proc() -> (n: int, err: m.Error) {
 	q := db.read(SQL_ADMINS)
 	defer db.reset(q)
+	if db.next_row(q, &err) { n = db.column_int(q, 0) }
+	return
+}
+
+recovery_left :: proc(user_id: i64) -> (n: int, err: m.Error) {
+	q := db.read(SQL_RECOVERY_LEFT)
+	defer db.reset(q)
+	db.bind_id(q, 1, user_id)
 	if db.next_row(q, &err) { n = db.column_int(q, 0) }
 	return
 }
@@ -158,6 +176,7 @@ login_failed :: proc(op: ^m.Login_Failed) -> bool {
 open_session :: proc(op: ^m.Open_Session) -> bool {
 	op.run = proc(o: ^store.Op) {
 		op := (^m.Open_Session)(o)
+		if o.err = spend(op.user_id, op.totp_step, op.recovery_hash, op.now); o.err != .None { return }
 		sw := db.writer_stmt(SQL_SWEEP)
 		db.bind_id(sw, 1, op.user_id)
 		db.bind_id(sw, 2, op.now)
@@ -212,6 +231,72 @@ close_session :: proc(op: ^m.Close_Session) -> bool {
 		o.err = db.step_done(st)
 	}
 	return db.write(op)
+}
+
+set_totp :: proc(op: ^m.Set_Totp) -> bool {
+	op.run = proc(o: ^store.Op) {
+		op := (^m.Set_Totp)(o)
+		st := db.writer_stmt(SQL_SET_TOTP)
+		db.bind_text(st, 1, op.secret)
+		db.bind_id(st, 2, op.last_step)
+		db.bind_id(st, 3, op.user_id)
+		o.err = db.step_done(st)
+		db.reset(st)
+		if o.err != .None { return }
+		dr := db.writer_stmt(SQL_DROP_CODES)
+		db.bind_id(dr, 1, op.user_id)
+		o.err = db.step_done(dr)
+		db.reset(dr)
+		for code in op.codes {
+			if o.err != .None || code == "" { continue }
+			add := db.writer_stmt(SQL_ADD_CODE)
+			db.bind_id(add, 1, op.user_id)
+			db.bind_text(add, 2, code)
+			o.err = db.step_done(add)
+			db.reset(add)
+		}
+	}
+	return db.write(op)
+}
+
+step_up :: proc(op: ^m.Step_Up) -> bool {
+	op.run = proc(o: ^store.Op) {
+		op := (^m.Step_Up)(o)
+		if o.err = spend(op.user_id, op.totp_step, "", op.now); o.err != .None { return }
+		st := db.writer_stmt(SQL_STEP_UP)
+		defer db.reset(st)
+		db.bind_id(st, 1, op.now)
+		db.bind_text(st, 2, op.token_hash)
+		db.bind_id(st, 3, op.user_id)
+		o.err = db.step_done(st)
+		if o.err == .None && db.changes() == 0 { o.err = .Not_Found }
+	}
+	return db.write(op)
+}
+
+// On the writer: a second factor spent, or .Constraint when it already was (a replayed code, a
+// used recovery code). Nothing to spend is .None.
+@(private)
+spend :: proc(user_id, step: i64, recovery_hash: string, now: i64) -> (err: m.Error) {
+	switch {
+	case step > 0:
+		st := db.writer_stmt(SQL_SPEND_STEP)
+		defer db.reset(st)
+		db.bind_id(st, 1, step)
+		db.bind_id(st, 2, user_id)
+		err = db.step_done(st)
+	case recovery_hash != "":
+		st := db.writer_stmt(SQL_SPEND_CODE)
+		defer db.reset(st)
+		db.bind_id(st, 1, now)
+		db.bind_id(st, 2, user_id)
+		db.bind_text(st, 3, recovery_hash)
+		err = db.step_done(st)
+	case:
+		return .None
+	}
+	if err == .None && db.changes() == 0 { err = .Constraint }
+	return
 }
 
 @(private)

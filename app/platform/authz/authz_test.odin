@@ -29,7 +29,7 @@ each_rule_has_its_answer :: proc(t: ^testing.T) {
 	guest := GUEST
 	member := Viewer{id = 1, role = .User}
 	admin := Viewer{id = 2, role = .Admin, step_up_at = NOW - 60}
-	stale := Viewer{id = 3, role = .Admin, step_up_at = NOW - STEP_UP_WINDOW - 1}
+	stale := Viewer{id = 3, role = .Admin, step_up_at = NOW - step_up_window - 1}
 
 	testing.expect_value(t, refusal(guest, {perm = .Public}, false, NOW), Refusal.None)
 	testing.expect_value(t, refusal(guest, {perm = .Chat_Read}, true, NOW), Refusal.Sign_In)
@@ -50,6 +50,6 @@ each_rule_has_its_answer :: proc(t: ^testing.T) {
 	testing.expect_value(t, refusal(Viewer{id = 5, role = .Admin, step_up_at = NOW + 60}, rule, true, NOW), Refusal.Step_Up)
 	testing.expect_value(t, refusal(guest, rule, true, NOW), Refusal.Sign_In)
 	testing.expect_value(t, refusal(member, rule, true, NOW), Refusal.Forbidden)
-	testing.expect_value(t, refusal(admin, {perm = .Admin_Accounts, step_up = true}, true, NOW + STEP_UP_WINDOW - 60), Refusal.None)
-	testing.expect_value(t, refusal(admin, {perm = .Admin_Accounts, step_up = true}, true, NOW + STEP_UP_WINDOW - 59), Refusal.Step_Up)
+	testing.expect_value(t, refusal(admin, {perm = .Admin_Accounts, step_up = true}, true, NOW + step_up_window - 60), Refusal.None)
+	testing.expect_value(t, refusal(admin, {perm = .Admin_Accounts, step_up = true}, true, NOW + step_up_window - 59), Refusal.Step_Up)
 }

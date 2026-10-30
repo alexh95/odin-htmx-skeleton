@@ -376,6 +376,7 @@ Below L4, platform imports a feature only through a family collection: `platform
 | `platform/guard` | 2 | `guard_call`, the counters' helpers, `guarded_mutex`, the trap handler, the watchdog |
 | `platform/markdown` | 2 | the markdown renderer (depth cap 32, input cap 64 KiB), escaping through `platform/escape` |
 | `platform/password` | 2 | argon2id at OWASP's parameters on its own pool, PHC strings, constant-time compares and the dummy derive (§17.1; M4: both password identities, `accounts` and `envadmin`, use it) |
+| `platform/totp` | 2 | RFC 6238 one-time codes (HMAC-SHA1, 30 s, 6 digits), a step either side accepted and named, base32 secrets and the `otpauth://` text (§17.1, Q11; M4) |
 | `platform/web` | 3 | the prefix router (one map per host), CSP flags, `Req_Ctx`, `respond_*`, `web.Request` and `web.Response` (odin-http's types, re-exported), body caps, the trusted-proxy client address, the limiter, assets, robots/sitemap/Bing/IndexNow, `/licenses`; `web.Route`, and the platform's two tables: `web.ROUTES` (a site's main host: `/metrics /livez /readyz /healthz` over obs's data, the sitemap, the ownership proofs) and `web.PUBLIC_ROUTES` (every host: static assets, `/events`, `robots.txt`, `favicon.ico`, `/licenses`, `/csp-report`) |
 | `platform/html` | 3 | `w esc url_encode json_esc` (re-exported from `platform/escape`), the layout, NAV, `Home_Card`, components, `behave`; it imports the `client:` and `theme:` families |
 | `platform/stream` | 3 | the SSE encoder, the WS handshake and codec, the multipart writer, the Range sender (D12) |
@@ -814,7 +815,7 @@ app/cmd/<p>/   brand.odin main.odin routes.odin routes_test.odin   (all hand-wri
 
 platform  L4 app      ─► identity:., store:., L1–L3             (only cmd/* imports it; it holds front)
           L3 web html hub stream stream/client client/* theme/*   (html ─► client:., theme:.)
-          L2 store store/sqlite store/memory env authz authz/anonymous obs guard workers markdown password
+          L2 store store/sqlite store/memory env authz authz/anonymous obs guard workers markdown password totp
           L1 sys sqlite ext escape
 ```
 
@@ -4000,6 +4001,14 @@ step-up. `last_seen` is written at most once a minute. The first three wrong pas
 §17.5's values as defaults, so the suites can lift them and test them on servers of their own. Until the shell has a
 banner slot, `COOKIE_SECURE=0` is said on the sign-in form. The first admin: `ACCOUNTS_ADMIN_HASH` with
 `ACCOUNTS_ADMIN_NAME` (`admin`), while no enabled admin exists.
+
+**As built (M4, slice 5):** `platform/totp` holds RFC 6238 (HMAC-SHA1, 30 s, 6 digits, a step either side). A sign-in to
+an account with TOTP answers its password with a code form carrying a pending token (the user id and five minutes,
+HMAC-signed with a key made at boot), and `/login/code` takes a code or one of the ten recovery codes (40 bits each,
+SHA-256 stored), spending it in the same write that opens the session (`users.totp_last_step`, `used_at`): a
+replayed code is refused. `/step-up` takes the password or a code and returns a write to the page htmx says it came
+from. An Admin without TOTP loads as a Member (`ACCOUNTS_ADMIN_TOTP=required`, the default). The admin-issued reset
+codes come with `/admin/accounts` (slice 6).
 
 **TOTP and step-up** (Q11). TOTP follows RFC 6238 (vectors verified, 07 §0.6) with manual secret entry and the
 `otpauth://` text, no QR encoder. It is required for Admin and `Term_Write`. **Step-up** asks for the password or a

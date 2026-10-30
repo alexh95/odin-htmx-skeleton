@@ -140,13 +140,28 @@ admit :: proc(c: ^web.Req_Ctx, req: ^web.Request, res: ^web.Response) -> bool {
 		send_to(req, res, "/login", "Sign in first.")
 		return false
 	case .Step_Up:
-		send_to(req, res, strings.concatenate({"/step-up?next=", escape.url_encode(req.url.path)}, context.temp_allocator), "Confirm it's you first.")
+		send_to(req, res, strings.concatenate({"/step-up?next=", escape.url_encode(return_to(req))}, context.temp_allocator), "Confirm it's you first.")
 		return false
 	case .Forbidden:
 		web.respond_plain(res, "Not allowed.", .Forbidden)
 		return false
 	}
 	return true
+}
+
+// Where a step-up sends the member back to: a page they asked for, or, for a write (whose URL a
+// browser can't GET), the page htmx says they were on; a path on this site, else "/".
+@(private)
+return_to :: proc(req: ^web.Request) -> string {
+	if web.method_name(req) == "GET" { return req.url.path }
+	from, _ := web.header(req, "hx-current-url")
+	if at := strings.index(from, "://"); at >= 0 {
+		rest := from[at + 3:]
+		slash := strings.index_byte(rest, '/')
+		from = rest[slash:] if slash >= 0 else "/"
+	}
+	if q := strings.index_any(from, "?#"); q >= 0 { from = from[:q] }
+	return from if escape.site_path(from) else "/"
 }
 
 // A guest to sign in, a stale session to step up (§17.2): htmx follows HX-Redirect on a 401,

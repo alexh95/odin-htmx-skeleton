@@ -10,7 +10,9 @@ import { options as build, summarize } from '../../lib/options.js';
 // which run.sh's server counts as the LAN, so the LAN-only rows answer.
 const FORM = { 'Content-Type': 'application/x-www-form-urlencoded' };
 
-export const options = build();
+// A check that fails is a run that measured the wrong page (a lost session lands on /login).
+export const options = build({ 'checks{phase:load}': ['rate>0.99'] });
+options.noCookiesReset = true; // the sign-in on a VU's first iteration stays (k6 empties the jar each one)
 export const handleSummary = summarize('audit');
 
 export default function () {

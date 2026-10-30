@@ -9,6 +9,7 @@ package accounts_identity_accounts
 // SHA-256. The token rotates on every sign-in; a privilege change rotates it too (slice 6).
 // The first admin comes from ACCOUNTS_ADMIN_HASH, made with `--hash-password`.
 
+import "core:crypto"
 import "core:fmt"
 import "core:os"
 import "core:strconv"
@@ -34,6 +35,8 @@ ENV := [?]env.Row {
 	{name = "ACCOUNTS_SESSION_MAX", kind = .Duration, def = "30d", doc = "a session ends this long after sign-in, seen or not"},
 	{name = "ACCOUNTS_LOGIN_PER_CLIENT", kind = .Int, def = "5", doc = "sign-in attempts per client per 15 min"},
 	{name = "ACCOUNTS_LOGIN_OVERALL", kind = .Int, def = "40", doc = "sign-in attempts from everyone per 15 min"},
+	{name = "ACCOUNTS_ADMIN_TOTP", kind = .Enum, def = "required", choices = "required|optional", doc = "required: an Admin without TOTP is a Member until they turn it on (§17.1)"},
+	{name = "ACCOUNTS_STEP_UP_WINDOW", kind = .Duration, def = "10m", doc = "how recent a password or code a .Step_Up route asks for"},
 }
 
 COOKIE_ENV := [?]env.Row {
@@ -48,7 +51,9 @@ Secure :: enum u8 {
 
 @(private)
 st: struct {
-	secure: Secure,
+	secure:      Secure,
+	admin_totp:  bool,     // an Admin needs TOTP to be one
+	pending_key: [32]byte, // signs a sign-in's pending second step; a restart drops them all
 }
 
 // At boot, from app.boot: the env rows, the lifetimes and the argon pool.
@@ -69,6 +74,9 @@ init :: proc() {
 		idle_ms = i64(env.duration("ACCOUNTS_SESSION_IDLE") / time.Millisecond),
 		max_ms = i64(env.duration("ACCOUNTS_SESSION_MAX") / time.Millisecond),
 	}
+	st.admin_totp = env.str("ACCOUNTS_ADMIN_TOTP") == "required"
+	authz.step_up_window = i64(env.duration("ACCOUNTS_STEP_UP_WINDOW") / time.Second)
+	crypto.rand_bytes(st.pending_key[:])
 	logins_client.n = env.int_("ACCOUNTS_LOGIN_PER_CLIENT")
 	logins_all.n = env.int_("ACCOUNTS_LOGIN_OVERALL")
 	threads := env.int_("ACCOUNTS_ARGON_THREADS")
@@ -139,10 +147,24 @@ load_viewer :: proc(ask: authz.Ask) -> (v: authz.Viewer, set_cookie: string) {
 	token := authz.cookie(ask.cookies, COOKIE)
 	if token == "" { return authz.GUEST, "" }
 	now := accounts.now_ms()
-	u, s, ok := accounts.signed_in(token, now)
-	if !ok { return authz.GUEST, forget(ask.https) }
+	u, s, err := accounts.signed_in(token, now)
+	#partial switch err {
+	case .None:
+	case .Not_Found:
+		return authz.GUEST, forget(ask.https)
+	case:
+		// The store failed, not the session: a guest this once, and the cookie kept.
+		if l, ok := obs.begin(.Warning, "accounts", "session_read"); ok {
+			obs.str(&l, "err", fmt.tprint(err))
+			obs.end(&l)
+		}
+		return authz.GUEST, ""
+	}
 	if now - s.last_seen >= accounts.TOUCH_EVERY_MS { touch(s.token_hash, now) }
-	return authz.Viewer{id = u64(u.id), name = u.display, role = u.role, step_up_at = s.step_up_at / 1000}, ""
+	role := u.role
+	// An Admin is one only with a second factor; until then /accounts/totp says why.
+	if role == .Admin && u.totp_secret == "" && st.admin_totp { role = .User }
+	return authz.Viewer{id = u64(u.id), name = u.display, role = role, step_up_at = s.step_up_at / 1000}, ""
 }
 
 // ---- the cookie -------------------------------------------------------------------------

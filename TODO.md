@@ -69,10 +69,21 @@ Alex, asked in one batch.
       `audit/audit.js`. The generator gives an identity its own feature deps (`identity_accounts` brings `audit`, so
       `streams`' nick doesn't). Later: the nightly prune past 400 days (with M5's `jobs`); the bootstrap admin's
       creation is an obs line, not an entry (boot has no loop for the append to answer on).
-- [ ] **5. TOTP, step-up and recovery** (§17.1, Q11): RFC 6238 with its vectors, manual secret entry and the
+- [x] **5. TOTP, step-up and recovery** (§17.1, Q11): RFC 6238 with its vectors, manual secret entry and the
       `otpauth://` text, required for Admin (and `Term_Write` later); the step-up page (password or code within
       10 min) on `.Step_Up` rows (role changes, invites); 10 recovery codes and admin-issued one-time reset codes,
       hashed. *Check:* unit vectors; e2e of enrolment, step-up and a recovery.
+      Done: `platform/totp` (L2; RFC 4226's and RFC 6238's vectors); `/accounts/totp` (the secret in base32 and as
+      `otpauth://` text, on by a code, ten recovery codes shown once and stored hashed; new codes and off are
+      `.Step_Up` rows); the code step after the password (a pending token signed with a boot key, five minutes; a
+      code or a recovery code spent in the session's own write, migration `0002_totp.sql`'s `totp_last_step`, so
+      none is taken twice); `/step-up` (the password, or a code), returning a write to the page it came from
+      (`HX-Current-URL`); an Admin without TOTP is a Member (`ACCOUNTS_ADMIN_TOTP=required`, the default; the
+      suites run `optional`); `ACCOUNTS_STEP_UP_WINDOW`. `totp.spec` (3 cases), `accounts/totp.js`. Found on the
+      way: `load_viewer` cleared the cookie on any store error, not only on a session that ended (now a guest
+      once, the cookie kept, a warn line); `audit/audit.js` had measured `/login` (k6 empties the cookie jar each
+      iteration: `noCookiesReset`, and a checks threshold on both new scenarios). The admin-issued reset codes go
+      with `/admin/accounts` (slice 6).
 - [ ] **6. Registration, invites, profile and `/admin/accounts`** (§17.1, Q10): `ACCOUNTS_REGISTRATION` (`invite` by
       default; `open`, `closed`), `/invite` redemption (limits), `/register`, display names through `clean_name`,
       `accounts_prefs` (theme, chat transport, mutes), `/admin/accounts` (roles, disable, invites, reset codes; the

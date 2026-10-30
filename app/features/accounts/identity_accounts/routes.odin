@@ -30,6 +30,13 @@ ROUTES := [?]web.Route {
 	{.Post, "/logout", sign_out, .Public, {.Fragment}, 0},
 	{.Get, "/accounts/sessions", sessions_page, .Account_Self, {.Private}, 0},
 	{.Post, "/accounts/sessions/revoke", revoke, .Account_Self, {.Fragment}, 256},
+	{.Post, "/login/code", second_factor, .Public, {.Fragment}, 1024},
+	{.Get, "/step%-up", step_up_page, .Account_Self, {.Private}, 0},
+	{.Post, "/step%-up", step_up, .Account_Self, {.Fragment}, 2048},
+	{.Get, "/accounts/totp", totp_page, .Account_Self, {.Private}, 0},
+	{.Post, "/accounts/totp", totp_on, .Account_Self, {.Fragment}, 512},
+	{.Post, "/accounts/totp/codes", totp_codes, .Account_Self, {.Fragment, .Step_Up}, 0},
+	{.Post, "/accounts/totp/off", totp_off, .Account_Self, {.Fragment, .Step_Up}, 0},
 }
 
 // §17.5: attempts, right or wrong, per client and from everyone (n set at init).
@@ -56,22 +63,53 @@ page :: proc(req: ^web.Request, res: ^web.Response) {
 
 // ---- signing in ---------------------------------------------------------------------------
 
+// What a verified password goes on to: a session (or the code step first), or a step-up.
+@(private)
+Then :: enum u8 {
+	Sign_In,
+	Step_Up,
+}
+
 // On the heap from the handler to the answer: the pool's task, then the session's op.
 @(private)
 Login :: struct {
 	using verify: password.Verify,
 	deferred:     web.Deferred,
+	then:         Then,
 	user_id:      i64,
 	failed:       int,
 	known:        bool, // an enabled user by that name: a wrong password counts against it
+	totp:         bool, // the account has a second factor: a sign-in asks for a code next
 	https:        bool,
 	client:       u64, // web.client_key: the audit's client id
 	name:         [accounts.MAX_USERNAME]byte,
 	name_len:     int,
 	next:         [512]byte,
 	next_len:     int,
-	old:          [64]byte, // the session the request carried, closed by the sign-in
+	old:          [64]byte, // the session the request carried: closed by a sign-in, stepped up by a step-up
 	old_len:      int,
+}
+
+@(private)
+new_login :: proc(req: ^web.Request, u: m.User, known: bool, next: string, then: Then) -> ^Login {
+	c := web.ctx()
+	l := new(Login, runtime.heap_allocator())
+	l.then, l.user_id, l.failed, l.known, l.totp = then, u.id, u.failed_logins, known, known && u.totp_secret != ""
+	l.https, l.client = c.https, web.client_key(c.client)
+	l.name_len = copy(l.name[:], u.display)
+	l.next_len = copy(l.next[:], next)
+	l.old_len = copy(l.old[:], current_hash(req))
+	return l
+}
+
+// Answers a deferred request that ends here, and lets the Login go.
+@(private)
+answer :: proc(l: ^Login, body: string, status: web.Status) {
+	if r := web.resume(&l.deferred); r != nil {
+		web.respond_html(r, body, status)
+		web.finish(&l.deferred, r)
+	}
+	free(l, runtime.heap_allocator())
 }
 
 @(private)
@@ -111,21 +149,11 @@ sign_in :: proc(req: ^web.Request, res: ^web.Response) {
 		return
 	}
 
-	l := new(Login, runtime.heap_allocator())
-	l.user_id, l.failed, l.known, l.https, l.client = u.id, u.failed_logins, known, c.https, web.client_key(c.client)
-	l.name_len = copy(l.name[:], u.display)
-	l.next_len = copy(l.next[:], safe_next(f["next"]))
-	if token := web.cookie(req, COOKIE); len(token) == accounts.TOKEN_TEXT {
-		l.old_len = copy(l.old[:], accounts.hash_token(token))
-	}
+	l := new_login(req, u, known, safe_next(f["next"]), .Sign_In)
 	web.defer_response(req, res, &l.deferred)
 	// An unknown name is verified against the dummy all the same: the answer's time is the same.
 	if !password.submit(&l.verify, pw, u.pw_hash if known else "", verified) {
-		if r := web.resume(&l.deferred); r != nil {
-			web.respond_html(r, html.field_msg(false, "Busy: try again in a moment."), .Service_Unavailable)
-			web.finish(&l.deferred, r)
-		}
-		free(l, runtime.heap_allocator())
+		answer(l, html.field_msg(false, "Busy: try again in a moment."), .Service_Unavailable)
 	}
 }
 
@@ -133,29 +161,38 @@ sign_in :: proc(req: ^web.Request, res: ^web.Response) {
 @(private)
 verified :: proc(t: ^workers.Task) {
 	l := (^Login)(t)
-	if !l.ok {
-		if l.known && l.ran {
+	switch {
+	case !l.ran:
+		answer(l, html.field_msg(false, "Busy: try again in a moment."), .Service_Unavailable)
+	case !l.ok:
+		if l.known {
 			count_failure(l.user_id, l.failed + 1)
-			audit_store.append({client = client_id(l.client)}, "accounts.sign_in_failed", {"user", l.user_id}, "", "")
+			audit_store.append({client = client_id(l.client)}, "accounts.sign_in_failed", {"user", l.user_id}, "", "factor=password")
 		}
-		if r := web.resume(&l.deferred); r != nil {
-			if l.ran {
-				web.respond_html(r, html.field_msg(false, "Wrong username or password."), .Unprocessable_Content)
-			} else {
-				web.respond_html(r, html.field_msg(false, "Busy: try again in a moment."), .Service_Unavailable)
-			}
-			web.finish(&l.deferred, r)
-		}
-		free(l, runtime.heap_allocator())
-		return
+		answer(l, html.field_msg(false, "Wrong username or password." if l.then == .Sign_In else "That isn't your password."), .Unprocessable_Content)
+	case l.then == .Step_Up:
+		step_up_write(l, 0)
+	case l.totp:
+		// The password was right; the session waits for the code (second.odin).
+		b := strings.builder_make(context.temp_allocator)
+		views.code_form(&b, pending(l.user_id), string(l.next[:l.next_len]))
+		answer(l, strings.to_string(b), .OK)
+	case:
+		open_session(l, 0, "")
 	}
+}
+
+// The session for a verified sign-in: by password alone, or with the second factor it spends.
+@(private)
+open_session :: proc(l: ^Login, step: i64, recovery_hash: string) {
 	now := accounts.now_ms()
 	token, hash := accounts.new_token()
 	old := string(l.old[:l.old_len])
-	op := store.new_op(Opening, len(token) + len(hash) + len(old))
+	op := store.new_op(Opening, len(token) + len(hash) + len(old) + len(recovery_hash))
 	a := store.op_allocator(op)
 	op.login = l
 	op.token, op.token_hash, op.old_hash = strings.clone(token, a), strings.clone(hash, a), strings.clone(old, a)
+	op.totp_step, op.recovery_hash = step, strings.clone(recovery_hash, a)
 	op.user_id, op.now = l.user_id, now
 	op.expires_at, op.idle_before = now + accounts.lifetimes.max_ms, now - accounts.lifetimes.idle_ms
 	op.done = opened
@@ -181,12 +218,19 @@ opened :: proc(o: ^store.Op) {
 	res := web.resume(&l.deferred)
 	if res == nil { return }
 	req := web.request(&l.deferred)
-	if op.err != .None {
-		web.respond_store_error(req, res, op.err)
-	} else {
-		audit_store.append({l.user_id, string(l.name[:l.name_len]), client_id(l.client)}, "accounts.sign_in", {"session", 0}, "", "")
+	factor := "factor=totp" if op.totp_step > 0 else "factor=recovery" if op.recovery_hash != "" else ""
+	#partial switch op.err {
+	case .None:
+		audit_store.append({l.user_id, string(l.name[:l.name_len]), client_id(l.client)}, "accounts.sign_in", {"session", 0}, "", factor)
 		web.set_header(res, "set-cookie", issue(op.token, l.https))
 		go(req, res, string(l.next[:l.next_len]))
+	case .Constraint:
+		// A code taken already, or a recovery code that is none of the account's unused ones.
+		count_failure(l.user_id, l.failed + 1)
+		audit_store.append({client = client_id(l.client)}, "accounts.sign_in_failed", {"user", l.user_id}, "", factor)
+		web.respond_html(res, html.field_msg(false, "Wrong code, or one used already."), .Unprocessable_Content)
+	case:
+		web.respond_store_error(req, res, op.err)
 	}
 	web.finish(&l.deferred, res)
 }

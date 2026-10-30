@@ -18,7 +18,12 @@ User :: struct {
 	disabled_at:   i64,    // 0: enabled
 	failed_logins: int,
 	backoff_until: i64,    // no verify before this (exponential backoff, never a lockout)
+	totp_secret:    string, // base32; "" = no second factor
+	totp_last_step: i64,    // the last TOTP step a code was taken for: no code is taken twice
 }
+
+// How many recovery codes an enrolment hands out (§17.1).
+RECOVERY_CODES :: 10
 
 Session :: struct {
 	token_hash: string,
@@ -62,6 +67,29 @@ Open_Session :: struct {
 	now:         i64,
 	expires_at:  i64,
 	idle_before: i64, // a session last seen before this is dead
+	// The second factor this sign-in used, spent in the same transaction: the TOTP step (0:
+	// none), or a recovery code's hash. Already spent, the op fails with .Constraint.
+	totp_step:     i64,
+	recovery_hash: string,
+}
+
+// TOTP on (a secret and the hashes of its recovery codes) or off ("" and none). The user's old
+// codes go either way. `last_step` is the step the enrolment's own code was taken for.
+Set_Totp :: struct {
+	using op:  store.Op,
+	user_id:   i64,
+	secret:    string,
+	last_step: i64,
+	codes:     [RECOVERY_CODES]string,
+}
+
+// A step-up: the session's step_up_at is now. By code, the step is spent as a sign-in's is.
+Step_Up :: struct {
+	using op:   store.Op,
+	token_hash: string,
+	user_id:    i64,
+	now:        i64,
+	totp_step:  i64,
 }
 
 Touch_Session :: struct {
@@ -82,6 +110,7 @@ Store_User_By_Id :: proc(id: i64) -> (User, Error)
 Store_Session :: proc(token_hash: string) -> (Session, Error)
 Store_Sessions_Of :: proc(user_id: i64, into: ^[dynamic]Session) -> Error // newest first
 Store_Count_Admins :: proc() -> (int, Error)
+Store_Recovery_Left :: proc(user_id: i64) -> (int, Error)
 // At boot, before the loops: the first admin, when no enabled one exists.
 Store_Bootstrap_Admin :: proc(username, pw_hash: string) -> (created: bool, err: Error)
 Store_Create_User :: proc(op: ^Create_User) -> bool // false: the store is busy; `done` won't run
@@ -89,3 +118,5 @@ Store_Login_Failed :: proc(op: ^Login_Failed) -> bool
 Store_Open_Session :: proc(op: ^Open_Session) -> bool
 Store_Touch_Session :: proc(op: ^Touch_Session) -> bool
 Store_Close_Session :: proc(op: ^Close_Session) -> bool
+Store_Set_Totp :: proc(op: ^Set_Totp) -> bool
+Store_Step_Up :: proc(op: ^Step_Up) -> bool

@@ -39,6 +39,13 @@ Alex's NPM steps.
   actor and action prefix, scrolls by keyset 50 at a time and exports the filter as CSV through hx-download
   (`web.respond_csv`). Accounts' sign-ins, wrong passwords and session revokes are its first entries. e2e
   `audit.spec`, k6 `audit/audit.js`, the triggers in `audit/storetest`.
+- **Two-step sign-in, step-up and recovery codes** (M4 slice 5, PLAN §17.1, Q11): `platform/totp` (RFC 6238,
+  held by the RFCs' vectors); `/accounts/totp` turns it on by a code from the app (the key in base32 and as
+  `otpauth://` text) and hands out ten recovery codes, shown once and stored hashed; a sign-in to such an account
+  asks for a code (or a recovery code) after the password, spent in the session's own write so none works twice;
+  `/step-up` takes the password or a code on `.Step_Up` rows (new codes, off), back to the page the write came
+  from. An Admin without TOTP is a Member until it is on (`ACCOUNTS_ADMIN_TOTP`). e2e `totp.spec`, k6
+  `accounts/totp.js`.
 - **The generator knows identities that need SQLite**: a feature with no web package gives its domain's store need to
   the identity that reaches it, so `--identity accounts` asks for `--store sqlite` while `nick` still builds on
   memory; an identity's routes own their nav entries.
@@ -53,6 +60,13 @@ Alex's NPM steps.
   `/step-up?next=<path>`; unit tests hold each answer and `ROLE_PERMS` as §17.1 tables it.
 
 ### Fixed
+
+- **A store error no longer signs a member out** (M4): `identity_accounts` cleared the session cookie whenever
+  reading the session failed, not only when it had ended; now a failed read is a guest for that request, with the
+  cookie kept and a warn line.
+- **`audit/audit.js` measured the sign-in page**: k6 empties a VU's cookie jar each iteration, so after the first
+  every request was a guest's, redirected to `/login`. It keeps the jar now (`noCookiesReset`), and it and
+  `accounts/totp.js` fail a run whose checks fail.
 
 - **A commit whose short hash is all digits builds**: Odin read `-define:VERSION=6735963` as an integer, and every
   build of that commit failed. CI names a commit `sha-<7>`, as the image tags do, and `build.sh` and `build.bat`

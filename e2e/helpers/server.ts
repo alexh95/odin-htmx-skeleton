@@ -51,8 +51,8 @@ export function portFree(port: number): Promise<boolean> {
 // it a member; its key is fixed, so a nickname outlives a restart. The bot's mock is seeded
 // (the same question, the same answer) and quick. An accounts build boots its first admin
 // from the suite's test hash (helpers/accounts.ts holds the password) and lifts the sign-in
-// limits, which the suite's many sign-ins from one client would hit; a spec that tests them
-// starts its own server.
+// limits, which the suite's many sign-ins from one client would hit, and lets that admin be one
+// without TOTP; a spec that tests them starts its own server.
 // `env` overrides (a spec's own DB_PATH); `port` reuses one (a restart).
 export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {}, port?: number): Promise<Server> {
   const appDir = appDirFrom(config);
@@ -66,6 +66,7 @@ export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {
       LAN_CIDRS: '127.0.0.0/8', ACCOUNTS_NICK_KEY: 'e2e-only-nickname-signing-key-0123456789',
       BOT_SEED: '7', BOT_DELAY_MS: '25',
       ACCOUNTS_ADMIN_HASH: ADMIN_HASH, ACCOUNTS_LOGIN_PER_CLIENT: '1000000', ACCOUNTS_LOGIN_OVERALL: '1000000',
+      ACCOUNTS_ADMIN_TOTP: 'optional',
       METRICS_TOKEN_FILE: path.join(coverage, '.token'), ...env,
     },
   });

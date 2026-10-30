@@ -17,6 +17,10 @@ domain (`features/accounts`, package `accounts`) and its views:
 | `POST /logout` | public | closes this session, clears the cookie |
 | `GET /accounts/sessions` | `Account_Self` | the member's sessions, newest first, this device marked |
 | `POST /accounts/sessions/revoke` | `Account_Self` | `session` (its hash): one of the member's own (the store refuses another's); this one is signing out |
+| `POST /login/code` | public | the sign-in's second step: `pending` (signed, five minutes), `code` from the app or a recovery code, spent in the session's own write |
+| `GET`, `POST /step-up` | `Account_Self` | the password, or a code: `step_up_at` is now; back to `next` (a write's page, from `HX-Current-URL`) |
+| `GET`, `POST /accounts/totp` | `Account_Self` | two-step sign-in: the key (base32 and `otpauth://` text) and on by a code; the answer is ten recovery codes, shown once |
+| `POST /accounts/totp/codes`, `/accounts/totp/off` | `Account_Self`, step-up | new recovery codes (the old ones gone); off |
 
 - **The cookie**: `sid=<32 random bytes, base64url>; Path=/; Max-Age=<the absolute life>; HttpOnly; SameSite=Lax`,
   no `Domain` (host-only), `Secure` per `COOKIE_SECURE` (`auto`: when the request came as https through a trusted
@@ -31,6 +35,10 @@ domain (`features/accounts`, package `accounts`) and its views:
   account waits 1 s, doubling to 5 min: never a lockout. A backed-off account answers 429 without a verify, which
   tells a guesser that the name exists after three misses; the timing of a first miss doesn't (unknown names are
   verified against the dummy).
+- **Two-step sign-in** (`platform/totp`, RFC 6238): an account with it gets a code form after its password. A code is
+  taken once (`totp_last_step`), a recovery code once (`used_at`), each in the write that opens the session. An Admin
+  without it loads as a Member (`ACCOUNTS_ADMIN_TOTP=required`, the default; `optional` for the suites). Step-up asks
+  for a check within `ACCOUNTS_STEP_UP_WINDOW` (10 min); a sign-in counts as one.
 - **Argon**: `ACCOUNTS_ARGON_THREADS` workers (0, the default: 1 with two cores or fewer, else 2), each holding
   19 MiB, declared to `--limits` as the pool's memory; a queue of 32, past it 503.
 - **The first admin**: `ACCOUNTS_ADMIN_HASH` (a PHC string from `bin --hash-password`, which reads the password from
@@ -84,5 +92,6 @@ also fixes the key, so a nickname outlives the restarts its specs make.
 |---|---|
 | `/login` | front sends a Guest who lacks a route's perm here (§17.2): the identity's own page, whichever identity runs |
 | `/logout` | its pair |
+| `/step-up` | front sends a stale session on a `.Step_Up` row here (§17.2), as it sends a Guest to `/login` |
 
 Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md (`identity_nick`)
