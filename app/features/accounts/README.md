@@ -1,7 +1,44 @@
 # accounts
 
-Who is asking (PLAN §17.1, D35). At M2 only its `nick` identity exists (ANSWERS round 9): the rest of the feature,
-sessions, passwords, TOTP and `identity_accounts`, arrives at M4.
+Who is asking (PLAN §17.1, D35). Two identities live here: `nick` (M2, ANSWERS round 9) and `accounts` (M4: usernames,
+passwords and server-side sessions; TOTP, step-up, recovery and invites follow in M4's later slices). The feature has
+no web package: a profile reaches it through its identity, whose routes it mounts as `{"accounts", identity.ROUTES[:]}`,
+and the generator gives the domain's SQLite need to the identity that reaches it, so `nick` still builds on memory.
+
+## identity_accounts
+
+`features/accounts/identity_accounts` (package `accounts_identity_accounts`), `full`'s identity, on SQLite. Over the
+domain (`features/accounts`, package `accounts`) and its views:
+
+| Route | Perm | What |
+|---|---|---|
+| `GET /login` | public | the form; signed in, "Signed in as …" with sign-out |
+| `POST /login` | public | `username`, `password`, `next`: the verify on `platform/password`'s pool, then the session's write, one deferred response; 303 (or `HX-Redirect`) to `next` with the cookie; 422 wrong, 429 limited or backed off, 503 busy |
+| `POST /logout` | public | closes this session, clears the cookie |
+| `GET /accounts/sessions` | `Account_Self` | the member's sessions, newest first, this device marked |
+| `POST /accounts/sessions/revoke` | `Account_Self` | `session` (its hash): one of the member's own (the store refuses another's); this one is signing out |
+
+- **The cookie**: `sid=<32 random bytes, base64url>; Path=/; Max-Age=<the absolute life>; HttpOnly; SameSite=Lax`,
+  no `Domain` (host-only), `Secure` per `COOKIE_SECURE` (`auto`: when the request came as https through a trusted
+  proxy; `1`; `0` warns at every boot and the sign-in form says so). The store keeps only the token's hex SHA-256.
+- **Lifetimes**: 14 days idle (`ACCOUNTS_SESSION_IDLE`), 30 days absolute (`ACCOUNTS_SESSION_MAX`). `last_seen` is
+  written at most once a minute. A cookie whose session has ended is cleared on its next request.
+- **Rotation**: every sign-in makes a new token and closes the session the request carried, in the same transaction
+  as the new row, the user's swept dead sessions and the clearing of their failures. A sign-in counts as a step-up.
+  Rotation on a privilege change arrives with role changes (slice 6).
+- **Limits** (§17.5): 5 sign-ins per 15 min per client (`ACCOUNTS_LOGIN_PER_CLIENT`), 40 from everyone
+  (`ACCOUNTS_LOGIN_OVERALL`), right or wrong. Per account, the first three wrong passwords are free, then the
+  account waits 1 s, doubling to 5 min: never a lockout. A backed-off account answers 429 without a verify, which
+  tells a guesser that the name exists after three misses; the timing of a first miss doesn't (unknown names are
+  verified against the dummy).
+- **Argon**: `ACCOUNTS_ARGON_THREADS` workers (0, the default: 1 with two cores or fewer, else 2), each holding
+  19 MiB, declared to `--limits` as the pool's memory; a queue of 32, past it 503.
+- **The first admin**: `ACCOUNTS_ADMIN_HASH` (a PHC string from `bin --hash-password`, which reads the password from
+  stdin and prints the derive time on stderr) and `ACCOUNTS_ADMIN_NAME` (`admin`) make an Admin at boot while no
+  enabled one exists. A hash that isn't one of `platform/password`'s refuses to boot; no admin and no hash warns.
+
+The e2e suite (`e2e/helpers/accounts.ts`) and the load driver boot their servers with one test hash and lift the
+limits; the specs that test the limits, the backoff and the lifetimes start servers of their own.
 
 ## Data (M4)
 

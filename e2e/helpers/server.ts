@@ -5,6 +5,7 @@ import net from 'node:net';
 import path from 'node:path';
 import type { FullConfig } from '@playwright/test';
 import { appDirFrom, BIN, coverageDir } from '../global-setup';
+import { ADMIN_HASH } from './accounts';
 
 // Starts and talks to the server under test. fixtures.ts gives each worker one;
 // specs that need their own (a file DB, a store they may wreck) start one here.
@@ -14,7 +15,7 @@ import { appDirFrom, BIN, coverageDir } from '../global-setup';
 // (a listener attached after startServer returns would miss that). `coverage` is
 // where stopServer leaves its per-route counters.
 export type Server = { port: number; proc: ChildProcess; output: () => string; coverage: string };
-export type Resp = { status: number; body: string };
+export type Resp = { status: number; body: string; headers: http.IncomingHttpHeaders };
 
 // A port nothing listens on, picked by the OS. A fixed base can't promise that:
 // two runs at once collide, and on Windows a second server binds a taken port
@@ -48,7 +49,10 @@ export function portFree(port: number): Promise<boolean> {
 // person would, so the per-client stream caps are lifted (§9.4); the totals stand.
 // The suite's browser is loopback, which nick counts as the LAN, so a nickname makes
 // it a member; its key is fixed, so a nickname outlives a restart. The bot's mock is seeded
-// (the same question, the same answer) and quick.
+// (the same question, the same answer) and quick. An accounts build boots its first admin
+// from the suite's test hash (helpers/accounts.ts holds the password) and lifts the sign-in
+// limits, which the suite's many sign-ins from one client would hit; a spec that tests them
+// starts its own server.
 // `env` overrides (a spec's own DB_PATH); `port` reuses one (a restart).
 export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {}, port?: number): Promise<Server> {
   const appDir = appDirFrom(config);
@@ -61,6 +65,7 @@ export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {
       STREAM_CONNECTS: '1000000', STREAMS_PER_CLIENT: '4096', LAB_PUBLISH_PER_MINUTE: '100000000',
       LAN_CIDRS: '127.0.0.0/8', ACCOUNTS_NICK_KEY: 'e2e-only-nickname-signing-key-0123456789',
       BOT_SEED: '7', BOT_DELAY_MS: '25',
+      ACCOUNTS_ADMIN_HASH: ADMIN_HASH, ACCOUNTS_LOGIN_PER_CLIENT: '1000000', ACCOUNTS_LOGIN_OVERALL: '1000000',
       METRICS_TOKEN_FILE: path.join(coverage, '.token'), ...env,
     },
   });
@@ -111,7 +116,7 @@ function request(opts: http.RequestOptions, body?: string): Promise<Resp> {
     const req = http.request({ host: '127.0.0.1', ...opts }, (res) => {
       let b = '';
       res.on('data', (d) => (b += d));
-      res.on('end', () => resolve({ status: res.statusCode ?? 0, body: b }));
+      res.on('end', () => resolve({ status: res.statusCode ?? 0, body: b, headers: res.headers }));
     });
     req.on('error', reject);
     req.setTimeout(3000, () => req.destroy(new Error('request timeout')));
@@ -141,7 +146,7 @@ export function raw(port: number, bytes: string): Promise<number> {
   });
 }
 
-export const get = (port: number, p: string) => request({ port, path: p, method: 'GET' });
+export const get = (port: number, p: string, headers: http.OutgoingHttpHeaders = {}) => request({ port, path: p, method: 'GET', headers });
 export const del = (port: number, p: string) => request({ port, path: p, method: 'DELETE' });
 export const post = (port: number, p: string, form: string) =>
   request(

@@ -265,11 +265,12 @@ async function phaseHang() {
 // (M1-20).
 const CHUNKED = (target, body) => `${target} HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n${body}`;
 const F16 = [
-  // The profile's write, under its cap: minimal's and streams' notes take 4 KiB, so 500 chunks there
-  // (refused early, a bigger body's unread rest would reset the connection before the 413 is read); the
-  // depth is skeleton's, and lab's, on the compat page's save (an empty name is a 422).
-  PROFILE === 'minimal' || PROFILE === 'streams'
-    ? [CHUNKED('POST /notes', '1\r\na\r\n'.repeat(500) + '0\r\n\r\n'), '422']
+  // The profile's write, under its cap: minimal's and streams' notes take 4 KiB and full's sign-in
+  // 2 KiB, so 500 chunks there (refused early, a bigger body's unread rest would reset the connection
+  // before the 413 is read; a sign-in with no username is a 422); the depth is skeleton's, and lab's,
+  // on the compat page's save (an empty name is a 422).
+  PROFILE === 'minimal' || PROFILE === 'streams' || PROFILE === 'full'
+    ? [CHUNKED(PROFILE === 'full' ? 'POST /login' : 'POST /notes','1\r\na\r\n'.repeat(500) + '0\r\n\r\n'), '422']
     : [CHUNKED(PROFILE === 'lab' ? 'POST /compat/htmx2/save' : 'POST /contacts', '1\r\na\r\n'.repeat(12000) + '0\r\n\r\n'), '422'],
   [CHUNKED('GET /healthz', '1\r\na\r\n'.repeat(60000) + '0\r\n\r\n'), '413'],
   [CHUNKED('POST /', '1;' + 'x'.repeat(5000) + '\r\na\r\n0\r\n\r\n'), '413'],
@@ -332,7 +333,8 @@ function raw(port, payload, halfClose = true) {
 }
 
 async function phaseMalformed() {
-  const s = start(RELEASE_BIN);
+  // An accounts build's sign-in limits would answer full's write with 429 long before the F-16 checks.
+  const s = start(RELEASE_BIN, PROFILE === 'full' ? { ACCOUNTS_LOGIN_PER_CLIENT: '100000000', ACCOUNTS_LOGIN_OVERALL: '100000000' } : {});
   if (!(await ready(s))) return record('malformed: server starts', false);
   const N = 10000, PAR = 50, codes = {};
   for (let i = 0; i < N && s.exited === null; i += PAR) {

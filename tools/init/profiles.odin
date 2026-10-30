@@ -237,22 +237,32 @@ read_brand :: proc(p: ^Profile, src: Src) {
 	}
 }
 
-// The feature whose web package's ROUTES has a row of this method with exactly this pattern.
+// The feature whose web package's ROUTES has a row of this method with exactly this pattern;
+// an identity member's ROUTES are its feature's (/login is accounts').
 route_owner :: proc(path: string, want := "Get") -> string {
 	for f in catalog.features {
-		vd, ok := decl(f.web, "ROUTES")
-		if !ok || len(vd.values) != 1 { continue }
-		rows, is := comp_lit(vd.values[0])
-		if !is { continue }
-		for r in rows.elems {
-			rc, rok := comp_lit(r)
-			if !rok || len(rc.elems) < 2 { continue }
-			method, iok := rc.elems[0].derived_expr.(^ast.Implicit_Selector_Expr)
-			pat, _ := string_lit(rc.elems[1])
-			if iok && method.field.name == want && pat == path { return f.name }
-		}
+		if has_row(f.web, path, want) { return f.name }
+	}
+	for mb in catalog.members[.Identity] {
+		if has_row(catalog.tree.by_path[mb.dir], path, want) { return identity_feature(mb.name) }
 	}
 	return ""
+}
+
+@(private = "file")
+has_row :: proc(p: ^Pkg, path, want: string) -> bool {
+	vd, ok := decl(p, "ROUTES")
+	if !ok || len(vd.values) != 1 { return false }
+	rows, is := comp_lit(vd.values[0])
+	if !is { return false }
+	for r in rows.elems {
+		rc, rok := comp_lit(r)
+		if !rok || len(rc.elems) < 2 { continue }
+		method, iok := rc.elems[0].derived_expr.(^ast.Implicit_Selector_Expr)
+		pat, _ := string_lit(rc.elems[1])
+		if iok && method.field.name == want && pat == path { return true }
+	}
+	return false
 }
 
 @(private = "file")

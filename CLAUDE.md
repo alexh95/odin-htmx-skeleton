@@ -8,12 +8,13 @@ and gotchas that aren't obvious from the source and that are expensive to redisc
 A **starter** for server-rendered web apps: an **Odin** backend rendering HTML, **HTMX** on the
 front end, a SQLite or in-memory store, in one binary. A site is a **profile** (`app/cmd/<p>/`): a
 selection of **features** (`app/features/<f>/`) composed on a shared **platform**
-(`app/platform/`). Four profiles ship: `skeleton`, the 1.2.x contacts console rebuilt from features
+(`app/platform/`). Five profiles ship: `skeleton`, the 1.2.x contacts console rebuilt from features
 at its exact URLs (the worked example and the performance witness), `minimal`, the one-page
 notes starter, `lab`, the starter's own page (the catalog and the init-command builder at `/`) and the stream
-contract pages (SSE, WebSocket and multipart), and `streams`, the
-stream substrate's witness (chat on four transports, the Inbox, the `nick` identity; growing through
-M2). **Read [`PHILOSOPHY.md`](PHILOSOPHY.md) first**, then [`docs/PLAN.md`](docs/PLAN.md) (the plan:
+contract pages (SSE, WebSocket and multipart), `streams`, the
+stream substrate's witness (chat on four transports, the Inbox, the `nick` identity), and `full`,
+Houston (accounts with passwords and server-side sessions on SQLite; growing through M4).
+**Read [`PHILOSOPHY.md`](PHILOSOPHY.md) first**, then [`docs/PLAN.md`](docs/PLAN.md) (the plan:
 layers, features, milestones) and [`docs/design/DECISIONS.md`](docs/design/DECISIONS.md);
 [`docs/DATA.md`](docs/DATA.md) covers backups.
 
@@ -167,7 +168,8 @@ platform  L4 app        -> identity:., store:. (the family's NAME), L1-L3; only 
   fails in the store itself (`tools/check contracts` holds every store to it).
 - **Only `platform/web` imports odin-http**; it re-exports `web.Request` and `web.Response`.
 - **A family is a build-time choice** made by `build.sh`'s collection flags: `store:` (sqlite or
-  memory), `identity:` (anonymous, or `features/accounts/identity_nick`: `streams`), `client:`
+  memory), `identity:` (anonymous, `features/accounts/identity_nick`: `streams`, or
+  `features/accounts/identity_accounts`: `full`, which needs SQLite), `client:`
   (vanilla or hyperscript; `lab` is on hyperscript), `theme:` (full or lite). The
   members expose the same names (`NAME`, the stores' procs), so the code above them doesn't change.
 - **A profile is four hand-written files.** `routes.odin` mounts tables, one line each, as

@@ -5,7 +5,7 @@ built into one self-contained binary. The server is Odin, the HTML is generated 
 HTMX is the only front-end library, and every asset is compiled into the binary and served from
 memory. There is no NPM and no bundler; the build is `odin` through one script.
 
-Four profiles ship today:
+Five profiles ship today:
 
 | Profile | Features | Store | Theme | What it is |
 |---|---|---|---|---|
@@ -13,6 +13,7 @@ Four profiles ship today:
 | `minimal` | home, notes, about | memory (no SQLite library at all) | lite (one style, two schemes) | the one-page starter: a notes card added to over HTMX |
 | `lab` | lab, scripting, compat, about | memory | full | the stream contract pages (SSE, WebSocket and multipart from Odin to htmx 4's extensions), the nonce class (`/scripting`: hx-csp, hx-live, Trusted Types) and the compatibility layers (`/compat`), on the hyperscript client (M2) |
 | `streams` | home, notes, chat, notify, bot, ops, status, accounts (nick), about | memory (no SQLite library) | lite | chat on four transports (WebSocket, SSE, polling, multipart) with presence, typing, edits and read receipts, a live Inbox, the bot on its mock, a 1 Hz ops panel and a status page, for members who pick a nickname on the LAN (M2) |
+| `full` | home, accounts (accounts), about | SQLite | full | Houston, growing through M4: members sign in with a username and an argon2id password to a server-side session (`sid`), see and revoke their sessions; the first admin comes from `ACCOUNTS_ADMIN_HASH` (`bin --hash-password`). On the hyperscript client; its lab host arrives at M4 slice 10 |
 
 ## Run it
 

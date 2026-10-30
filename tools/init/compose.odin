@@ -74,6 +74,7 @@ select :: proc(name: string, base_name: string, features: []string, asked: [Fami
 		for f in s.features {
 			if ft := feature(f); ft != nil && sqlite_need(ft^) == "required" { s.members[.Store] = "sqlite" }
 		}
+		if mb, ok := member(.Identity, s.members[.Identity]); ok && mb.sqlite { s.members[.Store] = "sqlite" }
 	}
 	if s.members[.Identity] == "" {
 		// Lean (§7.4): nick, unless the selection has a page that needs a session-free origin (§7.3).
@@ -101,6 +102,9 @@ select :: proc(name: string, base_name: string, features: []string, asked: [Fami
 		if is_identity_feature(f) && identity_feature(s.members[.Identity]) != f {
 			problem("%s holds an identity, so it needs that identity: use --identity %s", f, identity_of_feature(f))
 		}
+	}
+	if mb, ok := member(.Identity, s.members[.Identity]); ok && mb.sqlite && s.members[.Store] != "sqlite" {
+		problem("--identity %s needs SQLite; use --store sqlite", mb.name)
 	}
 	if s.members[.Client] == "" { s.members[.Client] = "vanilla" }
 	if s.members[.Theme] == "" { s.members[.Theme] = "lite" }

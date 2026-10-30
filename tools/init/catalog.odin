@@ -66,6 +66,7 @@ FAMILY_FLAGS := [Family]string {
 // A family member: its name on the command line and its directory under app/.
 Member :: struct {
 	name, dir: string,
+	sqlite:    bool, // an identity that reaches its feature's SQLite-only domain (identity_accounts)
 }
 
 Catalog :: struct {
@@ -95,7 +96,7 @@ member_by_dir :: proc(fam: Family, dir: string) -> Member {
 	for m in catalog.members[fam] {
 		if m.dir == dir { return m }
 	}
-	return {dir, dir}
+	return {name = dir, dir = dir}
 }
 
 load_catalog :: proc(root: string) {
@@ -105,14 +106,14 @@ load_catalog :: proc(root: string) {
 	app := join(root, "app")
 
 	for name in subdirs(join(app, "stores")) {
-		append(&catalog.members[.Store], Member{name, join("stores", name)})
+		append(&catalog.members[.Store], Member{name = name, dir = join("stores", name)})
 	}
-	append(&catalog.members[.Identity], Member{"anonymous", "platform/authz/anonymous"})
+	append(&catalog.members[.Identity], Member{name = "anonymous", dir = "platform/authz/anonymous"})
 	for name in subdirs(join(app, "platform/client")) {
-		append(&catalog.members[.Client], Member{name, join("platform/client", name)})
+		append(&catalog.members[.Client], Member{name = name, dir = join("platform/client", name)})
 	}
 	for name in subdirs(join(app, "platform/theme")) {
-		append(&catalog.members[.Theme], Member{name, join("platform/theme", name)})
+		append(&catalog.members[.Theme], Member{name = name, dir = join("platform/theme", name)})
 	}
 
 	for name in subdirs(join(app, "features")) {
@@ -122,6 +123,7 @@ load_catalog :: proc(root: string) {
 			found := declares_proc(f.web, WEB_DECL_NAMES[d]) if d == .Init || d == .Home_Card else has_decl(f.web, WEB_DECL_NAMES[d])
 			if found { f.decls += {d} }
 		}
+		domain_store := false
 		for p in t.pkgs {
 			if p.feature != name { continue }
 			f.lines += p.lines
@@ -133,18 +135,32 @@ load_catalog :: proc(root: string) {
 			rest := strings.trim_prefix(p.path, strings.concatenate({"features/", name}))
 			if sub := strings.trim_prefix(rest, "/"); sub != "" && !slice.contains([]string{"models", "views", "web", "storetest"}, sub) {
 				if strings.has_prefix(sub, "identity_") {
-					append(&catalog.members[.Identity], Member{strings.trim_prefix(sub, "identity_"), p.path})
+					append(&catalog.members[.Identity], Member{name = strings.trim_prefix(sub, "identity_"), dir = p.path})
 				} else {
 					append(&f.switched, sub)
 				}
 			}
 			// An identity member's store is the member's need, not the feature's: `nick` needs none
 			// where `identity_accounts` needs SQLite, so a memory profile may mount accounts for nick.
+			// A feature with no web package is reached only through its identities, so its
+			// domain's store is theirs too.
 			member := strings.has_prefix(strings.trim_prefix(rest, "/"), "identity_")
 			for imp in p.imports {
 				g := feature_of_target(imp.target)
-				if g == name && strings.has_prefix(imp.target, "store:") && !member { f.uses_store = true }
+				if g == name && strings.has_prefix(imp.target, "store:") && !member {
+					if f.web == nil && rest == "" { domain_store = true } else { f.uses_store = true }
+				}
 				if g != "" && g != name && !slice.contains(f.deps[:], g) { append(&f.deps, g) }
+			}
+		}
+		if domain_store && !slice.contains(f.stores[:], "memory") {
+			domain := strings.concatenate({"features/", name})
+			for &mb in catalog.members[.Identity] {
+				p := t.by_path[mb.dir]
+				if p == nil || p.feature != name { continue }
+				for imp in p.imports {
+					if imp.target == domain { mb.sqlite = true }
+				}
 			}
 		}
 		append(&catalog.features, f)

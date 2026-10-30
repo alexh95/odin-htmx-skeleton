@@ -141,6 +141,9 @@ fi
 . lib/ports.sh
 
 SRV_PID=""
+# The suites' test admin: a test value, made with `bin --hash-password` from the password in
+# scenarios/accounts/login.js (and e2e/helpers/accounts.ts).
+TEST_ADMIN_HASH='$argon2id$v=19$m=19456,t=2,p=1$usNdKTDf754mp5KZr0QZOg$UmN+6Cr4ai7YMbp4f0SsrCtA/kmVO/w4cSHz7Fs8F8I'
 start_server() { # $1 = port
   # PORT is set, not just passed: the server prefers an exported PORT over argv.
   # LOG_LEVEL=warn drops the access log (~9% of throughput) so numbers stay
@@ -149,13 +152,16 @@ start_server() { # $1 = port
   # per-client stream caps are lifted (PLAN §9.4); the totals stand. k6 is loopback,
   # which a nick build counts as the LAN, so its VUs can pick nicknames, and as its admins,
   # so they can load /admin/ops. The bot's mock answers at once, and its hourly limits are
-  # lifted: a run measures the work, not the cap.
+  # lifted: a run measures the work, not the cap. An accounts build boots the suites' test
+  # admin with the sign-in limits lifted, for the same reason.
   PORT="$1" LOG_LEVEL="${LOG_LEVEL:-warn}" METRICS_TOKEN_FILE="$ROUTES/.token" \
     STREAM_CONNECTS="${STREAM_CONNECTS:-1000000}" STREAMS_PER_CLIENT="${STREAMS_PER_CLIENT:-4096}" \
     LAB_PUBLISH_PER_MINUTE="${LAB_PUBLISH_PER_MINUTE:-100000000}" \
     LAN_CIDRS="${LAN_CIDRS:-127.0.0.0/8}" ACCOUNTS_NICK_ADMIN_CIDRS="${ACCOUNTS_NICK_ADMIN_CIDRS:-127.0.0.1/32}" \
     BOT_DELAY_MS="${BOT_DELAY_MS:-0}" \
     BOT_MEMBER_PER_HOUR="${BOT_MEMBER_PER_HOUR:-100000000}" BOT_GUEST_PER_HOUR="${BOT_GUEST_PER_HOUR:-100000000}" \
+    ACCOUNTS_ADMIN_HASH="${ACCOUNTS_ADMIN_HASH:-$TEST_ADMIN_HASH}" \
+    ACCOUNTS_LOGIN_PER_CLIENT="${ACCOUNTS_LOGIN_PER_CLIENT:-100000000}" ACCOUNTS_LOGIN_OVERALL="${ACCOUNTS_LOGIN_OVERALL:-100000000}" \
     "$BIN" "$1" >"$RAW/server_$1.log" 2>&1 &
   SRV_PID=$!
   # wait for /healthz (up to ~10s)

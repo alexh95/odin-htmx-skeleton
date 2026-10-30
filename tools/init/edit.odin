@@ -212,6 +212,12 @@ family_command :: proc(opt: Options) {
 		if want == "" || want == p.members[fam] { continue }
 		if !has_member(fam, want) { problem("--%s %s: no such member", FAMILY_FLAGS[fam], want) }
 	}
+	store, id := p.members[.Store], p.members[.Identity]
+	if opt.members[.Store] != "" { store = opt.members[.Store] }
+	if opt.members[.Identity] != "" { id = opt.members[.Identity] }
+	if mb, ok := member(.Identity, id); ok && mb.sqlite && store != "sqlite" {
+		problem("--identity %s needs SQLite: %s's store would be %s", id, p.name, store)
+	}
 	if want := opt.members[.Store]; want != "" && want != p.members[.Store] {
 		for g in p.features {
 			gf := feature(g)

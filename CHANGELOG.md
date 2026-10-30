@@ -23,6 +23,20 @@ Alex's NPM steps.
 
 ### Added (M4, toward 2.3.0: not part of 2.2.0)
 
+- **`full`, Houston's profile** (M4 slice 3, PLAN §7.3): its main host alone for now (home, about, accounts) on
+  SQLite, the hyperscript client and the full theme; in CI's check, build, e2e (chromium + api), coverage, drills
+  and Docker jobs. Its lab host arrives with slice 10.
+- **Accounts: sign-in and sessions** (M4 slice 3, PLAN §17.1, §17.5): `identity_accounts`, the `identity:` family's
+  third member, over the new `accounts` domain and views. `/login` verifies on the argon pool, then opens a
+  server-side session (`sid`: 32 random bytes, host-only, `HttpOnly`, `SameSite=Lax`, `Secure` per `COOKIE_SECURE`;
+  only its SHA-256 stored), rotating the one the request carried; 14 days idle, 30 absolute; `/logout`;
+  `/accounts/sessions` with revoke. Sign-ins are limited to 5 per 15 min per client and 40 overall; wrong passwords
+  back an account off from 1 s to 5 min, never a lockout. `bin --hash-password` (with its derive time) makes
+  `ACCOUNTS_ADMIN_HASH`, the bootstrap admin's. e2e `accounts.spec`, k6 `accounts/login.js` (a sign-in storm).
+- **The generator knows identities that need SQLite**: a feature with no web package gives its domain's store need to
+  the identity that reaches it, so `--identity accounts` asks for `--store sqlite` while `nick` still builds on
+  memory; an identity's routes own their nav entries.
+
 - **Accounts' store** (M4, PLAN §17.1): `accounts_models` and `stores/sqlite/accounts` (users, sessions by the hash of
   their token, invites, recovery codes, preferences), held by `features/accounts/storetest`.
 - **`platform/password`** (M4, PLAN §17.1, S0.5): argon2id at OWASP's parameters as PHC strings, constant-time

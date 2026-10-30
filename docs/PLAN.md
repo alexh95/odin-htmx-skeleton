@@ -3991,6 +3991,16 @@ rotates on login and on any privilege change; sessions expire after 14 days idle
 sessions page with revoke. Browsers drop `Secure` cookies on plain http (07 §5.5), so stage 1a (LAN http) runs
 `COOKIE_SECURE=0` with a warn line on every boot and a banner.
 
+**As built (M4, slice 3):** `features/accounts/identity_accounts` over the `accounts` domain, `full`'s identity. The
+token is 32 random bytes as unpadded base64url; the cookie's `Max-Age` is the absolute life. A sign-in is two hops
+off the loop behind one deferred response (the verify on the argon pool, then one write that opens the session,
+closes the one the request carried, sweeps the user's dead sessions and clears their failures); it counts as a
+step-up. `last_seen` is written at most once a minute. The first three wrong passwords are free, then 1 s doubling to
+5 min. `ACCOUNTS_SESSION_IDLE`, `ACCOUNTS_SESSION_MAX`, `ACCOUNTS_LOGIN_PER_CLIENT` and `ACCOUNTS_LOGIN_OVERALL` carry
+§17.5's values as defaults, so the suites can lift them and test them on servers of their own. Until the shell has a
+banner slot, `COOKIE_SECURE=0` is said on the sign-in form. The first admin: `ACCOUNTS_ADMIN_HASH` with
+`ACCOUNTS_ADMIN_NAME` (`admin`), while no enabled admin exists.
+
 **TOTP and step-up** (Q11). TOTP follows RFC 6238 (vectors verified, 07 §0.6) with manual secret entry and the
 `otpauth://` text, no QR encoder. It is required for Admin and `Term_Write`. **Step-up** asks for the password or a
 TOTP code within the last 10 minutes on `.Step_Up` routes: `Term_Write`, role changes, invites and dbview. Recovery

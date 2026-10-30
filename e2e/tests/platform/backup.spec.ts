@@ -4,12 +4,13 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { startServer, stopServer, get, post, type Server } from '../../helpers/server';
+import { ADMIN } from '../../helpers/accounts';
 
 // The backup runbook in docs/DATA.md, end to end: write a row to a file DB,
 // back it up with `<bin> --backup` while the server is still running, then
 // restore by starting a server on the copy. Any build on the sqlite store: a
-// contact where it has contacts, else a note. API-only (no browser); starts its
-// own servers.
+// contact where it has contacts, a session where it has accounts (the copy still
+// knows its cookie), else a note. API-only (no browser); starts its own servers.
 test('a backup taken under a live server restores with the data in it', { tag: '@platform-sqlite' }, async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'odin-backup-'));
   const live = path.join(dir, 'data.db');
@@ -18,11 +19,20 @@ test('a backup taken under a live server restores with the data in it', { tag: '
   try {
     srv = await startServer(test.info().config, { DB_PATH: live });
     const demo = has('contacts');
-    const marker = `Backup ${Date.now()}`;
-    const made = demo
-      ? await post(srv.port, '/contacts', `name=${encodeURIComponent(marker)}&email=backup@example.dev`)
-      : await post(srv.port, '/notes', `body=${encodeURIComponent(marker)}`);
-    expect(made.status).toBe(200);
+    const accounts = !demo && has('accounts-accounts');
+    let marker = `Backup ${Date.now()}`;
+    let cookie = '';
+    if (accounts) {
+      const made = await post(srv.port, '/login', `username=${ADMIN.username}&password=${ADMIN.password}`);
+      expect(made.status).toBe(303);
+      cookie = String(made.headers['set-cookie']).split(';')[0];
+      marker = `Signed in as ${ADMIN.username}`;
+    } else {
+      const made = demo
+        ? await post(srv.port, '/contacts', `name=${encodeURIComponent(marker)}&email=backup@example.dev`)
+        : await post(srv.port, '/notes', `body=${encodeURIComponent(marker)}`);
+      expect(made.status).toBe(200);
+    }
 
     // The same binary the server runs, whatever init renamed it to.
     const bin = srv.proc.spawnfile;
@@ -34,8 +44,8 @@ test('a backup taken under a live server restores with the data in it', { tag: '
 
     await stopServer(srv);
     srv = await startServer(test.info().config, { DB_PATH: copy });
-    const page = demo ? `/api/search?q=${encodeURIComponent(marker)}` : '/';
-    expect((await get(srv.port, page)).body).toContain(marker);
+    const page = demo ? `/api/search?q=${encodeURIComponent(marker)}` : accounts ? '/login' : '/';
+    expect((await get(srv.port, page, cookie ? { cookie } : {})).body).toContain(marker);
   } finally {
     if (srv) await stopServer(srv);
     try { rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }

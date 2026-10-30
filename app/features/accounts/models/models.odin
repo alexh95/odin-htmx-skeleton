@@ -21,6 +21,7 @@ User :: struct {
 }
 
 Session :: struct {
+	token_hash: string,
 	user_id:    i64,
 	created_at: i64,
 	last_seen:  i64,
@@ -50,13 +51,17 @@ Login_Failed :: struct {
 	backoff_until: i64,
 }
 
-// A sign-in: the session row, and the user's failures cleared.
+// A sign-in: the session row, the user's failures cleared, the session it replaces (the
+// cookie the request carried, rotated) closed, and the user's dead sessions swept. A sign-in
+// is a password check, so it counts as a step-up.
 Open_Session :: struct {
-	using op:   store.Op,
-	token_hash: string,
-	user_id:    i64,
-	now:        i64,
-	expires_at: i64,
+	using op:    store.Op,
+	token_hash:  string,
+	old_hash:    string, // "" when the request carried none
+	user_id:     i64,
+	now:         i64,
+	expires_at:  i64,
+	idle_before: i64, // a session last seen before this is dead
 }
 
 Touch_Session :: struct {
@@ -65,15 +70,20 @@ Touch_Session :: struct {
 	now:        i64,
 }
 
+// Sign-out, and a member's revoke of one of their own sessions: only the user's.
 Close_Session :: struct {
 	using op:   store.Op,
 	token_hash: string,
+	user_id:    i64,
 }
 
 Store_User_By_Name :: proc(username: string) -> (User, Error)
 Store_User_By_Id :: proc(id: i64) -> (User, Error)
 Store_Session :: proc(token_hash: string) -> (Session, Error)
+Store_Sessions_Of :: proc(user_id: i64, into: ^[dynamic]Session) -> Error // newest first
 Store_Count_Admins :: proc() -> (int, Error)
+// At boot, before the loops: the first admin, when no enabled one exists.
+Store_Bootstrap_Admin :: proc(username, pw_hash: string) -> (created: bool, err: Error)
 Store_Create_User :: proc(op: ^Create_User) -> bool // false: the store is busy; `done` won't run
 Store_Login_Failed :: proc(op: ^Login_Failed) -> bool
 Store_Open_Session :: proc(op: ^Open_Session) -> bool

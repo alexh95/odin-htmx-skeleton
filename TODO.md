@@ -48,6 +48,13 @@ Alex, asked in one batch.
       limits (5 per 15 min per client id, 40 overall) and per-account exponential backoff, never a lockout.
       *Check:* e2e of login, logout, revoke and expiry; the login-storm budget (Q34: other routes' p99 ≤ base +
       0.5 ms under `cpus: 2.0`).
+      Progress: `cmd/full` (home, about, accounts; SQLite, hyperscript, full theme) in every CI job but the release;
+      `identity_accounts` with all of the above; `COOKIE_SECURE=0` warns at boot and the sign-in form says so (the
+      site-wide banner waits for the layout's slot, slice 7's shell); `--hash-password` prints the derive time (98 ms
+      on the dev PC, debug build); the pool's memory is declared to `--limits` (threads × 19 MiB); the generator gives
+      an identity its domain's SQLite need. `accounts.spec` (9 cases) and `accounts/login.js` (100 sign-ins/s at 20
+      VUs, the other pages' p99 under 100 ms) green; drills 27/27 on Windows. Left: the Q34 budget under
+      `cpus: 2.0`; rotation on a privilege change comes with role changes (slice 6).
 - [ ] **4. `audit`** (§17.7), mounted in `full`: `features/audit`, `store:audit`'s `append` in both families (SQLite: `audit_log`,
       append-only by triggers, deletes only past 400 days; memory: one `mod=audit` line), `/admin/audit`
       (`Admin_Audit`, SQLite profiles only) with filters, keyset infinite scroll and CSV through hx-download.
