@@ -244,6 +244,8 @@ jobs:
           - { profile: streams, browser: chromium, also: --project=api }
           - { profile: streams, browser: webkit }
           - { profile: full, browser: chromium, also: --project=api }
+          - { profile: full, browser: firefox } # the slice gate's three engines (PLAN §22.1 (b))
+          - { profile: full, browser: webkit }
           - { profile: full-vanilla, browser: chromium } # the core and twinned-behaviour specs on the other client
     steps:
       - uses: actions/checkout@v7

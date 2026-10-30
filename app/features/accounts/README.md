@@ -121,4 +121,4 @@ also fixes the key, so a nickname outlives the restarts its specs make.
 | `/register` | where an invite link lands (`/register?code=…`), so the link is short and says what it is |
 | `/reset` | where a member takes an admin's reset code; signed out, they have no `/accounts` page to reach |
 
-Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md (`identity_nick`)
+Audited: 30988ae 2026-10-30 docs/audit/M4.md (the fixes of M4-01 to M4-04 read in its re-read); cd72870's fixes of M4-17 to M4-19 are audit debt

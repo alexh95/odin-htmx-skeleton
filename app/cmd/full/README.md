@@ -11,3 +11,5 @@ one binary:
 
 The main host's tables keep the names tools/init reads (`ROUTES`, `TOPICS`, `JOBS`, `NAV`); the lab host's are
 `LAB_*`. tools/init doesn't edit a two-host profile: change these files by hand. A profile (PLAN §7).
+
+Audited: d136601 2026-10-30 docs/audit/M4.md

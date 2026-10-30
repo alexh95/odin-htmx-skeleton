@@ -6,4 +6,4 @@ is stored by the SHA-256 of its token, as hex, never the token; a sign-in's sess
 failures commit in one op. `features/accounts/storetest` holds it to the contract in `accounts_models`. A feature
 store.
 
-Audited: none yet (M4)
+Audited: 30988ae 2026-10-30 docs/audit/M4.md (the fixes of M4-01 to M4-04 read in its re-read); cd72870's fixes of M4-17 to M4-19 are audit debt

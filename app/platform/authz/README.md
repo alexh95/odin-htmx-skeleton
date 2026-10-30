@@ -10,4 +10,4 @@ for anyone else without it, `.Step_Up` for a session whose last password or TOTP
 than `step_up_window` (10 min; an identity may shorten it at boot) or never happened. `front` answers each (404; 401 with `HX-Redirect` or a 302 to
 `/login`, or to `/step-up?next=<path>`; 403); the unit tests hold every answer and the table.
 
-Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md
+Audited: d136601 2026-10-30 docs/audit/M4.md

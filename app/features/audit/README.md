@@ -24,3 +24,5 @@ and moderator action joins as it lands (role changes and invites at slice 6).
 `audit_log(id, at, actor_id, actor_name, action, target_kind, target_id, reason, client_id, meta)`, `INDEX(at)`; the
 triggers `audit_log_no_update` and `audit_log_keeps_400_days` (`stores/sqlite/audit`, migration `0001_audit.sql`).
 `features/audit/storetest` holds them.
+
+Audited: d136601 2026-10-30 docs/audit/M4.md

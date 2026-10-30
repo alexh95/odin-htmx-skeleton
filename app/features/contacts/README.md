@@ -22,4 +22,4 @@ Beyond `/contacts`, `/admin/contacts` and `/api/contacts` (D9):
 `contacts.reset` empties both tables and seeds them again once a day at that hour (the store's `reset`, one
 transaction). The skeleton does neither, so its rows are never capped or reset.
 
-Audited: bf831da 2026-10-26 docs/audit/M1.md; its M2 edits (`html.behave`, the layout's `#live`) are outside `docs/audit/M2.md`'s scope: audit debt
+Audited: d136601 2026-10-30 docs/audit/M4.md (its M4 diff); bf831da 2026-10-26 docs/audit/M1.md; its M2 edits (`html.behave`, the layout's `#live`) are outside `docs/audit/M2.md`'s scope: audit debt

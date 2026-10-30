@@ -9,4 +9,4 @@ replay, else `event: resync`). `hub.kick` ends a topic's streams (SSE `kicked`, 
 streams calls `hub.init()` and `hub.mount("<host>", ..TOPICS[:])` in `main` and mounts `hub.ROUTES` on that host; one
 that doesn't links none of it. Layer L3 (PLAN §5.1).
 
-Audited: c490e2a 2026-10-30 docs/audit/M3.md
+Audited: d136601 2026-10-30 docs/audit/M4.md (its M4 diff); c490e2a 2026-10-30 docs/audit/M3.md

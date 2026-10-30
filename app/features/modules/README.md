@@ -8,3 +8,5 @@ module's health and the migrations in force.
 It imports no feature (`tools/check imports` holds it to that): everything it shows is the platform's. `platform/app`
 fills `web.build` at `app.check`, and the SQLite store lists each `migrate` in `store.in_force`. So it can be mounted
 in any profile; `full` mounts it.
+
+Audited: d136601 2026-10-30 docs/audit/M4.md

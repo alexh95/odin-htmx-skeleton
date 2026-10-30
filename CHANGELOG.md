@@ -23,6 +23,19 @@ Alex's NPM steps.
 
 ### Added (M4, toward 2.3.0: not part of 2.2.0)
 
+*The 2.3.0 entry's lead, drafted for its tag (once 2.2.0 is cut, the M4 sections below become `[2.3.0]`):*
+
+The starter's fourth milestone, M4: identity and the Houston shell. `full`, Houston's profile, signs members in with
+argon2id passwords to server-side sessions on SQLite, with TOTP and recovery codes, step-up before sensitive writes,
+invites, admin resets, a member's sessions to see and revoke, and an append-only audit log; every route's permission,
+step-up and LAN-only rule is enforced in `front`, and `rbac.spec` freezes the role grants over every route, role and
+host. The same container serves a session-free lab host with the starter's demos and stream labs, the contacts demo
+capped and reset nightly. A member's theme follows them to every device (Houston's own `houston` scheme by default).
+`full-vanilla` runs the same specs on the vanilla client, and nightly fuzzes the generator's selections (a covering
+array, random selections and every singleton), which found a selection the generator accepted and couldn't boot. An
+independent audit (`docs/audit/M4.md`) found 1 HIGH, fixed and re-read. Houston's first deploy is Alex's (stage 1b,
+no invites yet).
+
 - **`full`, Houston's profile** (M4 slice 3, PLAN §7.3): its main host alone for now (home, about, accounts) on
   SQLite, the hyperscript client and the full theme; in CI's check, build, e2e (chromium + api), coverage, drills
   and Docker jobs. Its lab host arrives with slice 10.

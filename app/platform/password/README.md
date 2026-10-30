@@ -9,4 +9,4 @@ nothing per login. A stored string may name only these parameters or OWASP's sma
 database row can't ask for any cost. `check` is the length rule, 10–256 bytes. Both identities that take a password
 use it: `accounts` and `envadmin`. Layer L2 (PLAN §5.1).
 
-Audited: none yet (M4)
+Audited: d136601 2026-10-30 docs/audit/M4.md

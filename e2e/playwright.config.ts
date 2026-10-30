@@ -6,12 +6,12 @@ import { defineConfig, devices } from '@playwright/test';
 const API_ONLY =
   /[\\/](backup|canonical|cross-site|dashboard|demo|events|hosts|ids|limits|headers|ops|persistence|protocol|rbac|routing|seo|writes)\.spec\.ts$/;
 
-// skeleton and lab run in the three engines (Firefox in CI only: it can't start
+// skeleton, lab and full run in the three engines (Firefox in CI only: it can't start
 // on the dev PC), streams in chromium and webkit, every other profile in chromium
 // (PLAN §19.1.2); the api project always. E2E_PROFILE picks the profile, as in
 // global-setup.ts.
 const PROFILE = process.env.E2E_PROFILE || 'skeleton';
-const ENGINES = ['skeleton', 'lab'].includes(PROFILE) ? ['chromium', 'firefox', 'webkit']
+const ENGINES = ['skeleton', 'lab', 'full'].includes(PROFILE) ? ['chromium', 'firefox', 'webkit']
   : PROFILE === 'streams' ? ['chromium', 'webkit'] : ['chromium'];
 const DEVICE: Record<string, string> = { chromium: 'Desktop Chrome', firefox: 'Desktop Firefox', webkit: 'Desktop Safari' };
 
