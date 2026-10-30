@@ -3,7 +3,7 @@
 //   node tools/drills/drills.mjs <profile> [phase …] [--wsl DIR]
 //
 // Phases (default: all): release pure dirty burst hang logstall malformed slowread wsdata streamcrash
-// shutdown streamdrain latewrite restart fdceiling streamfd budgets.
+// shutdown streamdrain latewrite restart fdceiling streamfd opsviewers budgets.
 // It builds the profile twice through build.{sh,bat}: a TEST_ROUTES build, which mounts
 // /__test/crash/<kind> and /__test/shutdown (platform/web/drills.odin), and the release build at
 // -o:speed, which must answer 404 there and is the one the budgets measure. Every server is fresh,
@@ -35,7 +35,7 @@ if (!PROFILE) {
 const WIN = process.platform === 'win32' && !WSL;
 const LINUX = !WIN;
 const EXE = WIN ? '.exe' : '';
-const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'logstall', 'malformed', 'slowread', 'wsdata', 'streamcrash', 'shutdown', 'streamdrain', 'latewrite', 'restart', 'fdceiling', 'streamfd', 'budgets'];
+const ALL = ['release', 'pure', 'dirty', 'burst', 'hang', 'logstall', 'malformed', 'slowread', 'wsdata', 'streamcrash', 'shutdown', 'streamdrain', 'latewrite', 'restart', 'fdceiling', 'streamfd', 'opsviewers', 'budgets'];
 const phases = PHASES.length ? PHASES : ALL;
 
 // PLAN §18.4 (ANSWERS round 7): binaries in MiB, Windows -o:speed, as CI reads them; idle memory
@@ -744,6 +744,67 @@ function onServerSide(cmd, args) {
     : spawn(cmd.includes('/') ? path.join(ROOT, cmd) : cmd, args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
+// The server's CPU time so far, in ms, read from outside: Windows' TotalProcessorTime, Linux's
+// utime + stime (clock ticks of 10 ms).
+function cpuMs(s) {
+  if (WIN && !WSL) {
+    const r = spawnSync('powershell', ['-NoProfile', '-Command', `(Get-Process -Id ${s.pid}).TotalProcessorTime.TotalMilliseconds`], { encoding: 'utf8' });
+    return Number(r.stdout.trim());
+  }
+  const st = WSL ? spawnSync('wsl', ['-e', 'cat', `/proc/${s.pid}/stat`], { encoding: 'utf8' }).stdout : readFileSync(`/proc/${s.pid}/stat`, 'utf8');
+  const f = st.slice(st.lastIndexOf(')') + 2).split(' ');
+  return (Number(f[11]) + Number(f[12])) * 10;
+}
+
+// One ops render a second whatever the number of viewers (PLAN §15.4, M5): 1, 10 and 100 SSE
+// viewers of the panel's topic, each held 10 s; the server's CPU a second at each count, and every
+// viewer's refreshes. A nick build's loopback admin, so no password is involved.
+async function phaseOpsViewers(f) {
+  if (!f.features.includes('ops') || f.identity !== 'nick') return console.log('skip  opsviewers: no ops on the nick identity here');
+  const s = start(RELEASE_BIN, {
+    ...STREAMS_ENV, LOG_LEVEL: 'warn', LAN_CIDRS: '0.0.0.0/0', ACCOUNTS_NICK_FROM: 'all',
+    ACCOUNTS_NICK_ADMIN_CIDRS: '0.0.0.0/0', ACCOUNTS_NICK_KEY: 'drill-only-nickname-signing-key-0123456789',
+  });
+  if (!(await ready(s))) return record('opsviewers: server starts', false);
+  const cookie = await new Promise((res) => {
+    const req = http.request({ host: '127.0.0.1', port: s.port, path: '/login', method: 'POST', agent: false,
+      headers: { 'content-type': 'application/x-www-form-urlencoded' } }, (r) => {
+      r.resume();
+      res((r.headers['set-cookie'] ?? []).map((c) => c.split(';')[0]).join('; '));
+    });
+    req.on('error', () => res(''));
+    req.end('nick=drill&next=%2F');
+  });
+  const watch = (n) => Array.from({ length: n }, () => {
+    const v = { events: 0, req: null };
+    v.req = http.get({ host: '127.0.0.1', port: s.port, path: '/events?t=ops.panel', agent: false, headers: { cookie } }, (r) => {
+      r.setEncoding('utf8');
+      r.on('data', (c) => { v.events += (c.match(/^id: /gm) || []).length; });
+      r.on('error', () => {});
+    });
+    v.req.on('error', () => {});
+    return v;
+  });
+  const rows = [];
+  for (const n of [1, 10, 100]) {
+    const vs = watch(n);
+    await sleep(3000);
+    const c0 = cpuMs(s); const e0 = vs.map((v) => v.events);
+    await sleep(10000);
+    const perS = (cpuMs(s) - c0) / 10;
+    const least = Math.min(...vs.map((v, i) => v.events - e0[i]));
+    rows.push({ n, perS, least });
+    for (const v of vs) v.req.destroy();
+    await sleep(1000);
+  }
+  const [one, , hundred] = rows;
+  // Flat: 99 more viewers cost at most 3 % of a core (each gets the same bytes; nothing renders twice).
+  record('opsviewers: 100 viewers of the ops panel cost about what 1 does, and every one refreshes each second',
+    !!cookie && hundred.perS - one.perS <= 30 && rows.every((r) => r.least >= 8),
+    rows.map((r) => `${r.n}: ${r.perS.toFixed(1)} ms CPU/s, the slowest viewer ${r.least} refreshes in 10 s`).join('; '));
+  await stop(s);
+}
+
 async function phaseStreamFd(f) {
   if (WIN) return record('streamfd: Linux only (a ulimit)', true, 'skipped on Windows');
   if (!f.features.includes('lab')) return console.log('skip  streamfd: no streams in this profile');
@@ -818,7 +879,7 @@ if (!WIN && f.features.includes('lab') && phases.includes('streamfd')) {
 console.log(`${PROFILE} on ${WSL ? 'Linux (WSL)' : process.platform}: store ${f.store}; phases: ${phases.join(' ')}`);
 const PH = {
   release: phaseRelease, pure: phasePure, dirty: () => phaseDirty(f), burst: phaseBurst, hang: phaseHang, logstall: phaseLogStall,
-  malformed: phaseMalformed, slowread: phaseSlowRead, wsdata: () => phaseWsData(f), streamcrash: () => phaseStreamCrash(f), shutdown: phaseShutdown, streamdrain: () => phaseStreamDrain(f), latewrite: () => phaseLateWrite(f), restart: phaseRestart, fdceiling: phaseFdCeiling, streamfd: () => phaseStreamFd(f), budgets: phaseBudgets,
+  malformed: phaseMalformed, slowread: phaseSlowRead, wsdata: () => phaseWsData(f), streamcrash: () => phaseStreamCrash(f), shutdown: phaseShutdown, streamdrain: () => phaseStreamDrain(f), latewrite: () => phaseLateWrite(f), restart: phaseRestart, fdceiling: phaseFdCeiling, streamfd: () => phaseStreamFd(f), opsviewers: () => phaseOpsViewers(f), budgets: phaseBudgets,
 };
 for (const p of phases) {
   if (!PH[p]) { console.error(`unknown phase ${p}`); process.exit(2); }

@@ -31,9 +31,11 @@ metrics only). Pushes are on the standing go; apollo, tags and anything on Alex'
       (each refresh mode, 403 for a member, 404 off the LAN, a guest sent to sign in); `rbac.spec` covers the rows.
       Done: `houston.spec` (each mode, the Store card, a guest to sign in), `status.spec` on the main host, rbac's
       rows; `ops/houston.js` and `status.js` reach every route on `full`.
-- [ ] **2. One ops render whatever the viewers** (§15.4): *Check:* a measurement of the server's CPU with 1, 10 and 100
+- [x] **2. One ops render whatever the viewers** (§15.4): *Check:* a measurement of the server's CPU with 1, 10 and 100
       SSE viewers of `/admin/ops` (`tools/streamload` or a k6 scenario), flat within noise, recorded in `docs/perf/`;
       a unit or drill assertion that the publisher renders once a second.
+      Done: the `opsviewers` drill (Windows 0.0 / 1.6 / 3.1 ms of CPU a second at 1 / 10 / 100 viewers, 11 refreshes
+      each in 10 s; Linux in CI's `streams` drills), `docs/perf/OPS-VIEWERS.md`.
 - [ ] **3. status, full** (§15.4): `STATUS_PROBES` externals with 2 s timeouts (connect and resolve included), disk
       free and backup age as parts, one `multipart/parallel` response whose parts arrive as each answers. *Check:* a
       spec with a slow and a fast external asserting the fast part swaps first (the parallel order); the ptag variant.

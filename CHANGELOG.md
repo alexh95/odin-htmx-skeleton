@@ -15,6 +15,8 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   schema and statement memory from `sqlite3_db_status` (MEMSTATUS is off), which `platform/store/sqlite` pushes to
   `platform/obs` (the writer after each batch, each loop's reader on its 1 s timer), so ops never imports the store.
   `houston.spec` and `ops/houston.js` cover the admin's side; `status.js` reads the main host.
+- **The `opsviewers` drill** (M5 slice 2): 1, 10 and 100 SSE viewers of the ops panel, the server's CPU read from
+  outside: flat (0 to 3.1 ms a second on Windows), every viewer refreshed each second (`docs/perf/OPS-VIEWERS.md`).
 
 ## [2.3.0] - 2026-10-30
 
