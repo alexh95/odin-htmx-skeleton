@@ -243,7 +243,12 @@ totp_page :: proc(req: ^web.Request, res: ^web.Response) {
 // first, which is a step-up of the factor in force.
 @(private)
 totp_on :: proc(req: ^web.Request, res: ^web.Response) {
-	if u, err := accounts.user_by_id(i64(web.ctx().viewer.id)); err != .None || u.totp_secret != "" {
+	u, err := accounts.user_by_id(i64(web.ctx().viewer.id))
+	if err != .None {
+		web.respond_store_error(req, res, err)
+		return
+	}
+	if u.totp_secret != "" {
 		refuse(res, "Two-step sign-in is already on: turn it off first.")
 		return
 	}
@@ -266,7 +271,9 @@ totp_codes :: proc(req: ^web.Request, res: ^web.Response) {
 		web.respond_html(res, html.field_msg(false, "Two-step sign-in is off."), .Unprocessable_Content)
 		return
 	}
-	set_totp(req, res, u.totp_secret, u.totp_last_step, "accounts.recovery_codes")
+	// Only over the factor read here: an off (or an off and a new one) between the read and the write
+	// isn't undone (the M4 re-read).
+	set_totp(req, res, u.totp_secret, u.totp_last_step, "accounts.recovery_codes", was = u.totp_secret)
 }
 
 // POST /accounts/totp/off (a step-up).
@@ -286,11 +293,12 @@ Setting :: struct {
 }
 
 @(private)
-set_totp :: proc(req: ^web.Request, res: ^web.Response, secret: string, last_step: i64, action: string, enrol := false) {
+set_totp :: proc(req: ^web.Request, res: ^web.Response, secret: string, last_step: i64, action: string, enrol := false, was := "") {
 	c := web.ctx()
 	codes := accounts.new_recovery_codes() if secret != "" else {}
-	op := store.new_op(Setting, len(secret) + len(action) + len(c.viewer.name) + 2 * m.RECOVERY_CODES * 80)
+	op := store.new_op(Setting, len(secret) + len(was) + len(action) + len(c.viewer.name) + 2 * m.RECOVERY_CODES * 80)
 	a := store.op_allocator(op)
+	op.was = strings.clone(was, a)
 	op.user_id, op.secret, op.last_step, op.enrol = i64(c.viewer.id), strings.clone(secret, a), last_step, enrol
 	op.action, op.name, op.client = strings.clone(action, a), strings.clone(c.viewer.name, a), web.client_key(c.client)
 	for code, i in codes {
@@ -310,6 +318,8 @@ set_totp :: proc(req: ^web.Request, res: ^web.Response, secret: string, last_ste
 		switch {
 		case op.enrol && op.err == .Constraint:
 			refuse(res, "Two-step sign-in is already on: turn it off first.")
+		case op.was != "" && op.err == .Constraint:
+			refuse(res, "Two-step sign-in changed meanwhile: look again.")
 		case op.err != .None:
 			web.respond_store_error(req, res, op.err)
 		case op.secret == "":

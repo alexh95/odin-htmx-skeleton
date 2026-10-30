@@ -28,9 +28,10 @@ import audit_store "store:audit"
 registers := web.Limit{n = 3, window = time.Hour}
 @(private)
 codes_tried := web.Limit{n = 10, window = time.Hour}
-// Every reset's new password is hashed on the argon pool: from everyone, at most these (M4-03).
+// Every reset's new password is hashed on the argon pool: per account, at most these (M4-03). Keyed
+// by the account a well-formed code names, not by everyone, so a stranger can't shut /reset (re-read).
 @(private)
-resets_all := web.Limit{n = 60, window = time.Hour}
+resets_per_account := web.Limit{n = 5, window = time.Hour}
 
 // A new password on its way through the pool to the write that uses it.
 @(private)
@@ -236,10 +237,6 @@ reset :: proc(req: ^web.Request, res: ^web.Response) {
 		web.respond_limited(res, retry, html.field_msg(false, "Too many codes from here: try again later."))
 		return
 	}
-	if ok, retry := web.limit_hit(&resets_all, 0); !ok {
-		web.respond_limited(res, retry, html.field_msg(false, "Too many resets right now: try again later."))
-		return
-	}
 	f := web.form(req)
 	if p := accounts.check_new_password(f["password"], f["again"]); p != "" { refuse(res, p); return }
 	u, err := accounts.user_by_name(strings.trim_space(f["username"]))
@@ -247,6 +244,10 @@ reset :: proc(req: ^web.Request, res: ^web.Response) {
 	if err != .None || code_hash == "" {
 		// The write would say the same for a wrong code; an unknown name says no more.
 		refuse(res, "That code doesn't match, or was used.")
+		return
+	}
+	if ok, retry := web.limit_hit(&resets_per_account, u64(u.id)); !ok {
+		web.respond_limited(res, retry, html.field_msg(false, "Too many resets for this account: try again later."))
 		return
 	}
 	h := new(Hashing, runtime.heap_allocator())

@@ -196,6 +196,18 @@ Alex, asked in one batch.
       by an agent that didn't write the code, 0 open CRITICAL/HIGH; `Audited:` stamps; CHANGELOG's 2.3.0 entry.
       Then, with Alex: `--hash-password` for the bootstrap admin (Alex alone; it measures apollo's derive time), the
       v2.3.0 tag, `starter-full` promoted, and Houston and its lab host through NPM at stage 1b (no invites yet).
+      Progress (2026-10-30): `docs/audit/M4.md` by an agent that didn't write the code (1 HIGH, 3 MEDIUM, 9 LOW,
+      3 NIT), fixes in `30988ae` and after, then a re-read by another: 0 open CRITICAL or HIGH (M4-01 fixed and
+      read; the re-read's M4-17 MEDIUM and two LOWs fixed). The parity gate's Windows leg at `d136601`: 18 of 20 at
+      n = 3, `seo@file` passes at n = 5 (1.00); `static@file` reads 0.97 at n = 5 with `static@mem` at 1.00 on the
+      same code path. Left: the Linux leg, the stamps, the 2.3.0 lead, and Alex's part.
+- [ ] **M4 audit, open** (`docs/audit/M4.md`): M4-03's rest (the sign-in's overall bucket and the per-account
+      backoff, §17.5: a stranger can slow every sign-in, never lock one out; decide before stage 2); M4-04's rest
+      (an entry a full writer queue drops is not logged; entries are their own op, not the change's transaction);
+      M4-05 username oracles, M4-06 ops not one unit, M4-07 the reversible client id, M4-08 `__Host-sid`, M4-09
+      streams outliving a sign-out, M4-10 no admin way to clear a lost authenticator, M4-11 `ACCOUNTS_ADMIN_NAME`
+      unchecked, M4-12 the snapshot's busybox pin (with M3-08's), M4-13 fuzz cases for the new parsers (with
+      M3-09's), M4-14 to M4-16 (NIT).
 
 ## M3 — pipeline, apollo LAN, the landing page (v2.2.0)
 

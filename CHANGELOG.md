@@ -118,6 +118,9 @@ Alex's NPM steps.
   cookies and the WebSocket key go through it.
 - **A stranger could fill the sign-in buckets and lock every admin out of step-ups** (M4-03): a step-up counts
   against the member's own limit, and resets, which hash on the argon pool, have an overall one.
+- **The M4 re-read's own** (M4-17 to M4-19): resets are capped per account, not by one bucket a few clients could
+  fill; `/accounts/totp` answers a store error as one; new recovery codes are written only over the factor they
+  were asked for.
 - **A change whose client left was written without its audit entry** (M4-04): every audited continuation appends
   its entry (and an admin change its revoke) before it looks for the client.
 - **tools/init accepted selections that couldn't boot** (M4 slice 13): `scripting` or `compat` give a selection the

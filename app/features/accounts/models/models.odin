@@ -175,6 +175,7 @@ Set_Totp :: struct {
 	last_step: i64,
 	codes:     [RECOVERY_CODES]string,
 	enrol:     bool, // only over no secret: .Constraint, and nothing written, when one is set (M4-01)
+	was:       string, // else, when set: only over this secret, .Constraint when it changed meanwhile
 }
 
 // A step-up: the session's step_up_at is now. By code, the step is spent as a sign-in's is.
