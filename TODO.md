@@ -42,10 +42,13 @@ metrics only). Pushes are on the standing go; apollo, tags and anything on Alex'
       Done: a prober thread per external with waiters (single-flight), the 2.5 s cut-off on the page's loop, the disk
       part; `status.spec`'s parallel-order case (fast at ~0.1 s, slow at ~1.6 s in a browser) green in chromium and
       webkit on full, lab and streams. Backup age joins with slice 6.
-- [ ] **4. Runs as data in `platform/workers`** (§15.4, LC §9): each run of a `JOBS` row has an id, a state
+- [x] **4. Runs as data in `platform/workers`** (§15.4, LC §9): each run of a `JOBS` row has an id, a state
       (queued, running, done, failed, cancelled), progress and a bounded log; `run_now(id)` returns the run, and
       `cancel(run)` asks a running job to stop at its next check. workers never calls a feature. *Check:* unit tests
       of the states, cancel and the log bound.
+      Done: `Run` in a ring of 64 (`runs_since`, `run_of`), `cancel_run` (`cancel` is the pool's), `current`,
+      `progress`, `log` (4 KiB, cut and said), `cancelled`; frequent jobs kept only by hand; a slot still queued or
+      running is never overwritten. `workers_test` holds each state, both cancels and the ring's order.
 - [ ] **5. `jobs`** (`/admin/jobs`, §15.4): `jobs_runs` in SQLite with leases, so a run a restart interrupted resumes
       or fails on boot; the page lists every job, its schedule and last runs, progress upserting over `jobs.runs`
       (key = run id); run now and cancel with an hx-prompt reason, audited; a run's log as a download. Perm

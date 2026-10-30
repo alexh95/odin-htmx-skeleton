@@ -96,13 +96,60 @@ pool_and_scheduler :: proc(t: ^testing.T) {
 	testing.expect(t, !submit(&p, &extra), "a drained pool refuses")
 	stop(&p)
 
-	// The scheduler: a job runs every wake, and run_now is honoured.
+	// The scheduler: a job runs every wake, and run_now is honoured. A frequent job's runs are
+	// kept only when asked for by hand; a long one reports progress and a log, and stops when
+	// cancelled; a queued run cancelled never runs.
 	@(static) ran: int
-	@(static) JOBS := [?]Job{{id = "test.tick", every = 0, run = proc() { sync.atomic_add(&ran, 1) }}}
+	@(static) JOBS := [?]Job{
+		{id = "test.tick", every = 0, run = proc() { sync.atomic_add(&ran, 1) }},
+		{id = "test.slow", every = time.Hour, run = proc() {
+			for i in 0 ..< 200 {
+				if cancelled() { return }
+				progress(i64(i), 200)
+				log("step %d", i)
+				time.sleep(10 * time.Millisecond)
+			}
+		}},
+	}
 	schedule({JOBS[:]})
-	testing.expect(t, run_now("test.tick"))
-	testing.expect(t, !run_now("test.nope"))
+	tick, tick_ok := run_now("test.tick")
+	testing.expect(t, tick_ok && tick != 0)
+	_, nope := run_now("test.nope")
+	testing.expect(t, !nope)
+	settle :: proc(id: u64, want: Run_State) -> Run {
+		r: Run
+		for i := 0; i < 100; i += 1 {
+			r, _ = run_of(id)
+			if r.state == want { break }
+			time.sleep(50 * time.Millisecond)
+		}
+		return r
+	}
+	testing.expect_value(t, settle(tick, .Done).state, Run_State.Done)
 	for i := 0; sync.atomic_load(&ran) < 2 && i < 40; i += 1 { time.sleep(100 * time.Millisecond) }
+
+	slow, _ := run_now("test.slow")
+	running := settle(slow, .Running)
+	testing.expect_value(t, running.state, Run_State.Running)
+	qd, _ := run_now("test.tick") // behind the slow one: the scheduler runs one job at a time
+	testing.expect(t, cancel_run(qd))
+	testing.expect_value(t, settle(qd, .Cancelled).state, Run_State.Cancelled)
+	time.sleep(100 * time.Millisecond)
+	testing.expect(t, cancel_run(slow))
+	done := settle(slow, .Cancelled)
+	testing.expect_value(t, done.state, Run_State.Cancelled)
+	testing.expect(t, done.total == 200 && done.done > 0 && done.done < 199)
+	testing.expect(t, done.log_len > 0 && string(done.log[:7]) == "step 0\n")
+	testing.expect(t, !cancel_run(slow)) // ended
+
+	got := make([dynamic]Run, context.temp_allocator)
+	v := runs_since(0, &got)
+	testing.expect(t, v > 0 && len(got) == 3) // the frequent job's own runs were never kept
+	testing.expect(t, got[0].id == tick && got[1].id == slow && got[2].id == qd)
+	testing.expect(t, got[0].by_hand && got[1].by_hand)
+	clear(&got)
+	testing.expect_value(t, runs_since(v, &got), v)
+	testing.expect_value(t, len(got), 0)
 	unschedule()
 	testing.expect(t, sync.atomic_load(&ran) >= 2)
 	st, ok := job_state("test.tick")
