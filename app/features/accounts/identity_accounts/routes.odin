@@ -8,6 +8,9 @@ package accounts_identity_accounts
 // existing account and a revoke of another session go to the audit log (§17.7).
 
 import "base:runtime"
+import "core:crypto/hmac"
+import "core:crypto/sha2"
+import "core:encoding/endian"
 import "core:fmt"
 import "core:strings"
 import "core:time"
@@ -384,7 +387,8 @@ closed :: proc(o: ^store.Op) {
 
 // ---- helpers ------------------------------------------------------------------------------
 
-// The audit's client id: the hashed address (web.client_key), never the address. In a per-thread
+// The audit's client id: an HMAC of the address's key (web.client_key) under ACCOUNTS_AUDIT_KEY,
+// never the address, and not one anyone without the key can hash back (M4-07). In a per-thread
 // buffer, not the request's arena, so a continuation can audit before it knows the client is still
 // there (M4-04); audit's append copies it at once.
 @(private, thread_local)
@@ -392,7 +396,10 @@ client_buf: [16]byte
 
 @(private)
 client_id :: proc(key: u64) -> string {
-	return fmt.bprintf(client_buf[:], "%016x", key)
+	msg := transmute([8]byte)key
+	mac: [sha2.DIGEST_SIZE_256]byte
+	hmac.sum(.SHA256, mac[:], msg[:], st.audit_key)
+	return fmt.bprintf(client_buf[:], "%016x", endian.unchecked_get_u64be(mac[:8]))
 }
 
 // The hash of the session this request carries, or "".

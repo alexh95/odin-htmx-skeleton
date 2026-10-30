@@ -4,8 +4,10 @@ The audit log (PLAN §17.7, D35). Writes go through `store:audit`, the one store
 import: `audit_store.append(actor, action, target, reason, meta)` queues one entry and forgets it. The SQLite family
 keeps `audit_log`, append-only by its triggers (no update; a delete only of an entry older than 400 days); the memory
 family writes one `mod=audit` logfmt line per entry and keeps nothing. An entry never carries a message body or a
-password: the actor (id, name at the time, and the hashed client id, never the address), a namespaced action
-(`accounts.sign_in`), the target (`{"user", 7}`), the actor's reason (HX-Prompt) and a short detail.
+password: the actor (id, name at the time, and the client id, never the address), a namespaced action
+(`accounts.sign_in`), the target (`{"user", 7}`), the actor's reason (HX-Prompt) and a short detail. The client id is
+an HMAC of the address under `ACCOUNTS_AUDIT_KEY`, so it can't be hashed back from an export or a backup without
+the key; unset, the key is new each boot, and a client's entries group within one run only (M4-07).
 
 | Route | Perm | What |
 |---|---|---|

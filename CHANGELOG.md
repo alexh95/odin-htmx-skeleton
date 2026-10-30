@@ -22,6 +22,9 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 - **A sibling host can't plant a session** (M4-08): a `Secure` session cookie is named `__Host-sid`, which a browser
   refuses to take with a `Domain` or from another host, and a request that may carry it reads no plain `sid`. Plain
   http (the LAN, `COOKIE_SECURE=0`) keeps `sid`.
+- **The audit's client id can't be hashed back to the address** (M4-07): it was an unkeyed FNV-64a of the address, which
+  the 2^32 IPv4 addresses reverse in seconds from an export or a backup. It is now an HMAC-SHA256 under
+  `ACCOUNTS_AUDIT_KEY` (new, optional; unset, a key per boot).
 - **A register, a two-step change and a reset each fail as one** (M4-06): their statements run in a savepoint that is
   rolled back when one fails, so a name taken a moment earlier no longer spends the invite it came with.
 - **Promote's snapshot pruner is pinned** (M3-08, M4-12): the busybox that prunes old backups beside the accounts

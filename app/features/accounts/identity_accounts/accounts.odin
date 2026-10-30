@@ -47,6 +47,7 @@ ENV := [?]env.Row {
 	{name = "ACCOUNTS_REGISTRATION", kind = .Enum, def = "invite", choices = "invite|open|closed", doc = "who may register at /register: with an invite (Q10), anyone, or no one"},
 	{name = "ACCOUNTS_REGISTER_PER_HOUR", kind = .Int, def = "3", doc = "registrations tried per client per hour"},
 	{name = "ACCOUNTS_CODES_PER_HOUR", kind = .Int, def = "10", doc = "invite and reset codes tried per client per hour"},
+	{name = "ACCOUNTS_AUDIT_KEY", kind = .Secret, def = "", doc = "keys the audit log's client ids (an HMAC of the address); unset = a key per boot, so a client's entries group within one run only"},
 }
 
 COOKIE_ENV := [?]env.Row {
@@ -64,6 +65,9 @@ st: struct {
 	secure:      Secure,
 	admin_totp:  bool,     // an Admin needs TOTP to be one
 	pending_key: [32]byte, // signs a sign-in's pending second step; a restart drops them all
+	// Keys the audit's client ids: unkeyed, the 2^32 IPv4 addresses hash back in seconds (M4-07).
+	audit_key:   []byte,
+	boot_key:    [32]byte,
 }
 
 // At boot, from app.boot: the env rows, the lifetimes and the argon pool.
@@ -95,6 +99,9 @@ init :: proc() {
 	codes_tried.n = env.int_("ACCOUNTS_CODES_PER_HOUR")
 	authz.step_up_window = i64(env.duration("ACCOUNTS_STEP_UP_WINDOW") / time.Second)
 	crypto.rand_bytes(st.pending_key[:])
+	crypto.rand_bytes(st.boot_key[:])
+	k := env.str("ACCOUNTS_AUDIT_KEY")
+	st.audit_key = transmute([]byte)k if k != "" else st.boot_key[:]
 	logins_client.n = env.int_("ACCOUNTS_LOGIN_PER_CLIENT")
 	logins_all.n = env.int_("ACCOUNTS_LOGIN_OVERALL")
 	step_ups.n = env.int_("ACCOUNTS_STEP_UP_PER_MEMBER")
