@@ -22,4 +22,4 @@ an admin is a client in `ACCOUNTS_NICK_ADMIN_CIDRS` (none by default).
 
 It owns `/admin/ops`, under its own `/admin/<f>` prefix.
 
-Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md
+Audited: c490e2a 2026-10-30 docs/audit/M3.md

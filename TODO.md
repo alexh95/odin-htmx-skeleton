@@ -207,6 +207,12 @@ off until Alex sets it before the v2.2.0 tag.
       checklist on apollo's LAN; `docs/audit/M3.md` by an agent that didn't write the code, 0 open CRITICAL/HIGH;
       `Audited:` stamps; CHANGELOG's 2.2.0 entry. Then Alex sets `FLY_DEPLOY=true`, the v2.2.0 tag (Alex's go) runs
       the release and `deploy-fly` from `cmd/skeleton`, and the Fly cost is recorded (warn Alex above $10/month).
+      Progress (2026-10-30): the parity gate passes on both legs, 20 of 20 each (`docs/perf/PARITY.md`; Windows at
+      `c490e2a` with its busy blocks re-run in place and `static` at n = 5, Linux at `48666d6`); `docs/audit/M3.md`
+      by an agent that didn't write the code, then a re-read of the fixes by another: 0 open CRITICAL or HIGH (M3-01
+      fixed and read; M3-03, MEDIUM, waits on slice 10); the `Audited:` stamps at `c490e2a` (status at `6bad255`, the
+      fork's F-17 amendment and F-24 in `UPSTREAM.md`); CHANGELOG's 2.2.0 lead drafted under `[Unreleased]`. Left:
+      `starter-skeleton`'s 40-item checklist on apollo's LAN, slice 10, and Alex's part (`FLY_DEPLOY`, the tag).
 - [x] **A Firefox flake to watch** (found and fixed in M3): v2.1.0's release commit lost lab's Firefox e2e on CI's first try (run 40736711557):
       `page.goto` hit the 30 s timeout in `escaping.spec`'s hyperscript gate (both tries), `scripting.spec`'s password
       rules and `streams-hxcsp.spec`'s unnonced `hx-sse` (each passing its retry); the re-run passed with 3 flaky. The
@@ -433,7 +439,7 @@ start. Every exit re-runs the skeleton parity gate (§18.2); released as v2.1.0 
       fixes at `a6bc5de` found M2-22 (HIGH: JSON5 hid brackets from M2-01's scan) to M2-29, all fixed since; a second
       re-read at `5c5ebf2` found M2-30 (HIGH: a raw line feed did) to M2-32, fixed since but for M2-31's socket part;
       a third at `5395ae0` read them sound (no CRITICAL or HIGH open), and the stamps are on. The parity gate passes
-      on both legs at `40f8716`, 20 of 20 cells each counting §18.2's n = 5 re-runs (`docs/perf/PARITY.md`), after the
+      on both legs at `40f8716`, 20 of 20 cells each counting §18.2's n = 5 re-runs (`docs/perf/PARITY-M2.md`), after the
       TSan gate (0 reports), the 1 h soak (PASS, back 2000 of 2000 in 1.5 s) and every profile's drills and e2e on
       both OSes; 2.1.0's summary is in `CHANGELOG.md`. Pushed (Alex's go, 2026-10-27); tagged
       v2.1.0 once CI was green (Alex: "Tag it", 2026-10-28).
@@ -454,7 +460,7 @@ start. Every exit re-runs the skeleton parity gate (§18.2); released as v2.1.0 
       resync by `hx-include`), so a gap replaces the log and a restart keeps it (D37); `chat.spec`'s two `a reconnect
       past what the room let go` tests fail without it. M2-21's own test: the fork's `post_stream_gives_its_arena_back`.
       Every M2 finding is closed.
-- [x] **`mixed@file` on Linux** (`docs/perf/PARITY.md`, owner M3): M2's candidate read 0.95 of M1's in an A/B
+- [x] **`mixed@file` on Linux** (`docs/perf/PARITY-M2.md`, owner M3): M2's candidate read 0.95 of M1's in an A/B
       (rounds 0.93–1.05); A/B it with and without a handler's single read transaction before M3's gate.
       Done (2026-10-29, n = 5 through `parity.sh`'s measurement): with the transaction it reads 1.03 of without on
       `mixed@file` (0.95–1.06) and 1.01 on `api@file`, the control. No cost; nothing to change.

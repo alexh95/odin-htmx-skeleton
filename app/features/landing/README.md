@@ -9,3 +9,5 @@ generator's own `--explain` stays the authority, and the page says so. Packages:
 `views` and `web`; no store. The page is rendered once at boot; the builder's answer per request.
 
 It owns `/landing`, its own prefix; `/` is the profile's root row.
+
+Audited: c490e2a 2026-10-30 docs/audit/M3.md

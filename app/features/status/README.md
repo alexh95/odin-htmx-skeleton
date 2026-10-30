@@ -15,4 +15,4 @@ other witnesses by their service names.
 
 It owns `/status`, its own prefix.
 
-Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md
+Audited: 6bad255 2026-10-30 docs/audit/M3.md (M3-01's fix read in the re-read)

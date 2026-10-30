@@ -8,6 +8,19 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+*The 2.2.0 entry's lead, drafted for the tag (this section becomes `[2.2.0]`):*
+
+The starter's third milestone, M3: the pipeline and apollo's LAN. A `v*` tag builds each hosted profile's image on
+distroless, natively on amd64 and arm64, publishes one multi-arch list per profile to GHCR (`vX.Y.Z` and `sha-<7>`,
+never `latest`) with provenance, and makes the GitHub Release (a pre-release for `-rc.N`); `deploy/promote.ps1` moves
+apollo's stack to it one service at a time behind the stack Caddy, smoke-tested and rolled back by itself on a failed
+smoke. The four witnesses (minimal, streams, skeleton, lab) run at v2.2.0-rc.1 on apollo's LAN (stage 1a), where a
+broken tag rolled back by itself, 50 VUs through a promote saw no 5xx, and two-host k6 failed nothing. `landing`, the
+starter's own page, shows the catalog and builds the init command; the lab's witness board probes the others. Chat's
+reconnects replace the log across a gap on every transport. An independent audit (`docs/audit/M3.md`) found 1 HIGH,
+fixed and re-read; the parity gate passes on both legs (`docs/perf/PARITY.md`). Stage 1b, through NPM, waits on
+Alex's NPM steps.
+
 ### Fixed
 
 - **The lab no longer grows until it is OOM-killed**: the witness board's probe thread never freed its temp
@@ -114,7 +127,7 @@ the bot on its mock, ops' 1 Hz panel, the status board and the `nick` identity. 
 flags in the CSP, the hyperscript client behind `html.behave`, `tools/init`'s compose mode (generator v1),
 `tools/check topics` and `exts`, the stream drills, the TSan gate, the soak, Autobahn, and the lab and `streams`
 through Caddy and NPM in CI. An independent audit and three re-reads of its fixes (`docs/audit/M2.md`) found 4 HIGH,
-all fixed, and the parity gate passes on both legs (`docs/perf/PARITY.md`).
+all fixed, and the parity gate passes on both legs (`docs/perf/PARITY-M2.md`).
 
 **For a fork of 2.0.0:** markup names its client behaviours through `html.behave` (a hand-written `_=` or
 `data-behave` should move to it; `escaping.spec` holds every page to that); the htmx-config files are per bundle

@@ -47,4 +47,4 @@ runes, 100 rooms in a memory build, at most 4,096 members' names per process, an
 
 It owns `/chat`, its own prefix.
 
-Audited: 5395ae0 2026-10-27 docs/audit/M2.md
+Audited: c490e2a 2026-10-30 docs/audit/M3.md

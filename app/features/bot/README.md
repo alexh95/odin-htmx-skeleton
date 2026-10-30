@@ -24,4 +24,4 @@ and nothing is kept. A conversation is its owner's alone: anyone else's id answe
 
 It owns `/bot`, its own prefix.
 
-Audited: 5c5ebf2 2026-10-27 docs/audit/M2.md
+Audited: c490e2a 2026-10-30 docs/audit/M3.md
