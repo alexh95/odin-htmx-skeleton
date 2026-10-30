@@ -200,7 +200,9 @@ Alex, asked in one batch.
       3 NIT), fixes in `30988ae` and after, then a re-read by another: 0 open CRITICAL or HIGH (M4-01 fixed and
       read; the re-read's M4-17 MEDIUM and two LOWs fixed). The parity gate's Windows leg at `d136601`: 18 of 20 at
       n = 3, `seo@file` passes at n = 5 (1.00); `static@file` reads 0.97 at n = 5 with `static@mem` at 1.00 on the
-      same code path. Left: the Linux leg, the stamps, the 2.3.0 lead, and Alex's part.
+      same code path; again at n = 5 at `eb228d8`, `static@file` 0.98 and `static@mem` 0.95 (25 % background):
+      the static cells alternate around the bar. Linux at `eb228d8`: 20 of 20 (`docs/perf/PARITY-M4.md`). The stamps
+      and the 2.3.0 lead are done. Left: Alex's call on the Windows static cells, and Alex's part.
 - [ ] **M4 audit, open** (`docs/audit/M4.md`): M4-03's rest (the sign-in's overall bucket and the per-account
       backoff, §17.5: a stranger can slow every sign-in, never lock one out; decide before stage 2); M4-04's rest
       (an entry a full writer queue drops is not logged; entries are their own op, not the change's transaction);
