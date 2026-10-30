@@ -8,6 +8,12 @@
 # run.*, prepare.*, CI, the Dockerfile, the e2e setup and load-tests/run.sh all call this.
 set -eu
 cd "$(dirname "$0")"
+# Odin reads a define of digits alone as an integer, and x-version is a string: a bare short hash
+# like 6735963 failed every build. Name a commit sha-<7>, as the image tags do.
+case "${VERSION:-dev}" in
+  *[!0-9]*) ;;
+  *) echo "build.sh: VERSION=$VERSION is all digits, which Odin reads as a number: use sha-$VERSION" >&2; exit 2 ;;
+esac
 
 p="${1:-}"
 [ -n "$p" ] || { echo "usage: build.sh <minimal|skeleton|lab|streams> [odin flags...]" >&2; exit 2; }

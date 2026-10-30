@@ -34,6 +34,9 @@ Alex's NPM steps.
 
 ### Fixed
 
+- **A commit whose short hash is all digits builds**: Odin read `-define:VERSION=6735963` as an integer, and every
+  build of that commit failed. CI names a commit `sha-<7>`, as the image tags do, and `build.sh` and `build.bat`
+  refuse an all-digit `VERSION` with that advice.
 - **The lab no longer grows until it is OOM-killed**: the witness board's probe thread never freed its temp
   allocator, so every probe's request line and resolver lookups stayed (M3-01).
 - **A chat socket answers the page's version once**: every frame carrying one bought a snapshot render, up to 20 a

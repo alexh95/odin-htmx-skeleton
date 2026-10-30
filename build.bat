@@ -46,6 +46,8 @@ set "OUTFLAG="
 if not "%CMD%"=="check" set "OUTFLAG=-out:%BIN%"
 if "%CMD%"=="test" set "OUTFLAG=-out:%BIN% -define:ODIN_TEST_FAIL_ON_BAD_MEMORY=true"
 if "%VERSION%"=="" set "VERSION=dev"
+rem Odin reads a define of digits alone as an integer: name a commit sha-<7>, as the image tags do.
+echo %VERSION%| findstr /r "^[0-9][0-9]*$" >nul && (echo build.bat: VERSION=%VERSION% is all digits, which Odin reads as a number: use sha-%VERSION% 1>&2 & exit /b 2)
 if not exist "app\bin\" mkdir app\bin
 
 odin %CMD% app/cmd/%SRC% %OUTFLAG% -collection:store=app/stores/%STORE% -collection:identity=app/%ID% -collection:client=app/platform/client/%CLIENT% -collection:theme=app/platform/theme/%THEME% -define:VERSION=%VERSION% -define:BUILD_DIR=../../build/%P% -vet -vet-cast -vet-semicolon -vet-tabs -vet-using-param -disallow-do -strict-style -warnings-as-errors%REST%

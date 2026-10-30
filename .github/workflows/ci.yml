@@ -159,10 +159,11 @@ jobs:
         run: test ! -e app/vendor/sqlite
 
       # VERSION reaches x-version and the serving line, so a binary says which
-      # commit it is (a local build says "dev").
+      # commit it is, as sha-<7> like the image tags: a bare 7-digit hash would reach Odin as an
+      # integer (a local build says "dev").
       - name: Build -o:speed (warnings are errors)
         shell: bash
-        run: VERSION=${GITHUB_SHA::7} sh build.sh ${{ matrix.profile }} -o:speed
+        run: VERSION=sha-${GITHUB_SHA::7} sh build.sh ${{ matrix.profile }} -o:speed
 
       - name: Size budget
         if: runner.os == 'Windows' && matrix.sqlite == 'linked' && matrix.budget != ''
@@ -409,7 +410,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Build the image
-        run: docker compose build --build-arg VERSION=${GITHUB_SHA::7}
+        run: docker compose build --build-arg VERSION=sha-${GITHUB_SHA::7}
 
       # --wait returns once the HEALTHCHECK (the binary's --healthcheck) passes, and
       # fails if the container exits or never turns healthy: the server started on a
@@ -422,7 +423,7 @@ jobs:
           test "$(curl -fsS http://127.0.0.1:8080/healthz)" = "ok"
           curl -fsS http://127.0.0.1:8080/ -o /dev/null
           curl -fsS http://127.0.0.1:8080/licenses | head -1 | grep -q 'THIRD-PARTY NOTICES'
-          curl -fsSI http://127.0.0.1:8080/ | grep -qi "^x-version: ${GITHUB_SHA::7}"
+          curl -fsSI http://127.0.0.1:8080/ | grep -qi "^x-version: sha-${GITHUB_SHA::7}"
           # Not root: distroless has no `id`, so read the process's UID from the host.
           test "$(ps -o uid= -p "$(docker inspect -f '{{.State.Pid}}' "$(docker compose ps -q app)")" | tr -d ' ')" = "10001"
 
