@@ -5,7 +5,8 @@ name: release
 # ghcr.io/<owner>/<repo>-<profile>:vX.Y.Z and :sha-<7> (never `latest`: a
 # deploy pins its tag in .env), a provenance attestation per list, a GitHub Release whose
 # notes are the tag's CHANGELOG section, and, when FLY_DEPLOY is on, Fly's skeleton
-# witness redeployed from the tag. Tag a commit CI has passed on the default branch.
+# witness redeployed from the tag. Tag a commit CI has passed on the default branch, or on
+# the tag's maintenance branch (release/X.Y: a release cut from an older commit).
 # A pre-release tag (vX.Y.Z-rc.N: semver's `-`) publishes its images the same way, and
 # its Release is marked pre-release, never latest, with the notes of [Unreleased].
 #
@@ -29,7 +30,7 @@ env:
 
 jobs:
   # A tag publishes only in a release's shape (vX.Y.Z or vX.Y.Z-rc.N) and only on a commit whose CI
-  # passed on the default branch (M3-06). A dry run checks nothing: it pushes nothing.
+  # passed on the default branch or on release/X.Y (M3-06). A dry run checks nothing: it pushes nothing.
   gate:
     name: Gate
     runs-on: ubuntu-latest
@@ -45,9 +46,13 @@ jobs:
         run: |
           echo "$GITHUB_REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$' \
             || { echo "$GITHUB_REF_NAME is not vX.Y.Z or vX.Y.Z-rc.N" >&2; exit 1; }
-          ok=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci --commit "$GITHUB_SHA" --branch "$DEFAULT_BRANCH" \
-            --json conclusion --jq '[.[] | select(.conclusion == "success")] | length')
-          [ "$ok" -gt 0 ] || { echo "no green CI run on $DEFAULT_BRANCH for $GITHUB_SHA" >&2; exit 1; }
+          line=$(echo "${GITHUB_REF_NAME#v}" | cut -d. -f1,2)
+          for b in "$DEFAULT_BRANCH" "release/$line"; do
+            ok=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci --commit "$GITHUB_SHA" --branch "$b" \
+              --json conclusion --jq '[.[] | select(.conclusion == "success")] | length')
+            [ "$ok" -gt 0 ] && exit 0
+          done
+          echo "no green CI run on $DEFAULT_BRANCH or release/$line for $GITHUB_SHA" >&2; exit 1
 
   # One image per profile and arch, on a runner of that arch, so nothing is emulated.
   # A tag pushes it by digest alone; `merge` names the list.
