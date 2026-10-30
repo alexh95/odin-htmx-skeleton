@@ -138,9 +138,12 @@ load_catalog :: proc(root: string) {
 					append(&f.switched, sub)
 				}
 			}
+			// An identity member's store is the member's need, not the feature's: `nick` needs none
+			// where `identity_accounts` needs SQLite, so a memory profile may mount accounts for nick.
+			member := strings.has_prefix(strings.trim_prefix(rest, "/"), "identity_")
 			for imp in p.imports {
 				g := feature_of_target(imp.target)
-				if g == name && strings.has_prefix(imp.target, "store:") { f.uses_store = true }
+				if g == name && strings.has_prefix(imp.target, "store:") && !member { f.uses_store = true }
 				if g != "" && g != name && !slice.contains(f.deps[:], g) { append(&f.deps, g) }
 			}
 		}
@@ -251,7 +254,8 @@ round_lines :: proc(n: int) -> int {
 
 // "none" (no store), "any" (one in each family), "required" (SQLite only) or "never" (memory only).
 sqlite_need :: proc(f: Feature) -> string {
-	if !f.uses_store && len(f.stores) == 0 { return "none" }
+	// Stores no package of the feature imports (yet, or only its identity members do) ask nothing.
+	if !f.uses_store { return "none" }
 	has_sqlite, has_memory := slice.contains(f.stores[:], "sqlite"), slice.contains(f.stores[:], "memory")
 	switch {
 	case has_sqlite && has_memory: return "any"
