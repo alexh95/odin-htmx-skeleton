@@ -13,6 +13,7 @@ import "core:strings"
 import "core:time"
 
 import "../../../platform/html"
+import "../../../platform/hub"
 import "../../../platform/password"
 import "../../../platform/store"
 import "../../../platform/web"
@@ -22,7 +23,13 @@ import m "../models"
 import views "../views"
 import audit_store "store:audit"
 
-EXTS :: web.Exts{.Prompt} // an admin's reason for each change (HX-Prompt)
+EXTS :: web.Exts{.Prompt, .Sse} // an admin's reason for each change (HX-Prompt); a member's #live
+
+// The member's own topic, on every page of theirs (§9.1): what a revoke ends (hub.revoke, on a
+// role change or a disable) and where an account notice will go.
+TOPICS := [?]hub.Topic {
+	{family = "accounts.user", policy = .Queue, member = true, perm = .Account_Self},
+}
 
 ROUTES := [?]web.Route {
 	{.Get, "/login", page, .Public, {.Private}, 0},

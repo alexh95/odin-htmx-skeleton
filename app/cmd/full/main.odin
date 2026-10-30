@@ -4,6 +4,7 @@ package main
 
 import "../../platform/app"
 import "../../platform/html"
+import "../../platform/hub"
 import "../../platform/web"
 import store_sqlite "../../platform/store/sqlite"
 import about_web "../../features/about/web"
@@ -26,6 +27,8 @@ main :: proc() {
 	home_web.init(HOME_CARDS[:], HOME)
 	about_web.init(ABOUT)
 	store_sqlite.init() // DB_PATH, SEED, MEMMODE: recorded here so --limits prints them
+	hub.init()
+	hub.mount("main", ..TOPICS[:])
 	app.check(HOSTS[:], nil, BUNDLE_EXTS)
 
 	store_sqlite.open("full")

@@ -56,6 +56,10 @@ Alex's NPM steps.
   admin from `ACCOUNTS_ADMIN_HASH`, signed in at `/login` to a stateless HMAC-signed cookie (`ACCOUNTS_ENVADMIN_KEY`;
   a new key signs everyone out), with `/step-up` and `/logout`. `--hash-password` now lives in `platform/password`.
   The nightly generates an `--identity envadmin` project and runs the e2e suite on it (`envadmin.spec`).
+- **Revocation on streams** (M4 slice 8, PLAN §17.2.3, X19): `hub.revoke(user_id)` ends a member's streams (1008),
+  and their pages go to sign in again (`#live`'s `data-revoke`); a role change or a disable in `/admin/accounts`
+  revokes. `identity_accounts` has a member topic (`accounts.user`) and `full` mounts the hub. The generator mounts
+  the hub for an identity with topics. e2e `revoke.spec`, k6 `accounts/live.js`.
 - **The generator knows identities that need SQLite**: a feature with no web package gives its domain's store need to
   the identity that reaches it, so `--identity accounts` asks for `--store sqlite` while `nick` still builds on
   memory; an identity's routes own their nav entries.
@@ -70,6 +74,10 @@ Alex's NPM steps.
   `/step-up?next=<path>`; unit tests hold each answer and `ROLE_PERMS` as §17.1 tables it.
 
 ### Fixed
+
+- **A stream the server refuses is no longer retried forever**: hx-sse reconnects after a 401, 403 or 404 with a
+  backoff and no end (5 times in 30 s, measured for M4 slice 8); core.js now cancels the next connection of a
+  stream refused that way.
 
 - **A store error no longer signs a member out** (M4): `identity_accounts` cleared the session cookie whenever
   reading the session failed, not only when it had ended; now a failed read is a guest for that request, with the

@@ -238,6 +238,20 @@ kick :: proc(topic: string, code: u16) {
 	post(m, 0)
 }
 
+// Ends a member's streams on every host (§17.2.3, X19): a role change, a disable. Each of their
+// member topics is kicked with 1008, which hx-ws doesn't retry, and a page whose #live names
+// where to go (data-revoke) goes there on `kicked`. A row mounted on two hosts is kicked twice,
+// which ends nothing more.
+revoke :: proc(user_id: u64) {
+	buf: [24]byte
+	id := strconv.write_uint(buf[:], user_id, 10)
+	for _, rows in h.hosts {
+		for row in rows {
+			if row.member { kick(strings.concatenate({row.family, ":", id}, context.temp_allocator), stream.WS_POLICY) }
+		}
+	}
+}
+
 @(private)
 new_msg :: proc(kind: Kind, policy: Policy, topic, key, html: string) -> ^Msg {
 	m := new(Msg, heap())

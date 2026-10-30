@@ -4024,6 +4024,14 @@ password and issues a fresh cookie. Sign-ins are limited as `accounts`' are and 
 `mod=audit` line on a memory build). The nightly `envadmin` job generates `--identity envadmin --features notes` and
 runs the whole e2e suite on it.
 
+**As built (M4, slice 8):** `hub.revoke(user_id)` kicks every member topic of the user on every host with 1008. The
+layout's `#live` for a member carries `data-revoke="/login"`, and core.js navigates there on `kicked` from it, so a
+page's own kick (the lab's) still reconnects. UNVERIFIED (M4) answered: hx-sse keeps reconnecting after a 403, with a
+backoff (5 times in 30 s), so core.js marks an element whose stream was refused with 401, 403 or 404 and cancels its
+next connection (`htmx:sse:before:connection`). `identity_accounts` declares `accounts.user` (`member = true`); `full`
+mounts the hub for it. A role change and a disable revoke; revoking one session doesn't (the member's topic spans
+their devices), and that device's stream ends at its next request.
+
 **TOTP and step-up** (Q11). TOTP follows RFC 6238 (vectors verified, 07 §0.6) with manual secret entry and the
 `otpauth://` text, no QR encoder. It is required for Admin and `Term_Write`. **Step-up** asks for the password or a
 TOTP code within the last 10 minutes on `.Step_Up` routes: `Term_Write`, role changes, invites and dbview. Recovery

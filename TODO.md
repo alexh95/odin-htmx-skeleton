@@ -106,9 +106,16 @@ Alex, asked in one batch.
       argon pool, limited, audited through `store:audit`; `--hash-password` moved into `platform/password` for both
       password identities. Its unit test (signed, ended, issued later, a new key, no MAC) and `envadmin.spec`, which
       the nightly runs on a generated `--identity envadmin --features notes` project (63 specs green locally).
-- [ ] **8. Revocation on streams** (§17.2.3, X19): a kick or role change publishes a revoke that closes the viewer's
+- [x] **8. Revocation on streams** (§17.2.3, X19): a kick or role change publishes a revoke that closes the viewer's
       streams with 1008; SSE gets the named `kicked` event, which goes to `/login`. *Check:* `revoke.spec` (at most 3
       reconnects in 30 s), and whether hx-sse stops retrying after a 403 settled (UNVERIFIED (M4)).
+      Done: `hub.revoke(user_id)` kicks every member topic of theirs with 1008; a member's `#live` carries
+      `data-revoke="/login"`, and core.js goes there on its `kicked` (the lab's own kicks still reconnect);
+      `identity_accounts` has a member topic, `accounts.user`, and `full` mounts the hub; a role change or a
+      disable revokes. Answered: hx-sse does **not** stop after a 403 (5 reconnects in 30 s, backing off), so core.js
+      settles a stream refused with 401, 403 or 404 (it cancels the next connection). `revoke.spec` (both cases, 1
+      reconnect at most), `accounts/live.js`. A member revoking one of their own sessions doesn't end that device's
+      open stream (the topic is the member's, not the session's): it ends at its next request.
 - [ ] **9. `modules`** (§15.4, Q28: no runtime disabling): `/admin/modules` (`Admin_Modules`): the profile, its
       family members, the switched implementations, the routes per host with perms and flags, bundle extensions, env
       (secrets masked), limits, health, migrations. *Check:* e2e; it imports no feature (`tools/check imports`).

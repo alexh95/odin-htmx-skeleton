@@ -203,6 +203,10 @@ Profile_Text :: struct {
 	notes:                            [dynamic]string, // what the plan prints for the developer to check
 }
 
+// The topic line for an identity with member topics of its own; its import comes with its routes.
+@(private = "file")
+IDENTITY_TOPICS :: "\tidentity.TOPICS[:], // the identity's member topics: what a revoke ends"
+
 compose :: proc(s: Selection) -> Profile_Text {
 	out: Profile_Text
 	topics, jobs, bundles := false, false, false
@@ -214,6 +218,8 @@ compose :: proc(s: Selection) -> Profile_Text {
 		jobs ||= .Jobs in ft.decls
 		bundles ||= .Bundles in ft.decls
 	}
+	id_member, _ := member(.Identity, s.members[.Identity])
+	topics ||= id_member.topics
 	sqlite := s.members[.Store] == "sqlite"
 	base := s.base
 	root_donor := donor_of_root(s.root)
@@ -255,6 +261,7 @@ compose :: proc(s: Selection) -> Profile_Text {
 		if .Topics in ft.decls && !took_topics { append(&topic_lines, fmt.aprintf("\t%s_web.TOPICS[:],", f)); take_web_import(&rimports, f) }
 		if .Jobs in ft.decls && !took_jobs { append(&job_lines, fmt.aprintf("\t%s_web.JOBS[:],", f)); take_web_import(&rimports, f) }
 	}
+	if id_member.topics { append(&topic_lines, IDENTITY_TOPICS) }
 	{
 		b := strings.builder_make()
 		head := fmt.tprintf("// ---- %s's routes: one host, one line per mounted table ", s.name)

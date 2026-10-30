@@ -68,6 +68,7 @@ Member :: struct {
 	name, dir: string,
 	sqlite:    bool, // an identity that reaches its feature's SQLite-only domain (identity_accounts)
 	deps:      [dynamic]string, // the features an identity reaches itself (identity_accounts: audit), not its feature's
+	topics:    bool,            // an identity with member topics of its own (identity_accounts): the hub is mounted
 }
 
 Catalog :: struct {
@@ -136,7 +137,7 @@ load_catalog :: proc(root: string) {
 			rest := strings.trim_prefix(p.path, strings.concatenate({"features/", name}))
 			if sub := strings.trim_prefix(rest, "/"); sub != "" && !slice.contains([]string{"models", "views", "web", "storetest"}, sub) {
 				if strings.has_prefix(sub, "identity_") {
-					append(&catalog.members[.Identity], Member{name = strings.trim_prefix(sub, "identity_"), dir = p.path})
+					append(&catalog.members[.Identity], Member{name = strings.trim_prefix(sub, "identity_"), dir = p.path, topics = has_decl(p, "TOPICS")})
 				} else {
 					append(&f.switched, sub)
 				}

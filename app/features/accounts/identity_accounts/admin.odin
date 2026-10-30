@@ -17,6 +17,7 @@ import "core:unicode/utf8"
 
 import "../../../platform/authz"
 import "../../../platform/html"
+import "../../../platform/hub"
 import "../../../platform/store"
 import "../../../platform/web"
 import accounts ".."
@@ -65,6 +66,7 @@ Act :: struct {
 	target:    m.User, // id only, unless named
 	meta:      string,
 	show:      string, // a fragment to answer with; "" = back to /admin/accounts
+	revoke:    bool,   // the member's streams end too: a role change, a disable
 }
 
 // The admin's reason from HX-Prompt: required, decoded, capped.
@@ -108,6 +110,8 @@ acted :: proc(o: ^store.Op, act: ^Act, refused: string) {
 	#partial switch o.err {
 	case .None:
 		audit_store.append({act.actor_id, act.actor, client_id(act.client)}, act.action, {"user" if act.target.id != 0 else "invite", act.target.id}, act.reason, act.meta)
+		// Their sessions ended in the write; their open pages go now (X19).
+		if act.revoke { hub.revoke(u64(act.target.id)) }
 		if act.show != "" {
 			web.respond_html(res, act.show)
 		} else {
@@ -166,7 +170,7 @@ admin_role :: proc(req: ^web.Request, res: ^web.Response) {
 	if !reason_ok { return }
 	op := store.new_op(Roling, ACT_BYTES)
 	act_init(&op.act, store.op_allocator(op), reason, "accounts.role", fmt.tprintf("role=%s", authz.ROLE_LABELS[role]), id)
-	op.user_id, op.role = id, role
+	op.user_id, op.role, op.act.revoke = id, role, true
 	op.done = proc(o: ^store.Op) { acted(o, &(^Roling)(o).act, "That is the last admin: make another one first.") }
 	queue(req, res, op, &op.act, proc(o: ^store.Op) -> bool { return accounts.set_role((^Roling)(o)) })
 }
@@ -190,7 +194,7 @@ disable :: proc(req: ^web.Request, res: ^web.Response, off: bool) {
 	if !reason_ok { return }
 	op := store.new_op(Disabling, ACT_BYTES)
 	act_init(&op.act, store.op_allocator(op), reason, "accounts.disable" if off else "accounts.enable", "", id)
-	op.user_id, op.disabled_at = id, accounts.now_ms() if off else 0
+	op.user_id, op.disabled_at, op.act.revoke = id, accounts.now_ms() if off else 0, off
 	op.done = proc(o: ^store.Op) { acted(o, &(^Disabling)(o).act, "That is the last admin: make another one first.") }
 	queue(req, res, op, &op.act, proc(o: ^store.Op) -> bool { return accounts.set_disabled((^Disabling)(o)) })
 }

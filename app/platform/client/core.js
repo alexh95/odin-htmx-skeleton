@@ -10,6 +10,27 @@
 // names what a click means with a data-* attribute, and one delegated listener
 // routes it, which also covers content htmx swaps in later.
 
+// A revoke (PLAN §17.2.3): the hub's `kicked` on a member's #live (data-revoke) means the
+// session ended or its role changed, so the page goes to sign in again rather than letting
+// hx-sse reconnect as a guest. A page's own kick (the lab's #live) reconnects as before.
+document.addEventListener("kicked", function (e) {
+  var live = e.target && e.target.closest ? e.target.closest("[data-revoke]") : null;
+  if (live) location.assign(live.dataset.revoke);
+});
+// A stream the server refuses (401, 403, 404: the viewer may not have its topics any more) is
+// settled, not retried: hx-sse would back off and reconnect forever (PLAN §17.2.3 measured 5 in
+// 30 s). The element is marked, and its next connection is cancelled.
+document.addEventListener("htmx:sse:error", function (e) {
+  var s = e.detail && e.detail.status;
+  if (s === 401 || s === 403 || s === 404) e.target.dataset.sseRefused = "1";
+});
+document.addEventListener("htmx:sse:before:connection", function (e) {
+  if (e.target.dataset && e.target.dataset.sseRefused) {
+    if (e.detail && e.detail.connection) e.detail.connection.cancelled = true;
+    e.preventDefault();
+  }
+});
+
 // Theme picker — two axes on <html>: data-style (treatment) and data-scheme
 // (palette). Pure presentation; persisted so the head pre-paint script can
 // restore the choice before first paint. No server round-trip.

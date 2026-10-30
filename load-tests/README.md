@@ -89,6 +89,9 @@ itself is scratch.
 | `compat/compat.js`   | `/compat`, `/compat/htmx2` with its save and refusal, `/compat/alpine`, the two pings | The refusal is a 422 by design (`expectedStatuses`). |
 | `accounts/nick.js`   | `/login` (page, pick), `/logout` | The nickname form; a pick is a 303 and a signed cookie. |
 | `audit/audit.js`     | `/admin/audit`, its next page, its CSV export | The audit log's reads as the test admin, signed in once per VU. |
+| `accounts/members.js` | `/register`, `/accounts/profile`, `/reset`, `/admin/accounts` and each of its writes | A member registered each iteration (an argon hash), then the admin's changes with a reason, in a jar of its own. |
+| `accounts/totp.js`   | `/accounts/totp`, `/step-up`, `/login/code`, new codes, off | Two-step sign-in's routes without turning it on; a step-up is an argon verify. |
+| `accounts/live.js`   | a member page and its `/events` on `accounts.user` | The stream a revoke ends, held a moment and cut (out of the gates, as `chat_streams.js`). |
 | `accounts/login.js`  | `/login` (page, sign-in), `/accounts/sessions`, sign-out or revoke, `/csp-report` once | A sign-in storm on `full`: one argon2id verify per iteration (503 busy is expected past the pool's queue); the gate is on the other pages (`kind:page`), which argon must not slow. run.sh boots the suites' test admin with the limits lifted. |
 | `chat/chat.js`       | `/chat`, a room per transport in turn, the setting, a post (or its 429), the menu, edit, delete, read, typing, a CSP report | A member's requests; most posts meet the 5-per-10-s limit, whose 429 is measured too (`expectedStatuses`). |
 | `chat/chat_streams.js` | the socket (snapshot, a message back), `/since` and its 304, `/parts` and `/events` held a moment | The live transports; the held streams are cut by the client and left out of the gates (`held:no`). |

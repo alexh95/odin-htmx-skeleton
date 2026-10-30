@@ -200,13 +200,19 @@ member_key :: proc(v: authz.Viewer, allocator := context.temp_allocator) -> stri
 
 // The page's one SSE stream: the viewer's own topics (every member row this host
 // mounts, keyed by their id) and the page's, resuming after the hub's sequence now.
-// "" when there is nothing to open. web.render_page calls it through web.on_live.
+// "" when there is nothing to open. web.render_page calls it through web.on_live. A member's
+// carries data-revoke: a revoke's `kicked` takes the page to sign in again, where a page's own
+// kick (the lab's) reconnects.
 live_html :: proc(page: []string) -> string {
 	ctx := web.ctx()
 	topics := make([dynamic]string, 0, MAX_TOPICS, context.temp_allocator)
+	member := false
 	if ctx.viewer.id != 0 {
 		for row in h.hosts[ctx.site.name] {
-			if row.member { append(&topics, strings.concatenate({row.family, ":", member_key(ctx.viewer)}, context.temp_allocator)) }
+			if row.member {
+				append(&topics, strings.concatenate({row.family, ":", member_key(ctx.viewer)}, context.temp_allocator))
+				member = true
+			}
 		}
 	}
 	for t in page {
@@ -214,7 +220,8 @@ live_html :: proc(page: []string) -> string {
 	}
 	if len(topics) == 0 { return "" }
 	b := strings.builder_make(context.temp_allocator)
-	strings.write_string(&b, `<div id="live" hx-sse:connect="/events?t=`)
+	strings.write_string(&b, `<div id="live"` if !member else `<div id="live" data-revoke="/login"`)
+	strings.write_string(&b, ` hx-sse:connect="/events?t=`)
 	escape.esc(&b, strings.join(topics[:], ",", context.temp_allocator))
 	strings.write_string(&b, `&amp;after=`)
 	escape.esc(&b, cursor_now())

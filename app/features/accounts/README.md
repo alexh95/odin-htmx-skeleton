@@ -60,6 +60,9 @@ domain (`features/accounts`, package `accounts`) and its views:
   invisible or direction-changing characters, 40 at most). 3 registrations and 10 invite or reset codes an hour per
   client (`ACCOUNTS_REGISTER_PER_HOUR`, `ACCOUNTS_CODES_PER_HOUR`). New passwords are hashed on the pool
   (`password.submit_hash`).
+- **Revocation** (X19): a role change or a disable in `/admin/accounts` ends the member's sessions and calls
+  `hub.revoke`, which kicks their member topics (`accounts.user`, declared here as `TOPICS`); their pages go to
+  `/login`.
 - **Argon**: `ACCOUNTS_ARGON_THREADS` workers (0, the default: 1 with two cores or fewer, else 2), each holding
   19 MiB, declared to `--limits` as the pool's memory; a queue of 32, past it 503.
 - **The first admin**: `ACCOUNTS_ADMIN_HASH` (a PHC string from `bin --hash-password`, which reads the password from
