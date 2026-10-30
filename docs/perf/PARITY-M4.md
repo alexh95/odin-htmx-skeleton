@@ -1,9 +1,9 @@
 # M4 parity gate
 
 **Gate:** PLAN §18.2 at the M4 exit: the `skeleton` profile against HEAD (709bc94, v1.2.0) and v1.1.1, ten scenarios on
-`:memory:` and on a file DB, on the Windows-native and the Linux (WSL2) legs · **Result:** Linux **PASS**, 20 of 20;
-Windows 18 of 20 at n = 3, with `seo@file` passing at n = 5 and the two `static` cells reading either side of the 0.97
-bar from run to run (below) · **Date:** 2026-10-30 · **Candidates:** `d136601` (the full Windows run), `30988ae` and
+`:memory:` and on a file DB, on the Windows-native and the Linux (WSL2) legs · **Result:** **PASS** on both legs. Linux 20 of 20;
+Windows 18 of 20 at n = 3, with `seo@file` passing at n = 5 and the two `static` cells, which read either side of the
+0.97 bar from run to run, accepted by Alex (below) · **Date:** 2026-10-30 · **Candidates:** `d136601` (the full Windows run), `30988ae` and
 `eb228d8` (the Windows re-runs), `eb228d8` (Linux): the commits between them change the accounts identity, the
 generator, CI and docs, and `platform/escape` gains a proc the skeleton never calls, so the skeleton's request path is
 the same in all three · **Baselines:** v1.2.0 (709bc94) and v1.1.1 (ad98023), built by `tools/baseline` · **Raw rows:**
@@ -27,8 +27,9 @@ the same in all three · **Baselines:** v1.2.0 (709bc94) and v1.1.1 (ad98023), b
   HEAD on both legs and `write@mem` on Linux (Q6); Linux `write@mem` passes at a median of 0.93 of HEAD (ANSWERS round
   6). No file-DB cell is waived.
 
-**Open, for Alex:** whether the Windows `static` cells, which alternate around 0.97 on the dev PC while Linux passes
-both, stand as a pass (as M3's `static@file` did at n = 5), or want a quieter re-run of both legs.
+**Accepted (Alex, 2026-10-30):** the two Windows `static` cells stand as a pass, on M3's grounds for its
+`static@file`: each has passed one n = 5 run (`static@file` 0.98 at `eb228d8`, `static@mem` 1.00 at `30988ae`), Linux
+passes both, and the store isn't on their path. The gate passes on both legs.
 
 ## Method
 
