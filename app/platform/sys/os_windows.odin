@@ -35,3 +35,11 @@ rss_bytes :: proc() -> int {
 	if !win32.GetProcessMemoryInfo(win32.GetCurrentProcess(), &pmc, size_of(pmc)) { return 0 }
 	return int(pmc.WorkingSetSize)
 }
+
+// The bytes free to this process and the total on the volume holding `path` (status's disk part).
+disk_free :: proc(path: string) -> (free, total: i64, ok: bool) {
+	w := win32.utf8_to_wstring(path, context.temp_allocator)
+	avail, all: win32.ULARGE_INTEGER
+	if !win32.GetDiskFreeSpaceExW(w, &avail, &all, nil) { return }
+	return i64(avail), i64(all), true
+}

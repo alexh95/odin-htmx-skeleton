@@ -1,6 +1,7 @@
 #+build linux, darwin, freebsd, openbsd, netbsd
 package sys
 
+import "core:strings"
 import "core:sys/posix"
 
 // Soft to hard (PLAN §8.6 step 2): a container's soft limit is 1024 by default, and at
@@ -61,4 +62,11 @@ rss_bytes :: proc() -> int {
 		}
 		return 0
 	}
+}
+
+// The bytes free to this process and the total on the filesystem holding `path` (status's disk part).
+disk_free :: proc(path: string) -> (free, total: i64, ok: bool) {
+	st: posix.statvfs_t
+	if posix.statvfs(strings.clone_to_cstring(path, context.temp_allocator), &st) != .OK { return }
+	return i64(st.f_bavail) * i64(st.f_frsize), i64(st.f_blocks) * i64(st.f_frsize), true
 }

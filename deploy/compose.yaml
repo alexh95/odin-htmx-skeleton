@@ -139,6 +139,7 @@ services:
       # A PHC string is all `$`, which compose would read as variables in .env: it comes as a
       # file (env reads NAME_FILE), the admin-hash secret beside compose.yaml.
       ACCOUNTS_ADMIN_HASH_FILE: /run/secrets/admin_hash
+      STATUS_DISK: /data # the disk part: the volume with the database and its backups
     secrets: [admin_hash]
     volumes:
       - full-data:/data

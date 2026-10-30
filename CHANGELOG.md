@@ -15,6 +15,10 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   schema and statement memory from `sqlite3_db_status` (MEMSTATUS is off), which `platform/store/sqlite` pushes to
   `platform/obs` (the writer after each batch, each loop's reader on its 1 s timer), so ops never imports the store.
   `houston.spec` and `ops/houston.js` cover the admin's side; `status.js` reads the main host.
+- **status, full** (M5 slice 3): each `STATUS_PROBES` external has a prober thread of its own, and `/status/parts`
+  sends the process's own parts at once and each external's as it answers (one probe in flight per external however
+  many pages ask; "no answer" at 2.5 s), so the parts swap in the order their probes answer; a disk part (free space
+  of `STATUS_DISK`, degraded under 10 %; `/data` in Houston). `platform/sys` gains `disk_free`.
 - **The `opsviewers` drill** (M5 slice 2): 1, 10 and 100 SSE viewers of the ops panel, the server's CPU read from
   outside: flat (0 to 3.1 ms a second on Windows), every viewer refreshed each second (`docs/perf/OPS-VIEWERS.md`).
 

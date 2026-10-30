@@ -1,4 +1,6 @@
 import { test, expect } from '../../fixtures';
+import http from 'node:http';
+import type net from 'node:net';
 import { startServer, stopServer, mainOrigin } from '../../helpers/server';
 
 // /status (PLAN §15.4): a card per probe, filled by one multipart/parallel response or, with
@@ -31,6 +33,35 @@ test.describe('status', T, () => {
     expect(tag).toMatch(/^\d+$/);
     const again = await request.get('/status/board', { headers: { 'HX-PTag': tag } });
     expect(again.status()).toBe(304);
+  });
+
+  // M5's parallel order: each external's part swaps in as its probe answers, so a fast witness
+  // is up on the board while a slow one is still being checked. Both answers are let go stale
+  // (FRESH, 5 s) before the page loads, so the page waits on a fresh probe of each.
+  test('parts arrive in the order their probes answer', async ({ browser }) => {
+    const fake = (delay: number) => new Promise<http.Server>((res) => {
+      const srv = http.createServer((_, r) => setTimeout(() => r.writeHead(200, { 'x-version': `fake-${delay}` }).end('ok'), delay));
+      srv.listen(0, '127.0.0.1', () => res(srv));
+    });
+    const fast = await fake(0);
+    const slow = await fake(1500);
+    const port = (srv: http.Server) => (srv.address() as net.AddressInfo).port;
+    const s = await startServer(test.info().config, { STATUS_PROBES: `fast=127.0.0.1:${port(fast)},slow=127.0.0.1:${port(slow)}` });
+    const context = await browser.newContext({ baseURL: mainOrigin(s.port) });
+    const page = await context.newPage();
+    try {
+      await page.waitForTimeout(7500); // the slow answer comes 1.5 s after boot: stale 5 s after that
+      await page.goto('/status');
+      await expect(page.locator('#st-fast .status-state')).toHaveText('ok');
+      await expect(page.locator('#st-slow .status-state')).toHaveText('checking…');
+      await expect(page.locator('#st-slow .status-state')).toHaveText('ok', { timeout: 3000 });
+      await expect(page.locator('#st-slow')).toContainText('version fake-1500');
+    } finally {
+      await context.close();
+      await stopServer(s);
+      fast.close();
+      slow.close();
+    }
   });
 
   // The witness board (M3): STATUS_PROBES' externals, each its own card, whose state and the
