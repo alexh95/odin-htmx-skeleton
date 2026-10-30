@@ -10,6 +10,19 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ### Fixed
 
+- **The lab no longer grows until it is OOM-killed**: the witness board's probe thread never freed its temp
+  allocator, so every probe's request line and resolver lookups stayed (M3-01).
+- **A chat socket answers the page's version once**: every frame carrying one bought a snapshot render, up to 20 a
+  second per socket (M3-02).
+- **`tools/init` keeps `docs/catalog.json` in a project with `landing`**, which embeds it; a project without landing
+  drops the file and the Dockerfile's copy of it, which failed its image build.
+- **The landing builder never echoes a refused name** into the command it offers to copy (M3-05); its boot failure
+  logs through obs (M3-12).
+- **The release publishes only a release-shaped tag on a commit CI passed** (`vX.Y.Z`, `vX.Y.Z-rc.N`); the registry
+  token goes through `env`, and the Dockerfile quotes `VERSION` and `PROFILE` (M3-06).
+- **`promote.ps1` takes only `vX.Y.Z`, `-rc.N` or `sha-<7>`**, never `latest`, and checks a previous tag from the host
+  before a rollback uses it (M3-08); **the stack's containers drop every capability** and can't gain privileges, the
+  Caddy keeping `NET_BIND_SERVICE` under a memory limit (M3-07).
 - **The release image builds on arm64**: the Dockerfile's build stage declared `ARG TARGETARCH=amd64`, and that
   default won over BuildKit's value, so an arm64 build fetched amd64's Odin (its checksum matched, being amd64's) and
   `prepare` failed with "Exec format error"; the release workflow's first dry run caught it. The ARG is declared bare
