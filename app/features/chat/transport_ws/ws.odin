@@ -35,6 +35,9 @@ Socket :: struct {
 	sub:  ^hub.Sub,
 	room: m.Room,       // slug and name on the heap
 	who:  authz.Viewer, // name on the heap
+	// The page's version is answered once: a reconnect is a new socket, and a version on
+	// every frame would buy a snapshot render each (M3-02).
+	caught_up: bool,
 }
 
 // Set by chat_web at init: a frame's body, posted (or refused back down the socket).
@@ -100,7 +103,11 @@ send :: proc(s: ^Socket, html: string) {
 on_message :: proc(c: ^stream.Conn, text: bool, data: []byte) {
 	if !text { return }
 	if ver, _ := stream.ws_field(data, "ver"); ver != "" {
-		catch_up((^Socket)(c.user), ver)
+		s := (^Socket)(c.user)
+		if !s.caught_up {
+			s.caught_up = true
+			catch_up(s, ver)
+		}
 		return
 	}
 	body, ok := stream.ws_field(data, "body")

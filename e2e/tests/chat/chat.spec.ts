@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures';
-import type { Page } from '@playwright/test';
+import type { Page, WebSocketRoute } from '@playwright/test';
 import { startServer, stopServer, type Server } from '../../helpers/server';
 import { leave, member, uid, type Member } from '../../helpers/members';
 
@@ -34,12 +34,23 @@ async function say(m: Member, text: string) {
   await expect(box).toHaveValue(''); // Composer cleared it once sent
 }
 
-// The reconnect's own event: hx-ws's after:connection on the pane, which sends the page's version;
-// /events' resync on the body, which asks /since with it.
-const RECONNECT = {
-  ws: (pane: Element) => pane.dispatchEvent(new CustomEvent('htmx:ws:after:connection')),
-  sse: () => document.body.dispatchEvent(new CustomEvent('resync')),
-};
+// /events' resync on the body, which asks /since with the page's version.
+const RESYNC = () => document.body.dispatchEvent(new CustomEvent('resync'));
+
+// A socket that really reconnects: the page's sockets go through a route, and closing one with 1012
+// (one of hx-ws's reconnect codes) makes it connect again, sending the page's version on the new
+// socket. Call before the page opens its socket; the returned proc waits for the next connection.
+async function routed(m: Member) {
+  const live: { page: WebSocketRoute; server: WebSocketRoute }[] = [];
+  await m.page.routeWebSocket(/\/ws$/, ws => { live.push({ page: ws, server: ws.connectToServer() }); });
+  return async () => {
+    const n = live.length;
+    await live[n - 1].server.close();
+    await live[n - 1].page.close({ code: 1012 });
+    await expect.poll(() => live.length).toBe(n + 1);
+    await expect.poll(() => m.page.locator('.chat-pane').evaluate((el: any) => el._htmx?.ws?.connection?.socket?.readyState)).toBe(1);
+  };
+}
 
 const messages = (m: Member) => m.page.locator('.chat-log > article.chat-msg');
 const message = (m: Member, text: string) => messages(m).filter({ hasText: text });
@@ -249,11 +260,12 @@ test.describe('chat', T, () => {
         const slug = await newRoom(ann.page);
         await open(ann, slug, 'sse');
         for (let i = 0; i < 4; i++) await say(ann, `long ${i} ${'&'.repeat(1990)}`);
+        const reconnect = t === 'ws' ? await routed(bob) : null;
         await open(bob, slug, t);
-        if (t === 'ws') {
+        if (reconnect) {
           // A socket's page asks only for what changed since it rendered: from a version of 0, all of it.
           await bob.page.locator('input[name="ver"]').evaluate((el: HTMLInputElement) => { el.value = '0'; });
-          await bob.page.locator('.chat-pane').evaluate(RECONNECT.ws);
+          await reconnect();
         }
         await expect(message(bob, 'long 3')).toHaveCount(1);
         // What didn't fit is gone from the log, not left behind a gap (M2-26).
@@ -300,9 +312,10 @@ test.describe('chat', T, () => {
 
   // A reconnect sends the page's version (#ver-<room>): past what the room still holds, the log is
   // replaced, where an upsert kept the page's old messages with a silent gap before the newest (M2-31's
-  // socket, M2-35's SSE). Playwright's offline mode leaves a connection to 127.0.0.1 open, so the page
-  // is put back to its version from before the gap, and the reconnect's own event fired (RECONNECT).
-  // A restart's reconnect is the restart specs' (above): the page keeps its log.
+  // socket, M2-35's SSE). The page is put back to its version from before the gap, then the socket
+  // reconnects (routed) or /events asks a resync. A socket answers its version once: sent again on the
+  // same socket it buys nothing (M3-02). A restart's reconnect is the restart specs' (above): the page
+  // keeps its log.
   for (const t of ['ws', 'sse'] as const) {
     test(`over ${t}, a reconnect past what the room let go replaces the log (M2-31, M2-35)`, async ({ browser }) => {
       const s = await startServer(test.info().config, { CHAT_RING_BYTES: '3KiB' });
@@ -311,6 +324,7 @@ test.describe('chat', T, () => {
       try {
         const slug = await newRoom(ann.page);
         await open(ann, slug, 'sse');
+        const reconnect = t === 'ws' ? await routed(bob) : () => bob.page.evaluate(RESYNC);
         await open(bob, slug, t);
         await say(ann, 'before the gap');
         await expect(message(bob, 'before the gap')).toHaveCount(1);
@@ -322,14 +336,20 @@ test.describe('chat', T, () => {
         expect(BigInt(await ver.inputValue())).toBeGreaterThan(BigInt(before)); // the live messages moved it
 
         await ver.evaluate((el: HTMLInputElement, v) => { el.value = v; }, before);
-        await bob.page.locator('.chat-pane').evaluate(RECONNECT[t]);
+        if (t === 'ws') {
+          // The version again on the open socket: answered once already, so the log stays as it is.
+          await bob.page.locator('.chat-pane').evaluate(pane => pane.dispatchEvent(new CustomEvent('htmx:ws:after:connection')));
+          await bob.page.waitForTimeout(500);
+          await expect(message(bob, 'before the gap')).toHaveCount(1);
+        }
+        await reconnect();
         await expect(message(bob, 'before the gap')).toHaveCount(0); // let go by the room: replaced
         await expect(message(bob, 'long 0')).toHaveCount(0);
         await expect(message(bob, 'long 3')).toHaveCount(1);
 
         // A reconnect the room still reaches upserts what changed, here nothing: the log stays.
         const kept = await messages(bob).count();
-        await bob.page.locator('.chat-pane').evaluate(RECONNECT[t]);
+        await reconnect();
         await bob.page.waitForTimeout(500);
         await expect(messages(bob)).toHaveCount(kept);
         await expect(message(bob, 'long 3')).toHaveCount(1);
