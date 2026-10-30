@@ -263,13 +263,15 @@ admin_invite :: proc(req: ^web.Request, res: ^web.Response) {
 	b := strings.builder_make(context.temp_allocator)
 	views.invite_made(&b, invite_link(req, code), authz.ROLE_LABELS[role], uses, days)
 	show := strings.to_string(b)
-	op := store.new_op(Inviting, ACT_BYTES + len(show) + 64)
+	op := store.new_op(Inviting, ACT_BYTES + len(show) + 128)
 	a := store.op_allocator(op)
-	act_init(&op.act, a, reason, "accounts.invite_created", fmt.tprintf("role=%s uses=%d days=%d", authz.ROLE_LABELS[role], uses, days), 0)
+	code_hash := strings.clone(accounts.hash_code(code, accounts.INVITE_GROUPS), a)
+	// The hash's first 8 hex name the invite in its creation, its withdrawal and each use (M4-16).
+	act_init(&op.act, a, reason, "accounts.invite_created", fmt.tprintf("invite=%s role=%s uses=%d days=%d", code_hash[:8], authz.ROLE_LABELS[role], uses, days), 0)
 	op.act.show = strings.clone(show, a)
 	now := accounts.now_ms()
 	op.invite = {
-		code_hash = strings.clone(accounts.hash_code(code, accounts.INVITE_GROUPS), a),
+		code_hash = code_hash,
 		role = role, max_uses = uses, created_by = i64(web.ctx().viewer.id), created_at = now,
 		expires_at = now + i64(days) * 86_400_000,
 	}
@@ -309,7 +311,7 @@ admin_uninvite :: proc(req: ^web.Request, res: ^web.Response) {
 	if !reason_ok { return }
 	op := store.new_op(Uninviting, ACT_BYTES + len(h))
 	a := store.op_allocator(op)
-	act_init(&op.act, a, reason, "accounts.invite_deleted", "", 0)
+	act_init(&op.act, a, reason, "accounts.invite_deleted", fmt.tprintf("invite=%s", h[:8]), 0)
 	op.code_hash = strings.clone(h, a)
 	op.done = proc(o: ^store.Op) { acted(o, &(^Uninviting)(o).act, "") }
 	queue(req, res, op, &op.act, proc(o: ^store.Op) -> bool { return accounts.delete_invite((^Uninviting)(o)) })

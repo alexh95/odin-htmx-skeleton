@@ -206,10 +206,10 @@ Alex, asked in one batch.
 - [ ] **M4 audit, open** (`docs/audit/M4.md`): M4-03's rest (the sign-in's overall bucket and the per-account
       backoff, §17.5: a stranger can slow every sign-in, never lock one out; decide before stage 2); M4-04's rest
       (an entry a full writer queue drops is not logged; entries are their own op, not the change's transaction);
-      M4-05 username oracles, M4-06 ops not one unit, M4-07 the reversible client id, M4-08 `__Host-sid`, M4-09
-      streams outliving a sign-out, M4-10 no admin way to clear a lost authenticator, M4-11 `ACCOUNTS_ADMIN_NAME`
-      unchecked, M4-12 the snapshot's busybox pin (with M3-08's), M4-13 fuzz cases for the new parsers (with
-      M3-09's), M4-14 to M4-16 (NIT).
+      M4-05 username oracles, M4-06 ops not one unit, M4-07 the reversible client id, M4-08 `__Host-sid`, M4-09's
+      rest (a sign-out's and a member's revoke's streams: a per-session hub key; the subscribe-after-kick race),
+      M4-10 no admin way to clear a lost authenticator, M4-12 the snapshot's busybox pin (with M3-08's), M4-13 fuzz
+      cases for the new parsers (with M3-09's). M4-11, M4-14, M4-15 and M4-16 are fixed.
 
 ## M3 — pipeline, apollo LAN, the landing page (v2.2.0)
 

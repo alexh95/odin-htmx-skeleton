@@ -103,7 +103,7 @@ Login :: struct {
 	totp:         bool, // the account has a second factor: a sign-in asks for a code next
 	https:        bool,
 	client:       u64, // web.client_key: the audit's client id
-	name:         [accounts.MAX_USERNAME]byte,
+	name:         [4 * accounts.MAX_DISPLAY]byte, // a display name: up to 40 runes
 	name_len:     int,
 	next:         [512]byte,
 	next_len:     int,
@@ -355,8 +355,10 @@ closing :: proc(req: ^web.Request, res: ^web.Response, token_hash, to: string) {
 closed :: proc(o: ^store.Op) {
 	op := (^Closing)(o)
 	defer store.free_op(op)
-	if op.err == .None && op.to == "" {
-		audit_store.append({op.user_id, op.name, client_id(op.client)}, "accounts.revoke", {"session", 0}, "", "")
+	if op.ended && op.to == "" {
+		meta: [24]byte
+		audit_store.append({op.user_id, op.name, client_id(op.client)}, "accounts.revoke", {"session", 0}, "",
+			fmt.bprintf(meta[:], "session=%s", op.token_hash[:min(len(op.token_hash), 8)]))
 	}
 	res := web.resume(&op.deferred)
 	if res == nil { return }

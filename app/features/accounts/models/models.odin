@@ -198,6 +198,7 @@ Close_Session :: struct {
 	using op:   store.Op,
 	token_hash: string,
 	user_id:    i64,
+	ended:      bool, // out: a session of theirs went (a foreign hash ends nothing)
 }
 
 Store_User_By_Name :: proc(username: string) -> (User, Error)

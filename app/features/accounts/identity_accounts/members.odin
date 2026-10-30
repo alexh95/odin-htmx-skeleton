@@ -15,6 +15,7 @@ import "core:time"
 
 import "../../../platform/authz"
 import "../../../platform/html"
+import "../../../platform/hub"
 import "../../../platform/password"
 import "../../../platform/store"
 import "../../../platform/web"
@@ -199,7 +200,7 @@ registered :: proc(o: ^store.Op) {
 	if op.err == .None { // audited before the client is known to be there (M4-04)
 		meta: [48]byte
 		audit_store.append({op.result, op.display, client_id(h.client)}, "accounts.register", {"user", op.result}, "",
-			fmt.bprintf(meta[:], "role=%s invite=%s", authz.ROLE_LABELS[op.role], "yes" if op.invite_hash != "" else "no"))
+			fmt.bprintf(meta[:], "role=%s invite=%s", authz.ROLE_LABELS[op.role], op.invite_hash[:8] if len(op.invite_hash) >= 8 else "none"))
 	}
 	res := web.resume(&h.deferred)
 	if res == nil { return }
@@ -268,6 +269,8 @@ reset_done :: proc(o: ^store.Op) {
 	}
 	if op.err == .None {
 		audit_store.append({op.user_id, string(h.display[:h.display_n]), client_id(h.client)}, "accounts.reset", {"user", op.user_id}, "", "")
+		// The reset ended every session in the write; an intruder's open pages go now too (M4-09).
+		hub.revoke(u64(op.user_id))
 	}
 	res := web.resume(&h.deferred)
 	if res == nil { return }

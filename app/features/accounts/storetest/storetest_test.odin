@@ -68,7 +68,11 @@ the_store_keeps_users_and_sessions :: proc(t: ^testing.T) {
 	defer db.close()
 	db.migrate("accounts", sql.MIGRATIONS[:])
 
-	made, berr := sql.bootstrap_admin("root", "$argon2id$v=19$m=19456,t=2,p=1$x$y")
+	// A member who registered before the admin existed holds the name: boot refuses it (M4-11).
+	testing.expect_value(t, create(t, "taken", .User), store.Error.None)
+	made, berr := sql.bootstrap_admin("Taken", "$argon2id$v=19$m=19456,t=2,p=1$x$y")
+	testing.expect(t, berr == .Constraint && !made)
+	made, berr = sql.bootstrap_admin("root", "$argon2id$v=19$m=19456,t=2,p=1$x$y")
 	testing.expect(t, berr == .None && made)
 	made, berr = sql.bootstrap_admin("root2", "$argon2id$v=19$m=19456,t=2,p=1$x$y")
 	testing.expect(t, berr == .None && !made) // an enabled admin exists

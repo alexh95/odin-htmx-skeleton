@@ -8,6 +8,20 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Fixed
+
+- **A bad or taken `ACCOUNTS_ADMIN_NAME` refuses to boot with a reason** (M4-11): the name is held to a username's
+  rules, and one a member already registered exits 78 naming it, where before any insert failure exited 70 and
+  compose restarted it into the same exit.
+- **A reset ends the account's open pages too** (M4-09, in part): its sessions ended in the write; now its streams
+  go with them, as a role change's do.
+- **Audit entries say which invite and which session** (M4-16): an invite's creation, withdrawal and each use carry
+  the first 8 hex of its hash, and a revoke is logged only when it ended a session, with that session's prefix.
+- **Text cut for the audit is cut by rune** (M4-14, M4-15): a sign-in's display name is kept whole (up to 40 runes),
+  and a long filter is cut before a rune, never inside one.
+- **The ops panel's sse spec no longer races its first push** in WebKit: the poll makes a request of its own, since
+  the sse mode makes none.
+
 ## [2.3.0] - 2026-10-30
 
 The starter's fourth milestone, M4: identity and the Houston shell. `full`, Houston's profile, signs members in with

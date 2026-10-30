@@ -120,14 +120,24 @@ bootstrap :: proc() {
 		fmt.eprintln("accounts: ACCOUNTS_ADMIN_HASH is not an argon2id hash from --hash-password")
 		os.exit(78)
 	}
-	made, err := accounts.bootstrap_admin(env.str("ACCOUNTS_ADMIN_NAME"), phc)
+	name, problem := accounts.check_username(env.str("ACCOUNTS_ADMIN_NAME"))
+	if problem != "" {
+		fmt.eprintfln("accounts: ACCOUNTS_ADMIN_NAME: %s", problem)
+		os.exit(78)
+	}
+	made, err := accounts.bootstrap_admin(name, phc)
+	if err == .Constraint {
+		// Not 70: compose would restart it into the same refusal.
+		fmt.eprintfln("accounts: ACCOUNTS_ADMIN_NAME %q is a member's username: name another admin", name)
+		os.exit(78)
+	}
 	if err != .None {
 		fmt.eprintln("accounts: the bootstrap admin could not be written")
 		os.exit(70)
 	}
 	if made {
 		if l, ok := obs.begin(.Info, "accounts", "admin_created"); ok {
-			obs.str(&l, "name", env.str("ACCOUNTS_ADMIN_NAME"))
+			obs.str(&l, "name", name)
 			obs.end(&l)
 		}
 	}

@@ -214,10 +214,11 @@ one_invite :: proc(q: db.Stmt) -> (inv: m.Invite, ok: bool) {
 boot: struct {
 	username, pw_hash: string,
 	created:           bool,
+	err:               m.Error,
 }
 
 bootstrap_admin :: proc(username, pw_hash: string) -> (created: bool, err: m.Error) {
-	boot.username, boot.pw_hash, boot.created = username, pw_hash, false
+	boot.username, boot.pw_hash, boot.created, boot.err = username, pw_hash, false, .None
 	ok := db.write_now(proc() -> bool {
 		q := db.writer_stmt(SQL_ADMINS)
 		e: m.Error
@@ -231,10 +232,13 @@ bootstrap_admin :: proc(username, pw_hash: string) -> (created: bool, err: m.Err
 		db.bind_text(st, 3, boot.pw_hash)
 		db.bind_int(st, 4, int(m.Role.Admin))
 		db.bind_id(st, 5, now_ms())
-		boot.created = db.step_done(st) == .None
+		boot.err = db.step_done(st)
+		boot.created = boot.err == .None
 		return boot.created
 	})
-	return boot.created, .None if ok else .Failed
+	if ok { return boot.created, .None }
+	// .Constraint: the name is someone else's, a member who registered before the admin existed.
+	return false, boot.err if boot.err != .None else .Failed
 }
 
 create_user :: proc(op: ^m.Create_User) -> bool {
@@ -320,6 +324,7 @@ close_session :: proc(op: ^m.Close_Session) -> bool {
 		db.bind_text(st, 1, op.token_hash)
 		db.bind_id(st, 2, op.user_id)
 		o.err = db.step_done(st)
+		op.ended = o.err == .None && db.changes() > 0
 	}
 	return db.write(op)
 }

@@ -27,7 +27,10 @@ kept :: proc() -> bool { return audit_store.IMPL != "memory" }
 filter :: proc(actor, action: string, before: i64, limit := PAGE) -> m.Filter {
 	cap :: proc(s: string) -> string {
 		t := strings.trim_space(s)
-		return t[:min(len(t), MAX_FILTER)]
+		if len(t) <= MAX_FILTER { return t }
+		n := MAX_FILTER
+		for n > 0 && t[n] & 0xC0 == 0x80 { n -= 1 } // cut by rune, never inside one
+		return t[:n]
 	}
 	return m.Filter{actor = cap(actor), action = cap(action), before = max(before, 0), limit = limit}
 }
