@@ -3,11 +3,15 @@ package store_sqlite
 // ---- an admin's own SQL, read only (PLAN §15.4: dbview) --------------------------------------
 //
 // On a query-pool thread, on that thread's reader: a connection opened read-only, so nothing it
-// runs takes the writer's lock or writes, whatever the text says. One statement, which SQLite
-// itself must call read-only (`stmt_readonly`), with ATTACH refused (`LIMIT_ATTACHED` 0: an
-// attach is read-only to SQLite, and would open any file the process can read); a progress
-// handler interrupts it past `budget`, since a long read's snapshot pins the WAL (12 §3.3).
-// Rows and cells are capped; values are text as SQLite gives them, a blob as its size.
+// runs takes the writer's lock or writes, whatever the text says. An authorizer at prepare lets
+// a statement read, select, call functions and recurse, and nothing else: no transaction or
+// savepoint (each is read-only to `stmt_readonly`, and an open one would keep the reader's
+// snapshot, pinning the WAL, M5-01), no PRAGMA (applied while preparing, on a connection other
+// pool work shares), no ATTACH. One statement, which SQLite must also call read-only, with
+// `LIMIT_ATTACHED` 0 and a 1 MB `LIMIT_LENGTH` (a 1 GB randomblob is one VM step the progress
+// handler can't stop, M5-08) as second lines; a progress handler interrupts it past `budget`
+// (12 §3.3), and a transaction left open anyway is rolled back. Rows and cells are capped;
+// values are text as SQLite gives them, a blob as its size.
 
 import "base:runtime"
 import "core:c"
@@ -26,6 +30,12 @@ Adhoc :: struct {
 	ms:      f64,
 }
 
+// SQLITE_AUTH: the authorizer said no.
+@(private) AUTH_DENIED :: 23
+
+// The longest value a query may make (SQLITE_LIMIT_LENGTH), in bytes.
+@(private) MAX_VALUE :: 1 << 20
+
 @(private, thread_local)
 adhoc_deadline: i64 // mono ns: the progress handler interrupts past it
 
@@ -37,7 +47,18 @@ adhoc :: proc(text: string, max_rows, max_cell: int, budget: time.Duration, allo
 	if r == nil { return {}, "the store has no reader on this thread" }
 	conn := r.db
 	sqlite.limit(conn, sqlite.LIMIT_ATTACHED, 0)
+	was_length := sqlite.limit(conn, sqlite.LIMIT_LENGTH, MAX_VALUE)
+	defer sqlite.limit(conn, sqlite.LIMIT_LENGTH, was_length) // other pool work keeps its own
+	defer if sqlite.in_transaction(conn) { sqlite.exec(conn, "ROLLBACK") }
+	sqlite.set_authorizer(conn, proc "c" (_: rawptr, action: c.int, _, _, _, _: cstring) -> c.int {
+		switch action {
+		case sqlite.ACTION_READ, sqlite.ACTION_SELECT, sqlite.ACTION_FUNCTION, sqlite.ACTION_RECURSIVE: return sqlite.AUTH_OK
+		}
+		return sqlite.AUTH_DENY
+	})
 	st, rc, rest := sqlite.prepare_first(conn, text)
+	sqlite.set_authorizer(conn, nil)
+	if rc == AUTH_DENIED { return {}, "only reads: a SELECT (or WITH … SELECT), nothing that writes, opens a transaction, sets a PRAGMA or attaches" }
 	if rc != sqlite.OK { return {}, strings.clone(sqlite.errmsg(conn), allocator) }
 	if st == nil { return {}, "there is no statement there" }
 	defer sqlite.finalize(st)

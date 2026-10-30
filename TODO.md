@@ -36,7 +36,8 @@ metrics only). Pushes are on the standing go; apollo, tags and anything on Alex'
       a unit or drill assertion that the publisher renders once a second.
       Done: the `opsviewers` drill (Windows 0.0 / 1.6 / 3.1 ms of CPU a second at 1 / 10 / 100 viewers, 11 refreshes
       each in 10 s; Linux in CI's `streams` drills), `docs/perf/OPS-VIEWERS.md`.
-- [x] **3. status, full** (§15.4): `STATUS_PROBES` externals with 2 s timeouts (connect and resolve included), disk
+- [x] **3. status, full** (§15.4): `STATUS_PROBES` externals with 2 s timeouts (each read's and the reads' together;
+      resolve and connect have none of their own, so the page's 2.5 s cut-off is what bounds them: M5-09), disk
       free and backup age as parts, one `multipart/parallel` response whose parts arrive as each answers. *Check:* a
       spec with a slow and a fast external asserting the fast part swaps first (the parallel order); the ptag variant.
       Done: a prober thread per external with waiters (single-flight), the 2.5 s cut-off on the page's loop, the disk

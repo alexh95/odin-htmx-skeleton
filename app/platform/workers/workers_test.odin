@@ -105,9 +105,9 @@ pool_and_scheduler :: proc(t: ^testing.T) {
 	@(static) JOBS := [?]Job{
 		{id = "test.tick", every = 0, run = proc() { sync.atomic_add(&ran, 1) }},
 		{id = "test.slow", every = time.Hour, run = proc() {
-			for i in 0 ..< 200 {
+			for i in 0 ..< 400 {
 				if cancelled() { return }
-				progress(i64(i), 200)
+				progress(i64(i), 400)
 				log("step %d", i)
 				time.sleep(10 * time.Millisecond)
 			}
@@ -135,14 +135,18 @@ pool_and_scheduler :: proc(t: ^testing.T) {
 	slow, _ := run_now("test.slow")
 	running := settle(slow, .Running)
 	testing.expect_value(t, running.state, Run_State.Running)
-	qd, _ := run_now("test.tick") // behind the slow one: the scheduler runs one job at a time
+	// The slow run is on the long-run thread: the frequent job goes on beside it (M5-03).
+	before := sync.atomic_load(&ran)
+	time.sleep(1200 * time.Millisecond)
+	testing.expect(t, sync.atomic_load(&ran) > before)
+	qd, _ := run_now("test.tick") // a kept run, behind the slow one: one long run at a time
 	testing.expect(t, cancel_run(qd))
 	testing.expect_value(t, settle(qd, .Cancelled).state, Run_State.Cancelled)
 	time.sleep(100 * time.Millisecond)
 	testing.expect(t, cancel_run(slow))
 	done := settle(slow, .Cancelled)
 	testing.expect_value(t, done.state, Run_State.Cancelled)
-	testing.expect(t, done.total == 200 && done.done > 0 && done.done < 199)
+	testing.expect(t, done.total == 400 && done.done > 0 && done.done < 399)
 	testing.expect(t, done.log_len > 0 && string(done.log[:7]) == "step 0\n")
 	testing.expect(t, !cancel_run(slow)) // ended
 

@@ -10,7 +10,8 @@ runs to its budget keep their latency). It must be one statement that SQLite its
 `ATTACH` is refused (`LIMIT_ATTACHED` 0: SQLite counts an attach as a read, and it would open any file the process can
 read), and a progress handler stops it at 2 s, since a long read's snapshot pins the WAL (12 §3.3). At most 200 rows
 and 200 characters a cell come back; values are text as SQLite gives them, a blob as its size. Every query is audited
-(`dbview.query`, its first 200 bytes in the entry's detail).
+(`dbview.query`, the whole SQL in the entry's detail, so padding can't hide what was read). It reads every table,
+the accounts' TOTP secrets and session-token hashes among them: that is `Admin_Db`'s grant, which only Admin holds.
 
 | Route | Perm | What |
 |---|---|---|

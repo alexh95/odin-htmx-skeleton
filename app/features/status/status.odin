@@ -6,7 +6,9 @@ package status
 // (§10.4), whether every event loop still ticks, the process itself, the disk the data is on,
 // and the STATUS_PROBES externals (the lab's witness board, M3: the other witnesses' /healthz).
 // Each external has a prober thread of its own, probing every WATCH_EVERY and whenever a page
-// asks for an answer fresher than FRESH: a page waits on that thread's next answer (one probe
+// asks for an answer fresher than FRESH (resolve and connect have no timeout of their own: a
+// blackholed external holds its prober for the OS's connect timeout, and pages get "no answer"
+// at ANSWER_WITHIN meanwhile, M5-09): a page waits on that thread's next answer (one probe
 // in flight per external, however many pages ask), and its part goes out when it comes (M5:
 // the parts swap in parallel order). A page never waits longer than ANSWER_WITHIN.
 
@@ -184,7 +186,8 @@ probe :: proc(host: string) -> (state, message: string) {
 	if _, err := net.send_tcp(sock, transmute([]byte)req); err != nil { return "down", fmt.aprintf("%s: the request didn't go out", host) }
 	buf: [2048]byte
 	n := 0
-	for n < len(buf) {
+	// The socket timeout bounds each read; this bounds them all, against a peer that drips (M5-09).
+	for n < len(buf) && time.tick_since(t0) < PROBE_TIMEOUT {
 		got, err := net.recv_tcp(sock, buf[n:])
 		if err != nil || got == 0 { break }
 		n += got

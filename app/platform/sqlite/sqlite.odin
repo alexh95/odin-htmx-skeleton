@@ -62,7 +62,18 @@ DBSTATUS_SCHEMA_USED :: 2
 DBSTATUS_STMT_USED :: 3
 
 // sqlite3_limit categories.
+LIMIT_LENGTH :: 0
 LIMIT_ATTACHED :: 7
+
+// The authorizer's answers, and the actions dbview allows (sqlite3_set_authorizer).
+AUTH_OK :: 0
+AUTH_DENY :: 1
+ACTION_READ :: 20
+ACTION_SELECT :: 21
+ACTION_FUNCTION :: 31
+ACTION_RECURSIVE :: 33
+
+Authorizer :: #type proc "c" (user: rawptr, action: c.int, a, b, c_, d: cstring) -> c.int
 
 // stmt_status verbs.
 STMTSTATUS_FULLSCAN_STEP :: 1
@@ -123,6 +134,7 @@ foreign lib {
 	sqlite3_progress_handler :: proc(db: DB, n: c.int, f: Progress_Func, user: rawptr) ---
 	sqlite3_interrupt :: proc(db: DB) ---
 	sqlite3_get_autocommit :: proc(db: DB) -> c.int ---
+	sqlite3_set_authorizer :: proc(db: DB, f: Authorizer, user: rawptr) -> c.int ---
 	sqlite3_create_function_v2 :: proc(db: DB, name: cstring, nargs: c.int, flags: c.int, app: rawptr, xfunc: Scalar_Func, xstep: rawptr, xfinal: rawptr, destroy: rawptr) -> c.int ---
 	sqlite3_value_text :: proc(v: Value) -> [^]u8 ---
 	sqlite3_value_bytes :: proc(v: Value) -> c.int ---
@@ -237,6 +249,12 @@ prepare_first :: proc(db: DB, sql: string) -> (s: Stmt, rc: c.int, rest: string)
 		if used >= 0 && used <= len(sql) { rest = sql[used:] }
 	}
 	return
+}
+
+// Asked at prepare, before a statement does anything (a PRAGMA's setting included): nil removes it.
+set_authorizer :: proc(db: DB, f: Authorizer, user: rawptr = nil) -> c.int {
+	enter(); defer leave()
+	return sqlite3_set_authorizer(db, f, user)
 }
 
 // Sets a run-time limit on this connection; the old value.

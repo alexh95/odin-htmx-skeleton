@@ -857,7 +857,7 @@ async function phaseBackup(f) {
   let copies = [];
   for (let i = 0; i < 100 && copies.length === 0; i++) {
     await sleep(100);
-    copies = listDir(`${dir}/backups`).filter((n) => /^backup-\d{8}-\d{6}\.db$/.test(n));
+    copies = listDir(`${dir}/backups`).filter((n) => /^manual-\d{8}-\d{6}\.db$/.test(n)); // by hand: manual-
   }
   await sleep(300); // the copy is checked after it is written
   const after = await add(s.port, 'After Backup');

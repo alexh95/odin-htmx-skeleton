@@ -2,13 +2,14 @@ package store_sqlite
 
 // ---- backups as a job (PLAN §11.6, §11.8; M5) --------------------------------------------
 //
-// `store.backup` writes `backup-<UTC date>-<time>.db` into BACKUP_DIR with VACUUM INTO (live-
-// safe: one snapshot, WAL included, compacted), on a connection of its own, so the writer and
-// the loops' readers go on; a quick_check of the copy; then only the newest BACKUP_KEEP of them
-// stay. It wakes every 10 minutes and runs at BACKUP_HOUR_UTC once a day (`due`), or when an
-// admin asks on /admin/jobs. A cancel stops the copy mid-way (SQLite's progress handler) and the
-// part written goes. promote.ps1's pre-deploy snapshots (`pre-<tag>.db`, keep 5) sit beside
-// them; status shows the newest of either's age through obs.
+// `store.backup` writes `backup-<UTC date>-<time>.db` (`manual-…` when an admin asks for it on
+// /admin/jobs) into BACKUP_DIR with VACUUM INTO (live-safe: one snapshot, WAL included,
+// compacted), on a connection of its own, so the writer and the loops' readers go on. It writes
+// to `<name>.part` and renames once a quick_check passes, so a copy cut short is never taken for
+// a backup; then the newest BACKUP_KEEP of its kind stay. It wakes every 10 minutes and runs at
+// BACKUP_HOUR_UTC once a day (`due`), on the long-run thread. A cancel stops the copy mid-way
+// (SQLite's progress handler) and the part written goes. promote.ps1's pre-deploy snapshots
+// (`pre-<tag>.db`, keep 5) sit beside them; status shows the newest of all three's age.
 
 import "base:runtime"
 import "core:c"
@@ -28,7 +29,7 @@ import "../../workers"
 BACKUP_ENV := [?]env.Row {
 	{name = "BACKUP_DIR", kind = .Path, def = "", doc = `where the nightly backups go; "" = backups/ beside DB_PATH`},
 	{name = "BACKUP_HOUR_UTC", kind = .Int, def = "3", doc = "the hour (UTC) of the nightly backup; -1 = only when asked for by hand"},
-	{name = "BACKUP_KEEP", kind = .Int, def = "7", doc = "the nightly backups kept, the newest"},
+	{name = "BACKUP_KEEP", kind = .Int, def = "7", doc = "the nightly backups kept, the newest; as many by hand, apart"},
 }
 
 // A profile on SQLite mounts this with its JOBS.
@@ -78,29 +79,45 @@ backup_job :: proc() {
 		workers.fail("can't make %s: %v", bk.dir, err)
 		return
 	}
+	// A run by hand is `manual-`, kept apart, so clicks never rotate out the nightly ones (M5-05).
+	r := workers.current()
+	prefix := "manual-" if r != nil && r.by_hand else "backup-"
 	now := time.now()
 	y, mo, d := time.date(now)
 	h, mi, s := time.clock(now)
-	name := fmt.tprintf("backup-%04d%02d%02d-%02d%02d%02d.db", y, int(mo), d, h, mi, s)
+	name := fmt.tprintf("%s%04d%02d%02d-%02d%02d%02d.db", prefix, y, int(mo), d, h, mi, s)
 	dest := join(bk.dir, name)
+	// Written under a name no reader takes for a backup, and given its own once it checks: a
+	// copy a restart cut short is never counted, kept or restored (M5-04).
+	part := strings.concatenate({dest, ".part"}, context.temp_allocator)
+	for stale in backup_names("", ".part") { _ = os.remove(join(bk.dir, stale)) }
+	if os.exists(dest) {
+		workers.fail("%s is there already", name)
+		return
+	}
 
 	workers.progress(0, 3)
 	workers.log("copying %s to %s", db.db_path, dest)
-	if !vacuum_into(dest) {
-		_ = os.remove(dest)
+	if !vacuum_into(part) {
+		_ = os.remove(part)
 		return
 	}
 	workers.progress(1, 3)
-	if problem := quick_check(dest); problem != "" {
+	if problem := quick_check(part); problem != "" {
 		workers.fail("the copy doesn't check: %s", problem)
-		_ = os.remove(dest)
+		_ = os.remove(part)
+		return
+	}
+	if err := os.rename(part, dest); err != nil {
+		workers.fail("can't name it %s: %v", name, err)
+		_ = os.remove(part)
 		return
 	}
 	size := i64(0)
 	if fi, err := os.stat(dest, context.temp_allocator); err == nil { size = fi.size }
 	workers.log("checked: %d bytes", size)
 	workers.progress(2, 3)
-	prune_backups()
+	prune_backups(prefix)
 	workers.progress(3, 3)
 	obs.backup_report(sys.now_unix_ns() / 1e6)
 }
@@ -152,10 +169,10 @@ quick_check :: proc(path: string) -> string {
 	return "" if got == "ok" else got
 }
 
-// The newest BACKUP_KEEP nightly backups stay; their names sort by time.
+// The newest BACKUP_KEEP of one kind (nightly or by hand) stay; their names sort by time.
 @(private)
-prune_backups :: proc() {
-	names := backup_names("backup-")
+prune_backups :: proc(prefix: string) {
+	names := backup_names(prefix, ".db")
 	slice.sort(names)
 	for name in names[:max(len(names) - bk.keep, 0)] {
 		if os.remove(join(bk.dir, name)) == nil { workers.log("removed %s", name) }
@@ -169,7 +186,7 @@ newest_backup :: proc(prefix: string) -> (unix_ms: i64, name: string) {
 	infos, err := os.read_all_directory_by_path(bk.dir, context.temp_allocator)
 	if err != nil { return }
 	for fi in infos {
-		ours := strings.has_prefix(fi.name, "backup-") || strings.has_prefix(fi.name, "pre-")
+		ours := strings.has_prefix(fi.name, "backup-") || strings.has_prefix(fi.name, "manual-") || strings.has_prefix(fi.name, "pre-")
 		if !ours || !strings.has_prefix(fi.name, prefix) || !strings.has_suffix(fi.name, ".db") { continue }
 		ms := time.to_unix_nanoseconds(fi.modification_time) / 1e6
 		if ms > unix_ms { unix_ms, name = ms, fi.name }
@@ -184,12 +201,13 @@ join :: proc(a, b: string, allocator := context.temp_allocator) -> string {
 }
 
 @(private)
-backup_names :: proc(prefix: string) -> []string {
+backup_names :: proc(prefix, suffix: string) -> []string {
 	infos, err := os.read_all_directory_by_path(bk.dir, context.temp_allocator)
 	if err != nil { return nil }
 	out := make([dynamic]string, context.temp_allocator)
 	for fi in infos {
-		if strings.has_prefix(fi.name, prefix) && strings.has_suffix(fi.name, ".db") { append(&out, fi.name) }
+		ours := strings.has_prefix(fi.name, "backup-") || strings.has_prefix(fi.name, "manual-")
+		if ours && strings.has_prefix(fi.name, prefix) && strings.has_suffix(fi.name, suffix) { append(&out, fi.name) }
 	}
 	return out[:]
 }

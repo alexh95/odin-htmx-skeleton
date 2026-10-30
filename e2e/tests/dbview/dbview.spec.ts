@@ -22,12 +22,16 @@ test.describe('dbview', T, () => {
       await expect(result.locator('.dbview-table')).toContainText('audit_log');
       await expect(result.locator('.dbview-meta')).toContainText(/\d+ rows in [\d.]+ ms/);
 
-      await run(admin.page, "DELETE FROM audit_log");
-      await expect(result.locator('.dbview-problem')).toHaveText('only reads: that statement would change something');
+      // Only reads: a write, a transaction or savepoint (which would keep the reader's snapshot and
+      // pin the WAL, M5-01), a PRAGMA (applied while preparing) and an attach are all refused.
+      for (const sql of ['DELETE FROM audit_log', 'BEGIN', 'SAVEPOINT a', 'PRAGMA cache_size = 1', 'PRAGMA reverse_unordered_selects = 1', "ATTACH 'elsewhere.db' AS x"]) {
+        await run(admin.page, sql);
+        await expect(result.locator('.dbview-problem'), sql).toContainText('only reads');
+      }
       await run(admin.page, "SELECT 1; SELECT 2");
       await expect(result.locator('.dbview-problem')).toHaveText('one statement at a time');
-      await run(admin.page, "ATTACH 'elsewhere.db' AS x");
-      await expect(result.locator('.dbview-problem')).toContainText('too many attached databases');
+      await run(admin.page, 'SELECT length(randomblob(2000000))');
+      await expect(result.locator('.dbview-problem')).toContainText('too big'); // 1 MB a value at most (M5-08)
       await run(admin.page, "SELECT 1;  ");
       await expect(result.locator('.dbview-table td')).toHaveText('1'); // a trailing semicolon is one statement
 

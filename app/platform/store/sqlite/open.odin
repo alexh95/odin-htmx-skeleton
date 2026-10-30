@@ -151,11 +151,15 @@ close :: proc() {
 	clear(&db.readers)
 	sync.mutex_unlock(&db.readers_mu)
 	delete(db.readers)
+	// Under the writer's lock: a job's write_now may still be running on the scheduler's thread,
+	// which drain doesn't wait for (M5-06).
+	guard.lock(&db.wlock)
 	if db.writer.db != nil {
 		sqlite.finalize_all(db.writer.db)
 		sqlite.close(db.writer.db)
 	}
 	db.writer = {}
+	guard.unlock(&db.wlock)
 	if db.temp_path != "" {
 		remove_db_files(db.temp_path)
 		delete(db.temp_path)

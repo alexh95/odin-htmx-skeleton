@@ -71,7 +71,7 @@ run_now :: proc(req: ^web.Request, res: ^web.Response) {
 		web.respond_html(res, html.toast("error", "No such job, or too many runs are waiting.", true), .Unprocessable_Content)
 		return
 	}
-	acted(req, "jobs.run_now", id, reason, job)
+	acted(req, "jobs.run_now", id, reason, strings.concatenate({"job=", job, " boot=", i64_text(jobs.boot())}, context.temp_allocator))
 	web.respond_html(res, html.toast("ok", "Queued: it starts within a second.", true))
 }
 
@@ -89,7 +89,7 @@ cancel :: proc(req: ^web.Request, res: ^web.Response) {
 		web.respond_html(res, html.toast("error", "That run has ended.", true), .Conflict)
 		return
 	}
-	acted(req, "jobs.cancel", id, reason, "")
+	acted(req, "jobs.cancel", id, reason, strings.concatenate({"boot=", i64_text(boot)}, context.temp_allocator))
 	web.respond_html(res, html.toast("ok", "Asked to stop.", true))
 }
 
@@ -107,7 +107,7 @@ log :: proc(req: ^web.Request, res: ^web.Response) {
 		return
 	}
 	buf: [64]byte
-	name := strings.concatenate({`attachment; filename="`, r.job, "-", strconv.write_int(buf[:], id, 10), `.log"`}, context.temp_allocator)
+	name := strings.concatenate({`attachment; filename="`, safe_name(r.job), "-", strconv.write_int(buf[:], id, 10), `.log"`}, context.temp_allocator)
 	web.set_header(res, "content-disposition", name)
 	web.respond_plain(res, jobs_views.log_text(r))
 }
@@ -123,6 +123,20 @@ sync :: proc() {
 		key := strings.concatenate({"run-", i64_text(r.boot), "-", i64_text(r.id)}, context.temp_allocator)
 		hub.publish(TOPIC, strings.to_string(b), 0, key)
 	}
+}
+
+// A row's job id as a file name: letters, digits, `.`, `-` and `_` (a header is no place for
+// anything else, whatever the table holds: M5-12).
+@(private)
+safe_name :: proc(s: string) -> string {
+	b := strings.builder_make(context.temp_allocator)
+	for c in transmute([]byte)s {
+		switch c {
+		case 'a' ..= 'z', 'A' ..= 'Z', '0' ..= '9', '.', '-', '_': strings.write_byte(&b, c)
+		case: strings.write_byte(&b, '_')
+		}
+	}
+	return strings.to_string(b)
 }
 
 // `<boot>-<id>`, both digits.

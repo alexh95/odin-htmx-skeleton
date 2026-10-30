@@ -72,11 +72,14 @@ writer_stmt :: proc(sql: string) -> Stmt {
 	return cached(&db.writer, sql)
 }
 
-// The writer outside the task, at boot only (the seed): one transaction under the
-// writer's lock. `run` steps writer_stmt statements; false rolls back.
+// The writer outside the task: at boot (the seed, the bootstrap admin) and from a thread with no
+// loop for a queued write to answer on (the scheduler's jobs): one transaction under the
+// writer's lock. `run` steps writer_stmt statements; false rolls back. false too once the
+// store has closed: `close` takes the same lock (M5-06).
 write_now :: proc(run: proc() -> bool) -> bool {
 	guard.lock(&db.wlock)
 	defer guard.unlock(&db.wlock)
+	if !db.is_open || db.writer.db == nil { return false }
 	if sqlite.exec(db.writer.db, "BEGIN IMMEDIATE") != sqlite.OK { return false }
 	if !run() {
 		sqlite.exec(db.writer.db, "ROLLBACK")
@@ -148,7 +151,10 @@ writer_run :: proc() {
 		if stop { return }
 		if head == nil {
 			ping()
+			// Under the lock: the scheduler's write_now uses this connection too (M5-02).
+			guard.lock(&db.wlock)
 			report_memory(&db.writer, 0)
+			guard.unlock(&db.wlock)
 			continue
 		}
 		// A trap mid-batch is dirty (the process drains and exits 70), and the batch
@@ -157,7 +163,6 @@ writer_run :: proc() {
 		obs.inc(wq.batches)
 		obs.inc(wq.writes, u64(n))
 		post_replies(head)
-		report_memory(&db.writer, 0)
 		free_all(context.temp_allocator)
 	}
 }
@@ -180,6 +185,7 @@ commit_batch :: proc(data: rawptr) {
 		fail_batch(head, sqlite.errmsg(w))
 		sqlite.exec(w, "ROLLBACK")
 	}
+	report_memory(&db.writer, 0) // still under the lock (M5-02)
 }
 
 @(private)

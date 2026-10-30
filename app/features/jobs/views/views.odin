@@ -39,11 +39,14 @@ page :: proc(b: ^strings.Builder, list: []jobs.Job_Row, runs: []m.Run_Row) {
 
 // One run's row; `data-at` orders the table, newest first.
 row :: proc(b: ^strings.Builder, r: m.Run_Row) {
-	fmt.sbprintf(b, `<tr id="run-%d-%d" class="run run-%s" data-at="%d"><td><code>`, r.boot, r.id, r.state, r.queued_at)
+	fmt.sbprintf(b, `<tr id="run-%d-%d" class="run run-`, r.boot, r.id)
+	esc(b, r.state)
+	fmt.sbprintf(b, `" data-at="%d"><td><code>`, r.queued_at)
 	esc(b, r.job)
 	w(b, `</code>`)
 	if r.by_hand { w(b, ` <span class="badge">by hand</span>`) }
-	fmt.sbprintf(b, `</td><td class="run-state">%s`, r.state)
+	w(b, `</td><td class="run-state">`)
+	esc(b, r.state)
 	if r.note != "" {
 		w(b, `<br><small class="muted">`)
 		esc(b, r.note)

@@ -10,6 +10,13 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ### Fixed
 
+- **M5's audit** (`docs/audit/M5.md`: 0 CRITICAL or HIGH, 4 MEDIUM): dbview allows only reads by an authorizer at
+  prepare (a `BEGIN` or `SAVEPOINT` left its reader in a transaction that pinned the WAL; a PRAGMA changed the shared
+  reader while preparing), caps a value at 1 MB and audits the whole query; the writer's memory report runs under the
+  write lock; a kept run (the backup, anything by hand) goes to a long-run thread, so the 1 s jobs and its own live
+  progress go on beside it; a backup is written to `.part` and renamed once checked, and one by hand is `manual-`,
+  kept apart from the nightly ones; `close` takes the write lock, which `write_now` honours; status probes' reads
+  share one 2 s deadline; the scheduler's lock is the guard's; a run's log file name and state are escaped.
 - **`csp-clean.spec` clicks a swatch the build's theme has**: a lite-themed selection with gallery (the covering
   array's pairwise-7) has no `arcade` style to click.
 - **`landing.spec`'s nav case needs `lab`** and says so: a selection with landing and no lab (the new covering array

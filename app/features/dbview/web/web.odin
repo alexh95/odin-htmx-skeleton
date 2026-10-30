@@ -5,7 +5,9 @@ package dbview_web
 // An admin's own read-only SQL. The query runs on the store's query pool (a scan never holds a
 // loop), on that thread's own read-only reader, so it never takes the writer's lock; the answer
 // comes back as a deferred response. Admins with Admin_Db, from the LAN, stepped up; every query
-// is audited (`dbview.query`, the SQL in its detail).
+// is audited (`dbview.query`, the whole SQL in its detail). It reads every table, the accounts'
+// TOTP secrets and token hashes among them: that is Admin_Db's grant (Admin only), and the
+// audit entry says what was read.
 
 import "base:runtime"
 import "core:mem/virtual"
@@ -54,8 +56,8 @@ run :: proc(req: ^web.Request, res: ^web.Response) {
 	}
 	c := web.ctx()
 	buf: [16]byte
-	cut := sql[:min(len(sql), 200)]
-	audit_store.append({i64(c.viewer.id), c.viewer.name, web.client_id(c.client, buf[:])}, "dbview.query", {"database", 0}, "", cut)
+	// The whole text (at most MAX_SQL): a cut one would let padding hide what was read (M5-07).
+	audit_store.append({i64(c.viewer.id), c.viewer.name, web.client_id(c.client, buf[:])}, "dbview.query", {"database", 0}, "", sql)
 
 	q := new(Querying, runtime.heap_allocator())
 	if virtual.arena_init_growing(&q.arena) != nil {
