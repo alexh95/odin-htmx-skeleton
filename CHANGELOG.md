@@ -35,6 +35,8 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   rolled back when one fails, so a name taken a moment earlier no longer spends the invite it came with.
 - **Promote's snapshot pruner is pinned** (M3-08, M4-12): the busybox that prunes old backups beside the accounts
   database runs by digest (1.37.0), as the app's user and with no network, not `busybox:latest` as root.
+- **The hang drill's bound has the watchdog's own second**: a 10 s stall seen by a check once a second is up to 11 s
+  before the exit, and the drill allowed exactly 11 s; it allows 12.
 - **The ops panel's sse spec no longer races its first push** in WebKit: the poll makes a request of its own, since
   the sse mode makes none.
 

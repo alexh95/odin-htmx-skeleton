@@ -255,7 +255,9 @@ async function phaseHang() {
   await waitExit(s, 14000);
   const secs = s.exited === null ? Infinity : (s.exitAt - t0) / 1000;
   const named = /ev=watchdog[^\n]*id=\S+[^\n]*route="GET \/__test\/crash\/\(%a\+\)"/.test(s.out);
-  record('hang: the watchdog exits 70 within 11 s and names the route and request', s.exited === 70 && secs <= 11 && named,
+  // STALL (10 s) is seen by a check once a second, so 11 s at worst, and the exit after it: a second of slack
+  // (eca62ba's run read 11.00 s on a loaded runner).
+  record('hang: the watchdog exits 70 within 12 s and names the route and request', s.exited === 70 && secs <= 12 && named,
     `exit=${s.exited} after ${secs.toFixed(2)} s, named=${named}`);
   await stop(s);
 }
