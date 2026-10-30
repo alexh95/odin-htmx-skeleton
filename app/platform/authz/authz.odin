@@ -65,15 +65,49 @@ ROLE_PERMS := [Role]Perms {
 // Who is asking, as the build's identity loaded them. Views get it only to hide
 // controls; enforcement is front's and the services'.
 Viewer :: struct {
-	id:   u64, // 0 = no account
-	name: string,
-	role: Role,
+	id:         u64, // 0 = no account
+	name:       string,
+	role:       Role,
+	step_up_at: i64, // unix seconds of the session's last password or TOTP check; 0 = never
 }
 
 GUEST :: Viewer{role = .Guest}
 
 can :: proc(v: Viewer, p: Perm) -> bool {
 	return p == .Public || p in ROLE_PERMS[v.role]
+}
+
+// How recent a password or TOTP check a `.Step_Up` row asks for (§17.1).
+STEP_UP_WINDOW :: 10 * 60
+
+stepped_up :: proc(v: Viewer, now: i64) -> bool {
+	return v.step_up_at > 0 && now - v.step_up_at <= STEP_UP_WINDOW && v.step_up_at <= now
+}
+
+// What front answers a route's rules with, decided before a byte of the body is read
+// (§17.2): off the LAN a `.Lan_Only` row isn't there; a guest without the perm signs in;
+// anyone else without it is refused; a stale session on a `.Step_Up` row steps up.
+Refusal :: enum u8 {
+	None,
+	Not_Found,
+	Sign_In,
+	Forbidden,
+	Step_Up,
+}
+
+Rule :: struct {
+	perm:     Perm,
+	lan_only: bool,
+	step_up:  bool,
+}
+
+refusal :: proc(v: Viewer, r: Rule, on_lan: bool, now: i64) -> Refusal {
+	switch {
+	case r.lan_only && !on_lan:         return .Not_Found
+	case !can(v, r.perm):               return .Sign_In if v.role == .Guest else .Forbidden
+	case r.step_up && !stepped_up(v, now): return .Sign_In if v.role == .Guest else .Step_Up
+	}
+	return .None
 }
 
 // What front hands the identity, before the body is read: only platform/web

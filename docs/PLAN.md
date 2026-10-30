@@ -4032,6 +4032,12 @@ loopback, and on apollo Alex may name his PC (round 9). nick is built at M2 for 
    Houston's `sid` is host-only, §17.3's `same_origin` guard refuses the lab host's writes to Houston (they carry
    `Sec-Fetch-Site: same-site`), and the WS `Origin` check refuses its upgrades.
 
+**As built (M4, slice 1):** the check is `authz.refusal`, a pure proc over the viewer, the row's rule, whether the
+client is on the LAN and the time; `front` maps its answer (`.Not_Found`, `.Sign_In`, `.Forbidden`, `.Step_Up`) to the
+responses above, a stale session going to `/step-up?next=<path>` (a 401 with `HX-Redirect` for htmx, a 302
+otherwise). The identity sets `Viewer.step_up_at`; one without passwords never does, so its `.Step_Up` rows always
+step up.
+
 `rbac.spec` is generated from `bin --routes`: every route × every role → the expected status, over 100 % of routes
 at M4 (D37, D44). `bin --routes` prints each host's table, so in `full` it also runs every route × both hosts: a row
 answers on the host whose table mounts it and 404 on the other, and a lab-host request carrying a valid `sid` is

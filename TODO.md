@@ -25,10 +25,12 @@ here every exit also passes the slice gate (§22.1 (a)–(f)). The slices need n
 Q34 sized the argon pool. Pushes are on the standing go; apollo, tags, Fly, DNS and anything on Alex's hands wait for
 Alex, asked in one batch.
 
-- [ ] **1. Enforcement completeness** (§17.2): `front`'s perm check over every row is M1's; add `.Step_Up` (a stale
+- [x] **1. Enforcement completeness** (§17.2): `front`'s perm check over every row is M1's; add `.Step_Up` (a stale
       session goes to the step-up page; the identity says how recent), `ROLE_PERMS` as §17.1's table (Q31's three
       grants as tabled), and `bin --routes --json` printing each row's perm, flags and host. *Check:* unit tests of
       the table and of each flag's answer (401 + `HX-Redirect`, 302, 403, 404 off the LAN, the step-up redirect).
+      Done: `authz.refusal` decides, `front` answers (the step-up page itself is slice 5's); `--routes --json` already
+      printed each row's host, perm and flags; `authz_test` holds the table and every answer.
 - [ ] **2. `audit`** (§17.7): `features/audit`, `store:audit`'s `append` in both families (SQLite: `audit_log`,
       append-only by triggers, deletes only past 400 days; memory: one `mod=audit` line), `/admin/audit`
       (`Admin_Audit`, SQLite profiles only) with filters, keyset infinite scroll and CSV through hx-download.

@@ -20,8 +20,10 @@ package app
 //      continuation logs it when it answers.
 
 import "core:strings"
+import "core:time"
 
 import "../authz"
+import "../escape"
 import "../obs"
 import "../store"
 import "../sys"
@@ -128,26 +130,36 @@ admit :: proc(c: ^web.Req_Ctx, req: ^web.Request, res: ^web.Response) -> bool {
 		if cookie != "" { web.set_header(res, "set-cookie", cookie) }
 	}
 	m := c.route
-	if .Lan_Only in m.flags && !is_lan(c.client) {
+	rule := authz.Rule{perm = m.perm, lan_only = .Lan_Only in m.flags, step_up = .Step_Up in m.flags}
+	switch authz.refusal(c.viewer, rule, is_lan(c.client), time.time_to_unix(time.now())) {
+	case .None:
+	case .Not_Found:
 		web.not_found(req, res)
 		return false
-	}
-	if !authz.can(c.viewer, m.perm) {
-		// A guest is sent to sign in; anyone else is refused (§17.2).
-		if c.viewer.role == .Guest {
-			if web.is_htmx(req) {
-				web.set_header(res, "hx-redirect", "/login")
-				web.respond_plain(res, "Sign in first.", .Unauthorized)
-			} else {
-				web.set_header(res, "location", "/login")
-				web.respond_status(res, .Found)
-			}
-		} else {
-			web.respond_plain(res, "Not allowed.", .Forbidden)
-		}
+	case .Sign_In:
+		send_to(req, res, "/login", "Sign in first.")
+		return false
+	case .Step_Up:
+		send_to(req, res, strings.concatenate({"/step-up?next=", escape.url_encode(req.url.path)}, context.temp_allocator), "Confirm it's you first.")
+		return false
+	case .Forbidden:
+		web.respond_plain(res, "Not allowed.", .Forbidden)
 		return false
 	}
 	return true
+}
+
+// A guest to sign in, a stale session to step up (§17.2): htmx follows HX-Redirect on a 401,
+// a page load a 302.
+@(private)
+send_to :: proc(req: ^web.Request, res: ^web.Response, to, why: string) {
+	if web.is_htmx(req) {
+		web.set_header(res, "hx-redirect", to)
+		web.respond_plain(res, why, .Unauthorized)
+	} else {
+		web.set_header(res, "location", to)
+		web.respond_status(res, .Found)
+	}
 }
 
 @(private)

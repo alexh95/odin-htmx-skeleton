@@ -21,6 +21,12 @@ reconnects replace the log across a gap on every transport. An independent audit
 fixed and re-read; the parity gate passes on both legs (`docs/perf/PARITY.md`). Stage 1b, through NPM, waits on
 Alex's NPM steps.
 
+### Added (M4, toward 2.3.0: not part of 2.2.0)
+
+- **Step-up on `.Step_Up` routes** (M4, PLAN §17.2): the route rules are one pure proc, `authz.refusal`, and a
+  session whose last password or TOTP check (`Viewer.step_up_at`) is older than 10 minutes goes to
+  `/step-up?next=<path>`; unit tests hold each answer and `ROLE_PERMS` as §17.1 tables it.
+
 ### Fixed
 
 - **The lab no longer grows until it is OOM-killed**: the witness board's probe thread never freed its temp
