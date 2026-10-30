@@ -173,7 +173,7 @@ default_profile :: proc(s: Selection) {
 	edit("e2e/global-setup.ts", {{"process.env.E2E_PROFILE || 'skeleton'", fmt.aprintf("process.env.E2E_PROFILE || '%s'", s.name)}})
 	edit("e2e/playwright.config.ts", {
 		{"process.env.E2E_PROFILE || 'skeleton'", fmt.aprintf("process.env.E2E_PROFILE || '%s'", s.name)},
-		{"['skeleton', 'lab'].includes(PROFILE)", fmt.aprintf("['%s'].includes(PROFILE)", s.name)},
+		{"['skeleton', 'lab', 'full'].includes(PROFILE)", fmt.aprintf("['%s'].includes(PROFILE)", s.name)},
 	})
 	edit("app/prepare.sh", {{"./build.sh skeleton", fmt.aprintf("./build.sh %s", s.name)}})
 	edit("app/prepare.bat", {{"build.bat skeleton", fmt.aprintf("build.bat %s", s.name)}})
