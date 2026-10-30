@@ -152,6 +152,7 @@ app/cmd/<p>/      brand.odin main.odin routes.odin routes_test.odin  ->  everyth
   f_views         features/f/views/   -> f_models, f, platform/html
   f               features/f/         -> f_models, store:f, store:audit, other domains, platform L1-L2
   f_store_<fam>   stores/<fam>/f/     -> f_models, platform/store*, platform/sqlite, platform/workers
+                                         (the memory audit store also platform/obs: its log is the process's)
   f_models        features/f/models/  -> core, platform L1-L2
 
 platform  L4 app        -> identity:., store:. (the family's NAME), L1-L3; only cmd/* imports it

@@ -4,7 +4,8 @@ package accounts_identity_accounts
 //
 // Mounted by a profile on the accounts identity as {"accounts", identity.ROUTES[:]}. A sign-in
 // is two hops off the loop, answered through one deferred response: the password's verify on
-// the argon pool, then the session's write on the writer task.
+// the argon pool, then the session's write on the writer task. Sign-ins, wrong passwords for an
+// existing account and a revoke of another session go to the audit log (§17.7).
 
 import "base:runtime"
 import "core:fmt"
@@ -19,6 +20,7 @@ import "../../../platform/workers"
 import accounts ".."
 import m "../models"
 import views "../views"
+import audit_store "store:audit"
 
 EXTS :: web.Exts{}
 
@@ -63,6 +65,9 @@ Login :: struct {
 	failed:       int,
 	known:        bool, // an enabled user by that name: a wrong password counts against it
 	https:        bool,
+	client:       u64, // web.client_key: the audit's client id
+	name:         [accounts.MAX_USERNAME]byte,
+	name_len:     int,
 	next:         [512]byte,
 	next_len:     int,
 	old:          [64]byte, // the session the request carried, closed by the sign-in
@@ -107,7 +112,8 @@ sign_in :: proc(req: ^web.Request, res: ^web.Response) {
 	}
 
 	l := new(Login, runtime.heap_allocator())
-	l.user_id, l.failed, l.known, l.https = u.id, u.failed_logins, known, c.https
+	l.user_id, l.failed, l.known, l.https, l.client = u.id, u.failed_logins, known, c.https, web.client_key(c.client)
+	l.name_len = copy(l.name[:], u.display)
 	l.next_len = copy(l.next[:], safe_next(f["next"]))
 	if token := web.cookie(req, COOKIE); len(token) == accounts.TOKEN_TEXT {
 		l.old_len = copy(l.old[:], accounts.hash_token(token))
@@ -128,7 +134,10 @@ sign_in :: proc(req: ^web.Request, res: ^web.Response) {
 verified :: proc(t: ^workers.Task) {
 	l := (^Login)(t)
 	if !l.ok {
-		if l.known && l.ran { count_failure(l.user_id, l.failed + 1) }
+		if l.known && l.ran {
+			count_failure(l.user_id, l.failed + 1)
+			audit_store.append({client = client_id(l.client)}, "accounts.sign_in_failed", {"user", l.user_id}, "", "")
+		}
 		if r := web.resume(&l.deferred); r != nil {
 			if l.ran {
 				web.respond_html(r, html.field_msg(false, "Wrong username or password."), .Unprocessable_Content)
@@ -175,6 +184,7 @@ opened :: proc(o: ^store.Op) {
 	if op.err != .None {
 		web.respond_store_error(req, res, op.err)
 	} else {
+		audit_store.append({l.user_id, string(l.name[:l.name_len]), client_id(l.client)}, "accounts.sign_in", {"session", 0}, "", "")
 		web.set_header(res, "set-cookie", issue(op.token, l.https))
 		go(req, res, string(l.next[:l.next_len]))
 	}
@@ -247,16 +257,19 @@ Closing :: struct {
 	current:     string, // this request's session, for the list's mark
 	to:          string, // "" = answer the list again; else the cookie ends and the page goes there
 	https:       bool,
+	name:        string, // the member's, for the audit
+	client:      u64,
 }
 
 @(private)
 closing :: proc(req: ^web.Request, res: ^web.Response, token_hash, to: string) {
 	c := web.ctx()
 	current := current_hash(req)
-	op := store.new_op(Closing, len(token_hash) + len(current) + len(to))
+	op := store.new_op(Closing, len(token_hash) + len(current) + len(to) + len(c.viewer.name))
 	a := store.op_allocator(op)
 	op.token_hash, op.current, op.to = strings.clone(token_hash, a), strings.clone(current, a), strings.clone(to, a)
-	op.user_id, op.https = i64(c.viewer.id), c.https
+	op.name = strings.clone(c.viewer.name, a)
+	op.user_id, op.https, op.client = i64(c.viewer.id), c.https, web.client_key(c.client)
 	op.done = closed
 	web.defer_response(req, res, &op.deferred)
 	if !accounts.close_session(op) {
@@ -282,6 +295,7 @@ closed :: proc(o: ^store.Op) {
 		web.set_header(res, "set-cookie", forget(op.https))
 		go(req, res, op.to)
 	case:
+		audit_store.append({op.user_id, op.name, client_id(op.client)}, "accounts.revoke", {"session", 0}, "", "")
 		list := make([dynamic]m.Session, context.temp_allocator)
 		if err := accounts.sessions_of(op.user_id, &list); err != .None {
 			web.respond_store_error(req, res, err)
@@ -295,6 +309,12 @@ closed :: proc(o: ^store.Op) {
 }
 
 // ---- helpers ------------------------------------------------------------------------------
+
+// The audit's client id: the hashed address (web.client_key), never the address.
+@(private)
+client_id :: proc(key: u64) -> string {
+	return fmt.tprintf("%016x", key)
+}
 
 // The hash of the session this request carries, or "".
 @(private)

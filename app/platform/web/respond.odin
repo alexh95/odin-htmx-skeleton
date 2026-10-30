@@ -25,6 +25,13 @@ respond_plain :: proc(res: ^Response, body: string, status := Status.OK) {
 	respond_text(res, "text/plain; charset=utf-8", body, status)
 }
 
+// A CSV for hx-download to save (or a browser to download): an attachment named `filename`,
+// which the caller writes, never the request.
+respond_csv :: proc(res: ^Response, filename, body: string) {
+	set_header(res, "content-disposition", strings.concatenate({`attachment; filename="`, filename, `"`}, context.temp_allocator))
+	respond_text(res, "text/csv; charset=utf-8", body, .OK)
+}
+
 respond_json :: proc(res: ^Response, v: any, status := Status.OK) {
 	http.respond_json(res, v, status)
 }

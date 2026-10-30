@@ -33,6 +33,12 @@ Alex's NPM steps.
   `/accounts/sessions` with revoke. Sign-ins are limited to 5 per 15 min per client and 40 overall; wrong passwords
   back an account off from 1 s to 5 min, never a lockout. `bin --hash-password` (with its derive time) makes
   `ACCOUNTS_ADMIN_HASH`, the bootstrap admin's. e2e `accounts.spec`, k6 `accounts/login.js` (a sign-in storm).
+- **The audit log** (M4 slice 4, PLAN §17.7): `features/audit` and `store:audit`, whose `append` any domain, web
+  or identity package calls. SQLite keeps `audit_log`, append-only by triggers (no update; a delete only past 400
+  days); memory writes one `mod=audit` line. `/admin/audit` (`Admin_Audit`, LAN only, mounted in `full`) filters by
+  actor and action prefix, scrolls by keyset 50 at a time and exports the filter as CSV through hx-download
+  (`web.respond_csv`). Accounts' sign-ins, wrong passwords and session revokes are its first entries. e2e
+  `audit.spec`, k6 `audit/audit.js`, the triggers in `audit/storetest`.
 - **The generator knows identities that need SQLite**: a feature with no web package gives its domain's store need to
   the identity that reaches it, so `--identity accounts` asks for `--store sqlite` while `nick` still builds on
   memory; an identity's routes own their nav entries.

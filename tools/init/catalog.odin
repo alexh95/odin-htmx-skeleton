@@ -67,6 +67,7 @@ FAMILY_FLAGS := [Family]string {
 Member :: struct {
 	name, dir: string,
 	sqlite:    bool, // an identity that reaches its feature's SQLite-only domain (identity_accounts)
+	deps:      [dynamic]string, // the features an identity reaches itself (identity_accounts: audit), not its feature's
 }
 
 Catalog :: struct {
@@ -150,7 +151,15 @@ load_catalog :: proc(root: string) {
 				if g == name && strings.has_prefix(imp.target, "store:") && !member {
 					if f.web == nil && rest == "" { domain_store = true } else { f.uses_store = true }
 				}
-				if g != "" && g != name && !slice.contains(f.deps[:], g) { append(&f.deps, g) }
+				if g == "" || g == name { continue }
+				deps := &f.deps
+				if member {
+					// The member was registered above, from this same package.
+					for &mb in catalog.members[.Identity] {
+						if mb.dir == p.path { deps = &mb.deps }
+					}
+				}
+				if !slice.contains(deps[:], g) { append(deps, g) }
 			}
 		}
 		if domain_store && !slice.contains(f.stores[:], "memory") {

@@ -58,10 +58,17 @@ Alex, asked in one batch.
       a 20-VU sign-in storm (31 sign-ins/s), +0.32 to +0.40 ms over three rounds against the 0.5 ms budget. Left: rotation on a privilege change comes with role changes (slice 6). For slice 10: `starter-full` sets
       `ACCOUNTS_ARGON_THREADS=1` (and `THREADS`) in the stack, because the auto rule counts the host's cores, not the
       container's `cpus` quota.
-- [ ] **4. `audit`** (§17.7), mounted in `full`: `features/audit`, `store:audit`'s `append` in both families (SQLite: `audit_log`,
+- [x] **4. `audit`** (§17.7), mounted in `full`: `features/audit`, `store:audit`'s `append` in both families (SQLite: `audit_log`,
       append-only by triggers, deletes only past 400 days; memory: one `mod=audit` line), `/admin/audit`
       (`Admin_Audit`, SQLite profiles only) with filters, keyset infinite scroll and CSV through hx-download.
       *Check:* the triggers refuse an update and an early delete; e2e of the filters and the scroll; load.
+      Done: `audit_log` with both triggers (`audit/storetest`: an update and an early delete refused, a 401-day-old
+      entry deleted); `/admin/audit` (LAN only) with the actor and action-prefix filters as a plain GET, `intersect
+      once` keyset pages of 50, and `/admin/audit/export` (up to 10,000 rows, formula-guarded CSV, `web.respond_csv`);
+      accounts' sign-ins, wrong passwords and revokes audited; `audit.spec` (3 cases, 9/9 over three repeats) and
+      `audit/audit.js`. The generator gives an identity its own feature deps (`identity_accounts` brings `audit`, so
+      `streams`' nick doesn't). Later: the nightly prune past 400 days (with M5's `jobs`); the bootstrap admin's
+      creation is an obs line, not an entry (boot has no loop for the append to answer on).
 - [ ] **5. TOTP, step-up and recovery** (§17.1, Q11): RFC 6238 with its vectors, manual secret entry and the
       `otpauth://` text, required for Admin (and `Term_Write` later); the step-up page (password or code within
       10 min) on `.Step_Up` rows (role changes, invites); 10 recovery codes and admin-issued one-time reset codes,

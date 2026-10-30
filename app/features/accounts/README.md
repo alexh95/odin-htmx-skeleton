@@ -37,6 +37,10 @@ domain (`features/accounts`, package `accounts`) and its views:
   stdin and prints the derive time on stderr) and `ACCOUNTS_ADMIN_NAME` (`admin`) make an Admin at boot while no
   enabled one exists. A hash that isn't one of `platform/password`'s refuses to boot; no admin and no hash warns.
 
+Sign-ins (`accounts.sign_in`), wrong passwords for an existing account (`accounts.sign_in_failed`) and a revoke of
+another session (`accounts.revoke`) go to the audit log through `store:audit`; that import makes `audit` the identity's
+own dependency (the generator brings it with `--identity accounts`), not `nick`'s.
+
 The e2e suite (`e2e/helpers/accounts.ts`) and the load driver boot their servers with one test hash and lift the
 limits; the specs that test the limits, the backoff and the lifetimes start servers of their own.
 

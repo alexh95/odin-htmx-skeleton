@@ -7,8 +7,10 @@ import "../../platform/html"
 import "../../platform/web"
 import store_sqlite "../../platform/store/sqlite"
 import about_web "../../features/about/web"
+import audit_web "../../features/audit/web"
 import home_web "../../features/home/web"
 import accounts_store "store:accounts"
+import audit_store "store:audit"
 import identity "identity:."
 
 // The home page's cards, in order: a dispatch table, like ROUTES.
@@ -16,7 +18,7 @@ HOME_CARDS := [?]html.Home_Card{}
 
 // Every extension the main bundle needs (D19). Boot refuses a bundle whose
 // header says otherwise.
-BUNDLE_EXTS :: home_web.EXTS + about_web.EXTS + identity.EXTS
+BUNDLE_EXTS :: home_web.EXTS + about_web.EXTS + audit_web.EXTS + identity.EXTS
 
 main :: proc() {
 	app.boot("full")
@@ -28,6 +30,7 @@ main :: proc() {
 
 	store_sqlite.open("full")
 	store_sqlite.migrate("accounts", accounts_store.MIGRATIONS[:])
+	store_sqlite.migrate("audit", audit_store.MIGRATIONS[:])
 	identity.bootstrap() // the first admin, from ACCOUNTS_ADMIN_HASH
 
 	// The standard set, and browsers' CSP violation reports to /csp-report (§12.2).

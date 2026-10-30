@@ -4141,6 +4141,14 @@ hx-download. Every package that audits calls `audit_store.append` through `store
 or identity package may import: the SQLite family writes the `audit_log` row, and the memory family one `mod=audit`
 log line. `/admin/audit` is mounted only in SQLite profiles (D6; LC §9; §6.2).
 
+**As built (M4, slice 4):** `append(actor, action, target, reason, meta)` queues an op nobody waits on, so an entry lands
+a moment after the action answers; it is called from a loop (its write answers there), so the bootstrap admin's
+creation at boot stays an obs line. The actor is `{id, name, client}` (the client is `web.client_key` as 16 hex digits).
+`/admin/audit` is LAN only like every `/admin*` page; its filter is a plain GET (a filtered view is a link), the next
+page comes by `intersect once` on the last row (keyset on the id), and the export carries up to 10,000 rows with any
+field a spreadsheet would read as a formula quoted behind a `'`. The first entries are accounts' `sign_in`,
+`sign_in_failed` (an existing account) and `revoke`.
+
 ### 17.8 Trusted proxy
 
 `X-Real-IP`, `X-Forwarded-Proto` and `X-Request-Id` are honoured only from `TRUST_PROXY` peers (D35). `TRUST_PROXY` is

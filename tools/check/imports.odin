@@ -86,10 +86,12 @@ allowed :: proc(t: ^Tree, p: ^Pkg, target: string) -> (bool, string) {
 		     target == "platform/store",
 		     target == strings.concatenate({"platform/store/", p.family}, context.temp_allocator),
 		     target == "platform/sqlite" && p.family == "sqlite",
-		     target == "platform/workers":
+		     target == "platform/workers",
+		     // The memory family's audit log is the process's log: one `mod=audit` line an entry (§17.7).
+		     target == "platform/obs" && p.feature == "audit" && p.family == "memory":
 			return true, ""
 		}
-		return false, "a store imports its models, platform/store and its family's store kit, platform/sqlite (SQLite family) and platform/workers only"
+		return false, "a store imports its models, platform/store and its family's store kit, platform/sqlite (SQLite family) and platform/workers only (and the memory audit store, platform/obs)"
 
 	case .Domain:
 		switch {

@@ -82,21 +82,27 @@ select :: proc(name: string, base_name: string, features: []string, asked: [Fami
 		s.members[.Identity] = "nick" if has_member(.Identity, "nick") && !session_free else "anonymous"
 	}
 	// An identity that is a feature's package (features/accounts/identity_nick) brings its feature, whose
-	// mount is the identity's own routes (/login); a feature that is an identity's needs it.
-	if f := identity_feature(s.members[.Identity]); f != "" && !slice.contains(s.features, f) {
-		s.features = slice.clone(s.features)
-		features := make([dynamic]string)
-		append(&features, ..s.features)
-		append(&features, f)
-		s.features = features[:]
-		order := make([dynamic]string)
-		about := slice.contains(s.order, "about")
-		for g in s.order {
-			if g == "about" { append(&order, f) }
-			append(&order, g)
+	// mount is the identity's own routes (/login), and the features it reaches itself (identity_accounts
+	// audits, so it brings audit); a feature that is an identity's needs it.
+	if f := identity_feature(s.members[.Identity]); f != "" {
+		brought := make([dynamic]string, context.temp_allocator)
+		append(&brought, f)
+		if mb, ok := member(.Identity, s.members[.Identity]); ok { append(&brought, ..closure(mb.deps[:])) }
+		for g in brought {
+			if slice.contains(s.features, g) { continue }
+			features := make([dynamic]string)
+			append(&features, ..s.features)
+			append(&features, g)
+			s.features = features[:]
+			order := make([dynamic]string)
+			about := slice.contains(s.order, "about")
+			for h in s.order {
+				if h == "about" { append(&order, g) }
+				append(&order, h)
+			}
+			if !about { append(&order, g) }
+			s.order = order[:]
 		}
-		if !about { append(&order, f) }
-		s.order = order[:]
 	}
 	for f in s.features {
 		if is_identity_feature(f) && identity_feature(s.members[.Identity]) != f {
