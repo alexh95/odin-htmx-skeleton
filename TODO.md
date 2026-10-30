@@ -53,8 +53,11 @@ Alex, asked in one batch.
       site-wide banner waits for the layout's slot, slice 7's shell); `--hash-password` prints the derive time (98 ms
       on the dev PC, debug build); the pool's memory is declared to `--limits` (threads × 19 MiB); the generator gives
       an identity its domain's SQLite need. `accounts.spec` (9 cases) and `accounts/login.js` (100 sign-ins/s at 20
-      VUs, the other pages' p99 under 100 ms) green; drills 27/27 on Windows. Left: the Q34 budget under
-      `cpus: 2.0`; rotation on a privilege change comes with role changes (slice 6).
+      VUs, the other pages' p99 under 100 ms) green; drills 27/27 on Windows. The Q34 budget holds: `full`'s image
+      under `--cpus 2` with one argon thread in WSL, `/about` at 10 VUs, p99 1.02-1.03 ms alone and 1.35-1.43 ms beside
+      a 20-VU sign-in storm (31 sign-ins/s), +0.32 to +0.40 ms over three rounds against the 0.5 ms budget. Left: rotation on a privilege change comes with role changes (slice 6). For slice 10: `starter-full` sets
+      `ACCOUNTS_ARGON_THREADS=1` (and `THREADS`) in the stack, because the auto rule counts the host's cores, not the
+      container's `cpus` quota.
 - [ ] **4. `audit`** (§17.7), mounted in `full`: `features/audit`, `store:audit`'s `append` in both families (SQLite: `audit_log`,
       append-only by triggers, deletes only past 400 days; memory: one `mod=audit` line), `/admin/audit`
       (`Admin_Audit`, SQLite profiles only) with filters, keyset infinite scroll and CSV through hx-download.

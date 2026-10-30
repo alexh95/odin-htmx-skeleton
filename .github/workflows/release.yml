@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        profile: [minimal, skeleton, lab, streams]
+        profile: [minimal, skeleton, lab, streams, full]
         arch: [amd64, arm64]
         include:
           - { arch: amd64, runner: ubuntu-latest }
@@ -135,7 +135,7 @@ jobs:
       attestations: write
     strategy:
       matrix:
-        profile: [minimal, skeleton, lab, streams]
+        profile: [minimal, skeleton, lab, streams, full]
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -184,7 +184,7 @@ jobs:
           grep -q '[^[:space:]]' notes.md || { echo "CHANGELOG.md has no ## [$v] section, or it is empty" >&2; exit 1; }
           {
             echo; echo "**Images** (linux/amd64 and linux/arm64):"; echo
-            for p in minimal skeleton lab streams; do echo "- \`$IMAGE-$p:$GITHUB_REF_NAME\`"; done
+            for p in minimal skeleton lab streams full; do echo "- \`$IMAGE-$p:$GITHUB_REF_NAME\`"; done
           } >> notes.md
       - name: Create it
         run: |

@@ -186,7 +186,7 @@ jobs:
         env:
           DB_PATH: ':memory:'
         run: |
-          case "${{ matrix.profile }}" in skeleton|full) ;; *) unset DB_PATH ;; esac   # a memory build has no DB_PATH
+          [ "${{ matrix.profile }}" = skeleton ] || unset DB_PATH   # a memory build has no DB_PATH (full runs on :memory:)
           PORT=8099 app/bin/${{ matrix.profile }} &
           pid=$!
           for i in $(seq 1 40); do
