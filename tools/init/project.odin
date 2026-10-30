@@ -43,9 +43,13 @@ new_project :: proc(s: Selection, opt: Options) -> Profile_Text {
 	default_profile(s)
 	trim_ci(s, names[:])
 	// The TSan gate, the soak and the Autobahn run build the template's lab and skeleton, which a
-	// project doesn't keep.
-	for job in ([]string{"tsan", "soak", "autobahn"}) { drop_job(".github/workflows/nightly.yml", job) }
-	for f in ([]string{"tools/drills/tsan.sh", "tools/drills/tsan.supp", "tools/drills/soak.sh", "tests/autobahn/fuzzingclient.json"}) { remove(f) }
+	// project doesn't keep; the selections are generated from the template's catalog (the job
+	// that needs `selections` goes first).
+	for job in ([]string{"tsan", "soak", "autobahn", "selection", "selections"}) { drop_job(".github/workflows/nightly.yml", job) }
+	for f in ([]string{
+		"tools/drills/tsan.sh", "tools/drills/tsan.supp", "tools/drills/soak.sh", "tests/autobahn/fuzzingclient.json",
+		".github/matrix/pairwise.json",
+	}) { remove(f) }
 	// The template's own: its catalog and the generator job that keeps it, and its hosting on apollo
 	// (the stack Caddyfile, compose file and promote script, and the jobs that test them).
 	for job in ([]string{"generator", "e2e-proxy", "stack", "proxy-config"}) { drop_job(".github/workflows/ci.yml", job) }

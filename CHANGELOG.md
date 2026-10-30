@@ -78,6 +78,10 @@ Alex's NPM steps.
   hosts (512 MiB, two cores, one argon thread, its database on its own volume, the admin hash as a compose secret
   file), behind a `houston` profile so the rest of the stack runs without it; `promote.ps1` snapshots its database
   and promotes it only when named.
+- **Nightly selection fuzzing** (M4 slice 13, PLAN §19.1.12, D37, D44): `tools/init --pairwise --seed <n>` writes
+  a covering array over feature presence (`.github/matrix/pairwise.json`, held current by CI) and `--random --seed
+  <n>` one random valid selection; nightly generates, boot-tests and runs the chromium and api specs of the
+  array's rows, three random selections and every singleton.
 - **`rbac.spec` and `cross-site.spec`** (M4 slice 12, PLAN §17.2, §17.3): every route × every role × every host
   against the role grants, frozen in the spec (Q31), and `.Lan_Only` rows 404 off the LAN; every write forged from
   a foreign page refused on every host with a member's cookie, and no foreign-Origin upgrade accepted. Neither
@@ -106,6 +110,10 @@ Alex's NPM steps.
 
 ### Fixed
 
+- **tools/init accepted selections that couldn't boot** (M4 slice 13): `scripting` or `compat` give a selection the
+  anonymous identity, and a feature with member-only rows (`ops`, `audit`, …) then fails the boot's identity check;
+  `select` now refuses it and says why. And after `full-vanilla` joined `build.sh`, every generation stopped on the
+  scripts' usage lines (13199fa).
 - **The dashboard's canonical URL and title** follow the path it is served at (`/dashboard` on `full`'s lab host),
   not `/` always.
 - **The topbar search on a nonce-CSP page** carries `hx-nonce`, so hx-csp no longer strips it.

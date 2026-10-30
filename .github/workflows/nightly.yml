@@ -2,7 +2,8 @@ name: nightly
 
 # What's too slow or too noisy for every push (PLAN §19.2.1's nightly row). At M1:
 # ASan over the e2e suite and a k6 quick run, on Linux. At M2: TSan, the 1 h soak and
-# Autobahn|Testsuite against the lab's WebSocket echo. At M4: the generated envadmin selection.
+# Autobahn|Testsuite against the lab's WebSocket echo. At M4: the generated envadmin selection,
+# the covering array, the seeded random selections and every singleton.
 # Windows ASan, libFuzzer and the combination matrices join with the milestones that need them.
 on:
   schedule:
@@ -79,6 +80,62 @@ jobs:
         run: odin run tools/init -- envadmin-check --features notes --identity envadmin --yes
       - name: Prepare
         run: sh app/prepare.sh
+      - name: e2e
+        run: cd e2e && npm ci && npx playwright test --project=chromium --project=api
+        env:
+          CI: 'true'
+          E2E_PROFILE: app
+
+  # The generator's selections (PLAN §19.1.12, D37, D44; M4): the covering array over feature
+  # presence (.github/matrix/pairwise.json, seed 1's, which CI holds current), three seeded random
+  # valid selections (the seed moves with the run) and every feature alone. Each is generated on a
+  # clean checkout, tested through its boot checks and run through the chromium and api specs its
+  # features tag; tools/init's --verify has built it once already.
+  selections:
+    name: Selections (matrix)
+    runs-on: ubuntu-latest
+    outputs:
+      rows: ${{ steps.rows.outputs.rows }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-odin
+      - id: rows
+        run: |
+          {
+            jq -c '[.rows[] | {name, features}]' .github/matrix/pairwise.json
+            for i in 1 2 3; do
+              seed=$(( ${{ github.run_number }} * 3 + i ))
+              f=$(odin run tools/init -- --random --seed "$seed")
+              jq -cn --arg n "random-$seed" --arg f "$f" '[{name: $n, features: $f}]'
+            done
+            jq -c '[.features[] | {name: ("single-" + (.name | gsub("_"; "-"))), features: .name}]' docs/catalog.json
+          } | jq -s -c 'add' > /tmp/rows.json
+          echo "rows=$(cat /tmp/rows.json)" >> "$GITHUB_OUTPUT"
+          jq -r '.[] | "\(.name): \(.features)"' /tmp/rows.json
+
+  selection:
+    name: Selection ${{ matrix.row.name }}
+    needs: selections
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-jammy
+      options: --security-opt seccomp=unconfined
+    env:
+      HOME: /root
+    strategy:
+      fail-fast: false
+      matrix:
+        row: ${{ fromJSON(needs.selections.outputs.rows) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-odin
+        with:
+          cache-suffix: -jammy
+      - name: Generate ${{ matrix.row.features }}
+        run: odin run tools/init -- ${{ matrix.row.name }} --features "${{ matrix.row.features }}" --yes
+      - name: Prepare and the boot checks
+        run: sh app/prepare.sh && CMD=test sh build.sh app
       - name: e2e
         run: cd e2e && npm ci && npx playwright test --project=chromium --project=api
         env:

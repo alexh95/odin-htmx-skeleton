@@ -27,6 +27,7 @@ Feature :: struct {
 	switched:   [dynamic]string, // features/f/<axis>_<impl>
 	lines:      int,
 	profiles:   [dynamic]string, // the committed profiles that mount it
+	gated:      bool,            // a ROUTES row asks for a permission: it needs an identity on its host
 }
 
 Web_Decl :: enum {
@@ -121,6 +122,7 @@ load_catalog :: proc(root: string) {
 	for name in subdirs(join(app, "features")) {
 		f := Feature{name = name}
 		f.web = t.by_path[strings.concatenate({"features/", name, "/web"})]
+		f.gated = gated(f.web)
 		for d in Web_Decl {
 			found := declares_proc(f.web, WEB_DECL_NAMES[d]) if d == .Init || d == .Home_Card else has_decl(f.web, WEB_DECL_NAMES[d])
 			if found { f.decls += {d} }

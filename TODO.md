@@ -177,7 +177,17 @@ Alex, asked in one batch.
       proxied server counts the proxies' networks as its LAN). Left: those two legs' first CI run. Fixed on the way:
       tools/init named the catalog's profiles in the scripts' usage lines, which full-vanilla broke (13199fa).
 - [ ] **13. Nightly fuzzing** (§19.1, D44): pairwise and selection fuzzing of the generator's selections. *Check:*
-      one nightly run green.
+      one nightly run green. *So far:* `tools/init --pairwise --seed <n>` (pairwise.odin) builds a strength-2
+      covering array over feature presence by seeded greedy search (our own xorshift, so a seed is the same rows
+      everywhere), each row a closed selection `select` accepts and never `dashboard` with `landing`; seed 1's
+      15 rows cover every feasible pair, and the 33 pairs no valid selection holds are listed as infeasible.
+      `.github/matrix/pairwise.json` is that output, which CI's generator job holds current. `--random --seed <n>`
+      prints one random valid selection. nightly's `selections` job turns the array, three random selections
+      (seeded by the run number) and every singleton into a matrix; each is generated, boot-tested and run
+      through chromium and api. The first array found a generator bug: a selection with `scripting` or `compat`
+      gets the anonymous identity, and `ops`, `audit` and other features with member-only rows can't boot
+      without one; `select` now refuses that (the catalog marks a feature `gated` when a ROUTES row asks for a
+      permission). Generated projects drop the two jobs and the array. Left: one nightly run green.
 - [ ] **14. Exit**: the slice gate (a)–(f) for every new feature; the parity gate on both legs; `docs/audit/M4.md`
       by an agent that didn't write the code, 0 open CRITICAL/HIGH; `Audited:` stamps; CHANGELOG's 2.3.0 entry.
       Then, with Alex: `--hash-password` for the bootstrap admin (Alex alone; it measures apollo's derive time), the

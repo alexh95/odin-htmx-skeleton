@@ -32,6 +32,7 @@ package main
 import "core:fmt"
 import "core:os"
 import "core:slice"
+import "core:strconv"
 import "core:strings"
 
 Options :: struct {
@@ -51,6 +52,9 @@ Options :: struct {
 	add:      string,
 	without:  string,
 	members:  [Family]string,
+	pairwise: bool, // --pairwise: the covering array (pairwise.odin)
+	random:   bool, // --random: one random valid selection
+	seed:     u64,
 }
 
 main :: proc() {
@@ -64,6 +68,12 @@ main :: proc() {
 	switch {
 	case opt.list:
 		list(opt.json)
+		return
+	case opt.pairwise:
+		pairwise(opt.seed)
+		return
+	case opt.random:
+		random_selection(opt.seed)
 		return
 	case opt.add != "" || opt.without != "":
 		edit_profile(opt)
@@ -384,6 +394,14 @@ parse_args :: proc(args: []string) -> Options {
 			opt.verify = false
 		case a == "--list":
 			opt.list = true
+		case a == "--pairwise":
+			opt.pairwise = true
+		case a == "--random":
+			opt.random = true
+		case a == "--seed":
+			n, ok := strconv.parse_u64(next_arg(args, &i, "--seed"), 10)
+			if !ok { fatal("--seed takes a whole number") }
+			opt.seed = n
 		case a == "--json":
 			opt.json = true
 		case a == "--explain":
@@ -431,7 +449,7 @@ parse_args :: proc(args: []string) -> Options {
 
 	// Only a new project (or a rename) is named; the catalog, a plan and the in-place edits aren't.
 	if opt.name == "" {
-		if opt.list || opt.explain || opt.add != "" || opt.without != "" || asked_family(opt) { return opt }
+		if opt.list || opt.pairwise || opt.random || opt.explain || opt.add != "" || opt.without != "" || asked_family(opt) { return opt }
 		usage()
 	}
 	if !valid_name(opt.name) {
@@ -505,6 +523,7 @@ confirm :: proc(prompt: string) -> bool {
 usage :: proc() {
 	fmt.eprintln("usage: odin run tools/init -- <new-name> [selection] [--wordmark W] [--suffix S] [--repo URL] [--site URL] [--yes]")
 	fmt.eprintln("       odin run tools/init -- --list [--json] | --explain [selection]")
+	fmt.eprintln("       odin run tools/init -- --pairwise --seed <n> | --random --seed <n>   (the nightly selections)")
 	fmt.eprintln("       odin run tools/init -- --add <f> | --without <f> [--profile p]")
 	fmt.eprintln("       odin run tools/init -- --store|--identity|--client|--theme <member> --profile p")
 	fmt.eprintln("  selection    --profile p (--minimal), --features a,b, --store, --identity, --client, --theme;")

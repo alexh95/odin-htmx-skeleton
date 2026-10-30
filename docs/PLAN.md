@@ -1925,7 +1925,7 @@ build.*` and `tools/check profile routes topics exts`, and compares `--features 
 a failure leaves the copy for a look. A new project also gets the scripts' default profile (`run.*`, `prepare.*`,
 `load-tests/run.sh`, the Dockerfile, the e2e setup) at `app`, CI trimmed to `app` (its matrices, its include rows with
 a smoke write the selection keeps, one coverage run), nightly's TSan and soak jobs dropped (they build lab and
-skeleton), and a fresh `UPSTREAM.md`, `CHANGELOG.md` and `TODO.md`. Not in v1: `--pairwise` (D37's covering array),
+skeleton), and a fresh `UPSTREAM.md`, `CHANGELOG.md` and `TODO.md`. `--pairwise` (D37's covering array) joined at M4 (slice 13). Not in v1:
 removing `Perm` and `Behaviour` groups (no feature has its own yet), and hosts beyond `main`. Without a selection,
 `init <name>` renames as before (and runs again: a token the README no longer held had stopped it).
 
@@ -4082,6 +4082,15 @@ drain of the unread body). The roles are the bootstrap admin and two members an 
 are a literal table in the spec, so changing `authz.ROLE_PERMS` fails it until the spec (and the decision) is
 updated. Behind a proxy, the e2e server answers the proxied names: `E2E_PROXY` for the main host and
 `E2E_PROXY_LAB` for the lab host, and direct helper calls to it name them too.
+
+**As built (M4, slice 13):** the covering array is a seeded greedy search (`tools/init/pairwise.odin`): each round
+forces the first pair still uncovered, draws 400 random selections around it, keeps those `select` accepts (closed
+over dependencies and identities, never `dashboard` with `landing`) and takes the one covering the most pairs left; a
+pair no draw can hold is listed as infeasible. The generator is a fixed xorshift, so seed 1's 15 rows are the same on
+every machine; there are more than §19.1.12's 8 because the families exclude pairs (`chat` and `contacts` need
+different stores, `scripting` and `accounts` different identities). Nightly's `selections` job adds three
+`--random` selections seeded by the run number and every singleton, and runs each generated project's boot checks and
+its chromium and api specs.
 
 **TOTP and step-up** (Q11). TOTP follows RFC 6238 (vectors verified, 07 §0.6) with manual secret entry and the
 `otpauth://` text, no QR encoder. It is required for Admin and `Term_Write`. **Step-up** asks for the password or a

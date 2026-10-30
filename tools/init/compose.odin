@@ -109,6 +109,13 @@ select :: proc(name: string, base_name: string, features: []string, asked: [Fami
 			problem("%s holds an identity, so it needs that identity: use --identity %s", f, identity_of_feature(f))
 		}
 	}
+	if s.members[.Identity] == "anonymous" {
+		for f in s.features {
+			if ft := feature(f); ft != nil && ft.gated {
+				problem("%s has pages for members or admins, which need an identity; anonymous has none (scripting and compat ask for a session-free origin, so they leave it out)", f)
+			}
+		}
+	}
 	if mb, ok := member(.Identity, s.members[.Identity]); ok && mb.sqlite && s.members[.Store] != "sqlite" {
 		problem("--identity %s needs SQLite; use --store sqlite", mb.name)
 	}

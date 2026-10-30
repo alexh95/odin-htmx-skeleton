@@ -140,6 +140,21 @@ decl :: proc(p: ^Pkg, name: string) -> (^ast.Value_Decl, bool) {
 	return nil, false
 }
 
+// Whether a package's ROUTES table has a row whose permission (its fourth field) isn't
+// `.Public`: the boot refuses such a row on a host with no identity (app.check).
+gated :: proc(p: ^Pkg) -> bool {
+	vd, ok := decl(p, "ROUTES")
+	if !ok || len(vd.values) == 0 { return false }
+	table, is := vd.values[0].derived_expr.(^ast.Comp_Lit)
+	if !is { return false }
+	for e in table.elems {
+		row, rok := e.derived_expr.(^ast.Comp_Lit)
+		if !rok || len(row.elems) < 4 { continue }
+		if perm, pok := row.elems[3].derived_expr.(^ast.Implicit_Selector_Expr); pok && perm.field.name != "Public" { return true }
+	}
+	return false
+}
+
 declares_proc :: proc(p: ^Pkg, name: string) -> bool {
 	vd, ok := decl(p, name)
 	if !ok || len(vd.values) == 0 { return false }

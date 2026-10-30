@@ -89,6 +89,10 @@ jobs:
         run: |
           odin run tools/init -- --list --json > /tmp/catalog.json
           diff -u docs/catalog.json /tmp/catalog.json || { echo "run: odin run tools/init -- --list --json > docs/catalog.json"; exit 1; }
+      - name: The covering array is current (the nightly's rows)
+        run: |
+          odin run tools/init -- --pairwise --seed 1 > /tmp/pairwise.json
+          diff -u .github/matrix/pairwise.json /tmp/pairwise.json || { echo "run: odin run tools/init -- --pairwise --seed 1 > .github/matrix/pairwise.json"; exit 1; }
       - name: The committed profiles compose again
         run: odin test tools/init
       - name: A refusal changes nothing
