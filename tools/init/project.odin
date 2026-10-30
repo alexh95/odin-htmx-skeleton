@@ -85,17 +85,24 @@ build_lines :: proc(s: Selection, profiles: []string) {
 	}
 	repls := make([dynamic]Repl)
 	row := fmt.aprintf("  %s) store=%s id=%s client=%s theme=%s ;;", s.name, s.members[.Store], id, s.members[.Client], s.members[.Theme])
+	// Every row goes, a build of another profile's files (full-vanilla's `src=full`) with it; the
+	// usage lines name them all.
+	rows := make([dynamic]string)
 	first := true
 	text := string(data)
 	for line in strings.split_lines_iterator(&text) {
 		l := strings.trim_space(line)
 		paren := strings.index_byte(l, ')')
-		if paren <= 0 || !strings.contains(l, "store=") || !slice.contains(profiles, l[:paren]) { continue }
+		if paren <= 0 || !strings.contains(l, "store=") { continue }
+		append(&rows, l[:paren])
+		_, _, src := strings.partition(l, " src=")
+		if src != "" { src = strings.fields(src)[0] }
+		if !slice.contains(profiles, l[:paren]) && !slice.contains(profiles, src) { continue }
 		append(&repls, Repl{strings.concatenate({line, "\n"}), strings.concatenate({row, "\n"}) if first else ""})
 		first = false
 	}
-	append(&repls, Repl{fmt.aprintf("<%s>", strings.join(profiles, "|")), fmt.aprintf("<%s>", s.name)})
-	append(&repls, Repl{fmt.aprintf("(%s)", strings.join(profiles, ", ")), fmt.aprintf("(%s)", s.name)})
+	append(&repls, Repl{fmt.aprintf("<%s>", strings.join(rows[:], "|")), fmt.aprintf("<%s>", s.name)})
+	append(&repls, Repl{fmt.aprintf("(%s)", strings.join(rows[:], ", ")), fmt.aprintf("(%s)", s.name)})
 	edit("build.sh", repls[:])
 
 	// build.bat: the if/else-if chain from the first profile's test to `) else (`.
@@ -116,8 +123,8 @@ build_lines :: proc(s: Selection, profiles: []string) {
 	if !strings.contains(b, "\r\n") { chain, _ = strings.replace_all(chain, "\r\n", "\n") }
 	edit("build.bat", {
 		{b[start:end], chain},
-		{fmt.aprintf("^<%s^>", strings.join(profiles, "^|")), fmt.aprintf("^<%s^>", s.name)},
-		{fmt.aprintf("^(%s^)", strings.join(profiles, ", ")), fmt.aprintf("^(%s^)", s.name)},
+		{fmt.aprintf("^<%s^>", strings.join(rows[:], "^|")), fmt.aprintf("^<%s^>", s.name)},
+		{fmt.aprintf("^(%s^)", strings.join(rows[:], ", ")), fmt.aprintf("^(%s^)", s.name)},
 	})
 }
 

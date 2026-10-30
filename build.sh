@@ -25,8 +25,7 @@ case "$p" in
   lab)      store=memory id=platform/authz/anonymous client=hyperscript theme=full ;;
   streams)  store=memory id=features/accounts/identity_nick client=vanilla theme=lite ;;
   full)     store=sqlite id=features/accounts/identity_accounts client=hyperscript theme=full ;;
-  # CI only: full's own files on the vanilla client, so the two can't drift apart (PLAN §7.1, D22).
-  full-vanilla) store=sqlite id=features/accounts/identity_accounts client=vanilla theme=full src=full ;;
+  full-vanilla) store=sqlite id=features/accounts/identity_accounts client=vanilla theme=full src=full ;; # CI only: full on the vanilla client (D22)
   *) echo "build.sh: unknown profile '$p' (minimal, skeleton, lab, streams, full, full-vanilla)" >&2; exit 2 ;;
 esac
 
