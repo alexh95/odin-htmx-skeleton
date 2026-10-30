@@ -19,6 +19,9 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   the first 8 hex of its hash, and a revoke is logged only when it ended a session, with that session's prefix.
 - **Text cut for the audit is cut by rune** (M4-14, M4-15): a sign-in's display name is kept whole (up to 40 runes),
   and a long filter is cut before a rune, never inside one.
+- **A sibling host can't plant a session** (M4-08): a `Secure` session cookie is named `__Host-sid`, which a browser
+  refuses to take with a `Domain` or from another host, and a request that may carry it reads no plain `sid`. Plain
+  http (the LAN, `COOKIE_SECURE=0`) keeps `sid`.
 - **The ops panel's sse spec no longer races its first push** in WebKit: the poll makes a request of its own, since
   the sse mode makes none.
 

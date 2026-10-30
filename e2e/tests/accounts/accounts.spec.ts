@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures';
+import { request as pwRequest } from '@playwright/test';
 import { startServer, stopServer, type Server, mainOrigin } from '../../helpers/server';
 import { ADMIN, signIn } from '../../helpers/accounts';
 
@@ -33,9 +34,22 @@ test.describe('accounts', T, () => {
   test('the cookie is host-only, HttpOnly and Lax, and Secure only over https', async ({ request }) => {
     const set = (await request.post('/login', form())).headers()['set-cookie'];
     expect(set).toMatch(/^sid=[A-Za-z0-9_-]{43}; Path=\/; Max-Age=2592000; HttpOnly; SameSite=Lax$/);
+    // Secure, it is __Host-sid, which a sibling host can't plant; a plain sid is then no one's (M4-08).
     await own({ COOKIE_SECURE: '1' }, async (_, base) => {
       const r = await request.post(`${base}/login`, form());
-      expect(r.headers()['set-cookie']).toMatch(/; Secure$/);
+      const secure = r.headers()['set-cookie'];
+      expect(secure).toMatch(/^__Host-sid=[A-Za-z0-9_-]{43}; Path=\/; .*; Secure$/);
+      const token = secure.split(';')[0].split('=')[1];
+      const as = async (cookie: string) => {
+        const ctx = await pwRequest.newContext();
+        try {
+          return (await ctx.get(`${base}/accounts/sessions`, { headers: { cookie }, maxRedirects: 0 })).status();
+        } finally {
+          await ctx.dispose();
+        }
+      };
+      expect(await as(`__Host-sid=${token}`)).toBe(200);
+      expect(await as(`sid=${token}`)).toBe(302);
     });
   });
 

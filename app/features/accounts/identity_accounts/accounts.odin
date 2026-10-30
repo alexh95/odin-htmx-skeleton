@@ -5,7 +5,7 @@ package accounts_identity_accounts
 // A member of the `identity:` family, `full`'s (LC §3), on SQLite. A member signs in at /login
 // with a username and a password (argon2id on platform/password's pool) and gets an opaque
 // token in the `sid` cookie: `HttpOnly; SameSite=Lax; Path=/`, no Domain (host-only, so it never
-// reaches `full`'s lab host), `Secure` per COOKIE_SECURE. The store keeps only the token's
+// reaches `full`'s lab host), `Secure` per COOKIE_SECURE, and then named `__Host-sid`. The store keeps only the token's
 // SHA-256. The token rotates on every sign-in; a privilege change rotates it too (slice 6).
 // The first admin comes from ACCOUNTS_ADMIN_HASH, made with `--hash-password`.
 
@@ -25,7 +25,13 @@ import accounts ".."
 NAME :: "accounts"
 SETS_COOKIE :: true
 
+// A Secure cookie is `__Host-sid`, which a browser takes only from this host, with no Domain and
+// Path=/: a sibling under the same site (the lab host, another witness) can't plant one that
+// signs a victim in as the attacker (M4-08). `sid` stays for COOKIE_SECURE=0 and plain-http auto.
 COOKIE :: "sid"
+COOKIE_HOST :: "__Host-sid"
+
+cookie_name :: proc(https: bool) -> string { return COOKIE_HOST if secure(https) else COOKIE }
 
 ENV := [?]env.Row {
 	{name = "ACCOUNTS_ADMIN_HASH", kind = .Secret, def = "", doc = "the bootstrap admin's argon2id hash (bin --hash-password), used while no enabled admin exists"},
@@ -145,7 +151,7 @@ bootstrap :: proc() {
 
 // The viewer a request's `sid` names; a cookie whose session has ended is cleared.
 load_viewer :: proc(ask: authz.Ask) -> (v: authz.Viewer, set_cookie: string) {
-	token := authz.cookie(ask.cookies, COOKIE)
+	token := authz.cookie(ask.cookies, cookie_name(ask.https))
 	if token == "" { return authz.GUEST, "" }
 	now := accounts.now_ms()
 	u, s, err := accounts.signed_in(token, now)
@@ -190,10 +196,10 @@ insecure :: proc() -> bool { return st.secure == .Never }
 issue :: proc(token: string, https: bool) -> string {
 	buf: [24]byte
 	age := strconv.write_int(buf[:], accounts.lifetimes.max_ms / 1000, 10)
-	return strings.concatenate({COOKIE, "=", token, "; Path=/; Max-Age=", age, "; HttpOnly; SameSite=Lax", "; Secure" if secure(https) else ""}, context.temp_allocator)
+	return strings.concatenate({cookie_name(https), "=", token, "; Path=/; Max-Age=", age, "; HttpOnly; SameSite=Lax", "; Secure" if secure(https) else ""}, context.temp_allocator)
 }
 
 // A Set-Cookie value that ends the cookie.
 forget :: proc(https: bool) -> string {
-	return strings.concatenate({COOKIE, "=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax", "; Secure" if secure(https) else ""}, context.temp_allocator)
+	return strings.concatenate({cookie_name(https), "=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax", "; Secure" if secure(https) else ""}, context.temp_allocator)
 }

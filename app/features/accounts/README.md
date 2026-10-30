@@ -42,7 +42,9 @@ domain (`features/accounts`, package `accounts`) and its views:
 
 - **The cookie**: `sid=<32 random bytes, base64url>; Path=/; Max-Age=<the absolute life>; HttpOnly; SameSite=Lax`,
   no `Domain` (host-only), `Secure` per `COOKIE_SECURE` (`auto`: when the request came as https through a trusted
-  proxy; `1`; `0` warns at every boot and the sign-in form says so). The store keeps only the token's hex SHA-256.
+  proxy; `1`; `0` warns at every boot and the sign-in form says so). A `Secure` cookie is named `__Host-sid`, which a
+  browser takes only from this host, so a sibling host under the same site can't plant a session of its own (M4-08);
+  a plain `sid` on such a request is no one's. The store keeps only the token's hex SHA-256.
 - **Lifetimes**: 14 days idle (`ACCOUNTS_SESSION_IDLE`), 30 days absolute (`ACCOUNTS_SESSION_MAX`). `last_seen` is
   written at most once a minute. A cookie whose session has ended is cleared on its next request.
 - **Rotation**: every sign-in makes a new token and closes the session the request carried, in the same transaction

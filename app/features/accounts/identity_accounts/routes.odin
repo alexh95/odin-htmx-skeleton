@@ -286,7 +286,7 @@ touch :: proc(token_hash: string, now: i64) {
 @(private)
 sign_out :: proc(req: ^web.Request, res: ^web.Response) {
 	c := web.ctx()
-	token := web.cookie(req, COOKIE)
+	token := web.cookie(req, cookie_name(c.https))
 	if c.viewer.id == 0 || len(token) != accounts.TOKEN_TEXT {
 		web.set_header(res, "set-cookie", forget(c.https))
 		go(req, res, "/")
@@ -398,7 +398,7 @@ client_id :: proc(key: u64) -> string {
 // The hash of the session this request carries, or "".
 @(private)
 current_hash :: proc(req: ^web.Request) -> string {
-	token := web.cookie(req, COOKIE)
+	token := web.cookie(req, cookie_name(web.ctx().https))
 	return accounts.hash_token(token) if len(token) == accounts.TOKEN_TEXT else ""
 }
 
