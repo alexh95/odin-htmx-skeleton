@@ -197,11 +197,12 @@ off until Alex sets it before the v2.2.0 tag.
       minimal through that promote's two swaps: 838,878 requests, 0 5xx, max 5.8 s. Two-host k6, skeleton at 50 VUs
       over ten scenarios: 0.00 % failed, 0.9k (pages) to 10.2k (seo) rps, static at the 1 GbE wire. Numbers in
       `docs/private/APOLLO.md`.
-- [ ] **10. Stage 1b, apollo LAN via NPM**. With it, **M3-03**: the Caddy trusts the stack network's gateway, which
+- [ ] **10. Stage 1b, apollo LAN via NPM**. **M3-03** is deferred to before stage 2 (Alex, 2026-10-30; a stage-2
+      blocker, in M12's exit): the Caddy trusts the stack network's gateway, which
       every host-local and (suspected) IPv6 connection to `:8120` arrives from too, so any of them can name a LAN
-      address. Trust NPM by an address only NPM has (NPM on the stack's network, or a small shared one, at a pinned
+      address. The fix: trust NPM by an address only NPM has (NPM on the stack's network, or a small shared one, at a pinned
       address; 8120 then off the host's other addresses), and put the apps on an `internal` network (M3-07's rest).
-      This needs Alex's NPM change. First, **Alex's steps**: the four NPM proxy hosts (houston, houston-lab,
+      That needs a further NPM change of Alex's. Slice 10's own steps, first **Alex's**: the four NPM proxy hosts (houston, houston-lab,
       starter, skeleton-lan) with §20.4's details and Advanced snippet, and the Access List "LAN only";
       `worker_connections 4096` in NPM's `events.conf`. Then: e2e smoke through NPM; 1000 SSE held 1 h through NPM
       with no idle cuts.
