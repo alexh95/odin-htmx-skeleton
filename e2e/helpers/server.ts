@@ -90,6 +90,7 @@ export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {
       LAN_CIDRS: '127.0.0.0/8', ACCOUNTS_NICK_KEY: 'e2e-only-nickname-signing-key-0123456789',
       BOT_SEED: '7', BOT_DELAY_MS: '25',
       ACCOUNTS_ADMIN_HASH: ADMIN_HASH, ACCOUNTS_LOGIN_PER_CLIENT: '1000000', ACCOUNTS_LOGIN_OVERALL: '1000000',
+      ACCOUNTS_STEP_UP_PER_MEMBER: '1000000',
       ACCOUNTS_ADMIN_TOTP: 'optional', ACCOUNTS_REGISTER_PER_HOUR: '1000000', ACCOUNTS_CODES_PER_HOUR: '1000000',
       CONTACTS_CAP: '0', // full's demo cap: contacts/demo.spec sets its own
       // https and no port, like a real origin (hosts match by name): the SEO specs check its shape.

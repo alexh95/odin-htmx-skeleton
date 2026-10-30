@@ -35,6 +35,7 @@ ENV := [?]env.Row {
 	{name = "ACCOUNTS_SESSION_MAX", kind = .Duration, def = "30d", doc = "a session ends this long after sign-in, seen or not"},
 	{name = "ACCOUNTS_LOGIN_PER_CLIENT", kind = .Int, def = "5", doc = "sign-in attempts per client per 15 min"},
 	{name = "ACCOUNTS_LOGIN_OVERALL", kind = .Int, def = "40", doc = "sign-in attempts from everyone per 15 min"},
+	{name = "ACCOUNTS_STEP_UP_PER_MEMBER", kind = .Int, def = "10", doc = "a member's step-up attempts per 15 min"},
 	{name = "ACCOUNTS_ADMIN_TOTP", kind = .Enum, def = "required", choices = "required|optional", doc = "required: an Admin without TOTP is a Member until they turn it on (§17.1)"},
 	{name = "ACCOUNTS_STEP_UP_WINDOW", kind = .Duration, def = "10m", doc = "how recent a password or code a .Step_Up route asks for"},
 	{name = "ACCOUNTS_REGISTRATION", kind = .Enum, def = "invite", choices = "invite|open|closed", doc = "who may register at /register: with an invite (Q10), anyone, or no one"},
@@ -90,6 +91,7 @@ init :: proc() {
 	crypto.rand_bytes(st.pending_key[:])
 	logins_client.n = env.int_("ACCOUNTS_LOGIN_PER_CLIENT")
 	logins_all.n = env.int_("ACCOUNTS_LOGIN_OVERALL")
+	step_ups.n = env.int_("ACCOUNTS_STEP_UP_PER_MEMBER")
 	threads := env.int_("ACCOUNTS_ARGON_THREADS")
 	if threads <= 0 { threads = 1 if os.get_processor_core_count() <= 2 else 2 }
 	password.start(threads)
