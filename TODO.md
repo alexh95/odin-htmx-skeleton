@@ -31,22 +31,24 @@ Alex, asked in one batch.
       the table and of each flag's answer (401 + `HX-Redirect`, 302, 403, 404 off the LAN, the step-up redirect).
       Done: `authz.refusal` decides, `front` answers (the step-up page itself is slice 5's); `--routes --json` already
       printed each row's host, perm and flags; `authz_test` holds the table and every answer.
-- [ ] **2. `audit`** (§17.7): `features/audit`, `store:audit`'s `append` in both families (SQLite: `audit_log`,
-      append-only by triggers, deletes only past 400 days; memory: one `mod=audit` line), `/admin/audit`
-      (`Admin_Audit`, SQLite profiles only) with filters, keyset infinite scroll and CSV through hx-download.
-      *Check:* the triggers refuse an update and an early delete; e2e of the filters and the scroll; load.
-- [ ] **3. `accounts`' store and passwords** (§17.1): the SQLite store (accounts, sessions, invites, recovery codes,
+- [ ] **2. `accounts`' store and passwords** (§17.1; passwords in `platform/password`, L2, so `envadmin` shares them: done): the SQLite store (accounts, sessions, invites, recovery codes,
       `accounts_prefs`), argon2id on its own pool (`ACCOUNTS_ARGON_THREADS`, 1 with ≤ 2 CPUs, a queue of 32 then 503,
       one buffer per worker, 19 MiB, t = 2, p = 1), constant-time compares, the dummy hash for unknown names,
       passwords 10–256 bytes, `--hash-password` printing its derive time, the bootstrap admin from
       `ACCOUNTS_ADMIN_HASH`. *Check:* unit tests (vectors, the dummy path's time, the queue's 503); the pool's memory
       cap measured (threads × 19 MiB, nothing per login).
-- [ ] **4. Sessions and login** (§17.1, §17.5): the `sid` cookie (32 bytes, SHA-256 stored, `HttpOnly`,
+- [ ] **3. Sessions and login, in `cmd/full`'s first host** (§17.1, §17.5, §7.3): `identity_accounts` and `cmd/full`
+      with Houston's main host alone (SQLite, the hyperscript client; the lab host is slice 10), so the accounts specs
+      have a home; the `sid` cookie (32 bytes, SHA-256 stored, `HttpOnly`,
       `SameSite=Lax`, host-only, `Secure` by `COOKIE_SECURE=auto`; `0` warns at boot and shows a banner), rotation on
       login and privilege change, 14 d idle / 30 d absolute, `/login` `/logout`, the sessions page with revoke; login
       limits (5 per 15 min per client id, 40 overall) and per-account exponential backoff, never a lockout.
       *Check:* e2e of login, logout, revoke and expiry; the login-storm budget (Q34: other routes' p99 ≤ base +
       0.5 ms under `cpus: 2.0`).
+- [ ] **4. `audit`** (§17.7), mounted in `full`: `features/audit`, `store:audit`'s `append` in both families (SQLite: `audit_log`,
+      append-only by triggers, deletes only past 400 days; memory: one `mod=audit` line), `/admin/audit`
+      (`Admin_Audit`, SQLite profiles only) with filters, keyset infinite scroll and CSV through hx-download.
+      *Check:* the triggers refuse an update and an early delete; e2e of the filters and the scroll; load.
 - [ ] **5. TOTP, step-up and recovery** (§17.1, Q11): RFC 6238 with its vectors, manual secret entry and the
       `otpauth://` text, required for Admin (and `Term_Write` later); the step-up page (password or code within
       10 min) on `.Step_Up` rows (role changes, invites); 10 recovery codes and admin-issued one-time reset codes,
