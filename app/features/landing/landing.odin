@@ -128,7 +128,8 @@ plan :: proc(c: Choice) -> Plan {
 	if len(c.features) == 0 { append(&problems, "pick at least one feature") }
 
 	b := strings.builder_make(context.temp_allocator)
-	fmt.sbprintf(&b, "odin run tools/init -- %s", c.name if c.name != "" else "<name>")
+	// A refused name is never echoed into the command offered for copying (M3-05).
+	fmt.sbprintf(&b, "odin run tools/init -- %s", c.name if valid_name(c.name) else "<name>")
 	if len(c.features) > 0 { fmt.sbprintf(&b, " --features %s", strings.join(c.features, ",", context.temp_allocator)) }
 	flags := [?][2]string{{"--store", c.store}, {"--identity", c.identity}, {"--client", c.client}, {"--theme", c.theme}}
 	for f in flags {

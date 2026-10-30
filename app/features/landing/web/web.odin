@@ -9,6 +9,7 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 
+import "../../../platform/obs"
 import "../../../platform/web"
 import landing ".."
 import landing_views "../views"
@@ -28,7 +29,13 @@ rendered: string
 
 init :: proc() {
 	if !landing.init() {
-		fmt.eprintln("landing: the embedded docs/catalog.json doesn't read")
+		msg :: "the embedded docs/catalog.json doesn't read"
+		if l, ok := obs.begin(.Fatal, "landing", "boot"); ok {
+			obs.str(&l, "msg", msg)
+			obs.end(&l)
+		}
+		obs.flush()
+		fmt.eprintln("landing:", msg)
 		os.exit(1)
 	}
 	rendered = landing_views.page(&landing.catalog, FIRST)

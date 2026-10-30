@@ -31,7 +31,8 @@ WS_JSON_DEPTH :: 16
 // One string field of a text frame's JSON object, as hx-ws sends it (`{"body": …, "headers":
 // {…}}`), unescaped into the temp allocator: "" when the object has no such string, false when
 // the frame isn't one strict JSON object nesting at most WS_JSON_DEPTH deep. Every handler reads
-// a client's JSON through this. It reads by hand, in one pass with no allocation but the value:
+// a client's JSON through this. It reads by hand, in one pass, allocating only the top level's keys
+// and the value (M3-10):
 // core:encoding/json recursed a level a bracket (M2-01), took JSON5 by default (M2-22), had to
 // be guarded by a scan that agreed with its tokenizer on where strings end (M2-30), and
 // `alloca`d stack per key (M2-33), and that scan's count of brackets in strings refused a
