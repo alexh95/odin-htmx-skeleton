@@ -80,7 +80,11 @@ admin_accounts :: proc(b: ^strings.Builder, users: []m.User, invites: []m.Invite
 		} else if u.id != me {
 			fmt.sbprintf(b, `<button class="btn btn-outline" hx-post="/admin/accounts/%d/disable" hx-prompt="Why disable this account?" hx-swap="none">Disable</button>`, u.id)
 		}
-		fmt.sbprintf(b, `<button class="btn btn-outline" hx-post="/admin/accounts/%d/reset" hx-prompt="Why a reset code?" hx-target="#admin-result" hx-swap="innerHTML">Reset code</button></td></tr>`, u.id)
+		fmt.sbprintf(b, `<button class="btn btn-outline" hx-post="/admin/accounts/%d/reset" hx-prompt="Why a reset code?" hx-target="#admin-result" hx-swap="innerHTML">Reset code</button>`, u.id)
+		if u.totp_secret != "" {
+			fmt.sbprintf(b, `<button class="btn btn-outline" hx-post="/admin/accounts/%d/two-step-off" hx-prompt="Why turn their two-step sign-in off?" hx-swap="none">Two-step off</button>`, u.id)
+		}
+		w(b, `</td></tr>`)
 	}
 	w(b, `</tbody></table></section>`)
 

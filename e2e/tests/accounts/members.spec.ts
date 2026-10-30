@@ -1,6 +1,6 @@
 import { test, expect } from '../../fixtures';
 import { startServer, stopServer, type Server, mainOrigin } from '../../helpers/server';
-import { ADMIN, signIn } from '../../helpers/accounts';
+import { ADMIN, signIn, totp } from '../../helpers/accounts';
 import type { Browser, Page } from '@playwright/test';
 
 // Becoming a member and the admin's side of it (PLAN §17.1, Q10): /register in each mode, an
@@ -147,6 +147,38 @@ test.describe('members', T, () => {
       await reset(code);
       await expect(robin.page.locator('#reset-error')).toContainText('was used');
       await Promise.all([admin.context.close(), robin.context.close()]);
+    });
+  });
+
+  test("an admin turns off a member's lost two-step sign-in, and the password alone signs them in", async ({ browser }) => {
+    await own({ ACCOUNTS_REGISTRATION: 'open' }, async (_, base) => {
+      const robin = await join(browser, `${base}/register`, 'robin', 'Robin');
+      await robin.page.waitForURL((u) => u.pathname === '/');
+      await robin.page.goto('/accounts/totp');
+      const secret = (await robin.page.locator('.totp-secret').textContent())!.trim();
+      await robin.page.locator('#totp-code').fill(totp(secret));
+      await robin.page.getByRole('button', { name: 'Turn on' }).click();
+      await expect(robin.page.locator('.recovery-codes li')).toHaveCount(10);
+      await robin.context.close();
+
+      const admin = await signIn(browser, base, '/admin/accounts');
+      answering(admin.page, 'lost their phone and their codes');
+      await expect(row(admin.page, 'robin')).toContainText('on');
+      await expect(row(admin.page, ADMIN.username).getByRole('button', { name: 'Two-step off' })).toHaveCount(0);
+      await row(admin.page, 'robin').getByRole('button', { name: 'Two-step off' }).click();
+      await expect(row(admin.page, 'robin').getByRole('button', { name: 'Two-step off' })).toHaveCount(0);
+      await expect(row(admin.page, 'robin').locator('td').nth(4)).toHaveText('off');
+
+      const back = await browser.newContext({ baseURL: base });
+      const page = await back.newPage();
+      await page.goto('/login');
+      await page.locator('#username').fill('robin');
+      await page.locator('#password').fill('a-long-enough-password');
+      await page.getByRole('button', { name: 'Sign in' }).click();
+      await page.waitForURL((u) => u.pathname === '/'); // no code step
+      await admin.page.goto('/admin/audit?action=accounts.totp_off');
+      await expect(admin.page.locator('.audit-row')).toContainText('lost their phone');
+      await Promise.all([back.close(), admin.context.close()]);
     });
   });
 

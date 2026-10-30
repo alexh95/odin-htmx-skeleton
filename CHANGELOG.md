@@ -8,6 +8,12 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+### Added
+
+- **An admin can turn a member's two-step sign-in off** (M4-10): `POST /admin/accounts/<id>/two-step-off`, a button on
+  `/admin/accounts` while the member has one (LAN, step-up, a reason, audited as `accounts.totp_off`). A member who lost
+  their authenticator and their recovery codes had no way back but a database edit.
+
 ### Fixed
 
 - **A bad or taken `ACCOUNTS_ADMIN_NAME` refuses to boot with a reason** (M4-11): the name is held to a username's

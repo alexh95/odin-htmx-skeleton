@@ -51,6 +51,7 @@ export default function () {
   check(post(`/admin/accounts/1/role`, { role: 'Member' }, PROMPT, admin, 'POST /admin/accounts/:id/role', 409), { 'last admin kept': (r) => r.status === 409 });
   check(post(`/admin/accounts/${id}/disable`, null, PROMPT, admin, 'POST /admin/accounts/:id/disable', 303), { 'disabled': (r) => r.status === 303 });
   check(post(`/admin/accounts/${id}/enable`, null, PROMPT, admin, 'POST /admin/accounts/:id/enable', 303), { 'enabled': (r) => r.status === 303 });
+  check(post(`/admin/accounts/${id}/two-step-off`, null, PROMPT, admin, 'POST /admin/accounts/:id/two-step-off', 303), { 'two-step off': (r) => r.status === 303 });
   check(post(`/admin/accounts/${id}/reset`, null, PROMPT, admin, 'POST /admin/accounts/:id/reset', 200), { 'reset code': (r) => r.status === 200 && r.body.includes('reset-code') });
   const made = post('/admin/accounts/invites', { role: 'Member', uses: '1', days: '1' }, PROMPT, admin, 'POST /admin/accounts/invites', 200);
   check(made, { 'invite made': (r) => r.status === 200 && r.body.includes('invite-link') });

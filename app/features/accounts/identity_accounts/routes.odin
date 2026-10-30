@@ -59,6 +59,7 @@ ROUTES := [?]web.Route {
 	{.Post, "/admin/accounts/(%d+)/disable", admin_disable, .Admin_Accounts, {.Fragment, .Lan_Only, .Step_Up}, 0},
 	{.Post, "/admin/accounts/(%d+)/enable", admin_enable, .Admin_Accounts, {.Fragment, .Lan_Only, .Step_Up}, 0},
 	{.Post, "/admin/accounts/(%d+)/reset", admin_reset, .Admin_Accounts, {.Fragment, .Lan_Only, .Step_Up}, 0},
+	{.Post, "/admin/accounts/(%d+)/two%-step%-off", admin_totp_off, .Admin_Accounts, {.Fragment, .Lan_Only, .Step_Up}, 0},
 	{.Post, "/admin/accounts/invites", admin_invite, .Admin_Accounts, {.Fragment, .Lan_Only, .Step_Up}, 256},
 	{.Post, "/admin/accounts/invites/delete", admin_uninvite, .Admin_Accounts, {.Fragment, .Lan_Only, .Step_Up}, 256},
 }

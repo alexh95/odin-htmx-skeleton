@@ -202,6 +202,27 @@ disable :: proc(req: ^web.Request, res: ^web.Response, off: bool) {
 	queue(req, res, op, &op.act, proc(o: ^store.Op) -> bool { return accounts.set_disabled((^Disabling)(o)) })
 }
 
+// A member who lost their authenticator and their recovery codes has no way back but this: the
+// factor and its codes go, and the next sign-in is the password's alone (M4-10).
+@(private)
+Unpairing :: struct {
+	using set: m.Set_Totp,
+	act:       Act,
+}
+
+@(private)
+admin_totp_off :: proc(req: ^web.Request, res: ^web.Response) {
+	id, id_ok := member_of(req, res)
+	if !id_ok { return }
+	reason, reason_ok := reason_of(req, res)
+	if !reason_ok { return }
+	op := store.new_op(Unpairing, ACT_BYTES)
+	act_init(&op.act, store.op_allocator(op), reason, "accounts.totp_off", "", id)
+	op.user_id = id
+	op.done = proc(o: ^store.Op) { acted(o, &(^Unpairing)(o).act, "") }
+	queue(req, res, op, &op.act, proc(o: ^store.Op) -> bool { return accounts.set_totp((^Unpairing)(o)) })
+}
+
 // ---- reset codes and invites ----------------------------------------------------------------
 
 @(private)
