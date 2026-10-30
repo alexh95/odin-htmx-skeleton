@@ -160,11 +160,11 @@ dry_check :: proc(hosts: []Host, jobs: [][]workers.Job, bundle_exts: web.Exts, p
 @(private)
 mount :: proc(hosts: []Host) {
 	for h in hosts { append(&st.sites, mounted(h)) }
-	// A TEST_ROUTES build's crash drills, on the main host only (PLAN §19.1.10).
-	// They sit in the router, not in a mounted table, so --routes, the boot
-	// checks and route coverage never see them.
+	// A TEST_ROUTES build's crash drills, on every host (PLAN §19.1.10): a stream drill runs on
+	// the host that mounts the stream (full's lab host). They sit in the router, not in a
+	// mounted table, so --routes, the boot checks and route coverage never see them.
 	when web.TEST_ROUTES {
-		web.router_mount(&st.sites[0].router, web.TEST_ROUTE_ROWS[:])
+		for &s in st.sites { web.router_mount(&s.router, web.TEST_ROUTE_ROWS[:]) }
 		web.test_shutdown = request_shutdown
 	}
 }

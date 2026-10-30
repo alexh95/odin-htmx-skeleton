@@ -2,7 +2,7 @@ package web
 
 // ---- TEST_ROUTES: the crash drills (PLAN §19.1.10, D10) ---------------------------------
 //
-// Mounted on the main host by platform/app only in a -define:TEST_ROUTES=true
+// Mounted on every host by platform/app only in a -define:TEST_ROUTES=true
 // build, never in a release one, whose /__test/* answers 404. Each kind is one
 // class of crash, run inside the request:
 //

@@ -43,7 +43,8 @@ const phases = PHASES.length ? PHASES : ALL;
 const MiB = 1024 * 1024;
 const BUDGET = {
   size: { minimal: 1.5 * MiB, skeleton: 3 * MiB }, // ANSWERS rounds 7 and 10
-  idle: (loops) => 6e6 + 0.4e6 * loops,
+  // The witnesses' 6 MB + 0.4 MB a loop; full's own 40 MB (§18.4: about 1.15 MB a SQLite reader × 16).
+  idle: (loops) => (PROFILE === 'full' ? 40e6 : 6e6 + 0.4e6 * loops),
   readyMs: 50,
 };
 
@@ -92,8 +93,11 @@ function freePort() {
 
 // A server, fresh: its output, exit code and exit time are kept. An empty env value means unset.
 function start(bin, env = {}, port = freePort(), { ulimit = 0 } = {}) {
+  // full answers two hosts: its lab host (the stream drills' 127.0.0.1) is named, and any other
+  // name (the malformed set's `Host: x`) is Houston's, as in the suites.
+  const lab = PROFILE === 'full' ? { SITE_URL_LAB: 'https://127.0.0.1' } : {};
   const all = Object.fromEntries(Object.entries({
-    PORT: String(port), THREADS: '4', LOG_LEVEL: 'info', CRASH_FILE: `app/build/last-crash-${port}.txt`, ...env,
+    PORT: String(port), THREADS: '4', LOG_LEVEL: 'info', CRASH_FILE: `app/build/last-crash-${port}.txt`, ...lab, ...env,
   }).filter(([, v]) => v !== ''));
   let child;
   if (WSL || LINUX) {
@@ -509,7 +513,7 @@ async function phaseBudgets() {
     await sleep(3000);
     const bytes = rss(s);
     const cap = BUDGET.idle(LOOPS);
-    const name = `budgets: idle ${WIN ? 'working set' : 'RSS'} ≤ ${(cap / 1e6).toFixed(1)} MB (6 + 0.4 × ${LOOPS} loops)`;
+    const name = `budgets: idle ${WIN ? 'working set' : 'RSS'} ≤ ${(cap / 1e6).toFixed(1)} MB (${PROFILE === 'full' ? "full's" : `6 + 0.4 × ${LOOPS} loops`})`;
     const got = `${(bytes / 1e6).toFixed(2)} MB${WIN ? '' : rssDetail(s)}`;
     // The budget is the dev PC's, as the size budget is Windows' (ANSWERS round 8): a CI runner
     // reports its figure and what it is made of, and doesn't fail on it.
@@ -776,13 +780,14 @@ async function phaseStreamCrash(f) {
     const sock = net.connect(s.port, '127.0.0.1');
     let buf = '';
     let sent = false;
-    sock.on('connect', () => sock.write('GET /lab/sse/tick?n=1&ms=0 HTTP/1.1\r\nHost: x\r\n\r\n'));
+    // The lab host by name (full serves two; a one-host profile answers any name).
+    sock.on('connect', () => sock.write('GET /lab/sse/tick?n=1&ms=0 HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n'));
     sock.on('data', (d) => {
       buf += d.toString('latin1');
       if (!sent && buf.endsWith('\r\n0\r\n\r\n')) {
         sent = true;
         buf = '';
-        sock.write('GET /__test/crash/panic HTTP/1.1\r\nHost: x\r\n\r\n'); // at once, on the same socket
+        sock.write('GET /__test/crash/panic HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n'); // at once, on the same socket
       }
     });
     sock.on('close', () => resolve({ buf, closed: true }));
