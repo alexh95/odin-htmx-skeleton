@@ -4,7 +4,7 @@ name: ci
 # release.yml instead: the images, the GitHub Release and the Fly deploy.
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, 'release/**']
   pull_request:
     branches: [master, main]
 
