@@ -3,6 +3,21 @@
 Who is asking (PLAN §17.1, D35). At M2 only its `nick` identity exists (ANSWERS round 9): the rest of the feature,
 sessions, passwords, TOTP and `identity_accounts`, arrives at M4.
 
+## Data (M4)
+
+`accounts_models` holds the types and the store contract; the store is SQLite's alone
+(`app/stores/sqlite/accounts`, migration `0001_accounts.sql`):
+
+| Table | What it holds |
+|---|---|
+| `users` | `username` (unique, case-insensitive), `display`, `pw_hash` (a PHC string from `platform/password`), `role`, `disabled_at`, `totp_secret`, `failed_logins`, `backoff_until`, `created_at` |
+| `sessions` | by `token_hash` (hex SHA-256 of the cookie's token): `user_id`, `created_at`, `last_seen`, `expires_at`, `step_up_at`, `client_id` |
+| `accounts_invites` | by `code_hash`: `role`, `max_uses`, `uses`, `created_by`, `created_at`, `expires_at` |
+| `accounts_recovery_codes` | `user_id`, `code_hash`, `used_at` |
+| `accounts_prefs` | `user_id`, `key`, `value`: theme, chat transport, mutes |
+
+Passwords are `platform/password`'s (argon2id on its own pool), shared with `envadmin`.
+
 ## identity_nick
 
 `features/accounts/identity_nick` (package `accounts_identity_nick`) is a member of the `identity:` family, chosen by a

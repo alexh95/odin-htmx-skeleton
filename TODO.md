@@ -31,12 +31,15 @@ Alex, asked in one batch.
       the table and of each flag's answer (401 + `HX-Redirect`, 302, 403, 404 off the LAN, the step-up redirect).
       Done: `authz.refusal` decides, `front` answers (the step-up page itself is slice 5's); `--routes --json` already
       printed each row's host, perm and flags; `authz_test` holds the table and every answer.
-- [ ] **2. `accounts`' store and passwords** (§17.1; passwords in `platform/password`, L2, so `envadmin` shares them: done): the SQLite store (accounts, sessions, invites, recovery codes,
+- [x] **2. `accounts`' store and passwords** (§17.1; passwords in `platform/password`, L2, so `envadmin` shares them: done): the SQLite store (accounts, sessions, invites, recovery codes,
       `accounts_prefs`), argon2id on its own pool (`ACCOUNTS_ARGON_THREADS`, 1 with ≤ 2 CPUs, a queue of 32 then 503,
       one buffer per worker, 19 MiB, t = 2, p = 1), constant-time compares, the dummy hash for unknown names,
       passwords 10–256 bytes, `--hash-password` printing its derive time, the bootstrap admin from
       `ACCOUNTS_ADMIN_HASH`. *Check:* unit tests (vectors, the dummy path's time, the queue's 503); the pool's memory
       cap measured (threads × 19 MiB, nothing per login).
+      Done: `platform/password` (argon2id, PHC, the dummy, the pool with one buffer per worker; its tests) and
+      `stores/sqlite/accounts` with `accounts_models` (held by `features/accounts/storetest`). `--hash-password` and
+      the bootstrap admin go with the identity, slice 3; the pool's memory cap is measured there under load.
 - [ ] **3. Sessions and login, in `cmd/full`'s first host** (§17.1, §17.5, §7.3): `identity_accounts` and `cmd/full`
       with Houston's main host alone (SQLite, the hyperscript client; the lab host is slice 10), so the accounts specs
       have a home; the `sid` cookie (32 bytes, SHA-256 stored, `HttpOnly`,

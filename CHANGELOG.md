@@ -23,6 +23,8 @@ Alex's NPM steps.
 
 ### Added (M4, toward 2.3.0: not part of 2.2.0)
 
+- **Accounts' store** (M4, PLAN §17.1): `accounts_models` and `stores/sqlite/accounts` (users, sessions by the hash of
+  their token, invites, recovery codes, preferences), held by `features/accounts/storetest`.
 - **`platform/password`** (M4, PLAN §17.1, S0.5): argon2id at OWASP's parameters as PHC strings, constant-time
   compares, a dummy derive of the same cost for an unknown name, and its own pool (`submit` a `Verify`, `done` back on
   the loop) whose workers each keep one 19 MiB buffer; a stored string may name no cost but the two OWASP presets.
