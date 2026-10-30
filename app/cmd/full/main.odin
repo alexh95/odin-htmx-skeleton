@@ -9,6 +9,7 @@ import "../../platform/web"
 import store_sqlite "../../platform/store/sqlite"
 import about_web "../../features/about/web"
 import audit_web "../../features/audit/web"
+import modules_web "../../features/modules/web"
 import home_web "../../features/home/web"
 import accounts_store "store:accounts"
 import audit_store "store:audit"
@@ -19,7 +20,7 @@ HOME_CARDS := [?]html.Home_Card{}
 
 // Every extension the main bundle needs (D19). Boot refuses a bundle whose
 // header says otherwise.
-BUNDLE_EXTS :: home_web.EXTS + about_web.EXTS + audit_web.EXTS + identity.EXTS
+BUNDLE_EXTS :: home_web.EXTS + about_web.EXTS + audit_web.EXTS + modules_web.EXTS + identity.EXTS
 
 main :: proc() {
 	app.boot("full")

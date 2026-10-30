@@ -146,6 +146,7 @@ check :: proc(hosts: []Host, jobs: [][]workers.Job, bundle_exts: web.Exts, page_
 			obs.end(&l)
 		}
 	}
+	record_build(hosts, bundle_exts)
 	answer_cli(hosts)
 }
 

@@ -116,6 +116,10 @@ allowed :: proc(t: ^Tree, p: ^Pkg, target: string) -> (bool, string) {
 		return false, "views import their models, their domain and platform/html only"
 
 	case .Web:
+		// /admin/modules shows the platform's own record of the build, so any profile may mount it (§15.4).
+		if f == "modules" && (strings.has_prefix(target, "store:") || in_tree && q.kind != .Platform) {
+			return false, "modules imports no feature and no store: what it shows is the platform's"
+		}
 		switch {
 		case of_feature(t, target, .Domain, f),
 		     of_feature(t, target, .Models, f),

@@ -116,9 +116,15 @@ Alex, asked in one batch.
       settles a stream refused with 401, 403 or 404 (it cancels the next connection). `revoke.spec` (both cases, 1
       reconnect at most), `accounts/live.js`. A member revoking one of their own sessions doesn't end that device's
       open stream (the topic is the member's, not the session's): it ends at its next request.
-- [ ] **9. `modules`** (§15.4, Q28: no runtime disabling): `/admin/modules` (`Admin_Modules`): the profile, its
+- [x] **9. `modules`** (§15.4, Q28: no runtime disabling): `/admin/modules` (`Admin_Modules`): the profile, its
       family members, the switched implementations, the routes per host with perms and flags, bundle extensions, env
       (secrets masked), limits, health, migrations. *Check:* e2e; it imports no feature (`tools/check imports`).
+      Done: `features/modules` (a web package alone, LAN only), mounted in `full`; `platform/app` records the build in
+      `web.build` at `app.check` (profile, families, features, the main bundle's extensions, every route per host)
+      and the SQLite store lists each `migrate` in `store.in_force`; a secret shows only as set or unset;
+      `tools/check imports` refuses modules any feature or store. `modules.spec` (2 cases), `modules/modules.js`.
+      The switched implementations aren't listed: they are chosen per request (`x-impl`), and the catalog's
+      `switched` field already names them per feature.
 - [ ] **10. `cmd/full` and its two hosts** (§7.3, §15.5, F2): Houston on `SITE_URL` (`home`'s Today with cards, nav
       from `brand.odin`, the `houston` theme, which a member keeps in `accounts_prefs`) and the lab host on `SITE_URL_LAB` (`landing` at `/`, `notes`,
       `dashboard` at `/dashboard`, `gallery`, `contacts`, `about`, `lab`, `scripting`, `compat`; `LAB_NAV`), the

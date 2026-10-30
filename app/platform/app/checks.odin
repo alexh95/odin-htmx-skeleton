@@ -144,6 +144,24 @@ print_routes :: proc(b: ^strings.Builder, hosts: []Host, as_json: bool) {
 	}
 }
 
+// The build as /admin/modules shows it (web.build): set once, at app.check.
+@(private)
+record_build :: proc(hosts: []Host, exts: web.Exts) {
+	names := make([dynamic]string)
+	routes := make([dynamic]web.Route_Info)
+	for h in hosts {
+		for m in h.routes {
+			seen := false
+			for n in names { seen ||= n == m.feature }
+			if !seen { append(&names, m.feature) }
+			for r in m.rows {
+				append(&routes, web.Route_Info{h.name, m.feature, web.route_id(r), fmt.aprint(r.perm), r.flags})
+			}
+		}
+	}
+	web.build = {st.profile, stores.NAME, identity.NAME, html.CLIENT, html.THEME, names[:], exts, routes[:]}
+}
+
 @(private)
 print_features :: proc(b: ^strings.Builder, hosts: []Host, as_json: bool) {
 	Features :: struct {

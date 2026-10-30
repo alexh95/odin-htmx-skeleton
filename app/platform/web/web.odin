@@ -73,6 +73,22 @@ Site :: struct {
 	redirect:  bool,   // *.fly.dev answers 301 to `origin` (off for a placeholder origin)
 }
 
+// What the build is, as platform/app knows it at boot (§15.4): for /admin/modules, which may
+// not import platform/app. Read-only once serving starts.
+Build :: struct {
+	profile, store, identity, client, theme: string,
+	features:                                []string,
+	exts:                                    Exts, // the main bundle's
+	routes:                                  []Route_Info,
+}
+
+Route_Info :: struct {
+	host, feature, id, perm: string,
+	flags:                   Route_Flags,
+}
+
+build: Build
+
 // What a request carries through `front` to its handler. A handler runs
 // synchronously on its loop, so the context is the thread's while it runs; a
 // write's continuation, which runs on a later tick, keeps what it needs itself.

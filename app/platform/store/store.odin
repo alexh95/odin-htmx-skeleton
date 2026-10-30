@@ -50,6 +50,16 @@ Migration :: struct {
 	sql:  string,
 }
 
+// The migrations in force, per feature, once the boot's `migrate` calls have run: what
+// /admin/modules lists. A memory build has none. Written at boot only.
+In_Force :: struct {
+	feature: string,
+	seq:     int,
+	name:    string,
+}
+
+in_force: [dynamic]In_Force
+
 // An enum read from a column or a form: an out-of-range value is an error, never
 // an index (02 F3: an unchecked enum read from SQLite indexed a label table out
 // of bounds). `ok` is false for anything not a member.

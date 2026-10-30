@@ -92,6 +92,7 @@ migrate :: proc(feature: string, migrations: []store.Migration) {
 	if problem := apply(feature, migrations); problem != "" {
 		fatal("migrations: %s", problem)
 	}
+	for m in migrations { append(&store.in_force, store.In_Force{feature, m.seq, m.name}) }
 }
 
 @(private)

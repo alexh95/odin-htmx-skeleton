@@ -4032,6 +4032,12 @@ next connection (`htmx:sse:before:connection`). `identity_accounts` declares `ac
 mounts the hub for it. A role change and a disable revoke; revoking one session doesn't (the member's topic spans
 their devices), and that device's stream ends at its next request.
 
+**As built (M4, slice 9):** `/admin/modules` is `features/modules`, a web package alone (LAN only). `platform/app` fills
+`web.build` at `app.check` (profile, families, features, the main bundle's extensions, every route per host with its
+perm and flags), and `store/sqlite`'s `migrate` appends to `store.in_force`, so the page imports no feature and no
+store (`tools/check imports` refuses one). The env table shows a secret only as set or unset. The switched
+implementations aren't listed (they are per request, `x-impl`; the catalog names them).
+
 **TOTP and step-up** (Q11). TOTP follows RFC 6238 (vectors verified, 07 §0.6) with manual secret entry and the
 `otpauth://` text, no QR encoder. It is required for Admin and `Term_Write`. **Step-up** asks for the password or a
 TOTP code within the last 10 minutes on `.Step_Up` routes: `Term_Write`, role changes, invites and dbview. Recovery

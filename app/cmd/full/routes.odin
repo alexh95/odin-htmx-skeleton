@@ -7,6 +7,7 @@ import "../../platform/hub"
 import "../../platform/web"
 import about_web "../../features/about/web"
 import audit_web "../../features/audit/web"
+import modules_web "../../features/modules/web"
 import home_web "../../features/home/web"
 import identity "identity:."
 
@@ -18,6 +19,7 @@ ROUTES := [?]app.Mount {
 	{"home", {{.Get, "/", home_web.page, .Public, {}, 0}}}, // the root: a card per feature
 	{"accounts", identity.ROUTES[:]},   // /login /logout /accounts/sessions
 	{"audit", audit_web.ROUTES[:]},     // /admin/audit: the log, LAN only
+	{"modules", modules_web.ROUTES[:]}, // /admin/modules: what this build is
 	{"about", about_web.ROUTES[:]},     // /about
 }
 

@@ -60,6 +60,11 @@ Alex's NPM steps.
   and their pages go to sign in again (`#live`'s `data-revoke`); a role change or a disable in `/admin/accounts`
   revokes. `identity_accounts` has a member topic (`accounts.user`) and `full` mounts the hub. The generator mounts
   the hub for an identity with topics. e2e `revoke.spec`, k6 `accounts/live.js`.
+- **`/admin/modules`** (M4 slice 9, PLAN §15.4): what the build is, read-only (Q28): the profile and its family
+  members, the features, every route per host with its permission and flags, the bundle's htmx extensions, the env
+  rows (a secret only as set), the limits, each module's health and the migrations in force. `features/modules`
+  imports no feature (`tools/check imports` holds it): `platform/app` records the build in `web.build`, and the
+  SQLite store its migrations in `store.in_force`. Mounted in `full`. e2e `modules.spec`, k6 `modules/modules.js`.
 - **The generator knows identities that need SQLite**: a feature with no web package gives its domain's store need to
   the identity that reaches it, so `--identity accounts` asks for `--store sqlite` while `nick` still builds on
   memory; an identity's routes own their nav entries.
