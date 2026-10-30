@@ -7,11 +7,14 @@ import { test, expect, PROXY } from '../../fixtures';
 // per stream (S0.8); the server's `Cache-Control: no-transform` and `X-Accel-Buffering: no` are what
 // keep both off. Skipped without a proxy: the other lab specs cover the same streams direct.
 
+// The lab's own origin through the proxy: a two-host build's lab host (E2E_PROXY_LAB), else the one.
+const LAB = process.env.E2E_PROXY_LAB || PROXY;
+
 type Timed = { status: number; headers: http.IncomingHttpHeaders; body: string; times: number[] };
 
 // A GET through the proxy, with the time each chunk arrived.
 function through(path: string): Promise<Timed> {
-  const url = new URL(path, PROXY);
+  const url = new URL(path, LAB);
   return new Promise((resolve, reject) => {
     const t0 = performance.now();
     const req = http.get(url, (r) => {
@@ -54,7 +57,7 @@ test.describe('streams through the proxy @lab', () => {
   });
 
   test('a socket echoes through the proxy', async () => {
-    const url = new URL('/lab/ws/echo', PROXY);
+    const url = new URL('/lab/ws/echo', LAB);
     url.protocol = 'ws:';
     const ws = new WebSocket(url);
     const got = await new Promise<string>((resolve, reject) => {

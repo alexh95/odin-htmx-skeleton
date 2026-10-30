@@ -174,7 +174,11 @@ Alex, asked in one batch.
       and no foreign-Origin upgrade becomes a socket. Both api-only, green on all five profiles (a dropped grant fails
       rbac). headers and csp-clean walk both hosts (the lab host sets no cookie); csp-enforced and streams-hxcsp
       already run on `full`'s lab host (9 green). `e2e-proxy` gains `full` behind Caddy and NPM (`E2E_PROXY_LAB`; the
-      proxied server counts the proxies' networks as its LAN). Left: those two legs' first CI run. Fixed on the way:
+      proxied server counts the proxies' networks as its LAN): Houston's own specs, the platform's on both hosts and
+      proxy.spec on the lab host's name (the lab legs take the lab pages through both proxies already; one shared
+      server behind a proxy also holds every spec's state, which the demo specs don't expect). Their first run found
+      the lab helpers naming 127.0.0.1 (the proxied main host there) and a revoke spec counting exactly two
+      sessions; both fixed. Left: those two legs green. Fixed on the way:
       tools/init named the catalog's profiles in the scripts' usage lines, which full-vanilla broke (13199fa).
 - [ ] **13. Nightly fuzzing** (§19.1, D44): pairwise and selection fuzzing of the generator's selections. *Check:*
       one nightly run green. *So far:* `tools/init --pairwise --seed <n>` (pairwise.odin) builds a strength-2

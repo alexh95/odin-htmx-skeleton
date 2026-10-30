@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import net from 'node:net';
+import { directHost } from '../../helpers/server';
 
 // The lab specs' Node-side clients (from spike S0.3's harness, docs/spikes/S0.3.md): plain
 // HTTP with chunk times, an SSE reader, and a raw WebSocket that can send what browsers never
@@ -20,7 +21,7 @@ const pool = new http.Agent({ keepAlive: true, maxSockets: 64 });
 export function get(port: number, p: string, opts: { agent?: http.Agent; headers?: http.OutgoingHttpHeaders } = {}): Promise<Got> {
   return new Promise((res, rej) => {
     const t0 = performance.now();
-    const req = http.get({ host: HOST, port, path: p, agent: opts.agent ?? pool, headers: opts.headers }, (r) => {
+    const req = http.get({ host: HOST, port, path: p, agent: opts.agent ?? pool, headers: { host: directHost(port), ...opts.headers } }, (r) => {
       const chunks: Buffer[] = []; const times: number[] = [];
       r.on('data', (c) => { chunks.push(c); times.push(Math.round(performance.now() - t0)); });
       r.on('end', () => res({ status: r.statusCode ?? 0, headers: r.headers, body: Buffer.concat(chunks).toString(), times, reused: req.reusedSocket }));
@@ -35,7 +36,7 @@ export function post(port: number, p: string, form: Record<string, string> = {})
   return new Promise((res, rej) => {
     const req = http.request({
       host: HOST, port, path: p, method: 'POST', agent: pool,
-      headers: { 'content-type': 'application/x-www-form-urlencoded', 'content-length': Buffer.byteLength(body) },
+      headers: { host: directHost(port), 'content-type': 'application/x-www-form-urlencoded', 'content-length': Buffer.byteLength(body) },
     }, (r) => { r.resume(); r.on('end', () => res(r.statusCode ?? 0)); });
     req.on('error', rej);
     req.end(body);
@@ -67,7 +68,7 @@ export function sse(port: number, p: string, { count = 3, ms = 3000, headers = {
   return new Promise((res) => {
     const events: Ev[] = []; let buf = ''; let cur: Ev = { data: '' }; let hasData = false;
     const done = () => { req.destroy(); res(events); };
-    const req = http.get({ host: HOST, port, path: p, headers }, (r) => {
+    const req = http.get({ host: HOST, port, path: p, headers: { host: directHost(port), ...headers } }, (r) => {
       r.setEncoding('utf8');
       r.on('data', (c: string) => {
         buf += c;
@@ -138,7 +139,7 @@ export function wsRaw(port: number, p: string, headers: Record<string, string | 
       closed: new Promise((r) => s.on('close', r)),
     };
     s.on('connect', () => {
-      const h: Record<string, string | null> = { Host: `${HOST}:${port}`, Upgrade: 'websocket', Connection: 'Upgrade', 'Sec-WebSocket-Key': key, 'Sec-WebSocket-Version': '13', ...headers };
+      const h: Record<string, string | null> = { Host: directHost(port), Upgrade: 'websocket', Connection: 'Upgrade', 'Sec-WebSocket-Key': key, 'Sec-WebSocket-Version': '13', ...headers };
       s.write(`GET ${p} HTTP/1.1\r\n` + Object.entries(h).filter(([, v]) => v !== null).map(([k, v]) => `${k}: ${v}`).join('\r\n') + '\r\n\r\n');
     });
     s.on('data', (d) => {

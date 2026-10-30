@@ -62,8 +62,15 @@ test.describe('accounts', T, () => {
     const one = await signIn(browser, baseURL!, '/accounts/sessions');
     const two = await signIn(browser, baseURL!, '/accounts/sessions');
     await one.page.reload();
-    await expect(one.page.locator('.session')).toHaveCount(2);
-    await one.page.locator('.session', { hasNotText: 'this device' }).getByRole('button', { name: 'Revoke' }).click();
+    // At least these two; behind a proxy the one server holds other specs' sessions of this admin too,
+    // so every other one is revoked until this device's is the last.
+    const others = one.page.locator('.session', { hasNotText: 'this device' });
+    expect(await others.count()).toBeGreaterThanOrEqual(1);
+    while ((await others.count()) > 0) {
+      const n = await others.count();
+      await others.first().getByRole('button', { name: 'Revoke' }).click();
+      await expect(others).toHaveCount(n - 1);
+    }
     await expect(one.page.locator('.session')).toHaveCount(1);
 
     await two.page.goto('/accounts/sessions');

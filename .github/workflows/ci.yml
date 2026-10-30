@@ -307,8 +307,10 @@ jobs:
           - { proxy: caddy, profile: streams, url: 'http://starter-streams.alexh95.com:8120' }
           - { proxy: npm, profile: streams, url: 'http://starter-streams.alexh95.com' }
           # Houston and its lab host, one container (§7.3): the suite takes each spec to its feature's host.
-          - { proxy: caddy, profile: full, url: 'http://houston.alexh95.com:8120', lab: 'http://houston-lab.alexh95.com:8120' }
-          - { proxy: npm, profile: full, url: 'http://houston.alexh95.com', lab: 'http://houston-lab.alexh95.com' }
+          # Its own specs and the platform's on both hosts, and proxy.spec on the lab host's name; the lab legs
+          # above already take the lab pages through both proxies.
+          - { proxy: caddy, profile: full, url: 'http://houston.alexh95.com:8120', lab: 'http://houston-lab.alexh95.com:8120', specs: tests/accounts tests/audit tests/modules tests/home tests/platform tests/lab/proxy.spec.ts }
+          - { proxy: npm, profile: full, url: 'http://houston.alexh95.com', lab: 'http://houston-lab.alexh95.com', specs: tests/accounts tests/audit tests/modules tests/home tests/platform tests/lab/proxy.spec.ts }
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-odin
@@ -331,7 +333,7 @@ jobs:
       - name: Install e2e deps and chromium
         run: cd e2e && npm ci && npx playwright install --with-deps chromium
       - name: Run e2e (${{ matrix.profile }}) through the proxy
-        run: cd e2e && npx playwright test
+        run: cd e2e && npx playwright test ${{ matrix.specs }}
         env:
           CI: 'true'
           E2E_PROFILE: ${{ matrix.profile }}

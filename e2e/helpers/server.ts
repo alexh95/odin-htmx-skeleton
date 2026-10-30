@@ -69,6 +69,8 @@ const proxied = (port: number) => PROXY !== '' && port === UPSTREAM;
 export const mainHost = (port: number) =>
   proxied(port) ? new URL(PROXY).host : `${TWO_HOSTS ? 'localhost' : '127.0.0.1'}:${port}`;
 const labHost = (port: number) => (proxied(port) && PROXY_LAB ? new URL(PROXY_LAB).host : '');
+// The Host a direct request names to reach the lab host (or a one-host build's only one).
+export const directHost = (port: number) => labHost(port) || `127.0.0.1:${port}`;
 export const mainOrigin = (port: number) => `http://${mainHost(port)}`;
 
 // Which host serves `feature`: the main one when only the main host mounts it.
