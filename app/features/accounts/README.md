@@ -5,6 +5,17 @@ passwords and server-side sessions; TOTP, step-up, recovery and invites follow i
 no web package: a profile reaches it through its identity, whose routes it mounts as `{"accounts", identity.ROUTES[:]}`,
 and the generator gives the domain's SQLite need to the identity that reaches it, so `nick` still builds on memory.
 
+## identity_envadmin
+
+`features/accounts/identity_envadmin` (package `accounts_identity_envadmin`), for profiles with no SQLite (D18): one
+admin, whose password is `ACCOUNTS_ADMIN_HASH`, signs in at `/login` with the password alone and keeps a stateless
+cookie, `admin=<issued>.<expires>.<mac>` (HMAC-SHA256 with `ACCOUNTS_ENVADMIN_KEY`, at least 32 bytes; without one a
+key made at boot, so a restart signs the admin out; `ACCOUNTS_ENVADMIN_LIFE`, 7 days). There is no session to
+revoke: `/logout` forgets the cookie in that browser, and a new key signs everyone out. The issue time counts as the
+last password check, and `/step-up` takes the password and issues a fresh cookie. Sign-ins are limited (5 per 15 min
+per client, 40 overall) and audited through `store:audit`. No hosted profile builds it: the nightly generates an
+`--identity envadmin` project and runs the e2e suite on it (`envadmin.spec`).
+
 ## identity_accounts
 
 `features/accounts/identity_accounts` (package `accounts_identity_accounts`), `full`'s identity, on SQLite. Over the

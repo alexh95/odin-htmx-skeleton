@@ -52,6 +52,10 @@ Alex's NPM steps.
   `/admin/accounts` (LAN only) changes roles, disables and enables (the member's sessions end; the last admin
   stays), and issues one-time reset codes and invites, shown once; each write asks for a step-up and a reason,
   which the audit log keeps. `/reset` takes an admin's code. e2e `members.spec`, k6 `accounts/members.js`.
+- **`envadmin`** (M4 slice 7, PLAN §17.1): the `identity:` family's fourth member, for profiles with no SQLite: one
+  admin from `ACCOUNTS_ADMIN_HASH`, signed in at `/login` to a stateless HMAC-signed cookie (`ACCOUNTS_ENVADMIN_KEY`;
+  a new key signs everyone out), with `/step-up` and `/logout`. `--hash-password` now lives in `platform/password`.
+  The nightly generates an `--identity envadmin` project and runs the e2e suite on it (`envadmin.spec`).
 - **The generator knows identities that need SQLite**: a feature with no web package gives its domain's store need to
   the identity that reaches it, so `--identity accounts` asks for `--store sqlite` while `nick` still builds on
   memory; an identity's routes own their nav entries.

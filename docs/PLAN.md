@@ -4018,6 +4018,12 @@ is required and audited, and a role change or a disable ends the member's sessio
 the rotation on a privilege change). The last enabled admin can't be demoted or disabled, in the store's own write.
 `accounts_prefs` waits for its first reader (the theme, chat's transport and mutes).
 
+**As built (M4, slice 7):** `features/accounts/identity_envadmin`: the cookie is `admin=<issued>.<expires>.<mac>`
+(HMAC-SHA256, 7 days by `ACCOUNTS_ENVADMIN_LIFE`), the issue time is the viewer's `step_up_at`, and `/step-up` takes the
+password and issues a fresh cookie. Sign-ins are limited as `accounts`' are and audited through `store:audit` (a
+`mod=audit` line on a memory build). The nightly `envadmin` job generates `--identity envadmin --features notes` and
+runs the whole e2e suite on it.
+
 **TOTP and step-up** (Q11). TOTP follows RFC 6238 (vectors verified, 07 §0.6) with manual secret entry and the
 `otpauth://` text, no QR encoder. It is required for Admin and `Term_Write`. **Step-up** asks for the password or a
 TOTP code within the last 10 minutes on `.Step_Up` routes: `Term_Write`, role changes, invites and dbview. Recovery

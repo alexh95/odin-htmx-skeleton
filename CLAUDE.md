@@ -169,8 +169,9 @@ platform  L4 app        -> identity:., store:. (the family's NAME), L1-L3; only 
   fails in the store itself (`tools/check contracts` holds every store to it).
 - **Only `platform/web` imports odin-http**; it re-exports `web.Request` and `web.Response`.
 - **A family is a build-time choice** made by `build.sh`'s collection flags: `store:` (sqlite or
-  memory), `identity:` (anonymous, `features/accounts/identity_nick`: `streams`, or
-  `features/accounts/identity_accounts`: `full`, which needs SQLite), `client:`
+  memory), `identity:` (anonymous, `features/accounts/identity_nick`: `streams`,
+  `features/accounts/identity_accounts`: `full`, which needs SQLite, or `identity_envadmin`, one admin from the
+  environment, which no hosted profile builds), `client:`
   (vanilla or hyperscript; `lab` is on hyperscript), `theme:` (full or lite). The
   members expose the same names (`NAME`, the stores' procs), so the code above them doesn't change.
 - **A profile is four hand-written files.** `routes.odin` mounts tables, one line each, as

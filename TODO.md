@@ -99,8 +99,13 @@ Alex, asked in one batch.
       on the profiles with UGC fields) and `accounts/members.js`. Moved: `accounts_prefs` goes with its first reader
       (the theme with the `houston` theme, slice 10; the chat transport and mutes with chat on `full`), rather than a store
       nothing reads.
-- [ ] **7. `envadmin`** (§17.1): the stateless signed-cookie identity, one admin from `ACCOUNTS_ADMIN_HASH`, for the
+- [x] **7. `envadmin`** (§17.1): the stateless signed-cookie identity, one admin from `ACCOUNTS_ADMIN_HASH`, for the
       SQLite-free profiles. *Check:* unit tests (sign, tamper, rotate signs everyone out); e2e of its login.
+      Done: `identity_envadmin` (`admin=<issued>.<expires>.<mac>`, HMAC-SHA256 with `ACCOUNTS_ENVADMIN_KEY`, 7 days;
+      the issue time is the step-up time, and `/step-up` issues a fresh one); `/login`, `/logout`, `/step-up` on the
+      argon pool, limited, audited through `store:audit`; `--hash-password` moved into `platform/password` for both
+      password identities. Its unit test (signed, ended, issued later, a new key, no MAC) and `envadmin.spec`, which
+      the nightly runs on a generated `--identity envadmin --features notes` project (63 specs green locally).
 - [ ] **8. Revocation on streams** (§17.2.3, X19): a kick or role change publishes a revoke that closes the viewer's
       streams with 1008; SSE gets the named `kicked` event, which goes to `/login`. *Check:* `revoke.spec` (at most 3
       reconnects in 30 s), and whether hx-sse stops retrying after a 403 settled (UNVERIFIED (M4)).

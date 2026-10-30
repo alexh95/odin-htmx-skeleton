@@ -98,29 +98,7 @@ init :: proc() {
 // The identity's own CLI flag: `--hash-password` reads a password from stdin (one line) and
 // prints its PHC string, for ACCOUNTS_ADMIN_HASH, and to stderr how long the derive took,
 // which says what a sign-in costs on this machine (§17.1: ≤ 100 ms wanted).
-cli :: proc() {
-	for a in os.args[1:] {
-		if a != "--hash-password" { continue }
-		buf: [password.MAX_LEN + 2]byte
-		n, _ := os.read(os.stdin, buf[:])
-		pw := strings.trim_right(string(buf[:max(n, 0)]), "\r\n")
-		switch password.check(pw) {
-		case .Too_Short:
-			fmt.eprintfln("--hash-password: at least %d bytes", password.MIN_LEN)
-			os.exit(2)
-		case .Too_Long:
-			fmt.eprintfln("--hash-password: at most %d bytes", password.MAX_LEN)
-			os.exit(2)
-		case .Ok:
-		}
-		start := time.tick_now()
-		phc := password.hash(pw)
-		took := time.tick_since(start)
-		fmt.println(phc)
-		fmt.eprintfln("derive: %.1f ms", time.duration_milliseconds(took))
-		os.exit(0)
-	}
-}
+cli :: proc() { password.cli() }
 
 // From main, after the migrations: the first admin, while no enabled one exists. A hash that
 // isn't one of platform/password's refuses to boot; no admin and no hash warns.

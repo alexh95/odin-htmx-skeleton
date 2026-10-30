@@ -2,7 +2,7 @@ name: nightly
 
 # What's too slow or too noisy for every push (PLAN §19.2.1's nightly row). At M1:
 # ASan over the e2e suite and a k6 quick run, on Linux. At M2: TSan, the 1 h soak and
-# Autobahn|Testsuite against the lab's WebSocket echo.
+# Autobahn|Testsuite against the lab's WebSocket echo. At M4: the generated envadmin selection.
 # Windows ASan, libFuzzer and the combination matrices join with the milestones that need them.
 on:
   schedule:
@@ -57,6 +57,33 @@ jobs:
         run: |
           if ls /tmp/asan/report.* >/dev/null 2>&1; then cat /tmp/asan/report.*; exit 1; fi
           echo "no ASan reports"
+
+  # The identity no hosted profile builds (PLAN §19.1; LC §11): a project generated with
+  # --identity envadmin (notes on the memory store) is built and runs the whole e2e suite,
+  # envadmin.spec among it, so the member can't rot unbuilt.
+  envadmin:
+    name: The envadmin selection (generated, e2e)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-jammy
+      options: --security-opt seccomp=unconfined
+    env:
+      HOME: /root
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-odin
+        with:
+          cache-suffix: -jammy
+      - name: Generate it
+        run: odin run tools/init -- envadmin-check --features notes --identity envadmin --yes
+      - name: Prepare
+        run: sh app/prepare.sh
+      - name: e2e
+        run: cd e2e && npm ci && npx playwright test --project=chromium --project=api
+        env:
+          CI: 'true'
+          E2E_PROFILE: app
 
   # The TSan gate (PLAN §19.2.1, M2): tools/drills/tsan.sh builds the hub's, stream's,
   # workers' and store/sqlite's tests, lab under streamload's fan-out and skeleton under

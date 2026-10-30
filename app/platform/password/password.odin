@@ -16,8 +16,10 @@ import "core:crypto/argon2id"
 import "core:encoding/base64"
 import "core:fmt"
 import "core:mem"
+import "core:os"
 import "core:strconv"
 import "core:strings"
+import "core:time"
 
 import "../workers"
 
@@ -82,6 +84,36 @@ dummy :: proc(pw: string) {
 	tag: [TAG_LEN]byte
 	p := PARAMS
 	derive(&p, pw[:min(len(pw), MAX_LEN)], salt[:], tag[:])
+}
+
+// ---- the CLI ---------------------------------------------------------------------------
+
+// `--hash-password`, for the identities that check a hash (accounts, envadmin): a password
+// from stdin (one line) to its PHC string on stdout, for ACCOUNTS_ADMIN_HASH, and to stderr how
+// long the derive took, which says what a sign-in costs on this machine (§17.1: ≤ 100 ms
+// wanted). Exits; returns when the flag isn't there.
+cli :: proc() {
+	for a in os.args[1:] {
+		if a != "--hash-password" { continue }
+		buf: [MAX_LEN + 2]byte
+		n, _ := os.read(os.stdin, buf[:])
+		pw := strings.trim_right(string(buf[:max(n, 0)]), "\r\n")
+		switch check(pw) {
+		case .Too_Short:
+			fmt.eprintfln("--hash-password: at least %d bytes", MIN_LEN)
+			os.exit(2)
+		case .Too_Long:
+			fmt.eprintfln("--hash-password: at most %d bytes", MAX_LEN)
+			os.exit(2)
+		case .Ok:
+		}
+		start := time.tick_now()
+		phc := hash(pw)
+		took := time.tick_since(start)
+		fmt.println(phc)
+		fmt.eprintfln("derive: %.1f ms", time.duration_milliseconds(took))
+		os.exit(0)
+	}
 }
 
 // ---- the pool --------------------------------------------------------------------------
