@@ -7,6 +7,8 @@ package accounts_identity_envadmin
 // client and overall (§17.5) and go to the audit log (a log line on a memory build).
 
 import "base:runtime"
+import "core:crypto/hmac"
+import "core:encoding/endian"
 import "core:fmt"
 import "core:strings"
 import "core:time"
@@ -107,7 +109,12 @@ sign_in :: proc(req: ^web.Request, res: ^web.Response) {
 @(private)
 verified :: proc(t: ^workers.Task) {
 	l := (^Login)(t)
-	client := fmt.tprintf("%016x", l.client)
+	// Keyed by the cookie's key, as accounts' is by ACCOUNTS_AUDIT_KEY: the plain hash of an address
+	// reverses over 2^32 of them (M4-07).
+	msg := transmute([8]byte)l.client
+	mac: [32]byte
+	hmac.sum(.SHA256, mac[:], msg[:], st.key[:])
+	client := fmt.tprintf("%016x", endian.unchecked_get_u64be(mac[:8]))
 	switch {
 	case !l.ran:
 		answer(l, "Busy: try again in a moment.", .Service_Unavailable)

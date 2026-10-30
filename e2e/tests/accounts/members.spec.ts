@@ -168,6 +168,12 @@ test.describe('members', T, () => {
       await row(admin.page, 'robin').getByRole('button', { name: 'Two-step off' }).click();
       await expect(row(admin.page, 'robin').getByRole('button', { name: 'Two-step off' })).toHaveCount(0);
       await expect(row(admin.page, 'robin').locator('td').nth(4)).toHaveText('off');
+      // Again, or for no one, it is refused rather than audited as done.
+      const id = (await row(admin.page, 'robin').getAttribute('id'))!.replace('user-', '');
+      const again = await admin.page.request.post(`/admin/accounts/${id}/two-step-off`, { headers: { 'HX-Request': 'true', 'HX-Prompt': 'twice' } });
+      expect(again.status()).toBe(422);
+      const nobody = await admin.page.request.post('/admin/accounts/99999/two-step-off', { headers: { 'HX-Request': 'true', 'HX-Prompt': 'no one' } });
+      expect(nobody.status()).toBe(404);
 
       const back = await browser.newContext({ baseURL: base });
       const page = await back.newPage();

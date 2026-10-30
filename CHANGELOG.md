@@ -11,8 +11,9 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 ### Added
 
 - **An admin can turn a member's two-step sign-in off** (M4-10): `POST /admin/accounts/<id>/two-step-off`, a button on
-  `/admin/accounts` while the member has one (LAN, step-up, a reason, audited as `accounts.totp_off`). A member who lost
-  their authenticator and their recovery codes had no way back but a database edit.
+  `/admin/accounts` while the member has one (LAN, step-up, a reason, audited as `accounts.totp_off`; 422 for a member
+  without one, 404 for no member). A member who lost their authenticator and their recovery codes had no way back but
+  a database edit.
 
 - **Random-input tests for the parsers of untrusted text** (M4-13, M3-09): `b64_decode`, `totp.decode` and `verify`,
   `password.decode` (random text and one byte off a real hash) and `ws_field` each take 100-200k seeded inputs drawn
@@ -20,9 +21,9 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ### Fixed
 
-- **A bad or taken `ACCOUNTS_ADMIN_NAME` refuses to boot with a reason** (M4-11): the name is held to a username's
-  rules, and one a member already registered exits 78 naming it, where before any insert failure exited 70 and
-  compose restarted it into the same exit.
+- **A bad or taken `ACCOUNTS_ADMIN_NAME` refuses to boot with a reason** (M4-11): while no admin exists, the name is
+  held to a username's rules, and one a member already registered exits 78 naming it; before, any insert failure
+  exited 70 with no reason. An admin made earlier under another name still boots.
 - **A reset ends the account's open pages too** (M4-09, in part): its sessions ended in the write; now its streams
   go with them, as a role change's do.
 - **Audit entries say which invite and which session** (M4-16): an invite's creation, withdrawal and each use carry
@@ -34,7 +35,8 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   http (the LAN, `COOKIE_SECURE=0`) keeps `sid`.
 - **The audit's client id can't be hashed back to the address** (M4-07): it was an unkeyed FNV-64a of the address, which
   the 2^32 IPv4 addresses reverse in seconds from an export or a backup. It is now an HMAC-SHA256 under
-  `ACCOUNTS_AUDIT_KEY` (new, optional; unset, a key per boot).
+  `ACCOUNTS_AUDIT_KEY` (new, optional, at least 32 bytes; unset, a key per boot). Envadmin's entries are keyed by its
+  cookie key.
 - **A register, a two-step change and a reset each fail as one** (M4-06): their statements run in a savepoint that is
   rolled back when one fails, so a name taken a moment earlier no longer spends the invite it came with.
 - **Promote's snapshot pruner is pinned** (M3-08, M4-12): the busybox that prunes old backups beside the accounts

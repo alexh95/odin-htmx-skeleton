@@ -214,6 +214,15 @@ Unpairing :: struct {
 admin_totp_off :: proc(req: ^web.Request, res: ^web.Response) {
 	id, id_ok := member_of(req, res)
 	if !id_ok { return }
+	u, err := accounts.user_by_id(id)
+	if err != .None {
+		web.respond_store_error(req, res, err)
+		return
+	}
+	if u.totp_secret == "" {
+		web.respond_html(res, html.toast("error", "They have no two-step sign-in to turn off.", true), .Unprocessable_Content)
+		return
+	}
 	reason, reason_ok := reason_of(req, res)
 	if !reason_ok { return }
 	op := store.new_op(Unpairing, ACT_BYTES)

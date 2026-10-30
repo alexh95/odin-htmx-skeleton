@@ -47,7 +47,7 @@ ENV := [?]env.Row {
 	{name = "ACCOUNTS_REGISTRATION", kind = .Enum, def = "invite", choices = "invite|open|closed", doc = "who may register at /register: with an invite (Q10), anyone, or no one"},
 	{name = "ACCOUNTS_REGISTER_PER_HOUR", kind = .Int, def = "3", doc = "registrations tried per client per hour"},
 	{name = "ACCOUNTS_CODES_PER_HOUR", kind = .Int, def = "10", doc = "invite and reset codes tried per client per hour"},
-	{name = "ACCOUNTS_AUDIT_KEY", kind = .Secret, def = "", doc = "keys the audit log's client ids (an HMAC of the address); unset = a key per boot, so a client's entries group within one run only"},
+	{name = "ACCOUNTS_AUDIT_KEY", kind = .Secret, def = "", doc = "keys the audit log's client ids (an HMAC of the address), at least 32 bytes; unset = a key per boot, so a client's entries group within one run only"},
 }
 
 COOKIE_ENV := [?]env.Row {
@@ -101,7 +101,14 @@ init :: proc() {
 	crypto.rand_bytes(st.pending_key[:])
 	crypto.rand_bytes(st.boot_key[:])
 	k := env.str("ACCOUNTS_AUDIT_KEY")
-	st.audit_key = transmute([]byte)k if k != "" else st.boot_key[:]
+	st.audit_key = transmute([]byte)k if len(k) >= 32 else st.boot_key[:]
+	if k != "" && len(k) < 32 {
+		// Short, it falls with the 2^32 addresses to a search: a boot key instead.
+		if l, ok := obs.begin(.Warning, "accounts", "audit_key"); ok {
+			obs.str(&l, "msg", "ACCOUNTS_AUDIT_KEY is shorter than 32 bytes; using a boot key")
+			obs.end(&l)
+		}
+	}
 	logins_client.n = env.int_("ACCOUNTS_LOGIN_PER_CLIENT")
 	logins_all.n = env.int_("ACCOUNTS_LOGIN_OVERALL")
 	step_ups.n = env.int_("ACCOUNTS_STEP_UP_PER_MEMBER")
@@ -133,6 +140,8 @@ bootstrap :: proc() {
 		fmt.eprintln("accounts: ACCOUNTS_ADMIN_HASH is not an argon2id hash from --hash-password")
 		os.exit(78)
 	}
+	// The name matters only when an admin is to be written: one made before under another rule boots.
+	if n, err := accounts.count_admins(); err == .None && n > 0 { return }
 	name, problem := accounts.check_username(env.str("ACCOUNTS_ADMIN_NAME"))
 	if problem != "" {
 		fmt.eprintfln("accounts: ACCOUNTS_ADMIN_NAME: %s", problem)
@@ -140,7 +149,7 @@ bootstrap :: proc() {
 	}
 	made, err := accounts.bootstrap_admin(name, phc)
 	if err == .Constraint {
-		// Not 70: compose would restart it into the same refusal.
+		// 78, a configuration to change, as a bad hash is: a restart can't help either.
 		fmt.eprintfln("accounts: ACCOUNTS_ADMIN_NAME %q is a member's username: name another admin", name)
 		os.exit(78)
 	}
