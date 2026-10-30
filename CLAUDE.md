@@ -440,8 +440,9 @@ the browser stops first. Store failures are separate: `web.respond_store_error` 
 ## CSS conventions (`app/platform/static/app.css`, features' `static/<f>.css`)
 
 - **Token-driven, two orthogonal axes.** `data-style` × `data-scheme` on `<html>` (the full theme
-  has 6 styles and 23 schemes, the lite one `modern` with `midnight` and `daylight`; SSR default
-  `modern`/`midnight`, restored pre-paint from localStorage to avoid a flash). The lite stylesheet is
+  has 6 styles and 24 schemes, the lite one `modern` with `midnight` and `daylight`; SSR default
+  `modern`/`midnight` or the brand's `style`/`scheme` (Houston's `houston`), restored pre-paint from
+  localStorage to avoid a flash; a member's kept theme, `data-kept`, is rendered and left alone). The lite stylesheet is
   the full one with every `/* full-only: … */ … /* /full-only */` region cut by `tools/bundle`, so
   mark a style or scheme block that way and the two never drift. A feature's own CSS goes in
   `app/features/<f>/static/<f>.css`, appended when a profile reaches the feature.

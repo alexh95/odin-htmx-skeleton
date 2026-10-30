@@ -38,6 +38,7 @@ export default function () {
   if (joined.status === 303) {
     check(http.get(`${MAIN}/accounts/profile`, { jar: me, tags: { name: 'GET /accounts/profile' } }), { 'profile': (r) => r.status === 200 });
     check(post('/accounts/profile', { display: `Member ${name}` }, FORM, me, 'POST /accounts/profile', 200), { 'saved': (r) => r.status === 200 });
+    check(post('/accounts/theme', { style: 'modern', scheme: 'houston' }, FORM, me, 'POST /accounts/theme', 204), { 'theme kept': (r) => r.status === 204 });
   }
   check(http.get(`${MAIN}/reset`, { jar: me, tags: { name: 'GET /reset' } }), { 'reset page': (r) => r.status === 200 });
   check(post('/reset', { username: name, code: 'aaaa-bbbb-cccc', password: PASSWORD, again: PASSWORD }, FORM, me, 'POST /reset', 422), { 'wrong code 422': (r) => r.status === 422 });

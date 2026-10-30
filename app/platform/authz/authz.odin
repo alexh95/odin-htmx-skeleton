@@ -69,9 +69,15 @@ Viewer :: struct {
 	name:       string,
 	role:       Role,
 	step_up_at: i64, // unix seconds of the session's last password or TOTP check; 0 = never
+	style:      string, // the member's kept theme (an identity that keeps one); "" = the brand's, or the browser's
+	scheme:     string,
 }
 
 GUEST :: Viewer{role = .Guest}
+
+// Where the theme picker posts a member's choice, set by an identity that keeps it; "" = the
+// browser keeps it (localStorage), as for every guest.
+theme_href: string
 
 can :: proc(v: Viewer, p: Perm) -> bool {
 	return p == .Public || p in ROLE_PERMS[v.role]

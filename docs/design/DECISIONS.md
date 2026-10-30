@@ -636,7 +636,7 @@ task's commit, timers, jobs, the bot's token sink). Both say *when* code runs, n
 | Store (notes, chat, notify, polls, lists, calendar, guestbook, jobs, bot conversations, uploads' session rows: lost on restart in the memory family, so resumable uploads need SQLite, X13) | `app/stores/{sqlite,memory}/<f>/` | build | the store family |
 | Identity | `accounts` (SQLite), `envadmin` (one env-provisioned admin, signed cookie), `nick` (signed nickname cookie, role User), `anonymous` (the default) | build | the identity family |
 | Client behaviours | `client/hyperscript`, `client/vanilla` | build, one per profile | the client family |
-| Theme | `theme/full` (6 styles × 23 schemes), `theme/lite` (one style, two schemes) | build | the theme family |
+| Theme | `theme/full` (6 styles × 24 schemes), `theme/lite` (one style, two schemes) | build | the theme family |
 | Search, wiki source, video catalog | FTS5 or a `contains_ci` scan; `source_files` (memory: the read-only embedded docs) or editable pages (SQLite); `catalog_file` (memory: the manifest scan) or SQLite metadata | build | they follow the store family; the old member names survive as each store's `IMPL` constant |
 | Games catalog | `features/games/catalog_{static,api}` | per process: `api` when `GAMES_API_URL` is set, `static` otherwise (`GAMES_CATALOG` still overrides the static JSON) | `games_web` reads it at `init`, then a `switch`; both pure Odin and both linked |
 | Terminal mode | line, PTY | per device row | a column of the row, switched in `term_web` |
@@ -1336,7 +1336,7 @@ of every behaviour (PF's `houston-vanilla`): twin cost without user value.
 ### D23. Themes
 
 **Decision.** The skeleton's token system is unchanged (`data-style` × `data-scheme`, the hashed pre-paint;
-`SK/CLAUDE.md` "CSS conventions"). `theme/full` is 6 styles × 23 schemes (skeleton, full, lab, full-vanilla).
+`SK/CLAUDE.md` "CSS conventions"). `theme/full` is 6 styles × 24 schemes (skeleton, full, lab, full-vanilla).
 `theme/lite` is the `modern` style with `midnight` and `daylight` (minimal, streams); it keeps the same pre-paint
 script, so minimal's CSP string stays identical. The two are the `theme:` family (D8), which `platform/html` imports
 as `theme:.`; the hosted profiles build both. Houston adds one palette block (`houston`) as its server-rendered

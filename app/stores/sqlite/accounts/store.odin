@@ -60,6 +60,8 @@ MIGRATIONS := [?]store.Migration {
 @(private) SQL_TOUCH :: "UPDATE sessions SET last_seen = ? WHERE token_hash = ?"
 @(private) SQL_CLOSE :: "DELETE FROM sessions WHERE token_hash = ? AND user_id = ?"
 @(private) SQL_CLOSE_ANY :: "DELETE FROM sessions WHERE token_hash = ?" // the cookie a sign-in replaces, whoever's
+@(private) SQL_THEME :: "SELECT key, value FROM accounts_prefs WHERE user_id = ? AND key IN ('style', 'scheme')"
+@(private) SQL_SET_PREF :: "INSERT INTO accounts_prefs(user_id, key, value) VALUES(?, ?, ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value"
 
 user_by_name :: proc(username: string) -> (m.User, m.Error) {
 	q := db.read(SQL_BY_NAME)
@@ -140,6 +142,19 @@ recovery_left :: proc(user_id: i64) -> (n: int, err: m.Error) {
 	defer db.reset(q)
 	db.bind_id(q, 1, user_id)
 	if db.next_row(q, &err) { n = db.column_int(q, 0) }
+	return
+}
+
+theme_of :: proc(user_id: i64) -> (t: m.Theme, err: m.Error) {
+	q := db.read(SQL_THEME)
+	defer db.reset(q)
+	db.bind_id(q, 1, user_id)
+	for db.next_row(q, &err) {
+		switch db.clone_col(q, 0) {
+		case "style": t.style = db.clone_col(q, 1)
+		case "scheme": t.scheme = db.clone_col(q, 1)
+		}
+	}
 	return
 }
 
@@ -526,6 +541,23 @@ set_display :: proc(op: ^m.Set_Display) -> bool {
 		db.bind_text(st, 1, op.display)
 		db.bind_id(st, 2, op.user_id)
 		o.err = db.step_done(st)
+	}
+	return db.write(op)
+}
+
+set_theme :: proc(op: ^m.Set_Theme) -> bool {
+	op.run = proc(o: ^store.Op) {
+		op := (^m.Set_Theme)(o)
+		pairs := [2][2]string{{"style", op.theme.style}, {"scheme", op.theme.scheme}}
+		for p in pairs {
+			st := db.writer_stmt(SQL_SET_PREF)
+			db.bind_id(st, 1, op.user_id)
+			db.bind_text(st, 2, p[0])
+			db.bind_text(st, 3, p[1])
+			o.err = db.step_done(st)
+			db.reset(st)
+			if o.err != .None { return }
+		}
 	}
 	return db.write(op)
 }

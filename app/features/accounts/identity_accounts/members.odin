@@ -315,3 +315,43 @@ Profiling :: struct {
 	using set: m.Set_Display,
 	deferred:  web.Deferred,
 }
+
+// ---- /accounts/theme ----------------------------------------------------------------------
+
+// POST /accounts/theme: style, scheme. The picker's own request (core.js, after it applied the
+// choice), so it answers 204: there is nothing to swap.
+@(private)
+keep_theme :: proc(req: ^web.Request, res: ^web.Response) {
+	f := web.form(req)
+	style, scheme := f["style"], f["scheme"]
+	if !html.theme_known(style, scheme) { refuse(res, "That isn't one of the themes."); return }
+	op := store.new_op(Theming, len(style) + len(scheme))
+	op.theme = {strings.clone(style, store.op_allocator(op)), strings.clone(scheme, store.op_allocator(op))}
+	op.user_id = i64(web.ctx().viewer.id)
+	op.done = proc(o: ^store.Op) {
+		op := (^Theming)(o)
+		defer store.free_op(op)
+		res := web.resume(&op.deferred)
+		if res == nil { return }
+		if op.err != .None {
+			web.respond_store_error(web.request(&op.deferred), res, op.err)
+		} else {
+			web.respond_status(res, .No_Content)
+		}
+		web.finish(&op.deferred, res)
+	}
+	web.defer_response(req, res, &op.deferred)
+	if !accounts.set_theme(op) {
+		if r := web.resume(&op.deferred); r != nil {
+			web.respond_store_error(req, r, .Busy)
+			web.finish(&op.deferred, r)
+		}
+		store.free_op(op)
+	}
+}
+
+@(private)
+Theming :: struct {
+	using set: m.Set_Theme,
+	deferred:  web.Deferred,
+}

@@ -78,6 +78,11 @@ Alex's NPM steps.
   hosts (512 MiB, two cores, one argon thread, its database on its own volume, the admin hash as a compose secret
   file), behind a `houston` profile so the rest of the stack runs without it; `promote.ps1` snapshots its database
   and promotes it only when named.
+- **Houston's `houston` scheme, and a member's theme kept on the server** (M4 slice 10, PLAN §12): the full theme
+  gains `modern`/`houston` (6 styles × 24 schemes), Houston's server-rendered default through the brand's new
+  `style`/`scheme`. On the accounts identity a member's pick is posted to `POST /accounts/theme` and kept in
+  `accounts_prefs`; the layout renders it with `data-kept`, and the pre-paint script leaves such a page alone, so
+  every device of theirs shows it. Guests keep theirs in localStorage as before.
 - **The generator knows identities that need SQLite**: a feature with no web package gives its domain's store need to
   the identity that reaches it, so `--identity accounts` asks for `--store sqlite` while `nick` still builds on
   memory; an identity's routes own their nav entries.

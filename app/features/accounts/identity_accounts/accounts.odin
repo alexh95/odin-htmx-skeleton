@@ -61,6 +61,7 @@ st: struct {
 
 // At boot, from app.boot: the env rows, the lifetimes and the argon pool.
 init :: proc() {
+	authz.theme_href = "/accounts/theme"
 	env.record("ACCOUNTS_", ENV[:])
 	env.record("", COOKIE_ENV[:])
 	switch env.str("COOKIE_SECURE") {
@@ -152,7 +153,12 @@ load_viewer :: proc(ask: authz.Ask) -> (v: authz.Viewer, set_cookie: string) {
 	role := u.role
 	// An Admin is one only with a second factor; until then /accounts/totp says why.
 	if role == .Admin && u.totp_secret == "" && st.admin_totp { role = .User }
-	return authz.Viewer{id = u64(u.id), name = u.display, role = role, step_up_at = s.step_up_at / 1000}, ""
+	// A failed read costs only the kept theme: the page renders the brand's.
+	t, _ := accounts.theme_of(u.id)
+	return authz.Viewer{
+		id = u64(u.id), name = u.display, role = role, step_up_at = s.step_up_at / 1000,
+		style = t.style, scheme = t.scheme,
+	}, ""
 }
 
 // ---- the cookie -------------------------------------------------------------------------

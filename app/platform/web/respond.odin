@@ -11,6 +11,7 @@ import "core:strconv"
 import "core:strings"
 
 import http "../../vendor/odin-http"
+import "../authz"
 import "../html"
 import "../store"
 
@@ -109,6 +110,8 @@ page_html :: proc(title, active, description, content: string, bundle := Bundle.
 		title = title, active = active, description = description,
 		bundle = bundle, nonce = c.nonce, private = c.route != nil && .Private in c.route.flags,
 		live = live_proc(live) if live_proc != nil else "",
+		kept_style = c.viewer.style, kept_scheme = c.viewer.scheme,
+		theme_href = authz.theme_href if c.viewer.id != 0 else "",
 	}, content)
 }
 

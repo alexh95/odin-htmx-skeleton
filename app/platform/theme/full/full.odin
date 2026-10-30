@@ -1,6 +1,6 @@
 package theme_full
 
-// ---- the theme family's full member: 6 styles × 23 schemes (D23) -------------
+// ---- the theme family's full member: 6 styles × 24 schemes (D23) -------------
 //
 // The skeleton's theme system. Two orthogonal axes carried on <html>:
 // data-style (the treatment) and data-scheme (the palette within it). The
@@ -37,6 +37,7 @@ SCHEMES := [?]Scheme {
 	{"modern", "ember", "Ember", "#fb923c"},
 	{"modern", "sandstone", "Sandstone", "#d2622f"},
 	{"modern", "ocean", "Ocean", "#38bdf8"},
+	{"modern", "houston", "Houston", "#ffb340"}, // Houston's default (cmd/full's BRAND)
 	{"skeuo", "aqua", "Aqua", "#3b82f6"},
 	{"skeuo", "graphite", "Graphite", "#8b95a3"},
 	{"skeuo", "brass", "Brass", "#d8a64a"},

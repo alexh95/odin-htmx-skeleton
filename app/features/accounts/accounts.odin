@@ -246,6 +246,8 @@ delete_invite :: proc(op: ^m.Delete_Invite) -> bool { return accounts_store.dele
 issue_reset :: proc(op: ^m.Issue_Reset) -> bool { return accounts_store.issue_reset(op) }
 redeem_reset :: proc(op: ^m.Redeem_Reset) -> bool { return accounts_store.redeem_reset(op) }
 set_display :: proc(op: ^m.Set_Display) -> bool { return accounts_store.set_display(op) }
+theme_of :: proc(user_id: i64) -> (m.Theme, m.Error) { return accounts_store.theme_of(user_id) }
+set_theme :: proc(op: ^m.Set_Theme) -> bool { return accounts_store.set_theme(op) }
 
 // The writes: each queued to the writer, false when the store is busy (`done` won't run).
 login_failed :: proc(op: ^m.Login_Failed) -> bool { return accounts_store.login_failed(op) }

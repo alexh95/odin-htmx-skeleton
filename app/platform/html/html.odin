@@ -48,6 +48,7 @@ Brand :: struct {
 	indexnow_key:   string, // public by design; "" mounts no route
 	search:         Search_Box, // the topbar's active search; href "" = none
 	overlays:       bool, // #overlay and #toasts after <main>, for modals, drawers and toasts
+	style, scheme:  string, // the server-rendered theme; "" = the theme member's default
 }
 
 Search_Box :: struct {
@@ -79,6 +80,8 @@ Page :: struct {
 	nonce:                      string,
 	private:                    bool,
 	live:                       string, // the page's one SSE stream, #live (§9.1): the hub's markup, or ""
+	kept_style, kept_scheme:    string, // a member's kept theme: rendered, and the pre-paint leaves it alone
+	theme_href:                 string, // where the picker posts a member's choice; "" = localStorage only
 }
 
 // Views write this where a nonce goes (hx-nonce="<%N%>" on an hx-* element of a
@@ -91,7 +94,8 @@ NONCE_MARK :: "<%N%>"
 // applies), so the Content-Security-Policy admits it by its hash, computed from
 // this constant at boot: edit it here and the header follows. Every other script
 // is a file.
-THEME_PREPAINT_JS :: `try{var d=document.documentElement,s=localStorage.getItem('style'),c=localStorage.getItem('scheme');if(s)d.dataset.style=s;if(c)d.dataset.scheme=c;}catch(e){}`
+// A member's kept theme (data-kept) wins over the browser's.
+THEME_PREPAINT_JS :: `try{var d=document.documentElement,s=localStorage.getItem('style'),c=localStorage.getItem('scheme');if(!d.hasAttribute('data-kept')){if(s)d.dataset.style=s;if(c)d.dataset.scheme=c;}}catch(e){}`
 
 // ---- icons --------------------------------------------------------------------
 //
@@ -164,6 +168,15 @@ theme_picker :: proc(b: ^strings.Builder) {
 		w(b, `</div>`)
 	}
 	w(b, `</div></details>`)
+}
+
+// A style and one of its schemes, as the build's theme member has them: what a kept theme
+// must be before it is stored or rendered.
+theme_known :: proc(style, scheme: string) -> bool {
+	for sc in theme.SCHEMES {
+		if sc.style == style && sc.id == scheme { return true }
+	}
+	return false
 }
 
 // Every style and scheme at once, each swatch a one-click jump to that style and
@@ -251,11 +264,22 @@ layout :: proc(p: Page, content: string) -> string {
 	// fmt treats braces as directives, so it is written raw with w() and the
 	// dynamic values spliced in between. htmx-config leaves `transitions` off on
 	// purpose: the boosted links below are the only swaps that opt in.
+	style, scheme := theme.DEFAULT_STYLE, theme.DEFAULT_SCHEME
+	if p.brand.style != "" { style, scheme = p.brand.style, p.brand.scheme }
+	kept := p.kept_style != "" && p.kept_scheme != "" && theme_known(p.kept_style, p.kept_scheme)
+	if kept { style, scheme = p.kept_style, p.kept_scheme }
 	w(&b, `<!doctype html>
-<html lang="en" data-style="`)
-	w(&b, theme.DEFAULT_STYLE)
+<html lang="en" `)
+	if kept { w(&b, `data-kept `) }
+	if p.theme_href != "" {
+		w(&b, `data-theme-href="`)
+		esc(&b, p.theme_href)
+		w(&b, `" `)
+	}
+	w(&b, `data-style="`)
+	esc(&b, style)
 	w(&b, `" data-scheme="`)
-	w(&b, theme.DEFAULT_SCHEME)
+	esc(&b, scheme)
 	w(&b, HEAD_OPEN[p.bundle])
 	head_title(&b, p)
 	w(&b, `</title>

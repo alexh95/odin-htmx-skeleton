@@ -33,13 +33,20 @@ document.addEventListener("htmx:sse:before:connection", function (e) {
 
 // Theme picker — two axes on <html>: data-style (treatment) and data-scheme
 // (palette). Pure presentation; persisted so the head pre-paint script can
-// restore the choice before first paint. No server round-trip.
+// restore the choice before first paint. A signed-in member's identity may keep
+// it too (data-theme-href on <html>), so every device of theirs renders it.
 function persistPref() {
   var r = document.documentElement;
   try {
     localStorage.setItem("style", r.dataset.style || "");
     localStorage.setItem("scheme", r.dataset.scheme || "");
   } catch (e) {}
+  if (r.dataset.themeHref) {
+    fetch(r.dataset.themeHref, {
+      method: "POST",
+      body: new URLSearchParams({ style: r.dataset.style || "", scheme: r.dataset.scheme || "" }),
+    }).catch(function () {});
+  }
   markPicker();
 }
 function pickStyle(name) {

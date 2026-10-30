@@ -23,6 +23,8 @@ BRAND := html.Brand {
 	site_url    = "https://houston.example.com",
 	og_image    = "/static/og.png",
 	overlays    = true, // #toasts: a 429's toast lands there
+	style       = "modern",
+	scheme      = "houston", // a guest's own pick (localStorage) or a member's kept one wins
 }
 
 NAV := [?]html.Nav_Item {

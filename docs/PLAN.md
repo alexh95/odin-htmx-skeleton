@@ -383,7 +383,7 @@ Below L4, platform imports a feature only through a family collection: `platform
 | `platform/stream/client` | 3 | the non-blocking chunked, SSE and WS client (D12) |
 | `platform/hub` | 3 | topics mounted per host from `TOPICS` tables, publish, a row's `deliver`, per-loop inboxes, rings, replay (D13) |
 | `platform/client/hyperscript`, `client/vanilla` | 3 | the two members of the `client` family, behind `html.behave` (D22) |
-| `platform/theme/full`, `theme/lite` | 3 | the two members of the `theme` family: 6 styles × 23 schemes; one style with two schemes (D23) |
+| `platform/theme/full`, `theme/lite` | 3 | the two members of the `theme` family: 6 styles × 24 schemes; one style with two schemes (D23) |
 | `platform/app` | 4 | the composition package: `front` (it imports the `identity:` family), `app.Host`, `boot`, `check` (the boot checks), `serve`, `wait`, `shutdown`, and the platform's own CLI flags (RESOLUTIONS X30; LC §5) |
 
 ### 2.7 Feature packages and Odin package names
@@ -930,7 +930,7 @@ by convention, not packages; its SQLite migrations sit in its SQLite store, `app
 | `platform/hub` | L3 | topics declared in per-package `TOPICS` tables and mounted per host, per-loop inboxes, replay rings, policies, a row's `deliver`, heartbeats (§9) | S3; 03 §7; D13; LC §6, §9 |
 | `platform/client/hyperscript` | L3 | the `client` family's hyperscript member: _hyperscript 0.9.94 core, served by the binary; `behave` writes `_="install Name"` | S15; D22 |
 | `platform/client/vanilla` | L3 | the `client` family's vanilla member: `behave` writes `data-behave="name"`, routed by one delegated listener in app.js | D22 |
-| `platform/theme/full` | L3 | the `theme` family's full member: 6 styles × 23 schemes and the hashed pre-paint | D23 |
+| `platform/theme/full` | L3 | the `theme` family's full member: 6 styles × 24 schemes and the hashed pre-paint | D23 |
 | `platform/theme/lite` | L3 | the `theme` family's lite member: the `modern` style with `midnight` and `daylight`, the same pre-paint script | D23 |
 | `platform/app` | L4 | the composition package: `front` (§8.4), `app.Host`, `boot`, `check` (the boot checks, §6.1), `serve`, `wait`, `shutdown`, and the platform's CLI `--features --routes --limits --healthcheck --worker`; it imports L1–L3 and the `identity:` family, and only `cmd/*` imports it | 09 §4.5; 13 §4.2, §6.1; 06 §3.1; RESOLUTIONS X30; LC §5 |
 
@@ -1285,7 +1285,7 @@ The axes, from D8 with RESOLUTIONS X9 and X13 applied, chosen by LC §3–§4's 
 | Store per feature (notes, chat, notify, polls, lists, calendar, guestbook, jobs, audit, bot conversations; uploads' session rows, RESOLUTIONS X13) | the SQLite and memory families, `app/stores/{sqlite,memory}/<f>/` | build: one family per build | `-collection:store=…` on the build line; the domain imports `store:<f>` |
 | Identity | `accounts` (SQLite), `envadmin` (one env-provisioned admin, signed cookie), `nick` (signed nickname cookie, role User), `anonymous` (the default) | build | `-collection:identity=…`; `front` calls `identity.load_viewer` (contract `authz.Load_Viewer`) |
 | Client behaviours | `client/hyperscript`, `client/vanilla` | build, one per profile | `-collection:client=…`, read by `platform/html` |
-| Theme | `theme/full` (6 styles × 23 schemes), `theme/lite` (one style, two schemes) | build | `-collection:theme=…`, read by `platform/html` |
+| Theme | `theme/full` (6 styles × 24 schemes), `theme/lite` (one style, two schemes) | build | `-collection:theme=…`, read by `platform/html` |
 | Search per feature | FTS5 in the SQLite stores, a `contains_ci` scan in the memory stores | follows the store family | — |
 | Video catalog; wiki source | `catalog_file` or the SQLite library; `source_files` (read-only) or the SQLite wiki (editable) | follow the store family | each store's `IMPL` names it (§2.8) |
 | Games catalog | `catalog_static`, `catalog_api` | per process: `api` when `GAMES_API_URL` is set, `static` otherwise (`GAMES_CATALOG` still overrides the static JSON) | `games_web` reads it at `init`, then a `switch`; both pure Odin |
@@ -3080,7 +3080,7 @@ the compat page's htmx 2 event counter are the two. `PasswordRules` (scripting) 
 
 The skeleton's token system is unchanged: `data-style` × `data-scheme` and the hashed pre-paint (D23, `SK/CLAUDE.md`
 "CSS conventions"), and the two themes are the members of the `theme` family, read by `platform/html` (LC §3).
-`theme/full` is 6 styles × 23 schemes (`skeleton`, `full`, `lab`, `full-vanilla`). `theme/lite` is
+`theme/full` is 6 styles × 24 schemes (`skeleton`, `full`, `lab`, `full-vanilla`). `theme/lite` is
 the `modern` style with `midnight` and `daylight` (`minimal`, `streams`); it keeps the same pre-paint script, so
 `minimal`'s CSP string stays identical. Houston adds one palette block, `houston`, as its server-rendered default, and
 stores each member's choice in the accounts feature's `accounts_prefs`, so the server renders the right attributes on
@@ -4057,6 +4057,14 @@ release) doesn't. `ACCOUNTS_ADMIN_HASH` arrives as `ACCOUNTS_ADMIN_HASH_FILE` fr
 (`./admin-hash` beside `compose.yaml`), since compose would read a PHC string's `$` as variables in `.env`. Its tag
 is `${TAG_FULL:-unreleased}`, not `:?`, so a stack whose `.env` doesn't name it yet still promotes the rest. promote
 lists it with `Sse`/`Ws` off (its streams need a member) and snapshots its database before each promote.
+
+**As built (M4, slice 10, part d):** the `houston` palette is a scheme of the `modern` style (`theme/full`, 6 × 24),
+named by `cmd/full`'s `BRAND` (`style`, `scheme`: a brand's server-rendered default; the lab host keeps the theme's).
+The accounts identity sets `authz.theme_href` (`/accounts/theme`) and loads `style`/`scheme` from `accounts_prefs`
+with the viewer (one indexed read per signed-in request). The layout writes `data-theme-href` for a member, so
+core.js's picker posts there as well as to localStorage, and `data-kept` with the member's theme when one is kept: the
+pre-paint script skips localStorage on such a page, so the server's choice wins on every device. The route accepts
+only a style with one of its own schemes (`html.theme_known`), 422 otherwise.
 
 **TOTP and step-up** (Q11). TOTP follows RFC 6238 (vectors verified, 07 §0.6) with manual secret entry and the
 `otpauth://` text, no QR encoder. It is required for Admin and `Term_Write`. **Step-up** asks for the password or a

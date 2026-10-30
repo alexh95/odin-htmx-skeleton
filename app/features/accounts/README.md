@@ -35,6 +35,7 @@ domain (`features/accounts`, package `accounts`) and its views:
 | `GET`, `POST /register` | public | per `ACCOUNTS_REGISTRATION` (`invite`, the default; `open`; `closed`): username, name to show, password twice, the invite code (`/register?code=…`); one write creates the member, spends the invite (its role) and signs them in |
 | `GET`, `POST /reset` | public | username, an admin's one-time reset code, a new password twice; every session of the account ends |
 | `GET`, `POST /accounts/profile` | `Account_Self` | the name to show (`clean_name`) |
+| `POST /accounts/theme` | `Account_Self` | `style`, `scheme` (one of the style's own): the picker's, kept in `accounts_prefs` and rendered on every device; 204 |
 | `GET /admin/accounts` | `Admin_Accounts`, LAN only | members (role, status, two-step), live invites |
 | `POST /admin/accounts/<id>/role`, `/disable`, `/enable`, `/reset` | `Admin_Accounts`, LAN only, step-up | with an `HX-Prompt` reason, audited; a role change or a disable ends the member's sessions; the last enabled admin stays; a reset code is shown once |
 | `POST /admin/accounts/invites`, `/invites/delete` | `Admin_Accounts`, LAN only, step-up | an invite (role, 1-50 uses, 1-30 days), its link shown once; withdrawn |

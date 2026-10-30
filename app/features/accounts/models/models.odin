@@ -104,6 +104,17 @@ Set_Display :: struct {
 	display:  string,
 }
 
+// A member's theme, kept in accounts_prefs so every device renders it (PLAN §12): both axes at once.
+Theme :: struct {
+	style, scheme: string,
+}
+
+Set_Theme :: struct {
+	using op: store.Op,
+	user_id:  i64,
+	theme:    Theme,
+}
+
 Session :: struct {
 	token_hash: string,
 	user_id:    i64,
@@ -213,3 +224,5 @@ Store_Delete_Invite :: proc(op: ^Delete_Invite) -> bool
 Store_Issue_Reset :: proc(op: ^Issue_Reset) -> bool
 Store_Redeem_Reset :: proc(op: ^Redeem_Reset) -> bool
 Store_Set_Display :: proc(op: ^Set_Display) -> bool
+Store_Theme_Of :: proc(user_id: i64) -> (Theme, Error) // {} when the member never chose
+Store_Set_Theme :: proc(op: ^Set_Theme) -> bool

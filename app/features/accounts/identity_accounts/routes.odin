@@ -50,6 +50,7 @@ ROUTES := [?]web.Route {
 	{.Post, "/reset", reset, .Public, {.Fragment}, 2048},
 	{.Get, "/accounts/profile", profile_page, .Account_Self, {.Private}, 0},
 	{.Post, "/accounts/profile", profile, .Account_Self, {.Fragment}, 512},
+	{.Post, "/accounts/theme", keep_theme, .Account_Self, {.Fragment}, 256},
 	{.Get, "/admin/accounts", admin_page, .Admin_Accounts, {.Private, .Lan_Only}, 0},
 	{.Post, "/admin/accounts/(%d+)/role", admin_role, .Admin_Accounts, {.Fragment, .Lan_Only, .Step_Up}, 256},
 	{.Post, "/admin/accounts/(%d+)/disable", admin_disable, .Admin_Accounts, {.Fragment, .Lan_Only, .Step_Up}, 0},

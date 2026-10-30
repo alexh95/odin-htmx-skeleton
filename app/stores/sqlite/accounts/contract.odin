@@ -28,3 +28,5 @@ _ : m.Store_Delete_Invite : delete_invite
 _ : m.Store_Issue_Reset : issue_reset
 _ : m.Store_Redeem_Reset : redeem_reset
 _ : m.Store_Set_Display : set_display
+_ : m.Store_Theme_Of : theme_of
+_ : m.Store_Set_Theme : set_theme

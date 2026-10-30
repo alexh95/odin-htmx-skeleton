@@ -173,4 +173,44 @@ test.describe('members', T, () => {
       await Promise.all([admin.context.close(), eve.context.close()]);
     });
   });
+
+  test('a member\'s theme is kept on the server: another device renders it over its own', async ({ browser, request }) => {
+    await own({}, async (_, base) => {
+      const guest = await browser.newContext({ baseURL: base });
+      const g = await guest.newPage();
+      await g.goto('/');
+      await expect(g.locator('html')).toHaveAttribute('data-scheme', 'houston'); // Houston's own default
+      expect(await g.locator('html').getAttribute('data-theme-href')).toBeNull();
+      await guest.close();
+
+      const one = await signIn(browser, base);
+      await expect(one.page.locator('html')).toHaveAttribute('data-theme-href', '/accounts/theme');
+      await one.page.locator('.picker summary').click();
+      await one.page.locator('[data-pick-style="skeuo"]').click();
+      const kept = one.page.waitForResponse((r) => r.url().endsWith('/accounts/theme'));
+      await one.page.locator('[data-pick-scheme="brass"]').click();
+      expect((await kept).status()).toBe(204);
+
+      // A second device whose browser kept another theme: the server's wins, before paint.
+      const two = await browser.newContext({ baseURL: base });
+      await two.addInitScript(() => { localStorage.setItem('style', 'terminal'); localStorage.setItem('scheme', 'green'); });
+      const p = await two.newPage();
+      await p.goto(`/login?next=${encodeURIComponent('/about')}`);
+      await expect(p.locator('html')).toHaveAttribute('data-style', 'terminal'); // a guest: the browser's
+      await p.locator('#username').fill(ADMIN.username);
+      await p.locator('#password').fill(ADMIN.password);
+      await p.getByRole('button', { name: 'Sign in' }).click();
+      await p.waitForURL((u) => u.pathname === '/about');
+      await p.reload();
+      await expect(p.locator('html')).toHaveAttribute('data-kept', '');
+      await expect(p.locator('html')).toHaveAttribute('data-style', 'skeuo');
+      await expect(p.locator('html')).toHaveAttribute('data-scheme', 'brass');
+
+      // Only a style with one of its own schemes is kept, and only for a member.
+      expect((await p.request.post('/accounts/theme', { form: { style: 'skeuo', scheme: 'midnight' } })).status()).toBe(422);
+      const guestPost = await request.post(`${base}/accounts/theme`, { form: { style: 'skeuo', scheme: 'aqua' }, maxRedirects: 0 });
+      expect(guestPost.headers()['location']).toContain('/login'); // a guest is sent to sign in
+      await Promise.all([one.context.close(), two.close()]);
+    });
+  });
 });

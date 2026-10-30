@@ -149,8 +149,11 @@ Alex, asked in one batch.
       two cores, two loops, one argon thread, `DB_PATH` on its own volume, the admin hash as a compose secret file
       because a PHC string is all `$`), behind a `houston` profile so a plain `up` and the stack test run without it;
       promote knows it (snapshotted, promoted only when named) and the release matrix lists it. Its first deploy is
-      Alex's: a release with its image, the `admin-hash` file on apollo, and the NPM hosts. Left: part c (`starter-full` in `deploy/compose.yaml`, 512 MiB),
-      part d (the `houston` theme kept in `accounts_prefs`).
+      Alex's: a release with its image, the `admin-hash` file on apollo, and the NPM hosts. Part d: the `houston` scheme
+      (modern style; the full theme is 6 × 24 now) is Houston's server-rendered default (`Brand.style`/`scheme`), and
+      a member's pick is kept in `accounts_prefs` (`POST /accounts/theme`, 204; the viewer carries it): the layout
+      renders it with `data-kept`, which the pre-paint leaves alone, so every device of theirs shows it.
+      `accounts/storetest` and `members.spec` hold it. Left: the first deploy (Alex's, above).
 - [ ] **11. Behaviours and `full-vanilla`** (§12.4, D22): the hyperscript behaviours `full` needs and their vanilla
       twins; the `full-vanilla` build in both build scripts. *Check:* behaviour duality (the same specs on `full` and
       `full-vanilla`); injected `_` inert.

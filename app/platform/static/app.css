@@ -165,6 +165,25 @@
   --faint:   #7188a8;
 }
 
+/* Houston's own (its server-rendered default): a flight console, amber readouts on night navy. */
+[data-style="modern"][data-scheme="houston"] {
+  --violet: #ffb340;   /* amber → orange → telemetry teal */
+  --indigo: #f59e0b;
+  --cyan:   #5eead4;
+  --on-accent: #1c1204;
+
+  --bg:      #070b14;
+  --surface: #0d1422;
+  --surface-2: #131d30;
+  --elevated: #18243acc;
+  --line:    #1f2d45;
+  --line-2:  #2b3d5c;
+
+  --text:    #eef2f8;
+  --muted:   #aab6c9;
+  --faint:   #7a879c;
+}
+
 /* /full-only */
 
 /* ---- base ------------------------------------------------------------- */
