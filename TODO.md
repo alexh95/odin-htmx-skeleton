@@ -206,11 +206,11 @@ Alex, asked in one batch.
 - [ ] **M4 audit, open** (`docs/audit/M4.md`): M4-03's rest (the sign-in's overall bucket and the per-account
       backoff, §17.5: a stranger can slow every sign-in, never lock one out; decide before stage 2); M4-04's rest
       (an entry a full writer queue drops is not logged; entries are their own op, not the change's transaction);
-      M4-05 username oracles, M4-09's
-      rest (a sign-out's and a member's revoke's streams: a per-session hub key; the subscribe-after-kick race),
-      M4-12's rest (`totp_secret` encrypted at rest with a `_FILE`
-      key; backups outside the app's volume), M4-13 fuzz
-      cases for the new parsers (with M3-09's). M4-06, M4-07, M4-08, M4-10, M4-11, M4-14, M4-15 and M4-16 are fixed; M4-12's busybox pin too (and M3-08's).
+      M4-05 (username oracles in the backoff and `/reset`'s timing); M4-09's rest (a sign-out's and a member's
+      revoke's streams: a per-session hub key; the subscribe-after-kick race); M4-12's rest (`totp_secret` encrypted
+      at rest with a `_FILE` key; backups outside the app's volume); M4-13's rest (`read_pending` and envadmin's
+      `read`; coverage-guided fuzzing in the nightly). Fixed: M4-06, M4-07, M4-08, M4-10, M4-11, M4-14, M4-15,
+      M4-16, M4-12's busybox pin (and M3-08's), M4-13's four parsers (and M3-09's `ws_field`).
 
 ## M3 — pipeline, apollo LAN, the landing page (v2.2.0)
 
@@ -329,7 +329,7 @@ off until Alex sets it before the v2.2.0 tag.
       `worker_connections 4096` in NPM's `events.conf`. Then: e2e smoke through NPM; 1000 SSE held 1 h through NPM
       with no idle cuts.
 - [ ] **M3's open findings, later**: M3-04 (the status watcher's `guard.Mutex`, `guard.call` and a bounded dial: with
-      M5's `jobs`); M3-09 (a fuzz target for `ws_field`: with M4 slice 13); M3-11 (a socket version above the room's
+      M5's `jobs`); M3-11 (a socket version above the room's
       read as a restart's: with M6's SQLite chat); M3-06's smoke of the pushed digest; M3-13 (promote never recreates the Caddy, so its new capabilities and memory limit reach
       apollo only when it is recreated: do it with slice 10's Caddy change, by hand with Alex's go).
 - [ ] **11. Exit**: the parity gate on both legs (X25), with `starter-skeleton` passing it and the 01 (A) 40-item

@@ -14,6 +14,10 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
   `/admin/accounts` while the member has one (LAN, step-up, a reason, audited as `accounts.totp_off`). A member who lost
   their authenticator and their recovery codes had no way back but a database edit.
 
+- **Random-input tests for the parsers of untrusted text** (M4-13, M3-09): `b64_decode`, `totp.decode` and `verify`,
+  `password.decode` (random text and one byte off a real hash) and `ws_field` each take 100-200k seeded inputs drawn
+  mostly from their own alphabet in the unit-test job; a trap fails it.
+
 ### Fixed
 
 - **A bad or taken `ACCOUNTS_ADMIN_NAME` refuses to boot with a reason** (M4-11): the name is held to a username's
