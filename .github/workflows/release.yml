@@ -28,10 +28,32 @@ env:
   PUBLISH: ${{ github.event_name == 'push' }}
 
 jobs:
+  # A tag publishes only in a release's shape (vX.Y.Z or vX.Y.Z-rc.N) and only on a commit whose CI
+  # passed on the default branch (M3-06). A dry run checks nothing: it pushes nothing.
+  gate:
+    name: Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    steps:
+      - name: The tag's shape, and CI on its commit
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          echo "$GITHUB_REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$' \
+            || { echo "$GITHUB_REF_NAME is not vX.Y.Z or vX.Y.Z-rc.N" >&2; exit 1; }
+          ok=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci --commit "$GITHUB_SHA" --branch "$DEFAULT_BRANCH" \
+            --json conclusion --jq '[.[] | select(.conclusion == "success")] | length')
+          [ "$ok" -gt 0 ] || { echo "no green CI run on $DEFAULT_BRANCH for $GITHUB_SHA" >&2; exit 1; }
+
   # One image per profile and arch, on a runner of that arch, so nothing is emulated.
   # A tag pushes it by digest alone; `merge` names the list.
   image:
     name: Image (${{ matrix.profile }}, ${{ matrix.arch }})
+    needs: gate
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
@@ -55,7 +77,9 @@ jobs:
 
       - name: Log in to GHCR
         if: env.PUBLISH == 'true'
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
 
       - name: Build (and push by digest on a tag)
         run: |
@@ -120,7 +144,9 @@ jobs:
           merge-multiple: true
 
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
 
       - name: Merge the arches into one list
         run: |

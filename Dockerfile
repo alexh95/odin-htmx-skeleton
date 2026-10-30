@@ -70,8 +70,8 @@ ARG PROFILE=skeleton
 ARG VERSION=dev
 # /out/data is the empty /data the runtime stage copies (and chowns to the app's
 # UID): distroless has no shell to create it there.
-RUN VERSION=${VERSION} sh build.sh ${PROFILE} -o:speed \
- && mkdir -p /out/data && cp app/bin/${PROFILE} /out/bin
+RUN VERSION="${VERSION}" sh build.sh "${PROFILE}" -o:speed \
+ && mkdir -p /out/data && cp "app/bin/${PROFILE}" /out/bin
 
 # ---- sources: what the runtime base is made of ---------------------------
 # Distroless records each package it carries in /var/lib/dpkg/status.d; SOURCES.md
