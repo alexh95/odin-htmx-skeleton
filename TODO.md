@@ -166,7 +166,16 @@ Alex, asked in one batch.
 - [ ] **12. The M4 specs** (§17.2, §17.3, §19.1): `rbac.spec` generated from `bin --routes` (100 % of routes × roles ×
       both hosts, freezing Q31's grants), the CSRF and CSWSH specs (a cross-site POST and a foreign-Origin upgrade get
       403), `headers.spec` and `csp-clean.spec` on both hosts, `csp-enforced` and `streams-hxcsp` on the lab host,
-      `e2e-proxy` for `full` × chromium. *Check:* all green in three engines.
+      `e2e-proxy` for `full` × chromium. *Check:* all green in three engines. *So far:* `platform/rbac.spec` walks every
+      row × Guest, Member, Moderator and Admin (an admin's invites make the two between) × both hosts against the grants
+      it freezes, and off the LAN holds `.Lan_Only` rows 404 for an admin; it reaches no handler (a write carries a
+      Content-Length past every cap and no body, so an admitted one stops at 413, and `Connection: close` spares a
+      refusal the drain). `platform/cross-site.spec`: every write forged three ways on every host, signed in, is 403,
+      and no foreign-Origin upgrade becomes a socket. Both api-only, green on all five profiles (a dropped grant fails
+      rbac). headers and csp-clean walk both hosts (the lab host sets no cookie); csp-enforced and streams-hxcsp
+      already run on `full`'s lab host (9 green). `e2e-proxy` gains `full` behind Caddy and NPM (`E2E_PROXY_LAB`; the
+      proxied server counts the proxies' networks as its LAN). Left: those two legs' first CI run. Fixed on the way:
+      tools/init named the catalog's profiles in the scripts' usage lines, which full-vanilla broke (13199fa).
 - [ ] **13. Nightly fuzzing** (§19.1, D44): pairwise and selection fuzzing of the generator's selections. *Check:*
       one nightly run green.
 - [ ] **14. Exit**: the slice gate (a)–(f) for every new feature; the parity gate on both legs; `docs/audit/M4.md`

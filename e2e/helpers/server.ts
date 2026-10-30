@@ -59,7 +59,16 @@ export function portFree(port: number): Promise<boolean> {
 // already go, and the main host is any other name, `localhost`. A one-host build answers both.
 const HOSTS: Record<string, string[]> = JSON.parse(process.env.E2E_FEATURES || '{}').hosts || {};
 export const TWO_HOSTS = 'lab' in HOSTS;
-export const mainHost = (port: number) => `${TWO_HOSTS ? 'localhost' : '127.0.0.1'}:${port}`;
+// Behind a proxy (CI's e2e-proxy) the worker's server, on E2E_UPSTREAM_PORT, answers the proxied
+// names (E2E_PROXY, and E2E_PROXY_LAB for a two-host build's lab host), so a direct request to it
+// names them too; a spec's own server keeps the names above.
+const PROXY = process.env.E2E_PROXY || '';
+const PROXY_LAB = process.env.E2E_PROXY_LAB || '';
+export const UPSTREAM = Number(process.env.E2E_UPSTREAM_PORT || 8080);
+const proxied = (port: number) => PROXY !== '' && port === UPSTREAM;
+export const mainHost = (port: number) =>
+  proxied(port) ? new URL(PROXY).host : `${TWO_HOSTS ? 'localhost' : '127.0.0.1'}:${port}`;
+const labHost = (port: number) => (proxied(port) && PROXY_LAB ? new URL(PROXY_LAB).host : '');
 export const mainOrigin = (port: number) => `http://${mainHost(port)}`;
 
 // Which host serves `feature`: the main one when only the main host mounts it.
@@ -82,7 +91,7 @@ export async function startServer(config: FullConfig, env: NodeJS.ProcessEnv = {
       ACCOUNTS_ADMIN_TOTP: 'optional', ACCOUNTS_REGISTER_PER_HOUR: '1000000', ACCOUNTS_CODES_PER_HOUR: '1000000',
       CONTACTS_CAP: '0', // full's demo cap: contacts/demo.spec sets its own
       // https and no port, like a real origin (hosts match by name): the SEO specs check its shape.
-      ...(TWO_HOSTS ? { SITE_URL_LAB: 'https://127.0.0.1' } : {}),
+      ...(TWO_HOSTS ? { SITE_URL_LAB: proxied(port) && PROXY_LAB ? new URL(PROXY_LAB).origin : 'https://127.0.0.1' } : {}),
       METRICS_TOKEN_FILE: path.join(coverage, '.token'), ...env,
     },
   });
@@ -130,7 +139,9 @@ export async function stopServer({ port, proc, coverage }: Server): Promise<void
 
 function request(opts: http.RequestOptions, body?: string): Promise<Resp> {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', ...opts }, (res) => {
+    const lab = labHost(Number(opts.port));
+    const headers = { ...(lab ? { host: lab } : {}), ...(opts.headers as http.OutgoingHttpHeaders) };
+    const req = http.request({ host: '127.0.0.1', ...opts, headers }, (res) => {
       let b = '';
       res.on('data', (d) => (b += d));
       res.on('end', () => resolve({ status: res.statusCode ?? 0, body: b, headers: res.headers }));

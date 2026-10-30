@@ -60,11 +60,12 @@ export default async function globalSetup(config: FullConfig) {
 
   // E2E_PROXY names the deployed hosts (the stack Caddyfile's), so the suite would send its writes
   // to the real site unless this machine resolves the host to itself (CI's /etc/hosts lines).
-  if (process.env.E2E_PROXY) {
-    const host = new URL(process.env.E2E_PROXY).hostname;
+  for (const name of ['E2E_PROXY', 'E2E_PROXY_LAB']) {
+    if (!process.env[name]) continue;
+    const host = new URL(process.env[name]!).hostname;
     const { address } = await lookup(host);
     if (address !== '127.0.0.1' && address !== '::1') {
-      throw new Error(`[global-setup] E2E_PROXY's host ${host} resolves to ${address}, not this machine: add "127.0.0.1 ${host}" to the hosts file`);
+      throw new Error(`[global-setup] ${name}'s host ${host} resolves to ${address}, not this machine: add "127.0.0.1 ${host}" to the hosts file`);
     }
   }
 

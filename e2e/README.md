@@ -100,7 +100,13 @@ tests/
                        the client stack (PLAN §19): csp-clean (no violation on any sitemap page or in one
                        interaction per feature), csp-enforced (the policy refuses an injected hx-on, and the
                        nonce class strips an unnonced hx-get), harness-csp (what Playwright's own calls do
-                       under the CSP) and bundle-race (assets held 400 ms: the streams still wire)
+                       under the CSP) and bundle-race (assets held 400 ms: the streams still wire);
+                       rbac (every row of `--routes` × every role × every host against the grants it
+                       freezes; off the LAN, `.Lan_Only` rows are 404 for an admin too) and cross-site (every
+                       write forged from a foreign page is 403 on every host, signed in; no foreign-Origin
+                       upgrade becomes a socket), both api-only and side-effect free. headers and csp-clean
+                       run on both of `full`'s hosts; behind a proxy `E2E_PROXY_LAB` names the lab host's
+                       proxied origin beside `E2E_PROXY`'s
   dashboard/           the dashboard's figures come from the store
   gallery/             components (tabs, accordion, toasts, modal, drawer) and forms (validation, sliders)
   contacts/            CRUD, paging, search, ids, escaping, writes, 422s, events (FK), persistence

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { BUILD, expect, has, test } from '../../fixtures';
+import { BUILD, expect, has, origins, test } from '../../fixtures';
 
 // The CSP holds while the pages are used (PLAN §19, csp-clean): no securitypolicyviolation on
 // any page the sitemap lists, nor during one interaction per feature, the streams and the
@@ -19,17 +19,19 @@ const violations = (page: Page) => page.evaluate(() => (window as any).__csp as 
 // The record starts over with each document, so a page is checked before leaving it.
 const clean = async (page: Page) => expect(await violations(page), new URL(page.url()).pathname).toEqual([]);
 
-async function sitemapPaths(page: Page): Promise<string[]> {
-  const body = await (await page.request.get('/sitemap.xml')).text();
+async function sitemapPaths(page: Page, origin = ''): Promise<string[]> {
+  const body = await (await page.request.get(`${origin}/sitemap.xml`)).text();
   return [...body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname);
 }
 
 test.describe('csp-clean', { tag: '@platform' }, () => {
-  test('every sitemap page, the theme picker and the gallery raise no violation', async ({ page }) => {
+  test('every sitemap page on every host, the theme picker and the gallery raise no violation', async ({ page, server }) => {
     await watchCsp(page);
-    for (const path of await sitemapPaths(page)) {
-      await page.goto(path);
-      await clean(page);
+    for (const origin of origins(server)) {
+      for (const path of await sitemapPaths(page, origin)) {
+        await page.goto(`${origin}${path}`);
+        await clean(page);
+      }
     }
 
     // The picker is on every page, whichever theme the build has.

@@ -1,6 +1,6 @@
 import { test as base, expect } from '@playwright/test';
 import path from 'node:path';
-import { hostOf, mainOrigin, portFree, startServer, stopServer, type Server } from './helpers/server';
+import { hostOf, mainOrigin, portFree, startServer, stopServer, UPSTREAM, type Server } from './helpers/server';
 
 // The profile under test as its binary describes itself (`--features --json`,
 // read once by global-setup.ts): the features it mounts and the member of each
@@ -28,8 +28,9 @@ const TESTS = path.join(__dirname, 'tests');
 // E2E_PROXY: the proxy the pages go through (CI's e2e-proxy job), in front of the worker's server on
 // E2E_UPSTREAM_PORT (8080, the port the stack Caddyfile forwards to). The server takes the proxy's
 // origin as its own and listens beyond loopback, so a proxy in a container reaches it.
+// A two-host build's lab host behind it: E2E_PROXY_LAB.
 export const PROXY = process.env.E2E_PROXY || '';
-const UPSTREAM = Number(process.env.E2E_UPSTREAM_PORT || 8080);
+const PROXY_LAB = process.env.E2E_PROXY_LAB || '';
 
 // A console line the proxy runs make and apollo doesn't: they serve plain http on a real host name,
 // which Chromium calls untrustworthy, so it ignores Cross-Origin-Opener-Policy and says so (behind
@@ -69,9 +70,13 @@ export const test = base.extend<{ selection: void }, { server: Server }>({
         throw new Error(`E2E_UPSTREAM_PORT ${UPSTREAM} is taken: the proxy would reach another server, not this suite's`);
       }
       // Behind a proxy the client the server sees is the proxy's container, not loopback, so on a
-      // nick build anyone may take a nickname there.
+      // nick build anyone may take a nickname there, and the proxies' networks count as the LAN
+      // (an accounts build's admin pages are LAN-only).
       const server = PROXY
-        ? await startServer(workerInfo.config, { SITE_URL: new URL(PROXY).origin, BIND_ALL: '1', ACCOUNTS_NICK_FROM: 'all' }, UPSTREAM)
+        ? await startServer(workerInfo.config, {
+          SITE_URL: new URL(PROXY).origin, BIND_ALL: '1', ACCOUNTS_NICK_FROM: 'all',
+          LAN_CIDRS: '127.0.0.0/8,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16',
+        }, UPSTREAM)
         : await startServer(workerInfo.config);
       try {
         await use(server);
@@ -87,8 +92,17 @@ export const test = base.extend<{ selection: void }, { server: Server }>({
   // pointed there; every other at the lab host (helpers/server.ts).
   baseURL: async ({ server }, use, testInfo) => {
     const dir = path.relative(TESTS, testInfo.file).split(path.sep)[0];
-    await use(PROXY || (hostOf(dir) === 'main' ? mainOrigin(server.port) : `http://127.0.0.1:${server.port}`));
+    const main = hostOf(dir) === 'main';
+    await use(PROXY ? (main ? PROXY : PROXY_LAB || PROXY) : main ? mainOrigin(server.port) : `http://127.0.0.1:${server.port}`);
   },
 });
+
+// Every origin the worker's server answers as: a two-host build's main and lab hosts (in that
+// order), else the one; behind a proxy, the proxy's. For the specs that hold on every host.
+export function origins(server: Server): string[] {
+  if (PROXY) return PROXY_LAB ? [PROXY, PROXY_LAB] : [PROXY];
+  const lab = `http://127.0.0.1:${server.port}`;
+  return Object.keys(BUILD.hosts || {}).length > 1 ? [mainOrigin(server.port), lab] : [lab];
+}
 
 export { expect };

@@ -302,6 +302,9 @@ jobs:
           - { proxy: npm, profile: lab, url: 'http://odin-htmx-starter.alexh95.com' }
           - { proxy: caddy, profile: streams, url: 'http://starter-streams.alexh95.com:8120' }
           - { proxy: npm, profile: streams, url: 'http://starter-streams.alexh95.com' }
+          # Houston and its lab host, one container (§7.3): the suite takes each spec to its feature's host.
+          - { proxy: caddy, profile: full, url: 'http://houston.alexh95.com:8120', lab: 'http://houston-lab.alexh95.com:8120' }
+          - { proxy: npm, profile: full, url: 'http://houston.alexh95.com', lab: 'http://houston-lab.alexh95.com' }
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-odin
@@ -329,6 +332,7 @@ jobs:
           CI: 'true'
           E2E_PROFILE: ${{ matrix.profile }}
           E2E_PROXY: ${{ matrix.url }}
+          E2E_PROXY_LAB: ${{ matrix.lab }}
       - name: The proxies' logs
         if: failure()
         run: |

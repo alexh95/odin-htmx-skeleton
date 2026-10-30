@@ -1,19 +1,25 @@
-import { BUILD, expect, test } from '../../fixtures';
+import { BUILD, expect, origins, test } from '../../fixtures';
 
 // Each profile's header set (PLAN §12.2): minimal sends exactly the skeleton's; every other
 // profile adds Permissions-Policy, COOP and CORP (X35); streams, lab and full also ask browsers to
 // report CSP violations to /csp-report. Never COEP, and no HSTS over http (NPM sends it, from
 // stage 2). Route flags add to the base: .Stream's headers are the lab specs', .Private's and
-// .Nonce_Csp's the pages' that carry them.
+// .Nonce_Csp's the pages' that carry them. On every host of a two-host build, whose lab host sets
+// no cookie (it has no identity: §7.3).
 
 const REPORTING = ['streams', 'lab', 'full'];
 
 test.describe('header sets', { tag: '@platform' }, () => {
-  test('the profile sends its own set, on every kind of response', async ({ request }) => {
+  test('the profile sends its own set, on every kind of response, on every host', async ({ request, server }) => {
     const standard = BUILD.profile !== 'minimal';
     const reporting = REPORTING.includes(BUILD.profile);
-    for (const path of ['/', '/static/app.css', '/healthz', '/no-such-page']) {
-      const h = (await request.get(path)).headers();
+    const all = origins(server);
+    for (const [i, origin] of all.entries()) for (const p of ['/', '/static/app.css', '/healthz', '/no-such-page', '/login']) {
+      const res = await request.get(`${origin}${p}`, { maxRedirects: 0 });
+      const h = res.headers();
+      const path = `${origin}${p}`;
+      if (all.length > 1 && i > 0) expect(h['set-cookie'], `${path}: the lab host sets no cookie`).toBeUndefined();
+      if (p === '/login' && res.status() === 404) continue; // a build with no sign-in
       expect(h['permissions-policy'], path).toBe(standard ? 'camera=(), microphone=(), geolocation=()' : undefined);
       expect(h['cross-origin-opener-policy'], path).toBe(standard ? 'same-origin' : undefined);
       expect(h['cross-origin-resource-policy'], path).toBe(standard ? 'same-origin' : undefined);

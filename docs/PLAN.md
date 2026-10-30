@@ -4074,6 +4074,15 @@ tools/init skips it, since it composes nothing of its own. `full` needed no new 
 forms and htmx, and what it renders on the hyperscript client is twinned or an enhancement. CI checks it, builds it
 on ubuntu and runs the chromium specs on it; `escaping.spec` adds the vanilla side of "injected `_` inert".
 
+**As built (M4, slice 12):** `rbac.spec` and `cross-site.spec` are api-only and reach no handler. rbac probes each row
+of `--routes --json` with htmx's header, so a refusal is the gate's own (401 with `HX-Redirect: /login`, or front's
+403 "Not allowed."), and a write carries a Content-Length past every cap with no body: front checks the rule before
+reading a byte, so an admitted write stops at 413 (with `Connection: close`, which spares a refusal odin-http's
+drain of the unread body). The roles are the bootstrap admin and two members an admin's invites make; the grants
+are a literal table in the spec, so changing `authz.ROLE_PERMS` fails it until the spec (and the decision) is
+updated. Behind a proxy, the e2e server answers the proxied names: `E2E_PROXY` for the main host and
+`E2E_PROXY_LAB` for the lab host, and direct helper calls to it name them too.
+
 **TOTP and step-up** (Q11). TOTP follows RFC 6238 (vectors verified, 07 §0.6) with manual secret entry and the
 `otpauth://` text, no QR encoder. It is required for Admin and `Term_Write`. **Step-up** asks for the password or a
 TOTP code within the last 10 minutes on `.Step_Up` routes: `Term_Write`, role changes, invites and dbview. Recovery

@@ -78,6 +78,11 @@ Alex's NPM steps.
   hosts (512 MiB, two cores, one argon thread, its database on its own volume, the admin hash as a compose secret
   file), behind a `houston` profile so the rest of the stack runs without it; `promote.ps1` snapshots its database
   and promotes it only when named.
+- **`rbac.spec` and `cross-site.spec`** (M4 slice 12, PLAN §17.2, §17.3): every route × every role × every host
+  against the role grants, frozen in the spec (Q31), and `.Lan_Only` rows 404 off the LAN; every write forged from
+  a foreign page refused on every host with a member's cookie, and no foreign-Origin upgrade accepted. Neither
+  reaches a handler. `headers.spec` and `csp-clean.spec` now cover both of `full`'s hosts, and CI's `e2e-proxy`
+  runs `full` behind Caddy and NPM (`E2E_PROXY_LAB` names the lab host).
 - **`full-vanilla`** (M4 slice 11, PLAN §7.1, D22): `full`'s own files on the vanilla client, a `build.sh` and
   `build.bat` row with `src=full`. CI checks it, builds it and runs the chromium specs on it, so the two clients run
   the same flows; `escaping.spec` checks the vanilla build loads no hyperscript at all.
