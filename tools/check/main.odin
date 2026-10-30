@@ -227,7 +227,8 @@ layer_of :: proc(path: string) -> int {
 	case "platform/sys", "platform/sqlite", "platform/ext", "platform/escape":
 		return 1
 	case "platform/store", "platform/store/sqlite", "platform/store/memory", "platform/env", "platform/workers",
-	     "platform/authz", "platform/authz/anonymous", "platform/obs", "platform/guard", "platform/markdown":
+	     "platform/authz", "platform/authz/anonymous", "platform/obs", "platform/guard", "platform/markdown",
+	     "platform/password":
 		return 2
 	case "platform/web", "platform/html", "platform/hub", "platform/stream", "platform/stream/client":
 		return 3

@@ -375,6 +375,7 @@ Below L4, platform imports a feature only through a family collection: `platform
 | `platform/obs` | 2 | logfmt, request ids, counters and health state (`platform/web` serves `/metrics` and `/livez /readyz /healthz` from them), the health, limits and numbers features push (§10.4), spall |
 | `platform/guard` | 2 | `guard_call`, the counters' helpers, `guarded_mutex`, the trap handler, the watchdog |
 | `platform/markdown` | 2 | the markdown renderer (depth cap 32, input cap 64 KiB), escaping through `platform/escape` |
+| `platform/password` | 2 | argon2id at OWASP's parameters on its own pool, PHC strings, constant-time compares and the dummy derive (§17.1; M4: both password identities, `accounts` and `envadmin`, use it) |
 | `platform/web` | 3 | the prefix router (one map per host), CSP flags, `Req_Ctx`, `respond_*`, `web.Request` and `web.Response` (odin-http's types, re-exported), body caps, the trusted-proxy client address, the limiter, assets, robots/sitemap/Bing/IndexNow, `/licenses`; `web.Route`, and the platform's two tables: `web.ROUTES` (a site's main host: `/metrics /livez /readyz /healthz` over obs's data, the sitemap, the ownership proofs) and `web.PUBLIC_ROUTES` (every host: static assets, `/events`, `robots.txt`, `favicon.ico`, `/licenses`, `/csp-report`) |
 | `platform/html` | 3 | `w esc url_encode json_esc` (re-exported from `platform/escape`), the layout, NAV, `Home_Card`, components, `behave`; it imports the `client:` and `theme:` families |
 | `platform/stream` | 3 | the SSE encoder, the WS handshake and codec, the multipart writer, the Range sender (D12) |
@@ -813,7 +814,7 @@ app/cmd/<p>/   brand.odin main.odin routes.odin routes_test.odin   (all hand-wri
 
 platform  L4 app      ─► identity:., store:., L1–L3             (only cmd/* imports it; it holds front)
           L3 web html hub stream stream/client client/* theme/*   (html ─► client:., theme:.)
-          L2 store store/sqlite store/memory env authz authz/anonymous obs guard workers markdown
+          L2 store store/sqlite store/memory env authz authz/anonymous obs guard workers markdown password
           L1 sys sqlite ext escape
 ```
 
@@ -850,7 +851,7 @@ Each feature `f` is a set of packages (D4, with RESOLUTIONS X30 applied to the w
 
 **Platform layers** (D4, with RESOLUTIONS X30, X33; LC §5): **L1 bindings and leaf tables** `platform/sys`,
 `platform/sqlite` (core only), `platform/ext` and `platform/escape` (no imports beyond core); **L2 core** `store`, `store/sqlite`, `store/memory`, `env`,
-`workers`, `authz`, `authz/anonymous`, `obs`, `guard`, `markdown`; **L3 I/O** `platform/web`, `stream`,
+`workers`, `authz`, `authz/anonymous`, `obs`, `guard`, `markdown`, `password`; **L3 I/O** `platform/web`, `stream`,
 `stream/client`, `hub`, `html`, `client/hyperscript`, `client/vanilla`, `theme/full`, `theme/lite`; **L4 composition**
 `platform/app`. A layer imports its own layer and the layers below it, never above (inside L3, `hub` uses `stream`'s
 encoders and the layout takes a `web.Bundle`, D19). No layer needs an exception:

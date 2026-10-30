@@ -23,6 +23,9 @@ Alex's NPM steps.
 
 ### Added (M4, toward 2.3.0: not part of 2.2.0)
 
+- **`platform/password`** (M4, PLAN §17.1, S0.5): argon2id at OWASP's parameters as PHC strings, constant-time
+  compares, a dummy derive of the same cost for an unknown name, and its own pool (`submit` a `Verify`, `done` back on
+  the loop) whose workers each keep one 19 MiB buffer; a stored string may name no cost but the two OWASP presets.
 - **Step-up on `.Step_Up` routes** (M4, PLAN §17.2): the route rules are one pure proc, `authz.refusal`, and a
   session whose last password or TOTP check (`Viewer.step_up_at`) is older than 10 minutes goes to
   `/step-up?next=<path>`; unit tests hold each answer and `ROLE_PERMS` as §17.1 tables it.
