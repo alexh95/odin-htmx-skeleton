@@ -57,7 +57,14 @@ new_project :: proc(s: Selection, opt: Options) -> Profile_Text {
 	// template's; one without it drops the file and the Dockerfile's copy of it.
 	if !slice.contains(s.features, "landing") {
 		remove("docs/catalog.json")
-		edit("Dockerfile", {{DOCKER_CATALOG, ""}})
+		edit("Dockerfile", {
+			{DOCKER_CATALOG, ""},
+			{"tools/bundle and\n# docs/catalog.json are what the build needs.", "and tools/bundle are what the build needs."},
+		})
+		edit(".dockerignore", {
+			{"THIRD_PARTY_NOTICES and docs/catalog.json (the lab's landing page embeds it): everything", "and THIRD_PARTY_NOTICES: everything"},
+			{"!docs/catalog.json\n", ""},
+		})
 	}
 	put("UPSTREAM.md", upstream_md(s, opt))
 	put("CHANGELOG.md", fmt.aprintf(

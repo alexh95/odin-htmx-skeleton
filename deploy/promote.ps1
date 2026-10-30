@@ -108,7 +108,9 @@ echo "== stack";     if [ -f $dir/compose.yaml ]; then $dc ps --format '{{.Servi
 # A tag the release publishes, never a mutable one (`latest`): vX.Y.Z, its -rc.N, or the commit's sha-<7>.
 # -Target local takes any lower-case name its images were tagged with. The previous tags read back from
 # the host's .env meet the same rule before a rollback uses them (M3-08).
-$TAG_RULE = if ($Target -eq 'local') { '^[a-z0-9][a-z0-9._-]*$' } else { '^v\d+\.\d+\.\d+(-rc\.\d+)?$|^sha-[0-9a-f]{7}$' }
+# ASCII digits and the string's very end: .NET's \d is any Unicode digit, and its $ also matches before a
+# trailing newline (M3-14).
+$TAG_RULE = if ($Target -eq 'local') { '\A[a-z0-9][a-z0-9._-]*\z' } else { '\Av[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?\z|\Asha-[0-9a-f]{7}\z' }
 if (-not $Tag -or $Tag -cnotmatch $TAG_RULE -or $Tag -ceq 'latest') { throw "-Tag: a release's vX.Y.Z, vX.Y.Z-rc.N or sha-<7>" }
 
 # ---- 1. stage ---------------------------------------------------------------------------
@@ -149,6 +151,9 @@ foreach ($name in $files.Keys) {
 	$b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($files[$name]))
 	$stage += "printf '%s' '$b64' | base64 -d > $dir/$name`n"
 }
+# Readable by the containers whatever the host's umask: the Caddy reads its Caddyfile as root without
+# DAC_OVERRIDE (M3-13), and Docker reads the seccomp profile.
+$stage += "chmod 644 $(($files.Keys | ForEach-Object { "$dir/$_" }) -join ' ')`n"
 # A first deploy has no .env yet: every service starts at this tag.
 $stage += "[ -f $dir/.env ] || printf '%s' $(Quote (EnvText $next)) > $dir/.env`n"
 Invoke-Host $stage | Out-Null
