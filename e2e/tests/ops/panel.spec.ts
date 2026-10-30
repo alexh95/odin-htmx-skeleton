@@ -26,8 +26,12 @@ test.describe('ops', T, () => {
         const res = await admin.page.goto(`/admin/ops?mode=${mode}`);
         expect(res!.headers()['x-impl']).toBe(`ops.mode=${mode}`);
         const first = await since(admin.page);
-        // Every request counts, the page's own refreshes among them: the number moves.
-        await expect.poll(() => since(admin.page), { timeout: 10_000 }).toBeGreaterThan(first);
+        // Every request counts, so the number moves once a refresh lands. A request of our own each poll: the
+        // sse mode makes none, and its first push can carry the page's own requests before `first` is read.
+        await expect.poll(async () => {
+          await admin.page.request.get('/livez');
+          return since(admin.page);
+        }, { timeout: 10_000 }).toBeGreaterThan(first);
         await expect(admin.page.locator('#ops-modules')).toContainText('hub');
         await expect(admin.page.locator('#ops-http svg.spark polyline')).toHaveCount(1);
         expect(admin.errors).toEqual([]);
