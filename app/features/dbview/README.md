@@ -19,3 +19,5 @@ the accounts' TOTP secrets and session-token hashes among them: that is `Admin_D
 | `POST /admin/dbview` | `Admin_Db`, LAN only, step-up | sql (at most 4000 bytes): the result's table, or why it didn't run (422 for an empty or long text) |
 
 It owns `/admin/dbview`, its own prefix.
+
+Audited: cf7f42b 2026-10-31 docs/audit/M5.md (its fixes, f42f032, read in the re-read)

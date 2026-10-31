@@ -8,6 +8,19 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ## [Unreleased]
 
+*The 2.4.0 entry's lead, drafted for its tag:*
+
+The starter's fifth milestone, M5: Operate. Houston gains the admin's side of running itself, every page LAN-only
+behind its own perm: `/admin/ops`, the 1 Hz panel, now with the SQLite connections' memory, whose one render a second
+serves 1 or 100 viewers for the same CPU; `/status`, whose parts arrive in the order their probes answer (a prober
+thread per external, one probe in flight however many pages ask), with disk and backup-age parts; `/admin/jobs`, every
+job and each run of it as data (`platform/workers` keeps them, `jobs` keeps them past a restart with leases), live,
+with Run now, cancel and a run's log; the nightly backup as a job (`VACUUM INTO` on its own connection, checked,
+renamed, the newest 7 kept), whose drill restores a backup into a fresh server; and `/admin/dbview`, an admin's
+read-only SQL on the query pool, which never takes the writer's lock (its drill holds the writes' latency beside a
+query that runs to its 2 s budget). An independent audit (`docs/audit/M5.md`) found 0 CRITICAL or HIGH and 4 MEDIUM,
+all fixed and re-read.
+
 ### Fixed
 
 - **The drills' Linux servers get their env single-quoted**: the backup and dbview drills' admin hash (all `$`) was
@@ -28,6 +41,10 @@ track [Conventional Commits](https://www.conventionalcommits.org): `feat`→Adde
 
 ### Added
 
+- **Stage 1b's checks through NPM** (M3 slice 10): `deploy/npm-smoke.mjs`, read-only over HTTPS from the LAN (each
+  witness's HTTP/2 200 and version, http to https and the alias's 301s, a clean render in Chromium, the lab's SSE first
+  frame and a WebSocket upgrade), 15 of 15 at v2.2.0-rc.2; and `deploy/npm-hold.mjs`, 1000 SSE on the lab held 1 h,
+  failing on an early end or a quiet minute.
 - **ops and status in Houston** (M5 slice 1, PLAN §15.4): `full` mounts `/admin/ops` (Admin_Ops, LAN only) and
   `/status` (in its nav) on its main host, and the ops panel gains a Store card: the SQLite connections' page cache,
   schema and statement memory from `sqlite3_db_status` (MEMSTATUS is off), which `platform/store/sqlite` pushes to

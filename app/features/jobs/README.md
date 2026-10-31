@@ -22,3 +22,5 @@ often (ops's sampler, the lab's beat, the demo reset's check) show only the runs
 | `GET /admin/jobs/runs/<boot>/<id>/log` | `Admin_Jobs`, LAN only | the run's log as a download: how it went, then what it wrote |
 
 It owns `/admin/jobs`, its own prefix.
+
+Audited: cf7f42b 2026-10-31 docs/audit/M5.md (its fixes, f42f032, read in the re-read)
