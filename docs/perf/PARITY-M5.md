@@ -2,7 +2,8 @@
 
 **Gate:** PLAN §18.2 at the M5 exit: the `skeleton` profile against HEAD (709bc94, v1.2.0) and v1.1.1, ten scenarios on
 `:memory:` and on a file DB, on the Windows-native and the Linux (WSL2) legs · **Result:** Linux **PASS**, 20 of 20;
-Windows 19 of 20, `pages@mem` missing on its p99 alone (below) · **Date:** 2026-10-31 · **Candidates:** `cf7f42b` (the
+Windows 19 of 20 measured, `pages@mem` missing on its p99 alone (below), accepted as a pass by Alex on 2026-10-31 ·
+**Date:** 2026-10-31 · **Candidates:** `cf7f42b` (the
 full Windows run), `f42f032` (Windows, six scenarios at n = 5), `23244f2` (Windows `pages` at n = 5; the full Linux run
 and its two re-run cells): the commits between them fix M5's audit findings (the writer's memory report moved under
 its lock, dbview, jobs, backups) and the drills, so the skeleton's request path is the same in all three ·
@@ -28,8 +29,9 @@ its lock, dbview, jobs, backups) and the drills, so the skeleton's request path 
   HEAD on both legs and `write@mem` on Linux (Q6); Linux `write@mem` passes at a median of 0.93 of HEAD (ANSWERS round
   6). No file-DB cell is waived.
 
-**Open, for Alex:** whether Windows `pages@mem`, at 2.2 times HEAD's throughput with a p99 1.11–1.12 times HEAD's while
-Linux passes it at 0.70, stands as a pass, or wants a quieter re-run.
+**Verdict on Windows `pages@mem` (Alex's call, 2026-10-31): accepted as a pass.** The cell stays at 19 of 20 measured:
+its p99 is 1.11–1.12 times HEAD's against the 1.10 bar, at 2.1–2.2 times HEAD's throughput, and below v1.1.1's p99.
+Linux passes the same cell at 0.70. No re-run.
 
 ## Method
 

@@ -78,8 +78,8 @@ metrics only). Pushes are on the standing go; apollo, tags and anything on Alex'
       Progress (2026-10-31): `docs/audit/M5.md` (0 CRITICAL or HIGH, 4 MEDIUM, 6 LOW, 2 NIT; all fixed or said in
       `f42f032`, re-read; the re-read's M5-13 LOW fixed in `23244f2`, its two NIT said). Parity
       (`docs/perf/PARITY-M5.md`): Linux 20 of 20; Windows 19 of 20, `pages@mem`'s p99 1.11-1.12 of HEAD at 2.2 times its
-      throughput left for Alex. Stamps and the 2.4.0 lead written. Open in the audit: M5-09's connect and resolve,
-      M5-10's memory store lock and `tools/check locks`. Left: Alex's call on that cell, then the tag.
+      throughput, accepted as a pass by Alex (2026-10-31). Stamps and the 2.4.0 lead written. Open in the audit: M5-09's connect and resolve,
+      M5-10's memory store lock and `tools/check locks`. Left: the tag.
 
 ## M4 — identity and the Houston shell (v2.3.0)
 
